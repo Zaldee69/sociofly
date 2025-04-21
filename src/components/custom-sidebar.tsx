@@ -65,7 +65,7 @@ const Sidebar: React.FC = () => {
           </Button>
         ) : (
           <Button asChild className="w-full bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90">
-            <Link href="/dashboard/schedule-post">
+            <Link href="/schedule-post">
               <PlusCircle className="mr-2 h-4 w-4" />
               Compose
             </Link>
@@ -99,7 +99,7 @@ const Sidebar: React.FC = () => {
           </li>
           <li>
             <Link
-              href="/dashboard/calendar"
+              href="/calendar/month-view"
               className={cn(
                 "flex items-center rounded-md text-sm",
                 collapsed ? "justify-center p-2" : "px-4 py-2",
@@ -114,7 +114,7 @@ const Sidebar: React.FC = () => {
           </li>
           <li>
             <Link
-              href="/dashboard/posts"
+              href="/posts"
               className={cn(
                 "flex items-center rounded-md text-sm",
                 collapsed ? "justify-center p-2" : "px-4 py-2",
@@ -129,7 +129,7 @@ const Sidebar: React.FC = () => {
           </li>
           <li>
             <Link
-              href="/dashboard/media"
+              href="/media"
               className={cn(
                 "flex items-center rounded-md text-sm",
                 collapsed ? "justify-center p-2" : "px-4 py-2",
@@ -144,7 +144,7 @@ const Sidebar: React.FC = () => {
           </li>
           <li>
             <Link
-              href="/dashboard/analytics"
+              href="/analytics"
               className={cn(
                 "flex items-center rounded-md text-sm",
                 collapsed ? "justify-center p-2" : "px-4 py-2",
@@ -215,7 +215,7 @@ const Sidebar: React.FC = () => {
         <ul className="space-y-1">
           <li>
             <Link
-              href="/dashboard/settings"
+              href="/settings"
               className={cn(
                 "flex items-center rounded-md text-sm",
                 collapsed ? "justify-center p-2" : "px-4 py-2",
@@ -241,7 +241,7 @@ const Sidebar: React.FC = () => {
             <User className="h-4 w-4" />
           </button>
         ) : (
-          <Link href="/dashboard/settings" className="flex items-center px-3 py-2 rounded-md hover:bg-sidebar-accent/50">
+          <Link href="/settings" className="flex items-center px-3 py-2 rounded-md hover:bg-sidebar-accent/50">
             <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center mr-3">
               <User className="h-4 w-4" />
             </div>
