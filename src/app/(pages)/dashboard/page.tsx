@@ -167,7 +167,7 @@ const Dashboard: React.FC = () => {
 
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
         {/* Stream 1: Scheduled Posts */}
-        <Card className="col-span-1">
+        <Card className="col-span-1 shadow-none">
           <CardHeader className="pb-3 pt-4">
             <CardTitle className="text-lg font-semibold flex items-center justify-between">
               <span className="flex items-center gap-2">
@@ -223,7 +223,7 @@ const Dashboard: React.FC = () => {
         </Card>
         
         {/* Stream 2: Published Posts */}
-        <Card className="col-span-1">
+        <Card className="col-span-1 shadow-none">
           <CardHeader className="pb-3 pt-4">
             <CardTitle className="text-lg font-semibold flex items-center justify-between">
               <span className="flex items-center gap-2">
@@ -287,7 +287,7 @@ const Dashboard: React.FC = () => {
         </Card>
         
         {/* Stream 3: Mentions */}
-        <Card className="col-span-1">
+        <Card className="col-span-1 shadow-none">
           <CardHeader className="pb-3 pt-4">
             <CardTitle className="text-lg font-semibold flex items-center justify-between">
               <span className="flex items-center gap-2">

@@ -16,7 +16,6 @@ export default async function Layout({ children }: { children: React.ReactNode }
     <CalendarProvider users={users} events={events}>
       <div className="mx-auto flex w-full flex-col gap-4">
         {children}
-
         <Accordion type="single" collapsible>
           <AccordionItem value="item-1" className="border-none">
             <AccordionTrigger className="flex-none gap-2 py-0 hover:no-underline">
