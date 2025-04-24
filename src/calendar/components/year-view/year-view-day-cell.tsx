@@ -43,7 +43,7 @@ export function YearViewDayCell({ day, date, events }: IProps) {
       {eventCount > 0 && (
         <div className="mt-0.5 flex gap-0.5">
           {eventCount <= maxIndicators ? (
-            events.map(event => (
+            events.map((event) => (
               <div
                 key={event.id}
                 className={cn(
@@ -71,7 +71,9 @@ export function YearViewDayCell({ day, date, events }: IProps) {
                   events[0].color === "orange" && "bg-orange-600"
                 )}
               />
-              <span className="text-[7px] text-muted-foreground">+{eventCount - 1}</span>
+              <span className="text-[7px] text-muted-foreground">
+                +{eventCount - 1}
+              </span>
             </>
           )}
         </div>

@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { Columns, Grid3x3, List, Plus, Grid2x2, CalendarRange } from "lucide-react";
+import {
+  Columns,
+  Grid3x3,
+  List,
+  Plus,
+  Grid2x2,
+  CalendarRange,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -27,7 +34,13 @@ export function CalendarHeader({ view, events }: IProps) {
       <div className="flex flex-col items-center gap-1.5 sm:flex-row sm:justify-between">
         <div className="flex w-full items-center gap-1.5">
           <div className="inline-flex first:rounded-r-none last:rounded-l-none [&:not(:first-child):not(:last-child)]:rounded-none">
-            <Button asChild aria-label="View by day" size="icon" variant={view === "day" ? "default" : "outline"} className="rounded-r-none [&_svg]:size-5">
+            <Button
+              asChild
+              aria-label="View by day"
+              size="icon"
+              variant={view === "day" ? "default" : "outline"}
+              className="rounded-r-none [&_svg]:size-5"
+            >
               <Link href="/calendar/day-view">
                 <List strokeWidth={1.8} />
               </Link>
