@@ -52,6 +52,7 @@
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "facebook-nodejs-business-sdk": "^22.0.1",
+    "framer-motion": "^12.8.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.501.0",
     "next": "15.3.0",

@@ -1,9 +1,8 @@
+import { createClient } from "@/lib/utils/supabase/server";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
 
 const f = createUploadthing();
-
-const auth = (req: Request) => ({ id: "fakeId" }); // Fake auth function
 
 // FileRouter for your app, can contain multiple FileRoutes
 export const ourFileRouter = {
@@ -22,26 +21,50 @@ export const ourFileRouter = {
       maxFileCount: 5,
     },
   })
-    // Set permissions and file types for this FileRoute
     .middleware(async ({ req }) => {
-      // This code runs on your server before upload
-      const user = await auth(req);
+      const supabase = await createClient();
+      const { data: { user }, error } = await supabase.auth.getUser();
 
-      // If you throw, the user will not be able to upload
-      if (!user) throw new UploadThingError("Unauthorized");
+      if (error || !user) {
+        throw new UploadThingError("Unauthorized");
+      }
 
-      // Whatever is returned here is accessible in onUploadComplete as `metadata`
       return { userId: user.id };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      // This code RUNS ON YOUR SERVER after upload
-      console.log("Upload complete for userId:", metadata.userId);
+      const supabase = await createClient();
 
-      console.log("file url", file.ufsUrl);
+      try {
+        // Insert and get back the inserted row data
+        const { data, error } = await supabase.from("media").insert({
+          name: file.name,
+          url: file.ufsUrl,
+          user_id: metadata.userId,
+          type: file.type,
+          size: file.size,
+          format: file.type.split("/")[1],
+          uploadthing_key: file.key // Add this field to store UploadThing's file key
+        })
+        .select()
+        .single();
 
-      // !!! Whatever is returned here is sent to the clientside `onClientUploadComplete` callback
-      return { uploadedBy: metadata.userId };
+        if (error) throw error;
+        if (!data) throw new Error("Failed to get inserted media data");
+
+        // Return both IDs for reference
+        return { 
+          uploadedBy: metadata.userId,
+          mediaId: data.id,
+          uploadthingKey: file.key 
+        };
+      } catch (error) {
+        console.error("Error inserting media record:", error);
+        throw new UploadThingError("Failed to save media information to database");
+      }
     }),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;
+
+
+

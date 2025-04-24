@@ -1,4 +1,3 @@
-// src/app/api/auth/login/route.ts
 import { createClient } from "@/lib/utils/supabase/server"
 import { loginSchema } from "@/lib/validations/auth"
 import { NextResponse } from "next/server"
