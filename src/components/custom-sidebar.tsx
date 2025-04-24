@@ -2,10 +2,13 @@
 
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Calendar, Settings, User, FileText, Image, ChartBar, Home, Twitter, Facebook, Instagram, MessageCircle, Menu, ChevronLeft, ChevronRight, Bell } from "lucide-react";
+import { PlusCircle, Calendar, Settings, User, FileText, Image, ChartBar, Home, ChevronLeft, ChevronRight, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { FacebookConnectButton } from "./auth/social-media-connection/facebook-connect";
+import { InstagramConnectButton } from "./auth/social-media-connection/instagram-connect";
+import { TwitterConnectButton } from "./auth/social-media-connection/twitter-connect";
 
 const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -168,40 +171,14 @@ const Sidebar: React.FC = () => {
         {!collapsed && (
           <ul className="space-y-1">
             <li>
-              <Link 
-                href="#" 
-                className="flex items-center px-4 py-2 rounded-md text-sm text-sidebar-foreground hover:bg-sidebar-accent/50"
-              >
-                <Twitter className="mr-3 h-5 w-5 text-[#1DA1F2]" />
-                <span>Twitter</span>
-                <span className="ml-auto bg-green-100 text-green-800 text-xs px-1.5 py-0.5 rounded">
-                  Connected
-                </span>
-              </Link>
+              <TwitterConnectButton/>
             </li>
             <li>
-              <Link 
-                href="#" 
-                className="flex items-center px-4 py-2 rounded-md text-sm text-sidebar-foreground hover:bg-sidebar-accent/50"
-              >
-                <Instagram className="mr-3 h-5 w-5 text-[#E1306C]" />
-                <span>Instagram</span>
-                <span className="ml-auto bg-green-100 text-green-800 text-xs px-1.5 py-0.5 rounded">
-                  Connected
-                </span>
-              </Link>
+              <InstagramConnectButton/>
             </li>
             <li>
-              <Link 
-                href="#" 
-                className="flex items-center px-4 py-2 rounded-md text-sm text-sidebar-foreground hover:bg-sidebar-accent/50"
-              >
-                <Facebook className="mr-3 h-5 w-5 text-[#4267B2]" />
-                <span>Facebook</span>
-                <Button variant="outline" size="sm" className="ml-auto h-6 text-xs">
-                  Connect
-                </Button>
-              </Link>
+        
+              <FacebookConnectButton />
             </li>
           </ul>
         )}

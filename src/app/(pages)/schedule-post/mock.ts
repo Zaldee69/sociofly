@@ -1,0 +1,61 @@
+export const mockAccounts = [
+  {
+    id: "ecd4c697-7fa9-4fcb-bcb3-1a12e927a14a",
+    user_id: "5d67138c-d2bc-4153-9770-828e24f1d45a",
+    platform: "facebook",
+    platform_user_id: "592561457281696",
+    username: "SocioPlan",
+    access_token:
+      "EAAPEToC0pvwBO0LO2Nx1NpcRCUNXdKYQ28Yy6H1BXn3HcXexwSS5svxnj7cGZApKuk5s38AgN52mcZCiXUue2tuJ0MMTZCf4MrdrxTy7YrPTz8bwnFbjF8xZA8Sa2F6QEf4m4XYtxO8I0AIAamIZB0meo0Xny9VYh4W35XaZAauOOkCSEDZCNvf2DV89FU3pHwOYwBwEzocn9ABykV2",
+    expires_at: null,
+    created_at: "2025-04-23T12:02:34.244263+00:00",
+    updated_at: "2025-04-23T12:02:34.244263+00:00",
+  },
+  {
+    id: "b23a17de-1211-42aa-b726-c95a6ef8d4c9",
+    user_id: "5d67138c-d2bc-4153-9770-828e24f1d45a",
+    platform: "instagram",
+    platform_user_id: "31827829123",
+    username: "socioplan.ig",
+    access_token:
+      "IGQVJVRmZAHUkxZAV2dUbmhRMjZA0Y09vZA3dZAmWFUT0JHN3IzZA2NfOEtQU3FLZA1ZAFb3o0eWZAkb3hYZAFppM2ZAoRUFvZAGY4cjl5WldRWGZANZAFRhbUt0Qk5LMWJLS0R3ZAUZAWaVd6X3NHMFR1NAZDZD",
+    expires_at: "2025-07-23T12:02:34+00:00",
+    created_at: "2025-04-23T12:05:01.102334+00:00",
+    updated_at: "2025-04-23T12:05:01.102334+00:00",
+  },
+  {
+    id: "05d3de27-9837-4903-b8c6-cacf7c45e582",
+    user_id: "5d67138c-d2bc-4153-9770-828e24f1d45a",
+    platform: "twitter",
+    platform_user_id: "1428367283",
+    username: "socioplan_tw",
+    access_token:
+      "AAAAAAAAAAAAAAAAAAAAANRILgEAAAAAqzBLN3Qo0H5KtvltYOy8KX5rmCY%3D3Kvq6eY04JTY6sZPxu68emlOQm89smxXT5Lr8oWZhMLK2OjypA",
+    expires_at: null,
+    created_at: "2025-04-23T12:07:12.884000+00:00",
+    updated_at: "2025-04-23T12:07:12.884000+00:00",
+  },
+  {
+    id: "998e3f6c-df20-4dc1-9b8a-54d87d9dfbb8",
+    user_id: "5d67138c-d2bc-4153-9770-828e24f1d45a",
+    platform: "linkedin",
+    platform_user_id: "mynetwork_8392710",
+    username: "SocioPlan LinkedIn",
+    access_token:
+      "AQUR1R3Xo2Zo6gAAAYyP6w123sdf234gdfg3F4agf3a-F63FGFASDF2348Sf",
+    expires_at: "2025-06-23T10:00:00+00:00",
+    created_at: "2025-04-23T12:09:45.601000+00:00",
+    updated_at: "2025-04-23T12:09:45.601000+00:00",
+  },
+  {
+    id: "f5c48b5b-2a89-4d82-bb41-2f1b54733f5e",
+    user_id: "5d67138c-d2bc-4153-9770-828e24f1d45a",
+    platform: "tiktok",
+    platform_user_id: "712839128312738192",
+    username: "socioplan_tiktok",
+    access_token: "ttaccesstok_abcd1234efgh5678ijkl9012mnop3456qrstuvwx",
+    expires_at: "2025-08-01T15:30:00+00:00",
+    created_at: "2025-04-23T12:12:22.442000+00:00",
+    updated_at: "2025-04-23T12:12:22.442000+00:00",
+  },
+];
