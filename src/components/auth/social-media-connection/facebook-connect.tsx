@@ -5,7 +5,7 @@ import { Facebook, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
-import { useSocialAccount } from "@/lib/hooks/use-social-account";
+import { useSocialAccount } from "@/hooks/use-social-account";
 
 export function FacebookConnectButton() {
   const client = useAuthStore();

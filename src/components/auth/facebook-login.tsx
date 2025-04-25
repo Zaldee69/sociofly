@@ -5,17 +5,20 @@ import { Facebook, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
-import { useSocialAccount } from "@/lib/hooks/use-social-account";
+import { useSocialAccount } from "@/hooks/use-social-account";
 
 export function FacebookConnectButton() {
   const client = useAuthStore();
-  const { account, isLoading, error } = useSocialAccount(client.user, "facebook");
+  const { account, isLoading, error } = useSocialAccount(
+    client.user,
+    "facebook"
+  );
 
   return (
     <div className="flex items-center px-4 py-2 rounded-md text-sm text-sidebar-foreground hover:bg-sidebar-accent/50">
       <Facebook className="mr-3 h-5 w-5 text-[#4267B2]" />
       <span>Facebook</span>
-      
+
       {isLoading ? (
         <Loader2 className="ml-auto h-4 w-4 animate-spin" />
       ) : account ? (
@@ -31,10 +34,8 @@ export function FacebookConnectButton() {
           </Button>
         </Link>
       )}
-      
-      {error && (
-        <span className="text-xs text-red-500 ml-2">{error}</span>
-      )}
+
+      {error && <span className="text-xs text-red-500 ml-2">{error}</span>}
     </div>
   );
-} 
+}

@@ -26,6 +26,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { useAuthStore } from "@/lib/stores/use-auth-store";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import AICaptionGenerator from "@/components/ai-caption-generator";
@@ -34,6 +35,7 @@ import { MultiSelect } from "@/components/multi-select";
 import { mockAccounts } from "./mock";
 import { useScheduleForm } from "./hooks/use-schedule-form";
 import { FileUploadArea } from "./components/file-upload-area";
+import { useSocialAccount } from "@/hooks/use-social-account";
 
 const SchedulePost: React.FC = () => {
   const router = useRouter();
@@ -48,17 +50,17 @@ const SchedulePost: React.FC = () => {
     handleSubmit,
   } = useScheduleForm();
 
-  const accounts = mockAccounts.map((account) => {
+  const client = useAuthStore();
+
+  const { accounts: socialAccounts } = useSocialAccount(client.user, "all");
+
+  const accounts = socialAccounts?.map((account) => {
     const IconComponent =
       account.platform === "instagram"
         ? Instagram
         : account.platform === "twitter"
         ? Twitter
         : account.platform === "facebook"
-        ? Facebook
-        : account.platform === "linkedin"
-        ? Linkedin
-        : account.platform === "tiktok"
         ? Facebook
         : undefined;
 
@@ -94,7 +96,7 @@ const SchedulePost: React.FC = () => {
                 variant="secondary"
                 animation={2}
                 maxCount={5}
-                options={accounts}
+                options={accounts!}
                 onValueChange={() => {}}
               />
 
