@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -83,7 +83,8 @@ const SchedulePostContent = () => {
     };
   });
 
-  const [isAIOpen, setIsAIOpen] = React.useState(false);
+  const [selectedText, setSelectedText] = useState("");
+  const [isAIOpen, setIsAIOpen] = useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   useKeyboardShortcut("k", () => {
@@ -123,6 +124,15 @@ const SchedulePostContent = () => {
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
     setMainContent(e.target.value);
+  };
+
+  // Add handler for selection
+  const handleTextSelection = () => {
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim();
+    if (selectedText) {
+      setSelectedText(selectedText);
+    }
   };
 
   return (
@@ -182,6 +192,7 @@ const SchedulePostContent = () => {
                             name="content"
                             value={content}
                             onChange={handleContentChange}
+                            onSelect={handleTextSelection}
                             placeholder="Write your post content here..."
                             className="min-h-[200px] resize-none pr-12"
                           />
@@ -229,7 +240,11 @@ const SchedulePostContent = () => {
                                   </kbd>
                                 </div>
                                 <div className="p-3">
-                                  <AICaptionGenerator />
+                                  <AIContentProvider
+                                    initialPrompt={selectedText}
+                                  >
+                                    <AICaptionGenerator />
+                                  </AIContentProvider>
                                 </div>
                               </div>
                             </PopoverContent>

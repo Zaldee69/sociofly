@@ -34,6 +34,8 @@ export function useScheduleForm() {
   const [validationErrors, setValidationErrors] = useState<Partial<Record<keyof ScheduleFormData, string>>>({});
   const client = useAuthStore();
 
+  const router = useRouter();
+
   const { files } = useFiles();
 
   const validateForm = (): boolean => {
@@ -76,8 +78,6 @@ export function useScheduleForm() {
     // Convert to Jakarta time (UTC+7)
     const jakartaDate = new Date(scheduledDate.getTime() + (7 * 60 * 60 * 1000));
 
-    console.log(files);
-
     try {
       const response = await fetch("/api/schedule/facebook", {
         method: "POST",
@@ -98,12 +98,20 @@ export function useScheduleForm() {
       if (response.ok) {
         setData(data);
         toast.success("Post scheduled successfully");
+        setTimeout(() => {
+          router.push("/calendar/week-view");
+        }, 1000);
       } else {
-        console.log(data);
+        toast.error("Failed to schedule post", {
+          description: data.error,
+        });
         setError(data.error);
       }
     } catch (err: any) {
       setError(err.message);
+      toast.error("Failed to schedule post", {
+        description: err.message,
+      });
     } finally {
       setIsSubmitting(false);
     }

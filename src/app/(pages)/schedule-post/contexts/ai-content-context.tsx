@@ -1,20 +1,16 @@
-import React, { createContext, useContext, useState } from "react";
-
-interface GeneratedContent {
-  caption: string;
-  hashtags: string[];
-}
+import React, { createContext, useContext, useState, ReactNode } from "react";
+import { GeneratedContentWithAnalytics } from "@/lib/services/content-generator";
 
 interface AIContentContextType {
-  generatedContent: GeneratedContent | null;
-  setGeneratedContent: (content: GeneratedContent | null) => void;
   prompt: string;
   setPrompt: (prompt: string) => void;
+  generatedContent: GeneratedContentWithAnalytics | null;
+  setGeneratedContent: (content: GeneratedContentWithAnalytics | null) => void;
   style: "formal" | "casual" | "promotional";
   setStyle: (style: "formal" | "casual" | "promotional") => void;
   language: "id" | "en";
   setLanguage: (language: "id" | "en") => void;
-  applyContent: (type: "caption" | "hashtags" | "both") => void;
+  applyContent: (type: "caption" | "hashtags") => void;
   setMainContent: (content: string) => void;
   onContentChange?: (content: string) => void;
 }
@@ -24,35 +20,37 @@ const AIContentContext = createContext<AIContentContextType | undefined>(
 );
 
 interface AIContentProviderProps {
-  children: React.ReactNode;
+  children: ReactNode;
+  initialPrompt?: string;
   onContentChange?: (content: string) => void;
 }
 
-export function AIContentProvider({
+export const AIContentProvider = ({
   children,
+  initialPrompt = "",
   onContentChange,
-}: AIContentProviderProps) {
+}: AIContentProviderProps) => {
   const [generatedContent, setGeneratedContent] =
-    useState<GeneratedContent | null>(null);
-  const [prompt, setPrompt] = useState("");
+    useState<GeneratedContentWithAnalytics | null>(null);
+  const [prompt, setPrompt] = useState(initialPrompt);
   const [style, setStyle] = useState<"formal" | "casual" | "promotional">(
     "casual"
   );
   const [language, setLanguage] = useState<"id" | "en">("id");
   const [mainContent, setMainContent] = useState("");
 
-  const applyContent = (type: "caption" | "hashtags" | "both") => {
+  const applyContent = (type: "caption" | "hashtags") => {
     if (!generatedContent) return;
 
     let newContent = mainContent;
 
-    if (type === "caption" || type === "both") {
+    if (type === "caption") {
       newContent = generatedContent.caption;
     }
 
-    if (type === "hashtags" || type === "both") {
+    if (type === "hashtags") {
       const hashtags = generatedContent.hashtags.join(" ");
-      newContent = type === "both" ? `${newContent}\n\n${hashtags}` : hashtags;
+      newContent = hashtags;
     }
 
     setMainContent(newContent);
@@ -81,7 +79,7 @@ export function AIContentProvider({
       {children}
     </AIContentContext.Provider>
   );
-}
+};
 
 export function useAIContent() {
   const context = useContext(AIContentContext);
