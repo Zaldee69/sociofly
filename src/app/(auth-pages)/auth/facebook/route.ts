@@ -25,6 +25,8 @@ export async function GET(req: Request) {
     const { data: pages } = await pageRes.json();
     const page = pages[0];
 
+    console.log(pages);
+
     let expiresAt = null;
     if (expires_in) {
       const calculatedExpiresAt = new Date(Date.now() + expires_in * 1000);
