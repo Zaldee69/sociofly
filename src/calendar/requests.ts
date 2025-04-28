@@ -1,15 +1,13 @@
-import { CALENDAR_ITENS_MOCK, USERS_MOCK } from "@/calendar/mocks";
+import { CalendarService } from "@/lib/services/calendar-service";
+
+const calendarService = new CalendarService();
 
 export const getEvents = async () => {
-  // TO DO: implement this
-  // Increase the delay to better see the loading state
-  // await new Promise(resolve => setTimeout(resolve, 800));
-  return CALENDAR_ITENS_MOCK;
+  const events = await calendarService.getScheduledPosts();
+  return events;
 };
 
 export const getUsers = async () => {
-  // TO DO: implement this
-  // Increase the delay to better see the loading state
-  // await new Promise(resolve => setTimeout(resolve, 800));
-  return USERS_MOCK;
+  // TODO: Implement user fetching from Supabase
+  return [];
 };

@@ -4,7 +4,11 @@ import { createContext, useContext, useState } from "react";
 
 import type { Dispatch, SetStateAction } from "react";
 import type { IEvent, IUser } from "@/calendar/interfaces";
-import type { TBadgeVariant, TVisibleHours, TWorkingHours } from "@/calendar/types";
+import type {
+  TBadgeVariant,
+  TVisibleHours,
+  TWorkingHours,
+} from "@/calendar/types";
 
 interface ICalendarContext {
   selectedDate: Date;
@@ -36,19 +40,33 @@ const WORKING_HOURS = {
 
 const VISIBLE_HOURS = { from: 7, to: 18 };
 
-export function CalendarProvider({ children, users, events }: { children: React.ReactNode; users: IUser[]; events: IEvent[] }) {
+export function CalendarProvider({
+  children,
+  users,
+  events,
+}: {
+  children: React.ReactNode;
+  users: IUser[];
+  events: IEvent[];
+}) {
   const [badgeVariant, setBadgeVariant] = useState<TBadgeVariant>("colored");
-  const [visibleHours, setVisibleHours] = useState<TVisibleHours>(VISIBLE_HOURS);
-  const [workingHours, setWorkingHours] = useState<TWorkingHours>(WORKING_HOURS);
+  const [visibleHours, setVisibleHours] =
+    useState<TVisibleHours>(VISIBLE_HOURS);
+  const [workingHours, setWorkingHours] =
+    useState<TWorkingHours>(WORKING_HOURS);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedUserId, setSelectedUserId] = useState<IUser["id"] | "all">("all");
+  const [selectedUserId, setSelectedUserId] = useState<IUser["id"] | "all">(
+    "all"
+  );
 
   // This localEvents doesn't need to exists in a real scenario.
   // It's used here just to simulate the update of the events.
   // In a real scenario, the events would be updated in the backend
   // and the request that fetches the events should be refetched
   const [localEvents, setLocalEvents] = useState<IEvent[]>(events);
+
+  console.log("CalendarProvider - localEvents:", localEvents);
 
   const handleSelectDate = (date: Date | undefined) => {
     if (!date) return;
@@ -81,6 +99,7 @@ export function CalendarProvider({ children, users, events }: { children: React.
 
 export function useCalendar(): ICalendarContext {
   const context = useContext(CalendarContext);
-  if (!context) throw new Error("useCalendar must be used within a CalendarProvider.");
+  if (!context)
+    throw new Error("useCalendar must be used within a CalendarProvider.");
   return context;
 }
