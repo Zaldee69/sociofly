@@ -4,6 +4,13 @@ export enum UserRole {
   ADMIN = "admin",
   SUPERVISOR = "supervisor",
   CONTRIBUTOR = "contributor",
+  USER = "user",
+}
+
+export enum TeamRole {
+  ADMIN = "admin",
+  MEMBER = "member",
+  VIEWER = "viewer",
 }
 
 export enum Permission {
@@ -33,16 +40,10 @@ export interface AuthUser extends User {
   permissions: Permission[];
 }
 
-export interface TeamMemberRole {
-  id: string;
-  name: string;
-  permissions: Permission[];
-}
-
 export interface TeamMember {
   userId: string;
   teamId: string;
-  role: TeamMemberRole;
+  role: TeamRole;
   joinedAt: Date;
 }
 
@@ -62,6 +63,29 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.EDIT_POST,
     Permission.SCHEDULE_POST,
   ],
+  [UserRole.USER]: [Permission.VIEW_ANALYTICS],
+};
+
+export const TEAM_ROLE_PERMISSIONS: Record<TeamRole, Permission[]> = {
+  [TeamRole.ADMIN]: [
+    Permission.EDIT_TEAM,
+    Permission.INVITE_MEMBER,
+    Permission.REMOVE_MEMBER,
+    Permission.CREATE_POST,
+    Permission.EDIT_POST,
+    Permission.DELETE_POST,
+    Permission.APPROVE_POST,
+    Permission.REJECT_POST,
+    Permission.SCHEDULE_POST,
+    Permission.VIEW_ANALYTICS,
+  ],
+  [TeamRole.MEMBER]: [
+    Permission.CREATE_POST,
+    Permission.EDIT_POST,
+    Permission.SCHEDULE_POST,
+    Permission.VIEW_ANALYTICS,
+  ],
+  [TeamRole.VIEWER]: [Permission.VIEW_ANALYTICS],
 };
 
 export function hasPermission(user: AuthUser, permission: Permission): boolean {
@@ -70,6 +94,10 @@ export function hasPermission(user: AuthUser, permission: Permission): boolean {
 
 export function hasRole(user: AuthUser, role: UserRole): boolean {
   return user.role === role;
+}
+
+export function hasTeamRole(member: TeamMember, role: TeamRole): boolean {
+  return member.role === role;
 }
 
 export function canAccessRoute(

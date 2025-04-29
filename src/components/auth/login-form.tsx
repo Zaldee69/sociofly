@@ -1,16 +1,24 @@
 // src/components/auth/login-form.tsx
 "use client";
 
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { LoginFormData, loginSchema } from "@/lib/validations/auth"
-import { useLogin } from "@/hooks/use-login"
-import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { LoginFormData, loginSchema } from "@/lib/validations/auth";
+import { useLogin } from "@/hooks/use-login";
+import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import Link from "next/link";
 
 export function LoginForm() {
-  const { isLoading, login } = useLogin()
+  const { isLoading, login } = useLogin();
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -18,7 +26,7 @@ export function LoginForm() {
       email: "",
       password: "",
     },
-  })
+  });
 
   return (
     <Form {...form}>
@@ -52,7 +60,13 @@ export function LoginForm() {
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? "Signing in..." : "Sign in"}
         </Button>
+        <div className="text-sm text-center text-muted-foreground">
+          Don't have an account?{" "}
+          <Link href="/register" className="text-primary hover:underline">
+            Sign up
+          </Link>
+        </div>
       </form>
     </Form>
-  )
+  );
 }
