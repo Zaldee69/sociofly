@@ -16,22 +16,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash, User, Users, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useTeams } from "@/hooks/use-teams";
 import { useTeamMembers } from "@/hooks/use-team-members";
 import { toast } from "sonner";
-import InviteTeamMemberForm from "@/app/components/InviteTeamMemberForm";
+import InviteTeamMemberForm from "@/components/invite-team-member-form";
 
 function TeamsContent() {
   const {

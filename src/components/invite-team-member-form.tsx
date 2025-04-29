@@ -33,8 +33,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Loader2, Info } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
+import { useTeamStore } from "@/lib/stores/use-team-store";
 
 const ROLE_DESCRIPTIONS = {
   admin: "Akses penuh untuk mengelola tim dan mengundang anggota",
@@ -49,7 +49,6 @@ const formSchema = z.object({
     .email("Format email tidak valid")
     .refine((email) => email.length <= 255, "Email terlalu panjang")
     .refine((email) => {
-      // Common email providers validation
       const commonProviders = [
         "@gmail.com",
         "@yahoo.com",
@@ -77,10 +76,9 @@ export default function InviteTeamMemberForm({
 }: InviteTeamMemberFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingData, setPendingData] = useState<FormValues | null>(null);
+  const refreshTeam = useTeamStore((state) => state.refreshTeam);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -97,8 +95,6 @@ export default function InviteTeamMemberForm({
 
   const onSubmit = async (data: FormValues) => {
     setIsLoading(true);
-    setError("");
-    setSuccess("");
     setShowConfirmDialog(false);
 
     try {
@@ -113,34 +109,44 @@ export default function InviteTeamMemberForm({
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          result.error || "Terjadi kesalahan saat mengirim undangan"
-        );
+        // Handle specific error cases
+        if (result.error?.includes("sudah menjadi anggota")) {
+          toast.error("Oops!", {
+            description: `Email ${data.email} sudah terdaftar sebagai anggota tim. Silakan pilih email lain.`,
+          });
+          return;
+        }
+
+        toast.error("Oops!", {
+          description:
+            result.error ||
+            "Maaf, terjadi kesalahan saat mengirim undangan. Silakan coba lagi.",
+        });
+        return;
       }
 
       const successMessage =
         result.type === "direct_add"
-          ? "Anggota berhasil ditambahkan ke tim!"
-          : "Undangan berhasil dikirim!";
+          ? "Selamat! Anggota baru berhasil ditambahkan ke tim."
+          : "Undangan berhasil dikirim! Kami akan memberitahu Anda ketika undangan diterima.";
 
       toast.success("Berhasil!", {
         description: successMessage,
       });
 
-      setSuccess(successMessage);
       form.reset();
+
+      // Refresh team data using Zustand store
+      await refreshTeam();
+
+      // Refresh the page data
       router.refresh();
     } catch (error) {
       console.error("Error inviting team member:", error);
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Terjadi kesalahan saat mengirim undangan";
-
-      toast.error("Gagal!", {
-        description: errorMessage,
+      toast.error("Oops!", {
+        description:
+          "Maaf, terjadi kesalahan saat mengirim undangan. Silakan coba lagi.",
       });
-      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -221,18 +227,6 @@ export default function InviteTeamMemberForm({
                   </FormItem>
                 )}
               />
-
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              {success && (
-                <Alert className="bg-green-50 text-green-600 border-green-200">
-                  <AlertDescription>{success}</AlertDescription>
-                </Alert>
-              )}
 
               <Button type="submit" disabled={isLoading} className="w-full">
                 {isLoading ? (
