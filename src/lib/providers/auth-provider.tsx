@@ -6,24 +6,29 @@ import { useAuthStore } from "@/lib/stores/use-auth-store";
 import { createClient } from "@/lib/utils/supabase/client";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { setUser, setSessionExpiry, clearSession, setLoading } = useAuthStore();
+  const { setUser, setSessionExpiry, clearSession, setLoading } =
+    useAuthStore();
   const supabase = createClient();
 
   useEffect(() => {
-
+    // Initial session check
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        setUser(session.user);
-        setSessionExpiry(session.expires_at ?? null);
+        setUser(session.user).then(() => {
+          setSessionExpiry(session.expires_at ?? null);
+          setLoading(false);
+        });
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
+    // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
-        setUser(session.user);
+        await setUser(session.user);
         setSessionExpiry(session.expires_at ?? null);
       } else {
         clearSession();

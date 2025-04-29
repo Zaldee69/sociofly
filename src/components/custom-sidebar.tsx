@@ -18,40 +18,56 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FacebookConnectButton } from "./auth/social-media-connection/facebook-connect";
-import { InstagramConnectButton } from "./auth/social-media-connection/instagram-connect";
-import { LinkedInConnectButton } from "./auth/social-media-connection/linkedin-connect";
+import dynamic from "next/dynamic";
+import { useDynamicNavItems } from "./sidebar/dynamic-nav-items";
+
+// Dynamically import the ConnectedAccounts component with no SSR
+const ConnectedAccounts = dynamic(
+  () =>
+    import("./sidebar/connected-accounts").then((mod) => mod.ConnectedAccounts),
+  { ssr: false }
+);
 
 const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const pathname = usePathname();
 
   const isActive = (path: string) => {
     return pathname === path || (path !== "/" && pathname.startsWith(path));
   };
 
-  // Mock notification data
-  const notifications = [
+  // Base navigation items that are always shown
+  const baseNavItems = [
     {
-      id: 1,
-      text: "Post successfully sent",
-      isUnread: true,
-      time: "2 mins ago",
+      href: "/dashboard",
+      icon: Home,
+      label: "Dashboard",
     },
     {
-      id: 2,
-      text: "New comment on your post",
-      isUnread: false,
-      time: "1 hour ago",
+      href: "/calendar/month-view",
+      icon: Calendar,
+      label: "Calendar",
     },
     {
-      id: 3,
-      text: "Schedule reminder: 2 posts tomorrow",
-      isUnread: true,
-      time: "3 hours ago",
+      href: "/posts",
+      icon: FileText,
+      label: "Posts",
+    },
+    {
+      href: "/media",
+      icon: Image,
+      label: "Media",
+    },
+    {
+      href: "/analytics",
+      icon: ChartBar,
+      label: "Analytics",
     },
   ];
+
+  // Get dynamic navigation items
+  const dynamicNavItems = useDynamicNavItems();
+  const allNavItems = [...baseNavItems, ...dynamicNavItems];
 
   return (
     <div
@@ -120,103 +136,29 @@ const Sidebar: React.FC = () => {
           </div>
         )}
 
+        {/* Main navigation items */}
         <ul className="space-y-1">
-          <li>
-            <Link
-              href="/dashboard"
-              className={cn(
-                "flex items-center rounded-md text-sm",
-                collapsed ? "justify-center p-2" : "px-4 py-2",
-                isActive("/dashboard") || isActive("/")
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-              )}
-            >
-              <Home className={cn("h-5 w-5", !collapsed && "mr-3")} />
-              {!collapsed && <span>Dashboard</span>}
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/calendar/month-view"
-              className={cn(
-                "flex items-center rounded-md text-sm",
-                collapsed ? "justify-center p-2" : "px-4 py-2",
-                isActive("/calendar")
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-              )}
-            >
-              <Calendar className={cn("h-5 w-5", !collapsed && "mr-3")} />
-              {!collapsed && <span>Calendar</span>}
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/posts"
-              className={cn(
-                "flex items-center rounded-md text-sm",
-                collapsed ? "justify-center p-2" : "px-4 py-2",
-                isActive("/posts")
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-              )}
-            >
-              <FileText className={cn("h-5 w-5", !collapsed && "mr-3")} />
-              {!collapsed && <span>Posts</span>}
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/media"
-              className={cn(
-                "flex items-center rounded-md text-sm",
-                collapsed ? "justify-center p-2" : "px-4 py-2",
-                isActive("/media")
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-              )}
-            >
-              <Image className={cn("h-5 w-5", !collapsed && "mr-3")} />
-              {!collapsed && <span>Media</span>}
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/analytics"
-              className={cn(
-                "flex items-center rounded-md text-sm",
-                collapsed ? "justify-center p-2" : "px-4 py-2",
-                isActive("/analytics")
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-              )}
-            >
-              <ChartBar className={cn("h-5 w-5", !collapsed && "mr-3")} />
-              {!collapsed && <span>Analytics</span>}
-            </Link>
-          </li>
+          {allNavItems.map((item) => (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                className={cn(
+                  "flex items-center rounded-md text-sm",
+                  collapsed ? "justify-center p-2" : "px-4 py-2",
+                  isActive(item.href)
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+                )}
+              >
+                <item.icon className={cn("h-5 w-5", !collapsed && "mr-3")} />
+                {!collapsed && <span>{item.label}</span>}
+              </Link>
+            </li>
+          ))}
         </ul>
 
-        {!collapsed && (
-          <div className="mt-6 mb-2 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Connected Accounts
-          </div>
-        )}
-
-        {!collapsed && (
-          <ul className="space-y-1">
-            <li>
-              <LinkedInConnectButton />
-            </li>
-            <li>
-              <InstagramConnectButton />
-            </li>
-            <li>
-              <FacebookConnectButton />
-            </li>
-          </ul>
-        )}
+        {/* Connected Accounts - Dynamically loaded */}
+        <ConnectedAccounts collapsed={collapsed} />
 
         {!collapsed && (
           <div className="mt-6 mb-2 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
