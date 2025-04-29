@@ -66,22 +66,41 @@ const SchedulePostContent = () => {
 
   const { accounts: socialAccounts } = useSocialAccount(client.user, "all");
 
-  const accounts = socialAccounts?.map((account) => {
-    const IconComponent =
-      account.platform === "instagram"
-        ? Instagram
-        : account.platform === "twitter"
-        ? Twitter
-        : account.platform === "facebook"
-        ? Facebook
-        : undefined;
+  // Group accounts by platform
+  const groupedAccounts = socialAccounts?.reduce((acc, account) => {
+    const platform = account.platform;
+    if (!acc[platform]) {
+      acc[platform] = [];
+    }
+    acc[platform].push(account);
+    return acc;
+  }, {} as Record<string, typeof socialAccounts>);
 
-    return {
-      label: account.username,
-      icon: IconComponent,
-      value: account.platform,
-    };
-  });
+  const accounts = Object.entries(groupedAccounts || {}).map(
+    ([platform, accounts]) => {
+      const IconComponent =
+        platform === "instagram"
+          ? Instagram
+          : platform === "twitter"
+          ? Twitter
+          : platform === "facebook"
+          ? Facebook
+          : undefined;
+
+      return {
+        label: platform.charAt(0).toUpperCase() + platform.slice(1),
+        value: platform,
+        icon: IconComponent,
+        group: true,
+        children: accounts.map((account) => ({
+          label: account.username,
+          value: `${account.platform}_${account.platform_user_id}`,
+          icon: IconComponent,
+          profile_picture_url: account.profile_picture_url,
+        })),
+      };
+    }
+  );
 
   const [selectedText, setSelectedText] = useState("");
   const [isAIOpen, setIsAIOpen] = useState(false);
@@ -162,9 +181,10 @@ const SchedulePostContent = () => {
                   variant="secondary"
                   animation={2}
                   maxCount={5}
-                  options={accounts!}
+                  options={accounts}
                   value={selectedAccounts}
                   onValueChange={setSelectedAccounts}
+                  grouped
                 />
                 {validationErrors.selectedAccounts && (
                   <p className="text-sm text-red-500">

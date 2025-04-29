@@ -2,13 +2,25 @@
 
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Calendar, Settings, User, FileText, Image, ChartBar, Home, ChevronLeft, ChevronRight, Bell } from "lucide-react";
+import {
+  PlusCircle,
+  Calendar,
+  Settings,
+  User,
+  FileText,
+  Image,
+  ChartBar,
+  Home,
+  ChevronLeft,
+  ChevronRight,
+  Bell,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FacebookConnectButton } from "./auth/social-media-connection/facebook-connect";
 import { InstagramConnectButton } from "./auth/social-media-connection/instagram-connect";
-import { TwitterConnectButton } from "./auth/social-media-connection/twitter-connect";
+import { LinkedInConnectButton } from "./auth/social-media-connection/linkedin-connect";
 
 const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -16,35 +28,53 @@ const Sidebar: React.FC = () => {
   const pathname = usePathname();
 
   const isActive = (path: string) => {
-    return pathname === path || 
-           (path !== "/" && pathname.startsWith(path));
+    return pathname === path || (path !== "/" && pathname.startsWith(path));
   };
 
   // Mock notification data
   const notifications = [
-    { id: 1, text: "Post successfully sent", isUnread: true, time: "2 mins ago" },
-    { id: 2, text: "New comment on your post", isUnread: false, time: "1 hour ago" },
-    { id: 3, text: "Schedule reminder: 2 posts tomorrow", isUnread: true, time: "3 hours ago" },
+    {
+      id: 1,
+      text: "Post successfully sent",
+      isUnread: true,
+      time: "2 mins ago",
+    },
+    {
+      id: 2,
+      text: "New comment on your post",
+      isUnread: false,
+      time: "1 hour ago",
+    },
+    {
+      id: 3,
+      text: "Schedule reminder: 2 posts tomorrow",
+      isUnread: true,
+      time: "3 hours ago",
+    },
   ];
 
   return (
-    <div className={cn(
-      "bg-sidebar text-sidebar-foreground flex flex-col h-full border-r border-sidebar-border relative transition-all duration-300",
-      collapsed ? "w-16" : "w-64"
-    )}>
+    <div
+      className={cn(
+        "bg-sidebar text-sidebar-foreground flex flex-col h-full border-r border-sidebar-border relative transition-all duration-300",
+        collapsed ? "w-16" : "w-64"
+      )}
+    >
       {/* Collapse toggle button */}
-      <button 
+      <button
         className="absolute -right-3 top-20 bg-background border rounded-full p-1 shadow-sm z-10"
         onClick={() => setCollapsed(!collapsed)}
       >
         {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
       </button>
-      
+
       {/* Logo */}
-      <div className={cn(
-        "p-4 flex items-center h-16 border-b border-sidebar-border",
-        collapsed ? "justify-center" : "justify-between"
-      )}>
+      <div
+        className={cn(
+          "p-4 flex items-center h-16 border-b border-sidebar-border",
+          collapsed ? "justify-center" : "justify-between"
+        )}
+      >
         {collapsed ? (
           <span className="font-bold text-xl">PS</span>
         ) : (
@@ -59,15 +89,21 @@ const Sidebar: React.FC = () => {
           </>
         )}
       </div>
-      
+
       {/* Create Post Button */}
       <div className={cn("px-4 py-2", collapsed && "flex justify-center")}>
         {collapsed ? (
-          <Button size="icon" className="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90">
+          <Button
+            size="icon"
+            className="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90"
+          >
             <PlusCircle className="h-4 w-4" />
           </Button>
         ) : (
-          <Button asChild className="w-full bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90">
+          <Button
+            asChild
+            className="w-full bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90"
+          >
             <Link href="/schedule-post">
               <PlusCircle className="mr-2 h-4 w-4" />
               Compose
@@ -75,7 +111,7 @@ const Sidebar: React.FC = () => {
           </Button>
         )}
       </div>
-      
+
       {/* Navigation */}
       <nav className="flex-1 px-2 py-4 overflow-y-auto">
         {!collapsed && (
@@ -83,7 +119,7 @@ const Sidebar: React.FC = () => {
             Workspace
           </div>
         )}
-        
+
         <ul className="space-y-1">
           <li>
             <Link
@@ -91,7 +127,7 @@ const Sidebar: React.FC = () => {
               className={cn(
                 "flex items-center rounded-md text-sm",
                 collapsed ? "justify-center p-2" : "px-4 py-2",
-                (isActive("/dashboard") || isActive("/")) 
+                isActive("/dashboard") || isActive("/")
                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent/50"
               )}
@@ -161,34 +197,33 @@ const Sidebar: React.FC = () => {
             </Link>
           </li>
         </ul>
-        
+
         {!collapsed && (
           <div className="mt-6 mb-2 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Connected Accounts
           </div>
         )}
-        
+
         {!collapsed && (
           <ul className="space-y-1">
             <li>
-              <TwitterConnectButton/>
+              <LinkedInConnectButton />
             </li>
             <li>
-              <InstagramConnectButton/>
+              <InstagramConnectButton />
             </li>
             <li>
-        
               <FacebookConnectButton />
             </li>
           </ul>
         )}
-        
+
         {!collapsed && (
           <div className="mt-6 mb-2 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Settings
           </div>
         )}
-        
+
         <ul className="space-y-1">
           <li>
             <Link
@@ -207,24 +242,31 @@ const Sidebar: React.FC = () => {
           </li>
         </ul>
       </nav>
-      
+
       {/* User Profile */}
-      <div className={cn(
-        "border-t border-sidebar-border",
-        collapsed ? "p-2 flex justify-center" : "p-4"
-      )}>
+      <div
+        className={cn(
+          "border-t border-sidebar-border",
+          collapsed ? "p-2 flex justify-center" : "p-4"
+        )}
+      >
         {collapsed ? (
           <button className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
             <User className="h-4 w-4" />
           </button>
         ) : (
-          <Link href="/settings" className="flex items-center px-3 py-2 rounded-md hover:bg-sidebar-accent/50">
+          <Link
+            href="/settings"
+            className="flex items-center px-3 py-2 rounded-md hover:bg-sidebar-accent/50"
+          >
             <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center mr-3">
               <User className="h-4 w-4" />
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-medium">User Name</span>
-              <span className="text-xs text-sidebar-foreground/70">Pro Account</span>
+              <span className="text-xs text-sidebar-foreground/70">
+                Pro Account
+              </span>
             </div>
           </Link>
         )}

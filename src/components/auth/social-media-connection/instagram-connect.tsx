@@ -14,6 +14,8 @@ export function InstagramConnectButton() {
     "instagram"
   );
 
+  const instagramAuthUrl = `https://www.facebook.com/v20.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&redirect_uri=${process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI}&state=${client.user?.id}&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,instagram_manage_insights,business_management`;
+
   return (
     <div className="flex items-center px-4 py-2 rounded-md text-sm text-sidebar-foreground hover:bg-sidebar-accent/50">
       <Instagram className="mr-3 h-5 w-5 text-[#E1306C]" />
@@ -24,10 +26,7 @@ export function InstagramConnectButton() {
           Connected
         </Badge>
       ) : (
-        <Link
-          className="ml-auto"
-          href={`https://www.facebook.com/v18.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&redirect_uri=${process.env.NEXT_PUBLIC_FACEBOOK_REDIRECT_URI}&state=${client.user?.id}&scope=pages_manage_posts,pages_read_engagement`}
-        >
+        <Link className="ml-auto" href={instagramAuthUrl}>
           <Button variant="outline" size="sm" className="h-6 text-xs">
             Connect
           </Button>

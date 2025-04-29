@@ -12,13 +12,20 @@ interface PostResponse {
 }
 
 const scheduleFormSchema = z.object({
-  content: z.string().min(1, "Content is required").max(2200, "Content must be less than 2200 characters"),
+  content: z
+    .string()
+    .min(1, "Content is required")
+    .max(2200, "Content must be less than 2200 characters"),
   date: z.date({
     required_error: "Date is required",
     invalid_type_error: "Invalid date",
   }),
-  time: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-  selectedAccounts: z.array(z.string()).min(1, "Please select at least one account"),
+  time: z
+    .string()
+    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  selectedAccounts: z
+    .array(z.string())
+    .min(1, "Please select at least one account"),
 });
 
 type ScheduleFormData = z.infer<typeof scheduleFormSchema>;
@@ -31,7 +38,9 @@ export function useScheduleForm() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<PostResponse | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
-  const [validationErrors, setValidationErrors] = useState<Partial<Record<keyof ScheduleFormData, string>>>({});
+  const [validationErrors, setValidationErrors] = useState<
+    Partial<Record<keyof ScheduleFormData, string>>
+  >({});
   const client = useAuthStore();
 
   const router = useRouter();
@@ -76,10 +85,12 @@ export function useScheduleForm() {
     scheduledDate.setHours(hours, minutes);
 
     // Convert to Jakarta time (UTC+7)
-    const jakartaDate = new Date(scheduledDate.getTime() + (7 * 60 * 60 * 1000));
+    const jakartaDate = new Date(scheduledDate.getTime() + 7 * 60 * 60 * 1000);
+
+    console.log("selectedAccounts:", selectedAccounts);
 
     try {
-      const response = await fetch("/api/schedule/facebook", {
+      const response = await fetch("/api/schedule", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -89,7 +100,8 @@ export function useScheduleForm() {
           content,
           scheduled_time: jakartaDate.toISOString(),
           media_ids: files.map((file) => file.id),
-          platforms: selectedAccounts,
+          platform: selectedAccounts[0].split("_")[0],
+          platform_user_id: selectedAccounts[0].split("_")[1],
         }),
       });
 
@@ -132,4 +144,4 @@ export function useScheduleForm() {
     selectedAccounts,
     setSelectedAccounts,
   };
-} 
+}

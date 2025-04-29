@@ -68,6 +68,14 @@ interface MultiSelectProps
     value: string;
     /** Optional icon component to display alongside the option. */
     icon?: React.ComponentType<{ className?: string }>;
+    group?: boolean;
+    profile_picture_url?: string;
+    children?: {
+      label: string;
+      value: string;
+      icon?: React.ComponentType<{ className?: string }>;
+      profile_picture_url?: string;
+    }[];
   }[];
 
   /**
@@ -115,6 +123,8 @@ interface MultiSelectProps
    * Optional, can be used to add custom styles.
    */
   className?: string;
+
+  grouped?: boolean;
 }
 
 export const MultiSelect = React.forwardRef<
@@ -133,6 +143,7 @@ export const MultiSelect = React.forwardRef<
       modalPopover = false,
       asChild = false,
       className,
+      grouped = false,
       ...props
     },
     ref
@@ -182,7 +193,11 @@ export const MultiSelect = React.forwardRef<
       if (selectedValues.length === options?.length) {
         handleClear();
       } else {
-        const allValues = options?.map((option) => option.value);
+        const allValues = options?.flatMap((option) =>
+          option.group
+            ? option.children?.map((child) => child.value) || []
+            : [option.value]
+        );
         setSelectedValues(allValues);
         onValueChange(allValues);
       }
@@ -208,8 +223,27 @@ export const MultiSelect = React.forwardRef<
               <div className="flex justify-between items-center w-full">
                 <div className="flex flex-wrap items-center">
                   {selectedValues.slice(0, maxCount).map((value) => {
-                    const option = options.find((o) => o.value === value);
-                    const IconComponent = option?.icon;
+                    // Find the option in either parent or children
+                    const option = options.find((o) => {
+                      if (o.group && o.children) {
+                        return o.children.some(
+                          (child) => child.value === value
+                        );
+                      }
+                      return o.value === value;
+                    });
+
+                    // If it's a child option, get the child details
+                    const childOption = option?.group
+                      ? option.children?.find((child) => child.value === value)
+                      : null;
+
+                    const IconComponent = childOption?.icon || option?.icon;
+                    const label = childOption?.label || option?.label;
+                    const profilePictureUrl =
+                      childOption?.profile_picture_url ||
+                      option?.profile_picture_url;
+
                     return (
                       <Badge
                         key={value}
@@ -219,10 +253,16 @@ export const MultiSelect = React.forwardRef<
                         )}
                         style={{ animationDuration: `${animation}s` }}
                       >
-                        {IconComponent && (
+                        {profilePictureUrl ? (
+                          <img
+                            src={profilePictureUrl}
+                            alt={label}
+                            className="h-4 w-4 mr-2 rounded-full"
+                          />
+                        ) : IconComponent ? (
                           <IconComponent className="h-4 w-4 mr-2" />
-                        )}
-                        {option?.label}
+                        ) : null}
+                        {label}
                         <XCircle
                           className="ml-2 h-4 w-4 cursor-pointer"
                           onClick={(event) => {
@@ -291,24 +331,62 @@ export const MultiSelect = React.forwardRef<
             <CommandList>
               <CommandEmpty>No results found.</CommandEmpty>
               <CommandGroup>
-                <CommandItem
-                  key="all"
-                  onSelect={toggleAll}
-                  className="cursor-pointer"
-                >
-                  <div
-                    className={cn(
-                      "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                      selectedValues.length === options?.length
-                        ? "bg-primary text-primary-foreground"
-                        : "opacity-50 [&_svg]:invisible"
-                    )}
-                  >
-                    <CheckIcon className="h-4 w-4" />
-                  </div>
-                  <span>(Select All)</span>
-                </CommandItem>
                 {options?.map((option) => {
+                  if (option.group) {
+                    return (
+                      <React.Fragment key={option.value}>
+                        <CommandItem
+                          className="cursor-pointer font-semibold"
+                          onSelect={() => {}}
+                        >
+                          {option.icon && (
+                            <option.icon
+                              className={cn("h-4 w-4 text-muted-foreground", {
+                                "text-[#4267B2]": option.value === "facebook",
+                                "text-[#E1306C]": option.value === "instagram",
+                                "text-[#1DA1F2]": option.value === "twitter",
+                              })}
+                            />
+                          )}
+                          <span>{option.label}</span>
+                        </CommandItem>
+                        {option.children?.map((child) => {
+                          const isSelected = selectedValues.includes(
+                            child.value
+                          );
+                          return (
+                            <CommandItem
+                              key={child.value}
+                              onSelect={() => toggleOption(child.value)}
+                              className="cursor-pointer pl-6"
+                            >
+                              <div
+                                className={cn(
+                                  "flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                  isSelected
+                                    ? "bg-primary text-primary-foreground"
+                                    : "opacity-50 [&_svg]:invisible"
+                                )}
+                              >
+                                <CheckIcon className="h-4 w-4" />
+                              </div>
+                              {child.profile_picture_url ? (
+                                <img
+                                  src={child.profile_picture_url}
+                                  alt={child.label}
+                                  className="h-4 w-4 rounded-full"
+                                />
+                              ) : child.icon ? (
+                                <child.icon className=" h-4 w-4 text-muted-foreground" />
+                              ) : null}
+                              <span>{child.label}</span>
+                            </CommandItem>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  }
+
                   const isSelected = selectedValues.includes(option.value);
                   return (
                     <CommandItem
@@ -318,7 +396,7 @@ export const MultiSelect = React.forwardRef<
                     >
                       <div
                         className={cn(
-                          "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                          "flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
                           isSelected
                             ? "bg-primary text-primary-foreground"
                             : "opacity-50 [&_svg]:invisible"
@@ -327,7 +405,7 @@ export const MultiSelect = React.forwardRef<
                         <CheckIcon className="h-4 w-4" />
                       </div>
                       {option.icon && (
-                        <option.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <option.icon className="h-4 w-4 text-muted-foreground" />
                       )}
                       <span>{option.label}</span>
                     </CommandItem>

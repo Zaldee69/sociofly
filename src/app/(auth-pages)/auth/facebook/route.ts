@@ -18,14 +18,10 @@ export async function GET(req: Request) {
     const tokenRes = await fetch(tokenUrl);
     const { access_token, expires_in } = await tokenRes.json();
 
-
     const pageRes = await fetch(
-      `https://graph.facebook.com/v18.0/me/accounts?access_token=${access_token}`
+      `https://graph.facebook.com/v20.0/me/accounts?access_token=${access_token}`
     );
     const { data: pages } = await pageRes.json();
-    const page = pages[0];
-
-    console.log(pages);
 
     let expiresAt = null;
     if (expires_in) {
@@ -35,20 +31,25 @@ export async function GET(req: Request) {
       }
     }
 
-    const { error } = await supabase.from("social_accounts").upsert(
-      {
-        user_id: userId,
-        platform: "facebook",
-        access_token: page.access_token,
-        platform_user_id: page.id,
-        username: page.name,
-        expires_at: expiresAt,
-      },
-    );
+    // Process each page
+    for (const page of pages) {
+      // Insert Facebook page
+      const { error: facebookError } = await supabase
+        .from("social_accounts")
+        .upsert({
+          user_id: userId,
+          platform: "facebook",
+          access_token: page.access_token,
+          platform_user_id: page.id,
+          username: page.name,
+          expires_at: expiresAt,
+          profile_picture_url: `https://graph.facebook.com/${page.id}/picture?type=large&access_token=${access_token}`,
+        });
 
-    if (error) {
-      console.log("error", error);
-      throw error;
+      if (facebookError) {
+        console.log(`Facebook error for page ${page.name}:`, facebookError);
+        continue; // Continue with next page even if one fails
+      }
     }
 
     return NextResponse.redirect(new URL("/dashboard", req.url));

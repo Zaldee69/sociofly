@@ -26,7 +26,7 @@ export function TwitterConnectButton() {
       ) : (
         <Link
           className="ml-auto"
-          href={`https://www.facebook.com/v18.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&redirect_uri=${process.env.NEXT_PUBLIC_FACEBOOK_REDIRECT_URI}&state=${client.user?.id}&scope=pages_manage_posts,pages_read_engagement`}
+          href={`https://www.facebook.com/v18.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_CLIENT_ID}&redirect_uri=${process.env.NEXT_PUBLIC_META_REDIRECT_URI}&state=${client.user?.id}&scope=pages_manage_posts,pages_read_engagement`}
         >
           <Button variant="outline" size="sm" className="h-6 text-xs">
             Connect

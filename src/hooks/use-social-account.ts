@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/utils/supabase/client";
 import { User } from "@supabase/supabase-js";
 
-export type SocialPlatform = "facebook" | "instagram" | "twitter" | "all";
+export type SocialPlatform = "facebook" | "instagram" | "linkedin" | "all";
 
 interface SocialAccount {
   id: string;
@@ -12,6 +12,7 @@ interface SocialAccount {
   platform_user_id: string;
   username: string;
   expires_at: string | null;
+  profile_picture_url?: string;
 }
 
 interface UseSocialAccountReturn {
@@ -26,64 +27,50 @@ export function useSocialAccount(
   user: User | null,
   platform: SocialPlatform
 ): UseSocialAccountReturn {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [accounts, setAccounts] = useState<SocialAccount[] | null>(null);
-  const [account, setAccount] = useState<SocialAccount | null>(null);
+  const [socialAccount, setSocialAccount] = useState<SocialAccount[] | null>(
+    null
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const supabase = createClient();
 
-  const fetchAccount = async () => {
+  const fetchSocialAccount = async () => {
     if (!user?.id) return;
 
-    setIsLoading(true);
-    setError(null);
-
     try {
-      if (platform === "all") {
-        const { data, error } = await supabase
-          .from("social_accounts")
-          .select("*")
-          .eq("user_id", user.id);
+      setIsLoading(true);
+      let query = supabase
+        .from("social_accounts")
+        .select("*")
+        .eq("user_id", user.id);
 
-        if (error) {
-          setError(error.message);
-          return;
-        }
-
-        setAccounts(data);
-        setAccount(null);
-      } else {
-        const { data, error } = await supabase
-          .from("social_accounts")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("platform", platform)
-          .single();
-
-        if (error) {
-          setError(error.message);
-          return;
-        }
-
-        setAccount(data);
-        setAccounts(null);
+      if (platform !== "all") {
+        query = query.eq("platform", platform);
       }
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      setSocialAccount(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to fetch ${platform} account(s)`);
+      setError(err as Error);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAccount();
-  }, [user?.id, platform]);
+    fetchSocialAccount();
+  }, [user?.id, platform, supabase]);
 
   return {
-    accounts,
-    account,
+    accounts: socialAccount,
+    account: platform === "all" ? null : socialAccount?.[0] || null,
     isLoading,
-    error,
-    refetch: fetchAccount,
+    error: error ? error.message : null,
+    refetch: fetchSocialAccount,
   };
-} 
+}
