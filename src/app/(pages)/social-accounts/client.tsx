@@ -25,15 +25,15 @@ import {
   Facebook,
   Instagram,
   Linkedin,
-  Twitter,
   Plus,
   AlertCircle,
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { SocialPlatform } from "@/hooks/use-social-account";
+import { SocialPlatform, useSocialAccount } from "@/hooks/use-social-account";
 import { useRoleGuard } from "@/hooks/use-role-guard";
 import { UserRole } from "@/lib/types/auth";
+import { useAuthStore } from "@/lib/stores/use-auth-store";
 
 interface SocialAccountWithStats {
   id: string;
@@ -65,8 +65,14 @@ export function SocialAccountsClient({
     redirectTo: "/dashboard",
   });
 
-  const [accounts, setAccounts] =
-    useState<SocialAccountWithStats[]>(initialAccounts);
+  const client = useAuthStore();
+
+  const {
+    accounts,
+    isLoading: isLoadingAccounts,
+    error,
+  } = useSocialAccount(client.user, "all");
+
   const [activeTab, setActiveTab] = useState<SocialPlatform>("all");
   const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
   const [newAccount, setNewAccount] = useState({
@@ -90,35 +96,26 @@ export function SocialAccountsClient({
   const filteredAccounts =
     activeTab === "all"
       ? accounts
-      : accounts.filter((account) => account.platform === activeTab);
+      : accounts!.filter((account) => account.platform === activeTab);
 
   const handleAddAccount = () => {
-    if (!newAccount.name.trim() || !newAccount.username.trim()) {
-      toast.error("Required fields missing", {
-        description: "Please fill in all required fields",
-      });
-      return;
+    switch (newAccount.platform) {
+      case "facebook":
+        window.open(
+          `https://www.facebook.com/v20.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&redirect_uri=${process.env.NEXT_PUBLIC_FACEBOOK_REDIRECT_URI}&state=${client.user?.id}&scope=pages_manage_posts,pages_read_engagement,instagram_basic,pages_show_list,pages_read_engagement,business_management`
+        );
+        break;
+      case "instagram":
+        window.open(
+          `https://www.facebook.com/v20.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&redirect_uri=${process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI}&state=${client.user?.id}&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,instagram_manage_insights,business_management`
+        );
+        break;
+      case "linkedin":
+        window.open(
+          `https://www.linkedin.com/oauth/v2/authorization?client_id=${process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID}&redirect_uri=${process.env.NEXT_PUBLIC_LINKEDIN_REDIRECT_URI}&scope=r_liteprofile,r_emailaddress,w_member_social`
+        );
+        break;
     }
-
-    const account: SocialAccountWithStats = {
-      id: `${accounts.length + 1}`,
-      user_id: "",
-      platform: newAccount.platform,
-      username: newAccount.username,
-      profile_picture_url: undefined,
-    };
-
-    setAccounts([...accounts, account]);
-    setNewAccount({
-      platform: "facebook",
-      name: "",
-      username: "",
-    });
-    setIsAddAccountOpen(false);
-
-    toast.success(
-      `${newAccount.name} has been added and is pending authorization.`
-    );
   };
 
   const handleTabChange = (value: string) => {
@@ -179,18 +176,6 @@ export function SocialAccountsClient({
                   )}
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="account-name">Account Name</Label>
-                <Input
-                  id="account-name"
-                  placeholder="Marketing Facebook"
-                  value={newAccount.name}
-                  onChange={(e) =>
-                    setNewAccount({ ...newAccount, name: e.target.value })
-                  }
-                />
-              </div>
             </div>
 
             <DialogFooter>
@@ -221,7 +206,7 @@ export function SocialAccountsClient({
         </TabsList>
 
         <TabsContent value={activeTab} className="space-y-4">
-          {filteredAccounts.length === 0 ? (
+          {filteredAccounts?.length === 0 ? (
             <Card className="border-dashed border-2">
               <CardContent className="pt-10 pb-10 text-center">
                 <AlertCircle className="w-12 h-12 mx-auto text-gray-300 mb-4" />
@@ -239,7 +224,7 @@ export function SocialAccountsClient({
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredAccounts.map((account) => (
+              {filteredAccounts?.map((account) => (
                 <Card
                   key={account.id}
                   className="overflow-hidden transition-all hover:shadow-md py-0"
@@ -249,20 +234,20 @@ export function SocialAccountsClient({
                       {account.profile_picture_url ? (
                         <img
                           src={account.profile_picture_url}
-                          alt={account.name}
+                          alt={account.username}
                           className="w-full h-full object-cover"
                         />
                       ) : (
                         <div className="w-full h-full bg-gray-200 flex items-center justify-center">
                           <span className="text-gray-500 text-sm">
-                            {account.name?.[0] || account.username[0]}
+                            {account.username[0]}
                           </span>
                         </div>
                       )}
                     </div>
                     <div className="flex-1">
                       <CardTitle className="text-sm font-medium">
-                        {account.name || account.username}
+                        {account.username}
                       </CardTitle>
                       <CardDescription className="text-xs flex items-center gap-1">
                         {account.platform !== "all" &&

@@ -1,32 +1,39 @@
 // app/api/schedule/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/utils/supabase/server";
-import { SocialPublishingService } from "@/lib/social-publisher";
 
 export async function POST(req: Request) {
-  const {
-    user_id,
-    platform,
-    platform_user_id,
-    content,
-    scheduled_time,
-    media_ids,
-  } = await req.json();
+  const { platform, platform_user_id, content, scheduled_time, media_ids } =
+    await req.json();
 
   const supabase = await createClient();
-  const publishingService = new SocialPublishingService(supabase);
 
   try {
+    // Get authenticated user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    console.log("Authenticated user:", {
+      id: user.id,
+      email: user.email,
+    });
+
     // Validate platform (using your existing social_accounts table)
     const { data: account, error: accountError } = await supabase
       .from("social_accounts")
       .select("id")
-      .eq("user_id", user_id)
+      .eq("user_id", user.id)
       .eq("platform", platform)
       .eq("platform_user_id", platform_user_id)
       .single();
 
-    if (accountError || !account) {
+    if (accountError || !account.id) {
       return NextResponse.json(
         { error: `${platform} account not connected` },
         { status: 400 }
@@ -54,11 +61,11 @@ export async function POST(req: Request) {
     const { data: post, error: postError } = await supabase
       .from("scheduled_posts")
       .insert({
-        user_id,
+        user_id: user.id,
         platform,
         content,
         scheduled_time,
-        status: "scheduled",
+        status: "draft",
         external_id: null,
         attempts: 0,
       })
@@ -86,26 +93,11 @@ export async function POST(req: Request) {
       }
     }
 
-    // Use the publishing service to handle the post
-    try {
-      const result = await publishingService.publish(post.id);
-      return NextResponse.json({
-        success: true,
-        post_id: post.id,
-        publish_result: result,
-      });
-    } catch (publishError: any) {
-      // If publishing fails, update the post status to failed
-      await supabase
-        .from("scheduled_posts")
-        .update({
-          status: "failed",
-          attempts: supabase.rpc("increment", { val: 1 }),
-        })
-        .eq("id", post.id);
-
-      throw new Error(`Failed to publish post: ${publishError.message}`);
-    }
+    return NextResponse.json({
+      success: true,
+      post_id: post.id,
+      message: "Post scheduled successfully",
+    });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Failed to schedule post" },
