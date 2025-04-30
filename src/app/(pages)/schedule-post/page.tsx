@@ -55,6 +55,15 @@ const SchedulePostContent = () => {
     setSelectedAccounts,
   } = useScheduleForm();
 
+  // Set default time to current time + 2 hours
+  React.useEffect(() => {
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+    const hours = now.getHours().toString().padStart(2, "0");
+    const minutes = now.getMinutes().toString().padStart(2, "0");
+    setTime(`${hours}:${minutes}`);
+  }, [setTime]);
+
   const { setMainContent, setPrompt } = useAIContent();
 
   // Update main content when content changes
@@ -64,17 +73,20 @@ const SchedulePostContent = () => {
 
   const client = useAuthStore();
 
-  const { accounts: socialAccounts } = useSocialAccount(client.user, "all");
+  const { socialAccounts } = useSocialAccount("all");
 
   // Group accounts by platform
-  const groupedAccounts = socialAccounts?.reduce((acc, account) => {
-    const platform = account.platform;
-    if (!acc[platform]) {
-      acc[platform] = [];
-    }
-    acc[platform].push(account);
-    return acc;
-  }, {} as Record<string, typeof socialAccounts>);
+  const groupedAccounts = socialAccounts?.reduce(
+    (acc, account) => {
+      const platform = account.platform;
+      if (!acc[platform]) {
+        acc[platform] = [];
+      }
+      acc[platform].push(account);
+      return acc;
+    },
+    {} as Record<string, typeof socialAccounts>
+  );
 
   const accounts = Object.entries(groupedAccounts || {}).map(
     ([platform, accounts]) => {
@@ -82,17 +94,24 @@ const SchedulePostContent = () => {
         platform === "instagram"
           ? Instagram
           : platform === "twitter"
-          ? Twitter
-          : platform === "facebook"
-          ? Facebook
-          : undefined;
+            ? Twitter
+            : platform === "facebook"
+              ? Facebook
+              : undefined;
 
       return {
         label: platform.charAt(0).toUpperCase() + platform.slice(1),
         value: platform,
         icon: IconComponent,
         group: true,
-        children: accounts.map((account) => ({
+        children: (
+          accounts as Array<{
+            username: string;
+            platform: string;
+            platform_user_id: string;
+            profile_picture_url?: string;
+          }>
+        ).map((account) => ({
           label: account.username,
           value: `${account.platform}_${account.platform_user_id}`,
           icon: IconComponent,
@@ -315,7 +334,21 @@ const SchedulePostContent = () => {
                             id="time"
                             type="time"
                             value={time}
-                            onChange={(e) => setTime(e.target.value)}
+                            onChange={(e) => {
+                              const selectedTime = e.target.value;
+                              const [hours, minutes] = selectedTime
+                                .split(":")
+                                .map(Number);
+                              const selectedDate = new Date();
+                              selectedDate.setHours(hours, minutes);
+
+                              const now = new Date();
+                              if (selectedDate < now) {
+                                return; // Prevent setting past time
+                              }
+                              setTime(selectedTime);
+                            }}
+                            min={new Date().toTimeString().slice(0, 5)}
                             className={cn(
                               validationErrors.time && "border-red-500"
                             )}

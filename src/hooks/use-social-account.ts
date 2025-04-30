@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/utils/supabase/client";
-import { User } from "@supabase/supabase-js";
+import { useAuthStore } from "@/lib/stores/use-auth-store";
 
 export type SocialPlatform = "facebook" | "instagram" | "linkedin" | "all";
 
@@ -23,15 +23,11 @@ interface UseSocialAccountReturn {
   refetch: () => Promise<void>;
 }
 
-export function useSocialAccount(
-  user: User | null,
-  platform: SocialPlatform
-): UseSocialAccountReturn {
-  const [socialAccount, setSocialAccount] = useState<SocialAccount[] | null>(
-    null
-  );
-  const [isLoading, setIsLoading] = useState(true);
+export function useSocialAccount(platform: string = "all") {
+  const [socialAccounts, setSocialAccounts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const { user } = useAuthStore();
   const supabase = createClient();
 
   const fetchSocialAccount = async () => {
@@ -39,6 +35,8 @@ export function useSocialAccount(
 
     try {
       setIsLoading(true);
+      setError(null); // Reset error state
+
       let query = supabase
         .from("social_accounts")
         .select("*")
@@ -50,12 +48,16 @@ export function useSocialAccount(
 
       const { data, error } = await query;
 
+      console.log(data);
+
       if (error) {
+        console.error("Error fetching social accounts:", error);
         throw error;
       }
 
-      setSocialAccount(data);
+      setSocialAccounts(data || []);
     } catch (err) {
+      console.error("Error fetching social accounts:", err);
       setError(err as Error);
     } finally {
       setIsLoading(false);
@@ -63,14 +65,25 @@ export function useSocialAccount(
   };
 
   useEffect(() => {
-    fetchSocialAccount();
-  }, [user?.id, platform, supabase]);
+    let isMounted = true;
+
+    const fetchData = async () => {
+      if (!isMounted) return;
+      await fetchSocialAccount();
+    };
+
+    fetchData();
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, platform]); // Add dependencies
 
   return {
-    accounts: socialAccount,
-    account: platform === "all" ? null : socialAccount?.[0] || null,
+    socialAccounts,
     isLoading,
-    error: error ? error.message : null,
+    error,
     refetch: fetchSocialAccount,
   };
 }

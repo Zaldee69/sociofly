@@ -67,12 +67,6 @@ export function SocialAccountsClient({
 
   const client = useAuthStore();
 
-  const {
-    accounts,
-    isLoading: isLoadingAccounts,
-    error,
-  } = useSocialAccount(client.user, "all");
-
   const [activeTab, setActiveTab] = useState<SocialPlatform>("all");
   const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
   const [newAccount, setNewAccount] = useState({
@@ -95,8 +89,8 @@ export function SocialAccountsClient({
 
   const filteredAccounts =
     activeTab === "all"
-      ? accounts
-      : accounts!.filter((account) => account.platform === activeTab);
+      ? initialAccounts
+      : initialAccounts.filter((account) => account.platform === activeTab);
 
   const handleAddAccount = () => {
     switch (newAccount.platform) {

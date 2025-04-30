@@ -38,8 +38,6 @@ export function NavUser({
 }) {
   const signOut = useSignOut();
 
-  console.log(role);
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

@@ -6,10 +6,11 @@ export default async function SocialAccountsPage() {
   const supabase = await createClient();
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (error || !user) {
     redirect("/login");
   }
 
@@ -17,7 +18,7 @@ export default async function SocialAccountsPage() {
   const { data: accounts } = await supabase
     .from("social_accounts")
     .select("*")
-    .eq("user_id", session.user.id);
+    .eq("user_id", user.id);
 
   return <SocialAccountsClient initialAccounts={accounts || []} />;
 }
