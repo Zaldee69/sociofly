@@ -24,12 +24,3 @@ export function useSignOut() {
 
   return signOut;
 }
-
-export function useAuthSession() {
-  const { user, isLoading } = useAuthStore();
-
-  return {
-    session: user ? { user } : null,
-    isLoading,
-  };
-}

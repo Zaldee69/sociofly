@@ -20,17 +20,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useDynamicNavItems } from "./sidebar/dynamic-nav-items";
-
-// Dynamically import the ConnectedAccounts component with no SSR
-const ConnectedAccounts = dynamic(
-  () =>
-    import("./sidebar/connected-accounts").then((mod) => mod.ConnectedAccounts),
-  { ssr: false }
-);
+import { SidebarFooter } from "./ui/sidebar";
+import { NavUser } from "./nav-user";
+import { useAuthStore } from "@/lib/stores/use-auth-store";
+import { UserRole } from "@/lib/types/auth";
 
 const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+
+  const { user, isLoading } = useAuthStore();
 
   const isActive = (path: string) => {
     return pathname === path || (path !== "/" && pathname.startsWith(path));
@@ -157,15 +156,6 @@ const Sidebar: React.FC = () => {
           ))}
         </ul>
 
-        {/* Connected Accounts - Dynamically loaded */}
-        <ConnectedAccounts collapsed={collapsed} />
-
-        {!collapsed && (
-          <div className="mt-6 mb-2 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Settings
-          </div>
-        )}
-
         <ul className="space-y-1">
           <li>
             <Link
@@ -187,30 +177,23 @@ const Sidebar: React.FC = () => {
 
       {/* User Profile */}
       <div
-        className={cn(
-          "border-t border-sidebar-border",
-          collapsed ? "p-2 flex justify-center" : "p-4"
-        )}
+        className={cn("border-t border-sidebar-border p-2 flex justify-center")}
       >
         {collapsed ? (
           <button className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
             <User className="h-4 w-4" />
           </button>
         ) : (
-          <Link
-            href="/settings"
-            className="flex items-center px-3 py-2 rounded-md hover:bg-sidebar-accent/50"
-          >
-            <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center mr-3">
-              <User className="h-4 w-4" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">User Name</span>
-              <span className="text-xs text-sidebar-foreground/70">
-                Pro Account
-              </span>
-            </div>
-          </Link>
+          <SidebarFooter>
+            <NavUser
+              role={user?.role as UserRole}
+              user={{
+                name: user?.email?.split("@")[0] || "",
+                email: user?.email || "",
+                avatar: user?.user_metadata.avatar || "",
+              }}
+            />
+          </SidebarFooter>
         )}
       </div>
     </div>
