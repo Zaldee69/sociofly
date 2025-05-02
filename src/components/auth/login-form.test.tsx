@@ -12,15 +12,6 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-// Mock auth store
-vi.mock("@/lib/stores/use-auth-store", () => ({
-  useAuthStore: () => ({
-    setUser: vi.fn(),
-    setLoading: vi.fn(),
-    isLoading: false,
-  }),
-}));
-
 // Mock sonner toast
 vi.mock("sonner", () => ({
   toast: {
@@ -43,7 +34,9 @@ describe("LoginForm", () => {
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     await waitFor(() => {
-      expect(vi.mocked(toast.success)).toHaveBeenCalledWith("You have successfully logged in.");
+      expect(vi.mocked(toast.success)).toHaveBeenCalledWith(
+        "You have successfully logged in."
+      );
     });
   });
 
@@ -69,7 +62,9 @@ describe("LoginForm", () => {
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     await waitFor(() => {
-      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Invalid credentials");
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+        "Invalid credentials"
+      );
     });
   });
 });

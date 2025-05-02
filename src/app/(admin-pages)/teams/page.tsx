@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useRoleGuard } from "@/hooks/use-role-guard";
-import { Permission, UserRole } from "@/lib/types/auth";
 import {
   Dialog,
   DialogContent,
@@ -19,78 +17,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash, User, Users, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useTeams } from "@/hooks/use-teams";
-import { useTeamMembers } from "@/hooks/use-team-members";
 import { toast } from "sonner";
 import InviteTeamMemberForm from "@/components/invite-team-member-form";
 
 function TeamsContent() {
-  const {
-    teams,
-    memberCounts,
-    selectedTeam,
-    isLoading: teamsLoading,
-    setSelectedTeam,
-    createTeam,
-  } = useTeams();
-
-  const {
-    members: teamMembers,
-    isLoading: membersLoading,
-    removeMember,
-  } = useTeamMembers(selectedTeam?.id || null);
-
   const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
   const [newTeam, setNewTeam] = useState({ name: "" });
-
-  const {
-    isAuthorized,
-    isLoading: authLoading,
-    user,
-  } = useRoleGuard({
-    requiredRole: [UserRole.ADMIN],
-    requiredPermissions: [Permission.CREATE_TEAM, Permission.INVITE_MEMBER],
-    redirectTo: "/dashboard",
-  });
-
-  const handleAddTeam = async () => {
-    if (!newTeam.name.trim()) {
-      toast.error("Team name required", {
-        description: "Please enter a name for the team",
-      });
-      return;
-    }
-
-    try {
-      await createTeam(newTeam.name);
-      setNewTeam({ name: "" });
-      setIsAddTeamOpen(false);
-    } catch (error) {
-      // Error is already handled in the hook
-      console.error("Error in handleAddTeam:", error);
-    }
-  };
-
-  const handleRemoveMember = async (userId: string) => {
-    try {
-      await removeMember(userId);
-    } catch (error) {
-      // Error is already handled in the hook
-      console.error("Error in handleRemoveMember:", error);
-    }
-  };
-
-  if (authLoading || teamsLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!isAuthorized) {
-    return null;
-  }
 
   return (
     <div className="space-y-6">
@@ -133,10 +65,8 @@ function TeamsContent() {
               <Button variant="outline" onClick={() => setIsAddTeamOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddTeam} disabled={teamsLoading}>
-                {teamsLoading && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
+              <Button>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Create Team
               </Button>
             </DialogFooter>
@@ -152,7 +82,7 @@ function TeamsContent() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {teams.map((team: any) => (
+              {/* {teams.map((team: any) => (
                 <div
                   key={team.id}
                   className={`p-3 rounded-lg cursor-pointer transition-colors ${
@@ -167,13 +97,13 @@ function TeamsContent() {
                     {memberCounts[team.id] || 0} members
                   </div>
                 </div>
-              ))}
+              ))} */}
             </div>
           </CardContent>
         </Card>
 
         {/* Team Members */}
-        {selectedTeam ? (
+        {/* {selectedTeam ? (
           <>
             <Card className="md:col-span-2">
               <CardHeader className="flex flex-row items-center justify-between">
@@ -186,10 +116,8 @@ function TeamsContent() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {/* Invite Form */}
                   <InviteTeamMemberForm teamId={selectedTeam.id} />
 
-                  {/* Members List */}
                   <div className="space-y-4">
                     {membersLoading ? (
                       <div className="flex items-center justify-center py-4">
@@ -246,7 +174,7 @@ function TeamsContent() {
               </p>
             </CardContent>
           </Card>
-        )}
+        )} */}
       </div>
     </div>
   );

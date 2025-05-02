@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useAuthStore } from "@/lib/stores/use-auth-store";
 import { useFiles } from "../contexts/file-context";
 import { z } from "zod";
 
@@ -41,7 +40,6 @@ export function useScheduleForm() {
   const [validationErrors, setValidationErrors] = useState<
     Partial<Record<keyof ScheduleFormData, string>>
   >({});
-  const client = useAuthStore();
 
   const router = useRouter();
 
@@ -96,7 +94,7 @@ export function useScheduleForm() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          user_id: client.user?.id,
+          user_id: "assdsdsdsd",
           content,
           scheduled_time: jakartaDate.toISOString(),
           media_ids: files.map((file) => file.id),

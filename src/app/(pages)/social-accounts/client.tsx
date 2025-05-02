@@ -31,9 +31,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { SocialPlatform, useSocialAccount } from "@/hooks/use-social-account";
-import { useRoleGuard } from "@/hooks/use-role-guard";
-import { UserRole } from "@/lib/types/auth";
-import { useAuthStore } from "@/lib/stores/use-auth-store";
 
 interface SocialAccountWithStats {
   id: string;
@@ -59,14 +56,6 @@ interface SocialAccountsClientProps {
 export function SocialAccountsClient({
   initialAccounts,
 }: SocialAccountsClientProps) {
-  const { isAuthorized, isLoading } = useRoleGuard({
-    requiredRole: [UserRole.ADMIN],
-    requiredPermissions: [],
-    redirectTo: "/dashboard",
-  });
-
-  const client = useAuthStore();
-
   const [activeTab, setActiveTab] = useState<SocialPlatform>("all");
   const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
   const [newAccount, setNewAccount] = useState({
@@ -74,18 +63,6 @@ export function SocialAccountsClient({
     name: "",
     username: "",
   });
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!isAuthorized) {
-    return null;
-  }
 
   const filteredAccounts =
     activeTab === "all"
@@ -96,12 +73,12 @@ export function SocialAccountsClient({
     switch (newAccount.platform) {
       case "facebook":
         window.open(
-          `https://www.facebook.com/v20.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&redirect_uri=${process.env.NEXT_PUBLIC_FACEBOOK_REDIRECT_URI}&state=${client.user?.id}&scope=pages_manage_posts,pages_read_engagement,instagram_basic,pages_show_list,pages_read_engagement,business_management`
+          `https://www.facebook.com/v20.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&redirect_uri=${process.env.NEXT_PUBLIC_FACEBOOK_REDIRECT_URI}&state=&scope=pages_manage_posts,pages_read_engagement,instagram_basic,pages_show_list,pages_read_engagement,business_management`
         );
         break;
       case "instagram":
         window.open(
-          `https://www.facebook.com/v20.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&redirect_uri=${process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI}&state=${client.user?.id}&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,instagram_manage_insights,business_management`
+          `https://www.facebook.com/v20.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&redirect_uri=${process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI}&state=&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,instagram_manage_insights,business_management`
         );
         break;
       case "linkedin":

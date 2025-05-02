@@ -1,7 +1,3 @@
-
-
-// src/middleware.ts
-import { createClient } from "@/lib/utils/supabase/server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -38,32 +34,25 @@ export async function middleware(request: NextRequest) {
     );
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-   // Protected routes patterns
-  const protectedRoutes = ['/dashboard', '/analytics', '/posts', '/calendar', '/settings', '/media']
-  const isProtectedRoute = protectedRoutes.some(route => 
+  // Protected routes patterns
+  const protectedRoutes = [
+    "/dashboard",
+    "/analytics",
+    "/posts",
+    "/calendar",
+    "/settings",
+    "/media",
+  ];
+  const isProtectedRoute = protectedRoutes.some((route) =>
     request.nextUrl.pathname.startsWith(route)
-  )
+  );
 
-  const authRoutes = ['/login', '/register']
-  const isAuthRoute = authRoutes.some(route => 
+  const authRoutes = ["/login", "/register"];
+  const isAuthRoute = authRoutes.some((route) =>
     request.nextUrl.pathname.startsWith(route)
-  )
+  );
 
-  if (isProtectedRoute && !session) {
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  if (isAuthRoute && session) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
-
-  return response
+  return response;
 }
 
 export const config = {

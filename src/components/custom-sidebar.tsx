@@ -22,14 +22,10 @@ import dynamic from "next/dynamic";
 import { useDynamicNavItems } from "./sidebar/dynamic-nav-items";
 import { SidebarFooter } from "./ui/sidebar";
 import { NavUser } from "./nav-user";
-import { useAuthStore } from "@/lib/stores/use-auth-store";
-import { UserRole } from "@/lib/types/auth";
 
 const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
-
-  const { user, isLoading } = useAuthStore();
 
   const isActive = (path: string) => {
     return pathname === path || (path !== "/" && pathname.startsWith(path));
@@ -186,11 +182,11 @@ const Sidebar: React.FC = () => {
         ) : (
           <SidebarFooter>
             <NavUser
-              role={user?.role as UserRole}
+              role={""}
               user={{
-                name: user?.email?.split("@")[0] || "",
-                email: user?.email || "",
-                avatar: user?.user_metadata.avatar || "",
+                name: "",
+                email: "",
+                avatar: "",
               }}
             />
           </SidebarFooter>

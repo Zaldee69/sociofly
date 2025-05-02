@@ -1,6 +1,5 @@
 "use client";
 
-import { useAuthStore } from "@/lib/stores/use-auth-store";
 import { Facebook, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "../../ui/button";

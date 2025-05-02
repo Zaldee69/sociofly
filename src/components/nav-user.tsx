@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { useSignOut } from "@/lib/auth-utils";
-import { UserRole } from "@/lib/types/auth";
 import Link from "next/link";
 export function NavUser({
   user,
@@ -34,7 +33,7 @@ export function NavUser({
     email: string;
     avatar: string;
   };
-  role: UserRole;
+  role: string;
 }) {
   const signOut = useSignOut();
 
@@ -93,7 +92,7 @@ export function NavUser({
             <BellIcon className="mr-2 h-4 w-4" />
             Notifications
           </DropdownMenuItem>
-          {role === UserRole.ADMIN && (
+          {role === "ADMIN" && (
             <>
               <DropdownMenuItem>
                 <Link href="/teams" className="flex items-center gap-2">

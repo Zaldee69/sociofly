@@ -3,7 +3,6 @@
 import { Button } from "@/components/ui/button";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/utils/supabase/client";
 import { toast } from "sonner";
 import { Mail, RefreshCw } from "lucide-react";
 
@@ -17,7 +16,6 @@ export default function VerifyEmailPage() {
   const [isVerified, setIsVerified] = useState(false);
   const [isInitialCheck, setIsInitialCheck] = useState(true);
   const [emailState, setEmail] = useState<string>("");
-  const supabase = createClient();
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -30,78 +28,13 @@ export default function VerifyEmailPage() {
   }, [cooldown]);
 
   const handleResendVerification = async () => {
-    try {
-      setIsResending(true);
-      const { error } = await supabase.auth.resend({
-        type: "signup",
-        email: email || "",
-      });
-
-      if (error) {
-        if (error.message.includes("security purposes")) {
-          // Extract the number of seconds from the error message
-          const seconds = parseInt(error.message.match(/\d+/)?.[0] || "60");
-          setCooldown(seconds);
-          toast.error(
-            `Please wait ${seconds} seconds before requesting another verification email.`
-          );
-        } else {
-          throw error;
-        }
-        return;
-      }
-
-      setCooldown(60); // Set a 60-second cooldown after successful resend
-      toast.success(
-        "Verification email has been resent. Please check your inbox."
-      );
-    } catch (error) {
-      console.error("Error resending verification:", error);
-      toast.error("Failed to resend verification email. Please try again.");
-    } finally {
-      setIsResending(false);
-    }
+    // TODO: Implement resend verification logic
+    toast.info("Resend verification is not implemented.");
   };
 
   const checkVerificationStatus = async () => {
-    try {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        console.error("Error getting session:", sessionError);
-        return;
-      }
-
-      if (!session) {
-        // If no session, check if we have an email in the URL
-        const searchParams = new URLSearchParams(window.location.search);
-        const email = searchParams.get("email");
-
-        if (email) {
-          // If we have an email, we can still show the verification page
-          setEmail(email);
-          return;
-        }
-
-        // If no email and no session, redirect to login
-        router.push("/auth/login");
-        return;
-      }
-
-      // If we have a session, check if email is verified
-      if (session.user.email_confirmed_at) {
-        router.push("/dashboard");
-        return;
-      }
-
-      setEmail(session.user.email || "");
-    } catch (error) {
-      console.error("Error checking verification status:", error);
-      // Don't redirect on error, just show the verification page
-    }
+    // TODO: Implement check verification status logic
+    toast.info("Check verification status is not implemented.");
   };
 
   // Initial check and periodic checks

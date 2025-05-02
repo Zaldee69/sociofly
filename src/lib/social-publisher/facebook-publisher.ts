@@ -1,8 +1,14 @@
 // lib/social-publisher/facebook-publisher.ts
-import { SocialPublisher } from "./base-publisher";
-import type { PublishResult, PostMedia, SocialAccount, ScheduledPost } from "./types";
+// TODO: Replace with new publisher base class or logic
+// import { SocialPublisher } from "./base-publisher";
+import type {
+  PublishResult,
+  PostMedia,
+  SocialAccount,
+  ScheduledPost,
+} from "./types";
 
-export class FacebookPublisher extends SocialPublisher {
+export class FacebookPublisher {
   platform = "facebook" as const;
 
   async validatePost(content: string, media: PostMedia[]) {

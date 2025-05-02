@@ -27,7 +27,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { useAuthStore } from "@/lib/stores/use-auth-store";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import AICaptionGenerator from "@/components/ai-caption-generator";
@@ -35,9 +34,67 @@ import { useRouter } from "next/navigation";
 import { MultiSelect } from "@/components/multi-select";
 import { useScheduleForm } from "./hooks/use-schedule-form";
 import { FileUploadArea } from "./components/file-upload-area";
-import { useSocialAccount } from "@/hooks/use-social-account";
 import { AIContentProvider, useAIContent } from "./contexts/ai-content-context";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
+
+const socialAccounts = [
+  {
+    id: "acc_1",
+    platform: "twitter",
+    username: "twitter_user1",
+    platform_user_id: "tw_123",
+    accessToken: "tw_123456789abcdef",
+    refreshToken: "tw_refresh_123456789abcdef",
+    expiresAt: "2024-12-31T23:59:59Z",
+    userId: "user_1",
+    organizationId: "org_1",
+    createdAt: "2024-01-01T00:00:00Z",
+    updatedAt: "2024-01-01T00:00:00Z",
+    profile_picture_url: "https://picsum.photos/200",
+  },
+  {
+    id: "acc_2",
+    platform: "facebook",
+    username: "facebook_user1",
+    platform_user_id: "fb_123",
+    accessToken: "fb_123456789abcdef",
+    refreshToken: "fb_refresh_123456789abcdef",
+    expiresAt: "2024-12-31T23:59:59Z",
+    userId: "user_1",
+    organizationId: "org_1",
+    createdAt: "2024-01-01T00:00:00Z",
+    updatedAt: "2024-01-01T00:00:00Z",
+    profile_picture_url: "https://picsum.photos/200",
+  },
+  {
+    id: "acc_3",
+    platform: "instagram",
+    username: "instagram_user1",
+    platform_user_id: "ig_123",
+    accessToken: "ig_123456789abcdef",
+    refreshToken: "ig_refresh_123456789abcdef",
+    expiresAt: "2024-12-31T23:59:59Z",
+    userId: "user_1",
+    organizationId: "org_1",
+    createdAt: "2024-01-01T00:00:00Z",
+    updatedAt: "2024-01-01T00:00:00Z",
+    profile_picture_url: "https://picsum.photos/200",
+  },
+  {
+    id: "acc_4",
+    platform: "linkedin",
+    username: "linkedin_user1",
+    platform_user_id: "li_123",
+    accessToken: "li_123456789abcdef",
+    refreshToken: "li_refresh_123456789abcdef",
+    expiresAt: "2024-12-31T23:59:59Z",
+    userId: "user_1",
+    organizationId: "org_1",
+    createdAt: "2024-01-01T00:00:00Z",
+    updatedAt: "2024-01-01T00:00:00Z",
+    profile_picture_url: "https://picsum.photos/200",
+  },
+];
 
 const SchedulePostContent = () => {
   const router = useRouter();
@@ -71,9 +128,9 @@ const SchedulePostContent = () => {
     setMainContent(content);
   }, [content, setMainContent]);
 
-  const client = useAuthStore();
+  // const client = useAuthStore();
 
-  const { socialAccounts } = useSocialAccount("all");
+  // const { socialAccounts } = useSocialAccount("all");
 
   // Group accounts by platform
   const groupedAccounts = socialAccounts?.reduce(
@@ -317,7 +374,7 @@ const SchedulePostContent = () => {
                                 onSelect={setDate}
                                 initialFocus
                                 className={cn("p-3 pointer-events-auto")}
-                                disabled={(date) => date < new Date()}
+                                disabled={(date: Date) => date < new Date()}
                               />
                             </PopoverContent>
                           </Popover>
