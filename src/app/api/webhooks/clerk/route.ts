@@ -7,7 +7,7 @@ const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET!;
 
 export async function POST(req: Request) {
   try {
-    const headerPayload = headers();
+    const headerPayload = await headers();
     const svix_id = headerPayload.get("svix-id");
     const svix_timestamp = headerPayload.get("svix-timestamp");
     const svix_signature = headerPayload.get("svix-signature");
