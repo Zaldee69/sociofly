@@ -19,11 +19,10 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { trpc } from "@/lib/trpc/client";
 
 const Onboarding: React.FC = () => {
   const [step, setStep] = useState<number>(1);
-  const [isLoading, setIsLoading] = useState(false);
-
   const router = useRouter();
 
   // User selection state
@@ -42,6 +41,20 @@ const Onboarding: React.FC = () => {
     facebook: false,
     twitter: false,
     youtube: false,
+  });
+
+  // tRPC mutation for completing onboarding
+  const completeOnboarding = trpc.onboarding.completeOnboarding.useMutation({
+    onSuccess: () => {
+      toast.success("Onboarding berhasil diselesaikan!");
+      router.push("/dashboard");
+    },
+    onError: (error) => {
+      toast.error("Oops!", {
+        description:
+          error.message || "Terjadi kesalahan saat menyelesaikan onboarding",
+      });
+    },
   });
 
   const handleUserTypeSelect = (type: "solo" | "team") => {
@@ -110,22 +123,21 @@ const Onboarding: React.FC = () => {
       setStep(3);
     } else {
       // Complete onboarding
-      setIsLoading(true);
-      setTimeout(() => {
-        setIsLoading(false);
-        toast.success("Onboarding berhasil diselesaikan!");
-        router.push("/dashboard");
-      }, 1000);
+      completeOnboarding.mutate({
+        userType: userType!,
+        organizationName: userType === "team" ? orgName : undefined,
+        teamEmails: userType === "team" ? teamEmails : undefined,
+        socialAccounts,
+      });
     }
   };
 
   const skipSocialConnect = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      toast.success("Onboarding berhasil diselesaikan!");
-      router.push("/dashboard");
-    }, 1000);
+    completeOnboarding.mutate({
+      userType: userType!,
+      organizationName: userType === "team" ? orgName : undefined,
+      teamEmails: userType === "team" ? teamEmails : undefined,
+    });
   };
 
   const renderStep = () => {
@@ -442,7 +454,7 @@ const Onboarding: React.FC = () => {
             variant="outline"
             onClick={handleBack}
             className="flex items-center"
-            disabled={isLoading}
+            disabled={completeOnboarding.isPending}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Kembali
@@ -450,12 +462,14 @@ const Onboarding: React.FC = () => {
           <Button
             variant="outline"
             onClick={skipSocialConnect}
-            disabled={isLoading}
+            disabled={completeOnboarding.isPending}
           >
             Lewati
           </Button>
-          <Button onClick={handleNext} disabled={isLoading}>
-            {isLoading ? "Memproses..." : "Masuk ke Dashboard"}
+          <Button onClick={handleNext} disabled={completeOnboarding.isPending}>
+            {completeOnboarding.isPending
+              ? "Memproses..."
+              : "Masuk ke Dashboard"}
             <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
@@ -469,7 +483,7 @@ const Onboarding: React.FC = () => {
             variant="outline"
             onClick={handleBack}
             className="flex items-center"
-            disabled={isLoading}
+            disabled={completeOnboarding.isPending}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Kembali
@@ -477,10 +491,10 @@ const Onboarding: React.FC = () => {
         )}
         <Button
           onClick={handleNext}
-          disabled={isLoading || (step === 1 && !userType)}
+          disabled={completeOnboarding.isPending || (step === 1 && !userType)}
           className={step > 1 ? "flex-1" : "w-full"}
         >
-          {isLoading ? "Memproses..." : "Lanjutkan"}
+          {completeOnboarding.isPending ? "Memproses..." : "Lanjutkan"}
           <ChevronRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
