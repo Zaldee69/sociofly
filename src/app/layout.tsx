@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
-
+import { TRPCProvider } from "@/components/providers/trpc-provider";
+import { ClerkProvider } from "@clerk/nextjs";
 const dmSans = DM_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "700"],
@@ -23,11 +24,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={dmSans.className}>
-        <Toaster />
-        {children}
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en">
+        <body className={dmSans.className}>
+          <Toaster />
+          <TRPCProvider>{children}</TRPCProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

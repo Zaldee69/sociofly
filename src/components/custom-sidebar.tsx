@@ -91,8 +91,7 @@ const Sidebar: React.FC = () => {
         ) : (
           <>
             <h1 className="font-bold text-xl flex items-center gap-1">
-              <span className="text-primary">Post</span>
-              <span>Spark</span>
+              <span className="text-primary">SocioFly</span>
             </h1>
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <Bell size={16} />
