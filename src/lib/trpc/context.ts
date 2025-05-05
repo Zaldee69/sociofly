@@ -3,7 +3,14 @@ import { prisma } from "@/lib/prisma/client";
 
 export async function createContext(req: Request) {
   const { userId } = await auth();
-  return { userId, prisma };
+
+  const user = await prisma.user.findUnique({
+    where: {
+      clerkId: userId!,
+    },
+  });
+
+  return { userId: user?.id, prisma };
 }
 
 export type Context = Awaited<ReturnType<typeof createContext>>;

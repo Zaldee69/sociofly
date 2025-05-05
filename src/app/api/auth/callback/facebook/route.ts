@@ -27,9 +27,6 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  console.log("state", state);
-  console.log("existingUser", existingUser);
-
   if (!existingUser) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
@@ -75,7 +72,6 @@ export async function GET(request: NextRequest) {
   );
 
   const userData = await userResponse.json();
-  console.log("userData", userData);
 
   // Get user's Facebook pages
   const pagesResponse = await fetch(
@@ -98,6 +94,9 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.redirect(
-    new URL("/onboarding?step=add_social_accounts", request.url)
+    new URL(
+      `/onboarding?step=add_social_accounts&userType=${searchParams.get("userType")}&refresh=true`,
+      request.url
+    )
   );
 }

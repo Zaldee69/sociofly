@@ -20,11 +20,10 @@ export const onboardingRouter = createTRPCRouter({
   completeOnboarding: protectedProcedure
     .input(onboardingSchema)
     .mutation(async ({ ctx, input }) => {
-      const { userType, organizationName, teamEmails, socialAccounts } = input;
+      const { userType, organizationName, teamEmails } = input;
       const userId = ctx.userId;
 
       try {
-        // Create organization if user type is team
         let createdOrganization = null;
         if (userType === "team" && organizationName) {
           createdOrganization = await ctx.prisma.organization.create({
@@ -48,27 +47,6 @@ export const onboardingRouter = createTRPCRouter({
             // 3. Send invitation emails
             // For now, we'll just log the emails
             console.log("Team emails to invite:", teamEmails);
-          }
-        }
-
-        // Create social accounts if provided
-        if (socialAccounts) {
-          const accountsToCreate = Object.entries(socialAccounts)
-            .filter(([_, enabled]) => enabled)
-            .map(([platform]) => ({
-              platform,
-              userId: userId!,
-              organizationId:
-                userType === "team" ? (createdOrganization?.id ?? "") : "",
-              accessToken: "", // Temporary empty token, should be replaced with actual OAuth flow
-            }));
-
-          console.log(accountsToCreate);
-
-          if (accountsToCreate.length > 0) {
-            await ctx.prisma.socialAccount.createMany({
-              data: accountsToCreate,
-            });
           }
         }
 
@@ -109,5 +87,13 @@ export const onboardingRouter = createTRPCRouter({
       userType: user?.memberships.length ? "team" : "solo",
       hasSocialAccounts: Boolean(user?.socialAccounts.length),
     };
+  }),
+
+  getSocialAccounts: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.userId;
+    if (!userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+    return ctx.prisma.socialAccount.findMany({
+      where: { userId },
+    });
   }),
 });
