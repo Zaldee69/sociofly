@@ -184,8 +184,36 @@ const Onboarding: React.FC = () => {
           transition={{ duration: 0.5 }}
           className="mb-10 flex gap-2 items-center"
         >
-          <div className="h-12 w-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-lg"></div>
-          <h1 className="text-2xl font-bold">Sociofly</h1>
+          <Button
+            variant="ghost"
+            onClick={handleBack}
+            className="flex items-center justify-start w-fit mb-4 hover:bg-transparent group"
+            disabled={completeOnboarding.isPending}
+          >
+            <ArrowLeft
+              className={cn("mr-2 h-4 w-4 group-hover:text-primary", {
+                hidden: step === 1,
+              })}
+            />
+            <div
+              className={cn(
+                "h-8 w-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-lg relative transition-opacity duration-300",
+                {
+                  "group-hover:opacity-0": step !== 1,
+                }
+              )}
+            ></div>
+            <span
+              className={cn(
+                "absolute text-black opacity-0 group-hover:opacity-100 transition-opacity duration-300 ml-8",
+                {
+                  hidden: step === 1,
+                }
+              )}
+            >
+              Kembali
+            </span>
+          </Button>
         </motion.div>
 
         {step !== 1 && (
@@ -193,17 +221,7 @@ const Onboarding: React.FC = () => {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3 }}
-          >
-            <Button
-              variant="ghost"
-              onClick={handleBack}
-              className="flex items-center justify-start w-fit mb-4"
-              disabled={completeOnboarding.isPending}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Kembali
-            </Button>
-          </motion.div>
+          ></motion.div>
         )}
 
         <div className="flex-1 space-y-4">

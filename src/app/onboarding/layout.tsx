@@ -2,6 +2,7 @@
 
 import { trpc } from "@/lib/trpc/client";
 import { redirect } from "next/navigation";
+
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const status = trpc.onboarding.getOnboardingStatus.useQuery();
 
