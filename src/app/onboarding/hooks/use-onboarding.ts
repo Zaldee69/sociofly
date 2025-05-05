@@ -17,8 +17,25 @@ export const useOnboarding = () => {
   const searchParams = useSearchParams();
   const authUser = useUser();
 
+  const { data: onboardingStatus } =
+    trpc.onboarding.getOnboardingStatus.useQuery();
+
+  // Redirect to dashboard if onboarding is completed
+  useEffect(() => {
+    if (onboardingStatus?.onboardingStatus === "COMPLETED") {
+      router.push("/dashboard");
+    }
+  }, [onboardingStatus, router]);
+
   const { data: userSocialAccounts, refetch: refetchSocialAccounts } =
-    trpc.getSocialAccounts.getSocialAccounts.useQuery();
+    trpc.onboarding.getSocialAccounts.useQuery();
+
+  const updateOnboardingStatus =
+    trpc.onboarding.updateOnboardingStatus.useMutation({
+      onError: (error) => {
+        console.error("Failed to update onboarding status:", error);
+      },
+    });
 
   const completeOnboarding = trpc.onboarding.completeOnboarding.useMutation({
     onSuccess: () => {
@@ -114,13 +131,17 @@ export const useOnboarding = () => {
 
   const handleNext = () => {
     if (step === 1) {
-      router.push(`/onboarding?userType=${userType}`, {
-        scroll: false,
-      });
       if (!userType) {
         toast.error("Pilih salah satu opsi");
         return;
       }
+
+      // Update onboarding status to IN_PROGRESS when first clicking next
+      updateOnboardingStatus.mutate({ status: "IN_PROGRESS" });
+
+      router.push(`/onboarding?userType=${userType}`, {
+        scroll: false,
+      });
       setStep(userType === "team" ? 2 : 3);
     } else if (step === 2) {
       if (!orgName.trim()) {

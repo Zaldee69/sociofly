@@ -8,15 +8,16 @@ datasource db {
 }
 
 model User {
-  id             String          @id @default(cuid())
-  clerkId        String          @unique
-  email          String          @unique
-  name           String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  memberships    Membership[]
-  posts          Post[]
-  socialAccounts SocialAccount[]
+  id               String           @id @default(cuid())
+  clerkId          String           @unique
+  email            String           @unique
+  name             String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  onboardingStatus OnboardingStatus @default(NOT_STARTED)
+  memberships      Membership[]
+  posts            Post[]
+  socialAccounts   SocialAccount[]
 }
 
 model Organization {
@@ -44,18 +45,8 @@ model Membership {
   @@unique([userId, organizationId])
 }
 
-enum SocialPlatform {
-  FACEBOOK
-  INSTAGRAM
-  TWITTER
-  LINKEDIN
-  TIKTOK
-  YOUTUBE
-}
-
 model SocialAccount {
   id             String         @id @default(cuid())
-  platform       SocialPlatform
   accessToken    String
   refreshToken   String?
   expiresAt      DateTime?
@@ -64,6 +55,7 @@ model SocialAccount {
   userId         String
   organizationId String
   name           String?
+  platform       SocialPlatform
   posts          Post[]
   organization   Organization   @relation(fields: [organizationId], references: [id])
   user           User           @relation(fields: [userId], references: [id])
@@ -85,6 +77,21 @@ model Post {
   organization    Organization  @relation(fields: [organizationId], references: [id])
   socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
   user            User          @relation(fields: [userId], references: [id])
+}
+
+enum OnboardingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum SocialPlatform {
+  FACEBOOK
+  INSTAGRAM
+  TWITTER
+  LINKEDIN
+  TIKTOK
+  YOUTUBE
 }
 
 enum Role {

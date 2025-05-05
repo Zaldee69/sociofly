@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
+import { OnboardingStatus } from "@prisma/client";
 
 const onboardingSchema = z.object({
   userType: z.enum(["solo", "team"]),
@@ -60,6 +61,11 @@ export const onboardingRouter = createTRPCRouter({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to complete onboarding",
         });
+      } finally {
+        await ctx.prisma.user.update({
+          where: { id: userId! },
+          data: { onboardingStatus: OnboardingStatus.COMPLETED },
+        });
       }
     }),
 
@@ -70,30 +76,43 @@ export const onboardingRouter = createTRPCRouter({
     // Check if user has completed onboarding
     const user = await ctx.prisma.user.findUnique({
       where: { id: userId! },
-      include: {
-        memberships: {
-          include: {
-            organization: true,
-          },
-        },
-        socialAccounts: true,
-      },
     });
 
     return {
-      isOnboarded: Boolean(
-        user?.memberships.length || user?.socialAccounts.length
-      ),
-      userType: user?.memberships.length ? "team" : "solo",
-      hasSocialAccounts: Boolean(user?.socialAccounts.length),
+      onboardingStatus: user?.onboardingStatus,
     };
   }),
 
   getSocialAccounts: protectedProcedure.query(async ({ ctx }) => {
-    const userId = ctx.userId;
-    if (!userId) throw new TRPCError({ code: "UNAUTHORIZED" });
-    return ctx.prisma.socialAccount.findMany({
-      where: { userId },
+    const socialAccounts = await ctx.prisma.socialAccount.findMany({
+      where: {
+        userId: ctx.userId!,
+      },
+      select: {
+        id: true,
+        platform: true,
+      },
     });
+
+    return socialAccounts;
   }),
+
+  updateOnboardingStatus: protectedProcedure
+    .input(
+      z.object({
+        status: z.enum(["NOT_STARTED", "IN_PROGRESS", "COMPLETED"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const user = await ctx.prisma.user.update({
+        where: {
+          id: ctx.auth.userId,
+        },
+        data: {
+          onboardingStatus: input.status as OnboardingStatus,
+        },
+      });
+
+      return user;
+    }),
 });

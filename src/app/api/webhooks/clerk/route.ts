@@ -2,6 +2,7 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma/client";
+import { OnboardingStatus } from "@prisma/client";
 
 const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET!;
 
@@ -42,11 +43,16 @@ export async function POST(req: Request) {
         data: {
           clerkId: user.id,
           email: user.email_addresses?.[0]?.email_address || "",
-          name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
+          name:
+            [user.first_name, user.last_name]
+              .filter(Boolean)
+              .join(" ")
+              .trim() || null,
+          onboardingStatus: "NOT_STARTED",
         },
       });
 
-      console.log("✅ User inserted:", user.id);
+      console.log("✅ User created:", user.id);
       return new NextResponse("User created", { status: 200 });
     }
 
