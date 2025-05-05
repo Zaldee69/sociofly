@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -20,10 +20,14 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { trpc } from "@/lib/trpc/client";
-
+import { useUser } from "@clerk/nextjs";
 const Onboarding: React.FC = () => {
   const [step, setStep] = useState<number>(1);
   const router = useRouter();
+
+  const authUser = useUser();
+
+  console.log(authUser.user?.id);
 
   // User selection state
   const [userType, setUserType] = useState<"solo" | "team" | null>(null);
@@ -42,6 +46,14 @@ const Onboarding: React.FC = () => {
     twitter: false,
     youtube: false,
   });
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const step = urlParams.get("step");
+    if (step === "add_social_accounts") {
+      setStep(3);
+    }
+  }, []);
 
   // tRPC mutation for completing onboarding
   const completeOnboarding = trpc.onboarding.completeOnboarding.useMutation({
@@ -352,50 +364,30 @@ const Onboarding: React.FC = () => {
 
             <div className="space-y-4 mb-8">
               <button
-                className={`flex items-center w-full p-4 rounded-lg border-2 ${
-                  socialAccounts.instagram
-                    ? "border-pink-500 bg-pink-50"
-                    : "border-gray-200 hover:border-gray-300"
-                }`}
+                className={`flex items-center w-full p-4 rounded-lg border-2 border-gray-200 hover:border-gray-300`}
                 onClick={() => handleSocialToggle("instagram")}
               >
                 <Instagram className="h-6 w-6 mr-3 text-pink-600" />
                 <span className="flex-1 text-left font-medium">
                   Hubungkan Instagram
                 </span>
-                <div
-                  className={`h-6 w-6 rounded-full border-2 flex items-center justify-center ${
-                    socialAccounts.instagram
-                      ? "border-pink-500 bg-pink-500 text-white"
-                      : "border-gray-300"
-                  }`}
-                >
-                  {socialAccounts.instagram && <Check className="h-4 w-4" />}
-                </div>
+                <div className={`text-sm text-yellow-600 mr-2`}>Hubungkan</div>
               </button>
 
-              <button
-                className={`flex items-center w-full p-4 rounded-lg border-2 ${
-                  socialAccounts.facebook
-                    ? "border-blue-600 bg-blue-50"
-                    : "border-gray-200 hover:border-gray-300"
-                }`}
-                onClick={() => handleSocialToggle("facebook")}
+              <div
+                className={`flex items-center w-full p-4 rounded-lg border-2 border-gray-200 hover:border-gray-300`}
               >
                 <Facebook className="h-6 w-6 mr-3 text-blue-600" />
-                <span className="flex-1 text-left font-medium">
-                  Hubungkan Facebook
-                </span>
-                <div
-                  className={`h-6 w-6 rounded-full border-2 flex items-center justify-center ${
-                    socialAccounts.facebook
-                      ? "border-blue-600 bg-blue-600 text-white"
-                      : "border-gray-300"
-                  }`}
+                <span className="flex-1 text-left font-medium">Facebook</span>
+                <a
+                  href={`https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&state=${authUser.user?.id}&redirect_uri=${encodeURIComponent(
+                    `${window.location.origin}/api/auth/callback/facebook`
+                  )}&scope=email,business_management,pages_show_list,pages_read_engagement,pages_read_user_content,pages_manage_posts,pages_manage_cta,pages_manage_engagement,pages_manage_metadata,pages_manage_posts,pages_read_engagement,pages_read_user_content,pages_manage_posts,pages_manage_cta,pages_manage_engagement,pages_manage_metadata`}
+                  className={`text-sm text-yellow-600 mr-2`}
                 >
-                  {socialAccounts.facebook && <Check className="h-4 w-4" />}
-                </div>
-              </button>
+                  Hubungkan
+                </a>
+              </div>
 
               <button className="flex items-center w-full p-4 rounded-lg border-2 border-gray-200 bg-gray-50 cursor-not-allowed opacity-70">
                 <div className="h-6 w-6 mr-3 text-black flex items-center justify-center font-bold text-lg">
@@ -450,15 +442,6 @@ const Onboarding: React.FC = () => {
     if (step === 3) {
       return (
         <div className="flex space-x-4">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            className="flex items-center"
-            disabled={completeOnboarding.isPending}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Kembali
-          </Button>
           <Button
             variant="outline"
             onClick={skipSocialConnect}
@@ -527,9 +510,21 @@ const Onboarding: React.FC = () => {
       {/* Left side - Onboarding form */}
       <div className="w-full md:w-1/2 p-6 md:p-10 flex flex-col">
         {/* Logo placeholder */}
-        <div className="mb-10">
+        <div className="mb-10 flex gap-2 items-center">
           <div className="h-12 w-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-lg"></div>
+          <h1 className="text-2xl font-bold">Sociofly</h1>
         </div>
+        {step !== 1 && (
+          <Button
+            variant="ghost"
+            onClick={handleBack}
+            className="flex items-center justify-start w-fit mb-4"
+            disabled={completeOnboarding.isPending}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Kembali
+          </Button>
+        )}
 
         <div className="flex-1 space-y-4">
           {renderStep()}

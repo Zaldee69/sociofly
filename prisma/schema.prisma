@@ -27,8 +27,8 @@ model Organization {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   memberships    Membership[]
-  socialAccounts SocialAccount[]
   posts          Post[]
+  socialAccounts SocialAccount[]
 }
 
 model Membership {
@@ -37,26 +37,36 @@ model Membership {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   userId         String
-  user           User         @relation(fields: [userId], references: [id])
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
 
   @@unique([userId, organizationId])
 }
 
+enum SocialPlatform {
+  FACEBOOK
+  INSTAGRAM
+  TWITTER
+  LINKEDIN
+  TIKTOK
+  YOUTUBE
+}
+
 model SocialAccount {
-  id             String       @id @default(cuid())
-  platform       String
+  id             String         @id @default(cuid())
+  platform       SocialPlatform
   accessToken    String
   refreshToken   String?
   expiresAt      DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   userId         String
-  user           User         @relation(fields: [userId], references: [id])
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String?
   posts          Post[]
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  user           User           @relation(fields: [userId], references: [id])
 }
 
 model Post {
@@ -70,11 +80,11 @@ model Post {
   updatedAt       DateTime      @updatedAt
   publishedAt     DateTime?
   userId          String
-  user            User          @relation(fields: [userId], references: [id])
   organizationId  String
-  organization    Organization  @relation(fields: [organizationId], references: [id])
   socialAccountId String
+  organization    Organization  @relation(fields: [organizationId], references: [id])
   socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
+  user            User          @relation(fields: [userId], references: [id])
 }
 
 enum Role {
