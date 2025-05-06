@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { OnboardingStatus } from "@prisma/client";
+import { trpc } from "@/lib/trpc/client";
+import { OnboardingStatus, Role } from "@prisma/client";
+import { sendInviteEmail } from "@/lib/email/send-invite-email";
 
 const onboardingSchema = z.object({
   userType: z.enum(["solo", "team"]),
@@ -42,12 +44,60 @@ export const onboardingRouter = createTRPCRouter({
 
           // Create memberships for team members if provided
           if (teamEmails && teamEmails.length > 0) {
-            // Here you would typically:
-            // 1. Create users for each email if they don't exist
-            // 2. Create memberships for each user
-            // 3. Send invitation emails
-            // For now, we'll just log the emails
-            console.log("Team emails to invite:", teamEmails);
+            for (const email of teamEmails) {
+              try {
+                // Check if user already exists
+                const existingUser = await ctx.prisma.user.findUnique({
+                  where: { email },
+                });
+
+                if (existingUser) {
+                  // Check if user is already a member
+                  const existingMembership =
+                    await ctx.prisma.membership.findFirst({
+                      where: {
+                        userId: existingUser.id,
+                        organizationId: createdOrganization.id,
+                      },
+                    });
+
+                  if (existingMembership) {
+                    continue; // Skip this email and continue with next one
+                  }
+
+                  // Create membership for existing user
+                  await ctx.prisma.membership.create({
+                    data: {
+                      userId: existingUser.id,
+                      organizationId: createdOrganization.id,
+                      role: "EDITOR",
+                    },
+                  });
+                } else {
+                  // Create invitation for new user
+                  await ctx.prisma.invitation.create({
+                    data: {
+                      email,
+                      organizationId: createdOrganization.id,
+                      role: "EDITOR",
+                    },
+                  });
+                }
+
+                // Send invitation email in both cases
+                const invite = await sendInviteEmail({
+                  email,
+                  organizationName: createdOrganization.name,
+                  role: "EDITOR",
+                });
+
+                console.log("Invite sent:", invite);
+              } catch (error) {
+                console.error("Error processing team member:", error);
+                // Log error but continue with next email
+                continue;
+              }
+            }
           }
         }
 

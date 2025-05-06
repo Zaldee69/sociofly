@@ -30,6 +30,7 @@ model Organization {
   memberships    Membership[]
   posts          Post[]
   socialAccounts SocialAccount[]
+  invitations    Invitation[]
 }
 
 model Membership {
@@ -77,6 +78,18 @@ model Post {
   organization    Organization  @relation(fields: [organizationId], references: [id])
   socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
   user            User          @relation(fields: [userId], references: [id])
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  email          String
+  role           Role         @default(VIEWER)
+  organizationId String
+  createdAt      DateTime     @default(now())
+  acceptedAt     DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([email, organizationId])
 }
 
 enum OnboardingStatus {

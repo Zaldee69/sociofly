@@ -2,7 +2,6 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma/client";
-import { OnboardingStatus } from "@prisma/client";
 
 const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET!;
 
@@ -38,21 +37,58 @@ export async function POST(req: Request) {
 
     if (type === "user.created") {
       const user = data;
+      const email = user.email_addresses?.[0]?.email_address || "";
 
-      await prisma.user.create({
+      // Check for pending invitations before creating user
+      const pendingInvitations = await prisma.invitation.findMany({
+        where: {
+          email,
+          acceptedAt: null,
+        },
+        include: {
+          organization: true,
+        },
+      });
+
+      // If user has pending invitations, set onboardingStatus to COMPLETED
+      const onboardingStatus =
+        pendingInvitations.length > 0 ? "COMPLETED" : "NOT_STARTED";
+
+      // Create the user in our database
+      const createdUser = await prisma.user.create({
         data: {
           clerkId: user.id,
-          email: user.email_addresses?.[0]?.email_address || "",
+          email,
           name:
             [user.first_name, user.last_name]
               .filter(Boolean)
               .join(" ")
               .trim() || null,
-          onboardingStatus: "NOT_STARTED",
+          onboardingStatus, // Set based on invitations
         },
       });
 
-      console.log("✅ User created:", user.id);
+      // Create memberships for all pending invitations
+      for (const invitation of pendingInvitations) {
+        await prisma.membership.create({
+          data: {
+            userId: createdUser.id,
+            organizationId: invitation.organizationId,
+            role: invitation.role,
+          },
+        });
+
+        // Mark invitation as accepted
+        await prisma.invitation.update({
+          where: { id: invitation.id },
+          data: { acceptedAt: new Date() },
+        });
+      }
+
+      console.log(
+        `✅ User created with status ${onboardingStatus} and invitations processed:`,
+        user.id
+      );
       return new NextResponse("User created", { status: 200 });
     }
 

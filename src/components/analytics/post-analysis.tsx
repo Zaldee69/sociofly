@@ -1,42 +1,60 @@
-"use client";
 import React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { ThumbsUp, Share2, MousePointerClick, BarChart, TrendingUp } from "lucide-react";
+import {
+  ThumbsUp,
+  Share2,
+  MousePointerClick,
+  BarChart,
+  TrendingUp,
+} from "lucide-react";
 
 interface PostAnalysisProps {
   platform: string;
+  customPost?: any; // Optional custom post data
 }
 
 // Bentuk data tiap sosmed berbeda, jadi kita definisikan asumsi data minimum.
 type InstagramPost = {
-  id: number;
-  image: string;
-  caption: string;
+  id: number | string;
+  image?: string;
+  imageUrl?: string;
+  content?: string;
+  caption?: string;
   likes: number;
   shares: number;
   clicks: number;
   impressions: number;
-  engagement_rate: number;
-  best_time_posted: string;
-  top_location: string;
-  audience_age: string;
+  engagement_rate?: number;
+  engagement?: number;
+  best_time_posted?: string;
+  top_location?: string;
+  audience_age?: string;
   reach: number;
-  saves: number;
+  saves?: number;
 };
 type FacebookPost = {
-  id: number;
-  image: string;
-  caption: string;
+  id: number | string;
+  image?: string;
+  imageUrl?: string;
+  content?: string;
+  caption?: string;
   likes: number;
   shares: number;
   clicks: number;
   impressions: number;
-  engagement_rate: number;
-  best_time_posted: string;
-  top_location: string;
-  audience_age: string;
+  engagement_rate?: number;
+  engagement?: number;
+  best_time_posted?: string;
+  top_location?: string;
+  audience_age?: string;
   reach: number;
   reactions?: {
     like: number;
@@ -46,17 +64,19 @@ type FacebookPost = {
   };
 };
 type TwitterPost = {
-  id: number;
+  id: number | string;
   content: string;
   likes: number;
-  retweets: number;
+  retweets?: number;
+  shares?: number;
   clicks: number;
   impressions: number;
-  engagement_rate: number;
-  best_time_posted: string;
-  top_location: string;
+  engagement_rate?: number;
+  engagement?: number;
+  best_time_posted?: string;
+  top_location?: string;
   reach: number;
-  replies: number;
+  replies?: number;
 };
 
 const mockPostData = {
@@ -76,8 +96,8 @@ const mockPostData = {
         audience_age: "25-34",
         reach: 1890,
         saves: 45,
-      }
-    ]
+      },
+    ],
   },
   facebook: {
     posts: [
@@ -98,10 +118,10 @@ const mockPostData = {
           like: 120,
           love: 25,
           haha: 8,
-          wow: 3
-        }
-      }
-    ]
+          wow: 3,
+        },
+      },
+    ],
   },
   twitter: {
     posts: [
@@ -116,25 +136,50 @@ const mockPostData = {
         best_time_posted: "18:30 WIB",
         top_location: "Surabaya",
         reach: 980,
-        replies: 15
-      }
-    ]
-  }
+        replies: 15,
+      },
+    ],
+  },
 };
 
-const PostAnalysis: React.FC<PostAnalysisProps> = ({ platform }) => {
+const PostAnalysis: React.FC<PostAnalysisProps> = ({
+  platform,
+  customPost,
+}) => {
   let post: InstagramPost | FacebookPost | TwitterPost;
   let isTwitter = platform === "twitter";
   let isInstagram = platform === "instagram";
   let isFacebook = platform === "facebook";
 
-  if (isInstagram) {
-    post = mockPostData.instagram.posts[0] as InstagramPost;
-  } else if (isFacebook) {
-    post = mockPostData.facebook.posts[0] as FacebookPost;
+  // Use customPost if provided, otherwise use mockPostData
+  if (customPost) {
+    post = customPost;
   } else {
-    post = mockPostData.twitter.posts[0] as TwitterPost;
+    if (isInstagram) {
+      post = mockPostData.instagram.posts[0] as InstagramPost;
+    } else if (isFacebook) {
+      post = mockPostData.facebook.posts[0] as FacebookPost;
+    } else {
+      post = mockPostData.twitter.posts[0] as TwitterPost;
+    }
   }
+
+  // Helper function to get engagement rate, with fallback
+  const getEngagementRate = () => {
+    return post.engagement_rate || post.engagement || 4.2;
+  };
+
+  // Helper function to determine post content
+  const getPostContent = () => {
+    if (isTwitter) {
+      return (post as TwitterPost).content;
+    }
+    return (
+      (post as InstagramPost | FacebookPost).caption ||
+      (post as any).content ||
+      "No content available"
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -142,20 +187,31 @@ const PostAnalysis: React.FC<PostAnalysisProps> = ({ platform }) => {
         <CardHeader>
           <CardTitle>Performance Analysis</CardTitle>
           <CardDescription>
-            Detailed metrics for your latest {platform} post
+            Detailed metrics for your {platform} post
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Post Preview */}
           <div className="border rounded-lg p-4 space-y-4">
-            {!isTwitter && (
-              <div className="aspect-square w-full max-w-sm mx-auto bg-gray-100 rounded-lg" />
+            {!isTwitter && ((post as any).imageUrl || (post as any).image) && (
+              <div className="aspect-square w-full max-w-sm mx-auto bg-gray-100 rounded-lg overflow-hidden">
+                {(post as any).imageUrl && (
+                  <img
+                    src={(post as any).imageUrl}
+                    alt="Post image"
+                    className="w-full h-full object-cover"
+                  />
+                )}
+                {!(post as any).imageUrl && (post as any).image && (
+                  <img
+                    src={(post as any).image}
+                    alt="Post image"
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </div>
             )}
-            <p className="text-sm text-gray-600">
-              {isTwitter
-                ? (post as TwitterPost).content
-                : (post as InstagramPost | FacebookPost).caption}
-            </p>
+            <p className="text-sm text-gray-600">{getPostContent()}</p>
           </div>
 
           {/* Engagement Metrics */}
@@ -183,8 +239,8 @@ const PostAnalysis: React.FC<PostAnalysisProps> = ({ platform }) => {
                   </div>
                   <span className="text-2xl font-bold">
                     {isTwitter
-                      ? (post as TwitterPost).retweets
-                      : (post as InstagramPost | FacebookPost).shares}
+                      ? (post as TwitterPost).retweets || 0
+                      : (post as InstagramPost | FacebookPost).shares || 0}
                   </span>
                 </div>
               </CardContent>
@@ -213,23 +269,29 @@ const PostAnalysis: React.FC<PostAnalysisProps> = ({ platform }) => {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Engagement Rate</span>
-                    <span className="font-medium">{post.engagement_rate}%</span>
+                    <span className="font-medium">{getEngagementRate()}%</span>
                   </div>
-                  <Progress value={post.engagement_rate * 10} className="h-2" />
+                  <Progress value={getEngagementRate() * 10} className="h-2" />
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Reach</span>
-                    <span className="font-medium">{post.reach.toLocaleString()}</span>
+                    <span className="font-medium">
+                      {post.reach.toLocaleString()}
+                    </span>
                   </div>
-                  <Progress value={(post.reach / post.impressions) * 100} className="h-2" />
+                  <Progress
+                    value={(post.reach / post.impressions) * 100}
+                    className="h-2"
+                  />
                 </div>
 
                 <div className="pt-4">
                   <Badge variant="outline" className="bg-green-50">
                     <TrendingUp className="h-3 w-3 mr-1" />
-                    {post.engagement_rate > 3 ? "Above Average" : "Average"} Performance
+                    {getEngagementRate() > 3 ? "Above Average" : "Average"}{" "}
+                    Performance
                   </Badge>
                 </div>
               </CardContent>
@@ -242,27 +304,36 @@ const PostAnalysis: React.FC<PostAnalysisProps> = ({ platform }) => {
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Top Location</span>
-                  <Badge variant="secondary">{post.top_location}</Badge>
+                  <Badge variant="secondary">
+                    {post.top_location || "Jakarta"}
+                  </Badge>
                 </div>
 
                 {/* facebook/instagram audience_age */}
                 {(isInstagram || isFacebook) && (
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Primary Age Group</span>
-                    <Badge variant="secondary">{(post as InstagramPost | FacebookPost).audience_age}</Badge>
+                    <Badge variant="secondary">
+                      {(post as InstagramPost | FacebookPost).audience_age ||
+                        "25-34"}
+                    </Badge>
                   </div>
                 )}
 
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Best Time Posted</span>
-                  <Badge variant="secondary">{post.best_time_posted}</Badge>
+                  <Badge variant="secondary">
+                    {post.best_time_posted || "19:30 WIB"}
+                  </Badge>
                 </div>
 
                 {/* Only Instagram: saves */}
                 {isInstagram && (
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Saves</span>
-                    <Badge variant="secondary">{(post as InstagramPost).saves}</Badge>
+                    <Badge variant="secondary">
+                      {(post as InstagramPost).saves || 0}
+                    </Badge>
                   </div>
                 )}
 
@@ -270,7 +341,9 @@ const PostAnalysis: React.FC<PostAnalysisProps> = ({ platform }) => {
                 {isTwitter && (
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Replies</span>
-                    <Badge variant="secondary">{(post as TwitterPost).replies}</Badge>
+                    <Badge variant="secondary">
+                      {(post as TwitterPost).replies || 0}
+                    </Badge>
                   </div>
                 )}
               </CardContent>

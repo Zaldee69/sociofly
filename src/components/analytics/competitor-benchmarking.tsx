@@ -1,4 +1,3 @@
-"use client";
 import { useState } from "react";
 import {
   Card,
@@ -137,7 +136,7 @@ const CompetitorBenchmarking = ({
       );
 
       if (existingCompetitor) {
-        toast.error(`Kompetitor ${username} sudah ada dalam daftar`);
+        toast.info(`Kompetitor ${username} sudah ada dalam daftar`);
       } else {
         // Generate mock data for the new competitor
         const newCompetitor = {
@@ -272,28 +271,26 @@ const CompetitorBenchmarking = ({
             Bandingkan pertumbuhan followers dengan kompetitor
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <ResponsiveContainer>
-            <ChartContainer config={chartConfig}>
-              <LineChart data={comparisonData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                {competitors.map((competitor) => (
-                  <Line
-                    key={competitor.username}
-                    type="monotone"
-                    dataKey={competitor.username}
-                    name={competitor.username}
-                    stroke={`var(--color-${competitor.username})`}
-                    strokeWidth={competitor.username === "@yourbrand" ? 3 : 2}
-                    dot={{ fill: `var(--color-${competitor.username})` }}
-                  />
-                ))}
-              </LineChart>
-            </ChartContainer>
-          </ResponsiveContainer>
+        <CardContent className="h-80">
+          <ChartContainer config={chartConfig}>
+            <LineChart data={comparisonData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              {competitors.map((competitor) => (
+                <Line
+                  key={competitor.username}
+                  type="monotone"
+                  dataKey={competitor.username}
+                  name={competitor.username}
+                  stroke={`var(--color-${competitor.username})`}
+                  strokeWidth={competitor.username === "@yourbrand" ? 3 : 2}
+                  dot={{ fill: `var(--color-${competitor.username})` }}
+                />
+              ))}
+            </LineChart>
+          </ChartContainer>
         </CardContent>
         <CardFooter className="text-xs text-muted-foreground">
           Data yang ditampilkan adalah data simulasi. Dalam produk sebenarnya,
