@@ -37,12 +37,15 @@ import { useFiles } from "../schedule-post/contexts/file-context";
 import { MediaThumbnail } from "./components/media-thumbnail";
 import Link from "next/link";
 import { MediaTable } from "./components/media-table";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const Media = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState<"all" | "images" | "videos">("all");
   const [organizationId, setOrganizationId] = useState<string>("");
+
+  const isMobile = useIsMobile();
 
   const { setFiles } = useFiles();
   const utils = trpc.useUtils();
@@ -136,7 +139,7 @@ const Media = () => {
     <Fragment>
       <Card className="min-h-[80vh]">
         <CardHeader className="border-b pb-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
             <CardTitle>
               <span className="inline-flex items-center gap-2">
                 <ImageIcon className="w-6 h-6 text-primary" />
@@ -145,7 +148,7 @@ const Media = () => {
             </CardTitle>
 
             {/* Organization Selector and Upload Button */}
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
               <Select
                 value={organizationId}
                 onValueChange={(value: string) => setOrganizationId(value)}
@@ -167,7 +170,7 @@ const Media = () => {
                   if (!open) setFiles([]);
                 }}
               >
-                <DialogTrigger asChild>
+                <DialogTrigger className="w-fit" asChild>
                   <Button disabled={!organizationId}>
                     <UploadCloud className="w-4 h-4 mr-2" />
                     Upload Media
@@ -197,7 +200,7 @@ const Media = () => {
           </div>
 
           {/* Search and Filter */}
-          <div className="mt-6 flex items-center justify-between gap-4">
+          <div className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
             <div className="flex-1 max-w-md relative">
               <Input
                 placeholder="Search media..."
@@ -225,7 +228,7 @@ const Media = () => {
                 </SelectContent>
               </Select>
 
-              <div className="border rounded flex items-center">
+              <div className="border rounded items-center hidden sm:flex">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -263,27 +266,12 @@ const Media = () => {
                   Try adjusting your filters or upload new media
                 </p>
               </div>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button>Upload Media</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Upload Media</DialogTitle>
-                    <DialogDescription>
-                      Upload media to your library. You can upload multiple
-                      files at once.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <FileUploadArea organizationId={organizationId} />
-                </DialogContent>
-              </Dialog>
             </div>
           ) : (
             <>
               {/* Media Grid/List */}
               <div className="min-h-[500px] p-4 overflow-y-auto">
-                {viewMode === "grid" ? (
+                {viewMode === "grid" || isMobile ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                     {media.map((item) => (
                       <Link href={item.url} key={item.id} target="_blank">
