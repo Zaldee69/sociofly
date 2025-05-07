@@ -72,6 +72,7 @@
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^19.0.0",
+    "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.56.1",
     "react-resizable-panels": "^2.1.8",
     "recharts": "^2.15.3",

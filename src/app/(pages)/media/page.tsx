@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Fragment, useState } from "react";
+import React, { Fragment, useState, useEffect } from "react";
 import {
   Image as ImageIcon,
   UploadCloud,
@@ -12,6 +12,7 @@ import {
   Trash2,
   ExternalLink,
   Download,
+  Loader2,
 } from "lucide-react";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
+import { trpc } from "@/lib/trpc/client";
+import { toast } from "sonner";
 
 import {
   Dialog,
@@ -36,88 +39,93 @@ import {
 } from "@/components/ui/dialog";
 import { FileUploadArea } from "../schedule-post/components/file-upload-area";
 import { useFiles } from "../schedule-post/contexts/file-context";
-// Mock media data
-const mockMedia = [
-  {
-    id: 1,
-    name: "product-launch.jpg",
-    type: "image",
-    format: "jpg",
-    url: "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d",
-    uploadedAt: new Date(2025, 3, 15),
-    size: "1.2 MB",
-    dimensions: "1200 x 800",
-    usedIn: 2,
-    tags: ["product", "marketing"],
-  },
-  {
-    id: 2,
-    name: "team-photo.jpg",
-    type: "image",
-    format: "jpg",
-    url: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f",
-    uploadedAt: new Date(2025, 3, 10),
-    size: "2.4 MB",
-    dimensions: "1600 x 1200",
-    usedIn: 1,
-    tags: ["team", "company"],
-  },
-  {
-    id: 3,
-    name: "office-setup.jpg",
-    type: "image",
-    format: "jpg",
-    url: "https://images.unsplash.com/photo-1497215728101-856f4ea42174",
-    uploadedAt: new Date(2025, 3, 5),
-    size: "1.8 MB",
-    dimensions: "1920 x 1080",
-    usedIn: 0,
-    tags: ["office", "workspace"],
-  },
-  {
-    id: 4,
-    name: "conference.jpg",
-    type: "image",
-    format: "jpg",
-    url: "https://images.unsplash.com/photo-1505373877841-8d25f7d46678",
-    uploadedAt: new Date(2025, 2, 28),
-    size: "3.1 MB",
-    dimensions: "2000 x 1333",
-    usedIn: 1,
-    tags: ["event", "conference"],
-  },
-];
 
 const Media = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedMedia, setSelectedMedia] = useState<number | null>(null);
-  const [filter, setFilter] = useState("all");
+  const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "used" | "unused">("all");
+  const [organizationId, setOrganizationId] = useState<string>("");
 
   const { setFiles } = useFiles();
 
-  // Get media based on filters
-  const filteredMedia = mockMedia.filter((item) => {
-    const matchesSearch =
-      searchTerm === "" ||
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.tags.some((tag) =>
-        tag.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  const utils = trpc.useUtils();
 
-    const matchesFilter =
-      filter === "all" ||
-      (filter === "unused" && item.usedIn === 0) ||
-      (filter === "used" && item.usedIn > 0);
+  // Get user's organizations
+  const { data: organizations = [] } = trpc.organization.getAll.useQuery();
 
-    return matchesSearch && matchesFilter;
+  // Set default organization if not set
+  useEffect(() => {
+    if (organizations.length > 0 && !organizationId) {
+      setOrganizationId(organizations[0].id);
+    }
+  }, [organizations, organizationId]);
+
+  const { data: media = [], isLoading } = trpc.media.getAll.useQuery(
+    {
+      filter,
+      search: searchTerm,
+      organizationId,
+    },
+    {
+      enabled: !!organizationId,
+      refetchOnWindowFocus: false,
+    }
+  );
+
+  const { mutate: deleteMedia } = trpc.media.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Media deleted successfully");
+      utils.media.getAll.invalidate();
+      setSelectedMedia(null);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
   });
 
+  const { mutate: updateTags } = trpc.media.updateTags.useMutation({
+    onSuccess: () => {
+      toast.success("Tags updated successfully");
+      utils.media.getAll.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const { mutate: copyToOrganization } =
+    trpc.media.copyToOrganization.useMutation({
+      onSuccess: () => {
+        toast.success("Media copied successfully");
+        utils.media.getAll.invalidate();
+      },
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    });
+
   // Get selected media item
-  const selectedItem =
-    selectedMedia !== null
-      ? mockMedia.find((item) => item.id === selectedMedia)
-      : null;
+  const selectedItem = selectedMedia
+    ? media.find((item) => item.id === selectedMedia)
+    : null;
+
+  const handleDelete = (id: string) => {
+    if (!organizationId) return;
+    deleteMedia({ id, organizationId });
+  };
+
+  const handleAddTag = (mediaId: string, currentTags: string[]) => {
+    if (!organizationId) return;
+    const tag = prompt("Enter new tag:");
+    if (tag && !currentTags.includes(tag)) {
+      updateTags({
+        id: mediaId,
+        tags: [...currentTags, tag],
+        organizationId,
+      });
+    }
+  };
 
   return (
     <Fragment>
@@ -131,30 +139,87 @@ const Media = () => {
               </span>
             </CardTitle>
 
-            <Dialog
-              onOpenChange={(open) => {
-                if (!open) {
-                  setFiles([]);
-                }
-              }}
-            >
-              <DialogTrigger asChild>
-                <Button>
-                  <UploadCloud className="w-4 h-4 mr-2" />
-                  Upload Media
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-5xl min-w-[600px]">
-                <DialogHeader>
-                  <DialogTitle>Upload Media</DialogTitle>
-                  <DialogDescription>
-                    Upload media to your library. You can upload multiple files
-                    at once.
-                  </DialogDescription>
-                </DialogHeader>
-                <FileUploadArea />
-              </DialogContent>
-            </Dialog>
+            {/* Organization Selector */}
+            <div className="flex items-center gap-4">
+              <Select
+                value={organizationId}
+                onValueChange={(value) => setOrganizationId(value)}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select Organization" />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations.map((org: { id: string; name: string }) => (
+                    <SelectItem key={org.id} value={org.id}>
+                      {org.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Dialog
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setFiles([]);
+                  }
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button disabled={!organizationId}>
+                    <UploadCloud className="w-4 h-4 mr-2" />
+                    Upload Media
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-5xl min-w-[600px]">
+                  <DialogHeader>
+                    <DialogTitle>Upload Media</DialogTitle>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <p>
+                        Upload media to your library. You can upload multiple
+                        files at once.
+                      </p>
+                      {organizations.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span>Uploading to:</span>
+                          <Select
+                            value={organizationId}
+                            onValueChange={(value) => setOrganizationId(value)}
+                          >
+                            <SelectTrigger className="w-[200px]">
+                              <SelectValue placeholder="Select Organization" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {organizations.map(
+                                (org: { id: string; name: string }) => (
+                                  <SelectItem key={org.id} value={org.id}>
+                                    {org.name}
+                                  </SelectItem>
+                                )
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      {!organizationId && (
+                        <p className="text-destructive">
+                          Please select an organization before uploading media.
+                        </p>
+                      )}
+                    </div>
+                  </DialogHeader>
+                  {organizationId ? (
+                    <FileUploadArea organizationId={organizationId} />
+                  ) : (
+                    <div className="flex items-center justify-center h-[300px] border-2 border-dashed rounded-lg">
+                      <div className="text-center text-muted-foreground">
+                        <UploadCloud className="w-12 h-12 mx-auto mb-2" />
+                        <div>Select an organization to upload media</div>
+                      </div>
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
           <div className="mt-6 flex items-center justify-between gap-4">
@@ -169,7 +234,12 @@ const Media = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <Select value={filter} onValueChange={setFilter}>
+              <Select
+                value={filter}
+                onValueChange={(value: "all" | "used" | "unused") =>
+                  setFilter(value)
+                }
+              >
                 <SelectTrigger className="w-[160px]">
                   <SelectValue placeholder="Filter" />
                 </SelectTrigger>
@@ -213,18 +283,36 @@ const Media = () => {
         </CardHeader>
 
         <CardContent className="p-0 flex">
-          {filteredMedia.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center min-h-[420px] p-8 flex-1">
+              <div className="animate-spin">
+                <Loader2 className="w-8 h-8 text-muted-foreground" />
+              </div>
+            </div>
+          ) : media.length === 0 ? (
             <div className="flex flex-col items-center justify-center min-h-[220px] p-8 flex-1">
               <div className="mb-6 flex flex-col items-center gap-2">
                 <UploadCloud className="w-12 h-12 text-muted-foreground" />
-                <span className="text-lg font-medium">
-                  Tidak ditemukan media
-                </span>
+                <span className="text-lg font-medium">No media found</span>
                 <p className="text-muted-foreground text-center text-sm">
-                  Coba kurangi filter atau upload media baru
+                  Try adjusting your filters or upload new media
                 </p>
               </div>
-              <Button>Upload Media</Button>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button>Upload Media</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Upload Media</DialogTitle>
+                    <DialogDescription>
+                      Upload media to your library. You can upload multiple
+                      files at once.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <FileUploadArea organizationId={organizationId} />
+                </DialogContent>
+              </Dialog>
             </div>
           ) : (
             <>
@@ -234,16 +322,16 @@ const Media = () => {
               >
                 {viewMode === "grid" ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {filteredMedia.map((media) => (
+                    {media.map((item) => (
                       <div
-                        key={media.id}
-                        className={`group relative cursor-pointer rounded-md overflow-hidden border ${selectedMedia === media.id ? "ring-2 ring-primary" : ""}`}
-                        onClick={() => setSelectedMedia(media.id)}
+                        key={item.id}
+                        className={`group relative cursor-pointer rounded-md overflow-hidden border ${selectedMedia === item.id ? "ring-2 ring-primary" : ""}`}
+                        onClick={() => setSelectedMedia(item.id)}
                       >
                         <div className="aspect-square">
                           <img
-                            src={media.url}
-                            alt={media.name}
+                            src={item.url}
+                            alt={`Media ${item.id}`}
                             className="w-full h-full object-cover"
                           />
                         </div>
@@ -257,12 +345,16 @@ const Media = () => {
                           </Button>
                         </div>
                         <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-2">
-                          <div className="text-sm truncate">{media.name}</div>
+                          <div className="text-sm truncate">
+                            {item.url.split("/").pop()}
+                          </div>
                           <div className="text-xs opacity-80 flex justify-between">
                             <span>
-                              {format(media.uploadedAt, "MMM d, yyyy")}
+                              {format(new Date(item.createdAt), "MMM d, yyyy")}
                             </span>
-                            <span>{media.size}</span>
+                            <span>
+                              {(item.size / 1024 / 1024).toFixed(1)} MB
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -294,36 +386,36 @@ const Media = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredMedia.map((media) => (
+                        {media.map((item) => (
                           <tr
-                            key={media.id}
-                            className={`border-b hover:bg-muted/50 cursor-pointer ${selectedMedia === media.id ? "bg-primary/5" : ""}`}
-                            onClick={() => setSelectedMedia(media.id)}
+                            key={item.id}
+                            className={`border-b hover:bg-muted/50 cursor-pointer ${selectedMedia === item.id ? "bg-primary/5" : ""}`}
+                            onClick={() => setSelectedMedia(item.id)}
                           >
                             <td className="p-2">
                               <div className="w-12 h-12 rounded overflow-hidden">
                                 <img
-                                  src={media.url}
-                                  alt={media.name}
+                                  src={item.url}
+                                  alt={`Media ${item.id}`}
                                   className="w-full h-full object-cover"
                                 />
                               </div>
                             </td>
                             <td className="p-2">
                               <div className="font-medium text-sm">
-                                {media.name}
+                                {item.url.split("/").pop()}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {media.dimensions}
+                                {item.type}
                               </div>
                             </td>
                             <td className="p-2 text-sm">
-                              {format(media.uploadedAt, "MMM d, yyyy")}
+                              {format(new Date(item.createdAt), "MMM d, yyyy")}
                             </td>
-                            <td className="p-2 text-sm">{media.size}</td>
                             <td className="p-2 text-sm">
-                              {media.usedIn} posts
+                              {(item.size / 1024 / 1024).toFixed(1)} MB
                             </td>
+                            <td className="p-2 text-sm">{item.usedIn} posts</td>
                             <td className="p-2">
                               <div className="flex items-center gap-1">
                                 <Button variant="ghost" size="icon">
@@ -333,6 +425,10 @@ const Media = () => {
                                   variant="ghost"
                                   size="icon"
                                   className="text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(item.id);
+                                  }}
                                 >
                                   <Trash2 size={16} />
                                 </Button>
@@ -346,7 +442,7 @@ const Media = () => {
                 )}
               </div>
 
-              {/* Media Details Panel - Hootsuite Style */}
+              {/* Media Details Panel */}
               {selectedItem && selectedMedia && (
                 <div className="w-1/3 border-l min-h-[500px]">
                   <div className="p-4 border-b">
@@ -366,7 +462,7 @@ const Media = () => {
                     <div className="aspect-square rounded overflow-hidden mb-4 border">
                       <img
                         src={selectedItem.url}
-                        alt={selectedItem.name}
+                        alt={`Media ${selectedItem.id}`}
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -374,11 +470,24 @@ const Media = () => {
                     <div className="space-y-4">
                       <div>
                         <h4 className="text-sm font-medium">
-                          {selectedItem.name}
+                          {selectedItem.url.split("/").pop()}
                         </h4>
                         <div className="text-xs text-muted-foreground mt-1">
                           Uploaded on{" "}
-                          {format(selectedItem.uploadedAt, "MMMM d, yyyy")}
+                          {format(
+                            new Date(selectedItem.createdAt),
+                            "MMMM d, yyyy"
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs text-muted-foreground">
+                          Uploaded by
+                        </div>
+                        <div className="text-sm">
+                          {selectedItem.uploader.name ||
+                            selectedItem.uploader.email}
                         </div>
                       </div>
 
@@ -387,19 +496,15 @@ const Media = () => {
                           <div className="text-xs text-muted-foreground">
                             Type
                           </div>
-                          <div>{selectedItem.format.toUpperCase()}</div>
+                          <div>{selectedItem.type}</div>
                         </div>
                         <div>
                           <div className="text-xs text-muted-foreground">
                             Size
                           </div>
-                          <div>{selectedItem.size}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-muted-foreground">
-                            Dimensions
+                          <div>
+                            {(selectedItem.size / 1024 / 1024).toFixed(1)} MB
                           </div>
-                          <div>{selectedItem.dimensions}</div>
                         </div>
                         <div>
                           <div className="text-xs text-muted-foreground">
@@ -426,17 +531,55 @@ const Media = () => {
                             variant="ghost"
                             size="icon"
                             className="w-6 h-6 rounded-full"
+                            onClick={() =>
+                              handleAddTag(selectedItem.id, selectedItem.tags)
+                            }
                           >
                             <PlusCircle size={12} />
                           </Button>
                         </div>
                       </div>
 
+                      {/* Copy to Organization */}
+                      {organizations.length > 1 && (
+                        <div>
+                          <div className="text-xs text-muted-foreground mb-2">
+                            Copy to Organization
+                          </div>
+                          <Select
+                            onValueChange={(targetOrgId) => {
+                              if (targetOrgId === organizationId) return;
+                              copyToOrganization({
+                                mediaId: selectedItem.id,
+                                sourceOrgId: organizationId,
+                                targetOrgId,
+                              });
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select organization" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {organizations
+                                .filter((org) => org.id !== organizationId)
+                                .map((org) => (
+                                  <SelectItem key={org.id} value={org.id}>
+                                    {org.name}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
                       <div className="pt-2 flex flex-col gap-2">
                         <Button
                           variant="outline"
                           size="sm"
                           className="w-full justify-start"
+                          onClick={() => {
+                            window.open(selectedItem.url, "_blank");
+                          }}
                         >
                           <Download size={14} className="mr-2" />
                           Download
@@ -445,6 +588,10 @@ const Media = () => {
                           variant="outline"
                           size="sm"
                           className="w-full justify-start"
+                          onClick={() => {
+                            navigator.clipboard.writeText(selectedItem.url);
+                            toast.success("URL copied to clipboard");
+                          }}
                         >
                           <ExternalLink size={14} className="mr-2" />
                           Copy URL
@@ -453,6 +600,7 @@ const Media = () => {
                           variant="outline"
                           size="sm"
                           className="w-full justify-start text-destructive"
+                          onClick={() => handleDelete(selectedItem.id)}
                         >
                           <Trash2 size={14} className="mr-2" />
                           Delete

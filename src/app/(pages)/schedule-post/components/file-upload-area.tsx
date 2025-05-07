@@ -19,6 +19,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFiles } from "../contexts/file-context";
 import { cn } from "@/lib/utils";
+import { UploadDropzone } from "@uploadthing/react";
+import type { OurFileRouter } from "@/app/api/uploadthing/core";
+
 type FileWithPreview = {
   id: string;
   name: string;
@@ -31,7 +34,18 @@ type FileWithPreview = {
   isSelected?: boolean;
 };
 
-export function FileUploadArea() {
+interface UploadedFile {
+  key: string;
+  name: string;
+  url: string;
+  type: string;
+}
+
+interface FileUploadAreaProps {
+  organizationId: string;
+}
+
+export const FileUploadArea = ({ organizationId }: FileUploadAreaProps) => {
   const {
     files,
     setFiles,
@@ -331,4 +345,4 @@ export function FileUploadArea() {
       </Dialog>
     </>
   );
-}
+};

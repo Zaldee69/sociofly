@@ -32,6 +32,7 @@ model Organization {
   posts          Post[]
   socialAccounts SocialAccount[]
   invitations    Invitation[]
+  Media          Media[]
 }
 
 model Membership {
@@ -94,15 +95,22 @@ model Invitation {
 }
 
 model Media {
-  id        String    @id @default(cuid())
-  url       String
-  type      MediaType
-  size      Int
-  createdAt DateTime  @default(now())
-  tags      String[]
-  updatedAt DateTime  @updatedAt
-  userId    String
-  user      User      @relation(fields: [userId], references: [id])
+  id             String       @id @default(cuid())
+  url            String
+  type           MediaType
+  size           Int
+  createdAt      DateTime     @default(now())
+  tags           String[]
+  updatedAt      DateTime     @updatedAt
+  userId         String
+  organizationId String
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  usageCount     Int          @default(0)
+  lastUsedAt     DateTime?
+
+  @@index([organizationId])
+  @@index([userId])
 }
 
 enum MediaType {
