@@ -1,30 +1,51 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
+import { currentUser } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/prisma/client"; // Note: default import
+import { MediaType } from "@prisma/client";
 
 const f = createUploadthing();
 
-// FileRouter for your app, can contain multiple FileRoutes
 export const ourFileRouter = {
-  // Define as many FileRoutes as you like, each with a unique routeSlug
-  imageUploader: f({
-    image: {
-      /**
-       * For full list of options and defaults, see the File Route API reference
-       * @see https://docs.uploadthing.com/file-routes#route-config
-       */
-      maxFileSize: "16MB",
-      maxFileCount: 5,
-    },
-    video: {
-      maxFileSize: "16MB",
-      maxFileCount: 5,
-    },
+  mediaUploader: f({
+    image: { maxFileSize: "16MB", maxFileCount: 5 },
+    video: { maxFileSize: "64MB", maxFileCount: 2 },
   })
-    .middleware(async ({ req }) => {
-      return { userId: "assdsdsdsd" };
+    .middleware(async () => {
+      const clerkUser = await currentUser();
+
+      if (!clerkUser) throw new Error("Unauthorized");
+
+      try {
+        const user = await prisma.user.findUnique({
+          where: {
+            clerkId: clerkUser.id,
+          },
+        });
+
+        if (!user) throw new Error("User not found");
+
+        return { userId: user.id };
+      } catch (error) {
+        console.error("Error finding user:", error);
+        throw error;
+      }
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      console.log("Upload complete", metadata, file);
+      try {
+        const media = await prisma.media.create({
+          data: {
+            url: file.ufsUrl,
+            type: file.type.includes("image") ? "IMAGE" : "VIDEO", // Only "IMAGE" or "VIDEO"
+            size: file.size,
+            tags: [],
+            userId: metadata.userId,
+          },
+        });
+
+        return { ...file, mediaId: media.id };
+      } catch (error) {
+        console.error("Error creating media:", error);
+        throw error;
+      }
     }),
 } satisfies FileRouter;
-
-export type OurFileRouter = typeof ourFileRouter;

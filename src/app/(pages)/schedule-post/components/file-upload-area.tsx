@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFiles } from "../contexts/file-context";
-
+import { cn } from "@/lib/utils";
 type FileWithPreview = {
   id: string;
   name: string;
@@ -47,8 +47,8 @@ export function FileUploadArea() {
   );
   const [isUploading, setIsUploading] = useState(false);
 
-  const { startUpload } = useUploadThing("imageUploader", {
-    onClientUploadComplete: (res) => {
+  const { startUpload } = useUploadThing("mediaUploader", {
+    onClientUploadComplete: async (res) => {
       setIsUploading(false);
       toast.success("File berhasil diupload");
 
@@ -62,7 +62,7 @@ export function FileUploadArea() {
               isUploaded: true,
               url: uploadedFile.url,
               isSelected: false,
-              id: uploadedFile.serverData.mediaId,
+              id: "",
             };
           }
           return file;
@@ -200,7 +200,13 @@ export function FileUploadArea() {
       >
         <div
           {...getRootProps()}
-          className="text-center p-6 h-full flex flex-col cursor-pointer w-full"
+          className={cn(
+            "text-center p-6 h-full flex flex-col cursor-pointer w-full",
+            {
+              "justify-start items-start": files.length > 0,
+              "justify-center items-center": files.length === 0,
+            }
+          )}
         >
           <input {...getInputProps()} />
 

@@ -18,6 +18,7 @@ model User {
   memberships      Membership[]
   posts            Post[]
   socialAccounts   SocialAccount[]
+  media            Media[]
 }
 
 model Organization {
@@ -90,6 +91,23 @@ model Invitation {
   organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([email, organizationId])
+}
+
+model Media {
+  id        String    @id @default(cuid())
+  url       String
+  type      MediaType
+  size      Int
+  createdAt DateTime  @default(now())
+  tags      String[]
+  updatedAt DateTime  @updatedAt
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
 }
 
 enum OnboardingStatus {
