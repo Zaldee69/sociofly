@@ -1,23 +1,18 @@
 "use client";
 
-import React, { Fragment, useState, useEffect } from "react";
+import React, { Fragment, useState, useEffect, useCallback } from "react";
 import {
   Image as ImageIcon,
   UploadCloud,
   Grid2x2,
   List,
   Search,
-  Filter,
   PlusCircle,
-  Trash2,
-  ExternalLink,
-  Download,
   Loader2,
 } from "lucide-react";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -39,20 +34,24 @@ import {
 } from "@/components/ui/dialog";
 import { FileUploadArea } from "../schedule-post/components/file-upload-area";
 import { useFiles } from "../schedule-post/contexts/file-context";
+import { MediaThumbnail } from "./components/media-thumbnail";
+import Link from "next/link";
+import { MediaTable } from "./components/media-table";
 
 const Media = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "used" | "unused">("all");
+  const [filter, setFilter] = useState<"all" | "images" | "videos">("all");
   const [organizationId, setOrganizationId] = useState<string>("");
 
   const { setFiles } = useFiles();
-
   const utils = trpc.useUtils();
 
   // Get user's organizations
-  const { data: organizations = [] } = trpc.organization.getAll.useQuery();
+  const { data: organizations = [], isLoading: isLoadingOrgs } =
+    trpc.organization.getAll.useQuery(undefined, {
+      staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    });
 
   // Set default organization if not set
   useEffect(() => {
@@ -61,23 +60,27 @@ const Media = () => {
     }
   }, [organizations, organizationId]);
 
-  const { data: media = [], isLoading } = trpc.media.getAll.useQuery(
-    {
-      filter,
-      search: searchTerm,
-      organizationId,
-    },
-    {
-      enabled: !!organizationId,
-      refetchOnWindowFocus: false,
-    }
-  );
+  const { data: media = [], isLoading: isLoadingMedia } =
+    trpc.media.getAll.useQuery(
+      {
+        filter,
+        search: searchTerm,
+        organizationId,
+      },
+      {
+        enabled: !!organizationId,
+        refetchOnWindowFocus: false,
+        staleTime: 1000 * 30, // Cache for 30 seconds
+      }
+    );
 
+  const isLoading = isLoadingOrgs || isLoadingMedia;
+
+  // Mutations
   const { mutate: deleteMedia } = trpc.media.delete.useMutation({
     onSuccess: () => {
       toast.success("Media deleted successfully");
       utils.media.getAll.invalidate();
-      setSelectedMedia(null);
     },
     onError: (error) => {
       toast.error(error.message);
@@ -105,27 +108,29 @@ const Media = () => {
       },
     });
 
-  // Get selected media item
-  const selectedItem = selectedMedia
-    ? media.find((item) => item.id === selectedMedia)
-    : null;
+  // Handlers
+  const handleDelete = useCallback(
+    (id: string) => {
+      if (!organizationId) return;
+      deleteMedia({ id, organizationId });
+    },
+    [deleteMedia, organizationId]
+  );
 
-  const handleDelete = (id: string) => {
-    if (!organizationId) return;
-    deleteMedia({ id, organizationId });
-  };
-
-  const handleAddTag = (mediaId: string, currentTags: string[]) => {
-    if (!organizationId) return;
-    const tag = prompt("Enter new tag:");
-    if (tag && !currentTags.includes(tag)) {
-      updateTags({
-        id: mediaId,
-        tags: [...currentTags, tag],
-        organizationId,
-      });
-    }
-  };
+  const handleAddTag = useCallback(
+    (mediaId: string, currentTags: string[]) => {
+      if (!organizationId) return;
+      const tag = prompt("Enter new tag:");
+      if (tag && !currentTags.includes(tag)) {
+        updateTags({
+          id: mediaId,
+          tags: [...currentTags, tag],
+          organizationId,
+        });
+      }
+    },
+    [updateTags, organizationId]
+  );
 
   return (
     <Fragment>
@@ -139,11 +144,11 @@ const Media = () => {
               </span>
             </CardTitle>
 
-            {/* Organization Selector */}
+            {/* Organization Selector and Upload Button */}
             <div className="flex items-center gap-4">
               <Select
                 value={organizationId}
-                onValueChange={(value) => setOrganizationId(value)}
+                onValueChange={(value: string) => setOrganizationId(value)}
               >
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Select Organization" />
@@ -159,9 +164,7 @@ const Media = () => {
 
               <Dialog
                 onOpenChange={(open) => {
-                  if (!open) {
-                    setFiles([]);
-                  }
+                  if (!open) setFiles([]);
                 }}
               >
                 <DialogTrigger asChild>
@@ -173,39 +176,10 @@ const Media = () => {
                 <DialogContent className="max-w-5xl min-w-[600px]">
                   <DialogHeader>
                     <DialogTitle>Upload Media</DialogTitle>
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                      <p>
-                        Upload media to your library. You can upload multiple
-                        files at once.
-                      </p>
-                      {organizations.length > 0 && (
-                        <div className="flex items-center gap-2">
-                          <span>Uploading to:</span>
-                          <Select
-                            value={organizationId}
-                            onValueChange={(value) => setOrganizationId(value)}
-                          >
-                            <SelectTrigger className="w-[200px]">
-                              <SelectValue placeholder="Select Organization" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {organizations.map(
-                                (org: { id: string; name: string }) => (
-                                  <SelectItem key={org.id} value={org.id}>
-                                    {org.name}
-                                  </SelectItem>
-                                )
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                      {!organizationId && (
-                        <p className="text-destructive">
-                          Please select an organization before uploading media.
-                        </p>
-                      )}
-                    </div>
+                    <DialogDescription>
+                      Upload media to your library. You can upload multiple
+                      files at once.
+                    </DialogDescription>
                   </DialogHeader>
                   {organizationId ? (
                     <FileUploadArea organizationId={organizationId} />
@@ -222,6 +196,7 @@ const Media = () => {
             </div>
           </div>
 
+          {/* Search and Filter */}
           <div className="mt-6 flex items-center justify-between gap-4">
             <div className="flex-1 max-w-md relative">
               <Input
@@ -236,7 +211,7 @@ const Media = () => {
             <div className="flex items-center gap-2">
               <Select
                 value={filter}
-                onValueChange={(value: "all" | "used" | "unused") =>
+                onValueChange={(value: "all" | "images" | "videos") =>
                   setFilter(value)
                 }
               >
@@ -244,9 +219,9 @@ const Media = () => {
                   <SelectValue placeholder="Filter" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Media</SelectItem>
-                  <SelectItem value="used">Used in Posts</SelectItem>
-                  <SelectItem value="unused">Unused</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="images">Images</SelectItem>
+                  <SelectItem value="videos">Videos</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -270,19 +245,9 @@ const Media = () => {
               </div>
             </div>
           </div>
-
-          <div className="mt-3">
-            <Tabs defaultValue="images">
-              <TabsList>
-                <TabsTrigger value="images">Images</TabsTrigger>
-                <TabsTrigger value="videos">Videos</TabsTrigger>
-                <TabsTrigger value="documents">Documents</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
         </CardHeader>
 
-        <CardContent className="p-0 flex">
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="flex items-center justify-center min-h-[420px] p-8 flex-1">
               <div className="animate-spin">
@@ -317,299 +282,55 @@ const Media = () => {
           ) : (
             <>
               {/* Media Grid/List */}
-              <div
-                className={`${selectedMedia ? "w-2/3" : "w-full"} min-h-[500px] p-4 overflow-y-auto`}
-              >
+              <div className="min-h-[500px] p-4 overflow-y-auto">
                 {viewMode === "grid" ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                     {media.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`group relative cursor-pointer rounded-md overflow-hidden border ${selectedMedia === item.id ? "ring-2 ring-primary" : ""}`}
-                        onClick={() => setSelectedMedia(item.id)}
-                      >
-                        <div className="aspect-square">
-                          <img
-                            src={item.url}
-                            alt={`Media ${item.id}`}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="bg-white/80 hover:bg-white"
-                          >
-                            <PlusCircle size={18} />
-                          </Button>
-                        </div>
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-2">
-                          <div className="text-sm truncate">
-                            {item.url.split("/").pop()}
+                      <Link href={item.url} key={item.id} target="_blank">
+                        <div
+                          className={`group relative cursor-pointer rounded-md overflow-hidden border`}
+                        >
+                          <div className="aspect-square">
+                            <MediaThumbnail item={item} />
                           </div>
-                          <div className="text-xs opacity-80 flex justify-between">
-                            <span>
-                              {format(new Date(item.createdAt), "MMM d, yyyy")}
-                            </span>
-                            <span>
-                              {(item.size / 1024 / 1024).toFixed(1)} MB
-                            </span>
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="bg-white/80 hover:bg-white"
+                            >
+                              <PlusCircle size={18} />
+                            </Button>
+                          </div>
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-2">
+                            <div className="text-sm truncate">{item.name}</div>
+                            <div className="text-xs opacity-80 flex justify-between">
+                              <span>
+                                {format(
+                                  new Date(item.createdAt),
+                                  "MMM d, yyyy"
+                                )}
+                              </span>
+                              <span>
+                                {(item.size / 1024 / 1024).toFixed(1)} MB
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 ) : (
-                  <div className="border rounded-md overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-muted">
-                        <tr>
-                          <th className="text-left p-2 text-xs font-medium">
-                            Preview
-                          </th>
-                          <th className="text-left p-2 text-xs font-medium">
-                            Name
-                          </th>
-                          <th className="text-left p-2 text-xs font-medium">
-                            Date
-                          </th>
-                          <th className="text-left p-2 text-xs font-medium">
-                            Size
-                          </th>
-                          <th className="text-left p-2 text-xs font-medium">
-                            Used In
-                          </th>
-                          <th className="text-left p-2 text-xs font-medium">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {media.map((item) => (
-                          <tr
-                            key={item.id}
-                            className={`border-b hover:bg-muted/50 cursor-pointer ${selectedMedia === item.id ? "bg-primary/5" : ""}`}
-                            onClick={() => setSelectedMedia(item.id)}
-                          >
-                            <td className="p-2">
-                              <div className="w-12 h-12 rounded overflow-hidden">
-                                <img
-                                  src={item.url}
-                                  alt={`Media ${item.id}`}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                            </td>
-                            <td className="p-2">
-                              <div className="font-medium text-sm">
-                                {item.url.split("/").pop()}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {item.type}
-                              </div>
-                            </td>
-                            <td className="p-2 text-sm">
-                              {format(new Date(item.createdAt), "MMM d, yyyy")}
-                            </td>
-                            <td className="p-2 text-sm">
-                              {(item.size / 1024 / 1024).toFixed(1)} MB
-                            </td>
-                            <td className="p-2 text-sm">{item.usedIn} posts</td>
-                            <td className="p-2">
-                              <div className="flex items-center gap-1">
-                                <Button variant="ghost" size="icon">
-                                  <Download size={16} />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-destructive"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDelete(item.id);
-                                  }}
-                                >
-                                  <Trash2 size={16} />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <MediaTable
+                    items={media.map((item) => ({
+                      ...item,
+                      createdAt: item.createdAt.toISOString(),
+                    }))}
+                    onDelete={handleDelete}
+                    onAddTag={handleAddTag}
+                  />
                 )}
               </div>
-
-              {/* Media Details Panel */}
-              {selectedItem && selectedMedia && (
-                <div className="w-1/3 border-l min-h-[500px]">
-                  <div className="p-4 border-b">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium">Media Details</h3>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setSelectedMedia(null)}
-                      >
-                        <List size={16} />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="p-4">
-                    <div className="aspect-square rounded overflow-hidden mb-4 border">
-                      <img
-                        src={selectedItem.url}
-                        alt={`Media ${selectedItem.id}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-
-                    <div className="space-y-4">
-                      <div>
-                        <h4 className="text-sm font-medium">
-                          {selectedItem.url.split("/").pop()}
-                        </h4>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Uploaded on{" "}
-                          {format(
-                            new Date(selectedItem.createdAt),
-                            "MMMM d, yyyy"
-                          )}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs text-muted-foreground">
-                          Uploaded by
-                        </div>
-                        <div className="text-sm">
-                          {selectedItem.uploader.name ||
-                            selectedItem.uploader.email}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <div className="text-xs text-muted-foreground">
-                            Type
-                          </div>
-                          <div>{selectedItem.type}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-muted-foreground">
-                            Size
-                          </div>
-                          <div>
-                            {(selectedItem.size / 1024 / 1024).toFixed(1)} MB
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-muted-foreground">
-                            Used in
-                          </div>
-                          <div>{selectedItem.usedIn} posts</div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs text-muted-foreground mb-1">
-                          Tags
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedItem.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="px-2 py-1 bg-accent text-xs rounded-full"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="w-6 h-6 rounded-full"
-                            onClick={() =>
-                              handleAddTag(selectedItem.id, selectedItem.tags)
-                            }
-                          >
-                            <PlusCircle size={12} />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Copy to Organization */}
-                      {organizations.length > 1 && (
-                        <div>
-                          <div className="text-xs text-muted-foreground mb-2">
-                            Copy to Organization
-                          </div>
-                          <Select
-                            onValueChange={(targetOrgId) => {
-                              if (targetOrgId === organizationId) return;
-                              copyToOrganization({
-                                mediaId: selectedItem.id,
-                                sourceOrgId: organizationId,
-                                targetOrgId,
-                              });
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select organization" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {organizations
-                                .filter((org) => org.id !== organizationId)
-                                .map((org) => (
-                                  <SelectItem key={org.id} value={org.id}>
-                                    {org.name}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-
-                      <div className="pt-2 flex flex-col gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full justify-start"
-                          onClick={() => {
-                            window.open(selectedItem.url, "_blank");
-                          }}
-                        >
-                          <Download size={14} className="mr-2" />
-                          Download
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full justify-start"
-                          onClick={() => {
-                            navigator.clipboard.writeText(selectedItem.url);
-                            toast.success("URL copied to clipboard");
-                          }}
-                        >
-                          <ExternalLink size={14} className="mr-2" />
-                          Copy URL
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full justify-start text-destructive"
-                          onClick={() => handleDelete(selectedItem.id)}
-                        >
-                          <Trash2 size={14} className="mr-2" />
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </>
           )}
         </CardContent>

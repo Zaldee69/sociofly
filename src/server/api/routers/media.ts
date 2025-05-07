@@ -32,7 +32,7 @@ export const mediaRouter = createTRPCRouter({
   getAll: protectedProcedure
     .input(
       z.object({
-        filter: z.enum(["all", "used", "unused"]).default("all"),
+        filter: z.enum(["all", "images", "videos"]).default("all"),
         search: z.string().optional(),
         organizationId: z.string(),
       })
@@ -71,15 +71,39 @@ export const mediaRouter = createTRPCRouter({
 
       // First get all media
       const media = await ctx.prisma.media.findMany({
-        where: baseWhere,
-        orderBy: { createdAt: "desc" },
-        include: {
+        where: {
+          organizationId,
+          ...(filter === "images" && { type: MediaType.IMAGE }),
+          ...(filter === "videos" && { type: MediaType.VIDEO }),
+          ...(search && {
+            OR: [
+              { name: { contains: search, mode: "insensitive" } },
+              { tags: { has: search } },
+            ],
+          }),
+        },
+        select: {
+          id: true,
+          name: true,
+          url: true,
+          type: true,
+          size: true,
+          createdAt: true,
+          updatedAt: true,
+          tags: true,
+          userId: true,
+          organizationId: true,
+          usageCount: true,
+          lastUsedAt: true,
           user: {
             select: {
-              name: true,
               email: true,
+              name: true,
             },
           },
+        },
+        orderBy: {
+          createdAt: "desc",
         },
       });
 
@@ -105,26 +129,16 @@ export const mediaRouter = createTRPCRouter({
       );
 
       const enrichedMedia = media.map((item) => ({
-        id: item.id,
-        url: item.url,
-        type: item.type,
-        size: item.size,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-        tags: item.tags,
-        userId: item.userId,
-        organizationId: item.organizationId,
+        ...item,
         uploader: item.user,
-        usageCount: item.usageCount,
-        lastUsedAt: item.lastUsedAt,
         usedIn: mediaUsageCount[item.url] || 0,
       }));
 
       // Apply used/unused filter
-      if (filter === "used") {
-        return enrichedMedia.filter((item) => item.usedIn > 0);
-      } else if (filter === "unused") {
-        return enrichedMedia.filter((item) => item.usedIn === 0);
+      if (filter === "images") {
+        return enrichedMedia.filter((item) => item.type === MediaType.IMAGE);
+      } else if (filter === "videos") {
+        return enrichedMedia.filter((item) => item.type === MediaType.VIDEO);
       }
 
       return enrichedMedia;
@@ -226,6 +240,7 @@ export const mediaRouter = createTRPCRouter({
           type: sourceMedia.type,
           size: sourceMedia.size,
           tags: sourceMedia.tags,
+          name: sourceMedia.name,
           userId: ctx.userId,
           organizationId: input.targetOrgId,
           usageCount: 0,

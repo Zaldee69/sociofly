@@ -21,6 +21,7 @@ import { useFiles } from "../contexts/file-context";
 import { cn } from "@/lib/utils";
 import { UploadDropzone } from "@uploadthing/react";
 import type { OurFileRouter } from "@/app/api/uploadthing/core";
+import { trpc } from "@/lib/trpc/client";
 
 type FileWithPreview = {
   id: string;
@@ -54,6 +55,7 @@ export const FileUploadArea = ({ organizationId }: FileUploadAreaProps) => {
     moveFile,
     toggleFileSelection,
   } = useFiles();
+  const utils = trpc.useUtils();
   const [previewFile, setPreviewFile] = useState<FileWithPreview | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
@@ -63,28 +65,17 @@ export const FileUploadArea = ({ organizationId }: FileUploadAreaProps) => {
 
   const { startUpload } = useUploadThing("mediaUploader", {
     onClientUploadComplete: async (res) => {
+      if (!res) return;
+
       setIsUploading(false);
       toast.success("File berhasil diupload");
 
-      // Update files with uploaded URLs and Supabase IDs
-      setFiles((prevFiles) =>
-        prevFiles.map((file) => {
-          const uploadedFile = res.find((f) => f.name === file.name);
-          if (uploadedFile) {
-            return {
-              ...file,
-              isUploaded: true,
-              url: uploadedFile.url,
-              isSelected: false,
-              id: "",
-            };
-          }
-          return file;
-        })
-      );
-
-      // Clear progress
+      // Clear files and progress
+      setFiles([]);
       setUploadProgress({});
+
+      // Invalidate media query to trigger refetch
+      utils.media.getAll.invalidate({ organizationId });
     },
     onUploadError: (error) => {
       setIsUploading(false);
@@ -152,12 +143,15 @@ export const FileUploadArea = ({ organizationId }: FileUploadAreaProps) => {
     if (filesToUpload.length === 0) return;
 
     try {
-      await startUpload(filesToUpload.map((f) => f.file!));
+      await startUpload(
+        filesToUpload.map((f) => f.file!),
+        { organizationId }
+      );
     } catch (error) {
       console.error("Upload failed:", error);
       toast.error("Gagal mengupload file");
     }
-  }, [files, startUpload]);
+  }, [files, startUpload, organizationId]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: handleFileSelect,

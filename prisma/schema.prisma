@@ -96,6 +96,7 @@ model Invitation {
 
 model Media {
   id             String       @id @default(cuid())
+  name           String // Original filename
   url            String
   type           MediaType
   size           Int

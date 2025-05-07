@@ -2,6 +2,7 @@ import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma/client"; // Note: default import
 import { MediaType } from "@prisma/client";
+import { z } from "zod";
 
 const f = createUploadthing();
 
@@ -10,14 +11,15 @@ export const ourFileRouter = {
     image: { maxFileSize: "16MB", maxFileCount: 5 },
     video: { maxFileSize: "64MB", maxFileCount: 2 },
   })
-    .middleware(async ({ req }) => {
+    .input(
+      z.object({
+        organizationId: z.string(),
+      })
+    )
+    .middleware(async ({ input }) => {
       const clerkUser = await currentUser();
 
       if (!clerkUser) throw new Error("Unauthorized");
-
-      // Get organizationId from request headers
-      const organizationId = req.headers.get("x-organization-id");
-      if (!organizationId) throw new Error("Organization ID is required");
 
       try {
         const user = await prisma.user.findUnique({
@@ -27,7 +29,7 @@ export const ourFileRouter = {
           include: {
             memberships: {
               where: {
-                organizationId,
+                organizationId: input.organizationId,
                 role: {
                   in: ["ADMIN", "EDITOR"],
                 },
@@ -42,7 +44,7 @@ export const ourFileRouter = {
             "Not authorized to upload media in this organization"
           );
 
-        return { userId: user.id, organizationId };
+        return { userId: user.id, organizationId: input.organizationId };
       } catch (error) {
         console.error("Error finding user:", error);
         throw error;
@@ -52,6 +54,7 @@ export const ourFileRouter = {
       try {
         const media = await prisma.media.create({
           data: {
+            name: file.name,
             url: file.url,
             type: file.type.includes("image")
               ? MediaType.IMAGE
