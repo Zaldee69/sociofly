@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { trpc } from "@/lib/trpc/client";
-import { OnboardingStatus, Role } from "@prisma/client";
+import { OnboardingStatus, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
 
 const onboardingSchema = z.object({
@@ -17,115 +16,209 @@ const onboardingSchema = z.object({
       youtube: z.boolean(),
     })
     .optional(),
+  pagesData: z
+    .array(
+      z.object({
+        platform: z.nativeEnum(SocialPlatform),
+        accessToken: z.string(),
+        name: z.string(),
+      })
+    )
+    .optional(),
 });
 
 export const onboardingRouter = createTRPCRouter({
   completeOnboarding: protectedProcedure
     .input(onboardingSchema)
     .mutation(async ({ ctx, input }) => {
-      const { userType, organizationName, teamEmails } = input;
+      const { userType, organizationName, teamEmails, pagesData } = input;
+
+      if (!ctx.userId) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "User not authenticated",
+        });
+      }
+
       const userId = ctx.userId;
 
+      console.log("Starting onboarding process:", {
+        userType,
+        organizationName,
+        teamEmailsCount: teamEmails?.length,
+        hasPagesData: !!pagesData,
+      });
+
       try {
-        let createdOrganization = null;
+        // Get existing user
+        const existingUser = await ctx.prisma.user.findUnique({
+          where: { id: userId },
+          include: {
+            memberships: {
+              take: 1,
+            },
+          },
+        });
+
+        if (!existingUser) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "User not found",
+          });
+        }
+
+        // Create or get organization
+        let organization;
         if (userType === "team" && organizationName) {
-          createdOrganization = await ctx.prisma.organization.create({
+          // For team type, create new organization with provided name
+          organization = await ctx.prisma.organization.create({
             data: {
               name: organizationName,
               slug: organizationName.toLowerCase().replace(/\s+/g, "-"),
               memberships: {
                 create: {
-                  userId: userId!,
+                  userId,
                   role: "ADMIN",
                 },
               },
             },
           });
+          console.log("Created team organization:", organization.name);
+        } else {
+          const defaultOrgName =
+            existingUser.name || existingUser.email || "My Organization";
+          // For solo type or if no org name provided, create default organization
+          organization = await ctx.prisma.organization.create({
+            data: {
+              name: defaultOrgName,
+              slug: `${existingUser.email.split("@")[0]}-org`,
+              memberships: {
+                create: {
+                  userId,
+                  role: "ADMIN",
+                },
+              },
+            },
+          });
+          console.log("Created solo organization:", organization.name);
+        }
 
-          // Create memberships for team members if provided
-          if (teamEmails && teamEmails.length > 0) {
-            for (const email of teamEmails) {
-              try {
-                // Check if user already exists
-                const existingUser = await ctx.prisma.user.findUnique({
-                  where: { email },
-                });
+        // Process team invitations if it's a team
+        if (userType === "team" && teamEmails && teamEmails.length > 0) {
+          console.log(`Processing ${teamEmails.length} team invitations`);
+          for (const email of teamEmails) {
+            try {
+              console.log(`Processing invitation for: ${email}`);
+              const invitedUser = await ctx.prisma.user.findUnique({
+                where: { email },
+              });
 
-                if (existingUser) {
-                  // Check if user is already a member
-                  const existingMembership =
-                    await ctx.prisma.membership.findFirst({
-                      where: {
-                        userId: existingUser.id,
-                        organizationId: createdOrganization.id,
-                      },
-                    });
+              // if (invitedUser) {
+              //   // User exists, create membership
+              //   const existingMembership =
+              //     await ctx.prisma.membership.findFirst({
+              //       where: {
+              //         userId: invitedUser.id,
+              //         organizationId: organization.id,
+              //       },
+              //     });
 
-                  if (existingMembership) {
-                    continue; // Skip this email and continue with next one
-                  }
-
-                  // Create membership for existing user
-                  await ctx.prisma.membership.create({
-                    data: {
-                      userId: existingUser.id,
-                      organizationId: createdOrganization.id,
-                      role: "EDITOR",
-                    },
-                  });
-                } else {
-                  // Create invitation for new user
-                  await ctx.prisma.invitation.create({
-                    data: {
-                      email,
-                      organizationId: createdOrganization.id,
-                      role: "EDITOR",
-                    },
-                  });
-                }
-
-                // Send invitation email in both cases
-                const invite = await sendInviteEmail({
+              //   if (!existingMembership) {
+              //     await ctx.prisma.membership.create({
+              //       data: {
+              //         userId: invitedUser.id,
+              //         organizationId: organization.id,
+              //         role: "EDITOR",
+              //       },
+              //     });
+              //     console.log(`Created membership for existing user: ${email}`);
+              //   }
+              // } else {
+              // Create invitation for new user
+              await ctx.prisma.invitation.create({
+                data: {
                   email,
-                  organizationName: createdOrganization.name,
+                  organizationId: organization.id,
                   role: "EDITOR",
-                });
+                },
+              });
+              console.log(`Created invitation for new user: ${email}`);
+              // }
 
-                console.log("Invite sent:", invite);
-              } catch (error) {
-                console.error("Error processing team member:", error);
-                // Log error but continue with next email
-                continue;
-              }
+              // Send invitation email
+              await sendInviteEmail({
+                email,
+                organizationName: organization.name,
+                role: "EDITOR",
+              });
+              console.log(`Sent invitation email to: ${email}`);
+            } catch (error) {
+              console.error(`Error processing team member ${email}:`, error);
+              // Continue with next email instead of failing the whole process
+              continue;
             }
           }
         }
 
+        // Process social accounts if provided
+        if (pagesData && pagesData.length > 0) {
+          console.log(`Processing ${pagesData.length} social accounts`);
+          for (const page of pagesData) {
+            try {
+              await ctx.prisma.socialAccount.create({
+                data: {
+                  platform: page.platform,
+                  accessToken: page.accessToken,
+                  name: page.name,
+                  userId,
+                  organizationId: organization.id,
+                },
+              });
+              console.log(
+                `Created social account: ${page.platform} - ${page.name}`
+              );
+            } catch (error) {
+              console.error(`Error creating social account:`, error);
+              continue;
+            }
+          }
+        }
+
+        // Update user onboarding status
+        await ctx.prisma.user.update({
+          where: { id: userId },
+          data: { onboardingStatus: OnboardingStatus.COMPLETED },
+        });
+
+        console.log("Onboarding completed successfully");
         return {
           success: true,
           message: "Onboarding completed successfully",
+          organization,
         };
       } catch (error) {
-        console.error("Error completing onboarding:", error);
+        console.error("Error in onboarding process:", error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to complete onboarding",
-        });
-      } finally {
-        await ctx.prisma.user.update({
-          where: { id: userId! },
-          data: { onboardingStatus: OnboardingStatus.COMPLETED },
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to complete onboarding",
         });
       }
     }),
 
   // Get onboarding status
   getOnboardingStatus: protectedProcedure.query(async ({ ctx }) => {
-    const userId = ctx.userId;
+    if (!ctx.userId) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "User not authenticated",
+      });
+    }
 
-    // Check if user has completed onboarding
     const user = await ctx.prisma.user.findUnique({
-      where: { id: userId! },
+      where: { id: ctx.userId },
     });
 
     return {
@@ -134,13 +227,21 @@ export const onboardingRouter = createTRPCRouter({
   }),
 
   getSocialAccounts: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx.userId) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "User not authenticated",
+      });
+    }
+
     const socialAccounts = await ctx.prisma.socialAccount.findMany({
       where: {
-        userId: ctx.userId!,
+        userId: ctx.userId,
       },
       select: {
         id: true,
         platform: true,
+        name: true,
       },
     });
 
@@ -154,9 +255,16 @@ export const onboardingRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "User not authenticated",
+        });
+      }
+
       const user = await ctx.prisma.user.update({
         where: {
-          id: ctx.auth.userId,
+          id: ctx.userId,
         },
         data: {
           onboardingStatus: input.status as OnboardingStatus,

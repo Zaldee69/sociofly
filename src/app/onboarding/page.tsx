@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, use } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, ArrowLeft, Instagram, Facebook } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,7 +11,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
 const Onboarding: React.FC = () => {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const refresh = searchParams.get("refresh");
 
@@ -96,6 +95,11 @@ const Onboarding: React.FC = () => {
   };
 
   const renderActionButtons = () => {
+    const pagesData = JSON.parse(searchParams.get("pagesData") ?? "[]");
+    const accounts = pagesData?.map((account: any) => account.platform);
+
+    console.log(accounts);
+
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -104,7 +108,7 @@ const Onboarding: React.FC = () => {
       >
         {step === 3 ? (
           <div className="flex space-x-4">
-            {(!userSocialAccounts || userSocialAccounts.length === 0) && (
+            {(!accounts || accounts.length === 0) && (
               <Button
                 variant="outline"
                 onClick={skipSocialConnect}
@@ -113,7 +117,7 @@ const Onboarding: React.FC = () => {
                 Lewati
               </Button>
             )}
-            {userSocialAccounts && userSocialAccounts.length > 0 && (
+            {accounts && accounts.length > 0 && (
               <Button
                 onClick={handleNext}
                 disabled={completeOnboarding.isPending}

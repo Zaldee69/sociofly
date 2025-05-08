@@ -32,29 +32,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  // Get or create organization
-  let organizationId = existingUser.memberships[0]?.organizationId;
-  if (!organizationId) {
-    const organization = await prisma.organization.create({
-      data: {
-        name:
-          orgName ||
-          `${existingUser.name || existingUser.email}'s Organization`,
-        slug: `${existingUser.email.split("@")[0]}-org`,
-      },
-    });
-    organizationId = organization.id;
-
-    // Create membership
-    await prisma.membership.create({
-      data: {
-        userId: existingUser.id,
-        organizationId: organization.id,
-        role: "ADMIN",
-      },
-    });
-  }
-
   const tokenResponse = await fetch(
     `https://graph.facebook.com/v21.0/oauth/access_token?client_secret=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET}&client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&code=${code}&redirect_uri=${encodeURIComponent(
       `http://localhost:3000/api/auth/callback/facebook`
@@ -76,22 +53,23 @@ export async function GET(request: NextRequest) {
 
   const pagesData = await pagesResponse.json();
 
+  const datas = [];
+
   // Store user's Facebook pages
   for (const page of pagesData.data) {
-    await prisma.socialAccount.create({
-      data: {
-        platform: SocialPlatform.FACEBOOK,
-        accessToken: page.access_token,
-        userId: existingUser.id,
-        organizationId,
-        name: page.name,
-      },
+    datas.push({
+      platform: SocialPlatform.FACEBOOK,
+      accessToken: page.access_token,
+      userId: existingUser.id,
+      name: page.name,
     });
   }
 
+  const pagasData = encodeURIComponent(JSON.stringify(datas));
+
   return NextResponse.redirect(
     new URL(
-      `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true`,
+      `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&pagesData=${pagasData}`,
       request.url
     )
   );

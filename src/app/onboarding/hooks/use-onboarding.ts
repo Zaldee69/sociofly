@@ -156,10 +156,24 @@ export const useOnboarding = () => {
 
       setStep(3);
     } else {
+      const teams = searchParams.get("teamEmails");
+      const types =
+        userType || (searchParams.get("userType") as "solo" | "team");
+      const emails =
+        teamEmails.length > 0
+          ? teamEmails
+          : teams?.split(",").map((email) => email.trim());
+      const organizationName =
+        types === "team"
+          ? orgName || (searchParams.get("orgName") as string)
+          : undefined;
+      const pagesData = JSON.parse(searchParams.get("pagesData") ?? "[]");
+
       completeOnboarding.mutate({
-        userType: userType!,
-        organizationName: userType === "team" ? orgName : undefined,
-        teamEmails: userType === "team" ? teamEmails : undefined,
+        userType: types!,
+        organizationName,
+        teamEmails: types === "team" ? emails : undefined,
+        pagesData,
         socialAccounts: {
           facebook: true,
           instagram: false,
@@ -171,10 +185,23 @@ export const useOnboarding = () => {
   };
 
   const skipSocialConnect = () => {
+    const teams = searchParams.get("teamEmails");
+    const emails =
+      teamEmails.length > 0
+        ? teamEmails
+        : teams?.split(",").map((email) => email.trim());
+    const types = userType || (searchParams.get("userType") as "solo" | "team");
+    const organizationName =
+      types === "team"
+        ? orgName || (searchParams.get("orgName") as string)
+        : undefined;
+    const pagesData = JSON.parse(searchParams.get("pagesData") ?? "[]");
+
     completeOnboarding.mutate({
-      userType: userType!,
-      organizationName: userType === "team" ? orgName : undefined,
-      teamEmails: userType === "team" ? teamEmails : undefined,
+      userType: types!,
+      organizationName,
+      teamEmails: types === "team" ? emails : undefined,
+      pagesData,
       socialAccounts: {
         facebook: false,
         instagram: false,
@@ -185,7 +212,8 @@ export const useOnboarding = () => {
   };
 
   const isAccountConnected = (platform: string) => {
-    return userSocialAccounts?.some((account) => account.platform === platform);
+    const pagesData = JSON.parse(searchParams.get("pagesData") ?? "[]");
+    return pagesData?.some((account: any) => account.platform === platform);
   };
 
   return {
