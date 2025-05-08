@@ -105,19 +105,29 @@ export const useOnboarding = () => {
   };
 
   const handleSocialToggle = (platform: "FACEBOOK" | "INSTAGRAM") => {
-    const userTypeParam = `&userType=${userType}`;
+    // Create a state object with all the parameters we want to pass
+    const stateData = {
+      userId: authUser.user?.id,
+      userType,
+      orgName,
+      teamEmails: teamEmails.join(","),
+    };
+
+    // Encode the state data using encodeURIComponent
+    const encodedState = encodeURIComponent(JSON.stringify(stateData));
+
     if (platform === "FACEBOOK") {
       window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${
         process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID
-      }&state=${authUser.user?.id}&redirect_uri=${encodeURIComponent(
+      }&state=${encodedState}&redirect_uri=${encodeURIComponent(
         `${window.location.origin}/api/auth/callback/facebook`
-      )}&scope=email,business_management,pages_show_list,pages_read_engagement,pages_read_user_content,pages_manage_posts,pages_manage_cta,pages_manage_engagement,pages_manage_metadata,pages_manage_posts,pages_read_engagement,pages_read_user_content,pages_manage_posts,pages_manage_cta,pages_manage_engagement,pages_manage_metadata${userTypeParam}`;
+      )}&scope=email,business_management,pages_show_list,pages_read_engagement,pages_read_user_content,pages_manage_posts,pages_manage_cta,pages_manage_engagement,pages_manage_metadata,pages_manage_posts,pages_read_engagement,pages_read_user_content,pages_manage_posts,pages_manage_cta,pages_manage_engagement,pages_manage_metadata`;
     } else if (platform === "INSTAGRAM") {
       window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${
         process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID
-      }&state=${authUser.user?.id}&redirect_uri=${encodeURIComponent(
+      }&state=${encodedState}&redirect_uri=${encodeURIComponent(
         `${window.location.origin}/api/auth/callback/instagram`
-      )}&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,instagram_manage_insights,business_management${userTypeParam}`;
+      )}&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,instagram_manage_insights,business_management`;
     }
   };
 
@@ -135,25 +145,27 @@ export const useOnboarding = () => {
         toast.error("Pilih salah satu opsi");
         return;
       }
-
       // Update onboarding status to IN_PROGRESS when first clicking next
       updateOnboardingStatus.mutate({ status: "IN_PROGRESS" });
-
-      router.push(`/onboarding?userType=${userType}`, {
-        scroll: false,
-      });
       setStep(userType === "team" ? 2 : 3);
     } else if (step === 2) {
       if (!orgName.trim()) {
         toast.error("Nama organisasi diperlukan");
         return;
       }
+
       setStep(3);
     } else {
       completeOnboarding.mutate({
         userType: userType!,
         organizationName: userType === "team" ? orgName : undefined,
         teamEmails: userType === "team" ? teamEmails : undefined,
+        socialAccounts: {
+          facebook: true,
+          instagram: false,
+          twitter: false,
+          youtube: false,
+        },
       });
     }
   };
@@ -163,6 +175,12 @@ export const useOnboarding = () => {
       userType: userType!,
       organizationName: userType === "team" ? orgName : undefined,
       teamEmails: userType === "team" ? teamEmails : undefined,
+      socialAccounts: {
+        facebook: false,
+        instagram: false,
+        twitter: false,
+        youtube: false,
+      },
     });
   };
 

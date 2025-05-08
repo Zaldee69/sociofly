@@ -52,7 +52,7 @@ export const OrganizationStep: React.FC<OrganizationStepProps> = ({
           />
         </div>
 
-        <div>
+        {/* <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Upload logo (opsional)
           </label>
@@ -78,7 +78,7 @@ export const OrganizationStep: React.FC<OrganizationStepProps> = ({
               Gunakan logo agar tim kamu mudah mengenali.
             </div>
           </div>
-        </div>
+        </div> */}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">

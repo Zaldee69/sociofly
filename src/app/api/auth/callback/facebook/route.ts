@@ -1,5 +1,3 @@
-// /api/auth/callback/facebook
-
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma/client";
 import { SocialPlatform } from "@prisma/client";
@@ -8,6 +6,9 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const state = searchParams.get("state");
   const code = searchParams.get("code");
+
+  const decodedState = JSON.parse(decodeURIComponent(state!));
+  const { userId, userType, orgName, teamEmails } = decodedState;
 
   if (!state || !code) {
     return NextResponse.json(
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   const existingUser = await prisma.user.findUnique({
     where: {
-      clerkId: state,
+      clerkId: userId,
     },
     include: {
       memberships: {
@@ -36,7 +37,9 @@ export async function GET(request: NextRequest) {
   if (!organizationId) {
     const organization = await prisma.organization.create({
       data: {
-        name: `${existingUser.name || existingUser.email}'s Organization`,
+        name:
+          orgName ||
+          `${existingUser.name || existingUser.email}'s Organization`,
         slug: `${existingUser.email.split("@")[0]}-org`,
       },
     });
@@ -66,13 +69,6 @@ export async function GET(request: NextRequest) {
 
   const accessToken = tokenData.access_token;
 
-  // Get user info using the access token
-  const userResponse = await fetch(
-    `https://graph.facebook.com/v21.0/me?fields=id&access_token=${accessToken}`
-  );
-
-  const userData = await userResponse.json();
-
   // Get user's Facebook pages
   const pagesResponse = await fetch(
     `https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`
@@ -95,7 +91,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.redirect(
     new URL(
-      `/onboarding?step=add_social_accounts&userType=${searchParams.get("userType")}&refresh=true`,
+      `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true`,
       request.url
     )
   );
