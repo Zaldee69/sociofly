@@ -38,6 +38,8 @@ model Organization {
 model Membership {
   id             String       @id @default(cuid())
   role           Role         @default(VIEWER)
+  status         MemberStatus @default(ACTIVE)
+  lastActiveAt   DateTime     @default(now())
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   userId         String
@@ -145,4 +147,10 @@ enum PostStatus {
   SCHEDULED
   PUBLISHED
   FAILED
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
 }

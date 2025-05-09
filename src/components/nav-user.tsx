@@ -21,19 +21,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 import { useSignOut } from "@/lib/auth-utils";
 import Link from "next/link";
 export function NavUser({
   user,
-  role,
 }: {
   user: {
     name: string;
+    firstName: string;
+    lastName: string;
     email: string;
-    avatar: string;
+    imageUrl: string;
+    id: string;
   };
-  role: string;
 }) {
   const signOut = useSignOut();
 
@@ -42,7 +42,7 @@ export function NavUser({
       <DropdownMenuTrigger asChild>
         <div className="flex w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md px-2 py-1.5 hover:bg-accent hover:text-accent-foreground">
           <Avatar className="h-8 w-8 rounded-lg">
-            <AvatarImage src={user.avatar} alt={user.name} />
+            <AvatarImage src={user.imageUrl} alt={user.name} />
             <AvatarFallback className="rounded-lg">
               {user.name.charAt(0)}
             </AvatarFallback>
@@ -65,7 +65,7 @@ export function NavUser({
         <DropdownMenuLabel className="p-0 font-normal">
           <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
             <Avatar className="h-8 w-8 rounded-lg">
-              <AvatarImage src={user.avatar} alt={user.name} />
+              <AvatarImage src={user.imageUrl} alt={user.name} />
               <AvatarFallback className="rounded-lg">
                 {user.name.charAt(0)}
               </AvatarFallback>
@@ -92,25 +92,19 @@ export function NavUser({
             <BellIcon className="mr-2 h-4 w-4" />
             Notifications
           </DropdownMenuItem>
-          {role === "ADMIN" && (
-            <>
-              <DropdownMenuItem>
-                <Link href="/teams" className="flex items-center gap-2">
-                  <Users className="mr-2 h-4 w-4" />
-                  Teams
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Link
-                  href="/social-accounts"
-                  className="flex items-center gap-2"
-                >
-                  <LinkIcon className="mr-2 h-4 w-4" />
-                  Social Accounts
-                </Link>
-              </DropdownMenuItem>
-            </>
-          )}
+
+          <DropdownMenuItem>
+            <Link href="/teams" className="flex items-center gap-2">
+              <Users className="mr-2 h-4 w-4" />
+              Teams
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <Link href="/social-accounts" className="flex items-center gap-2">
+              <LinkIcon className="mr-2 h-4 w-4" />
+              Social Accounts
+            </Link>
+          </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem

@@ -18,10 +18,9 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import dynamic from "next/dynamic";
-import { useDynamicNavItems } from "./sidebar/dynamic-nav-items";
 import { SidebarFooter } from "./ui/sidebar";
 import { NavUser } from "./nav-user";
+import { useUser } from "@clerk/nextjs";
 
 const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -30,6 +29,19 @@ const Sidebar: React.FC = () => {
   const isActive = (path: string) => {
     return pathname === path || (path !== "/" && pathname.startsWith(path));
   };
+
+  const { user } = useUser();
+
+  const userData = {
+    id: user?.id || "",
+    firstName: user?.firstName || "",
+    lastName: user?.lastName || "",
+    name: `${user?.firstName || ""} ${user?.lastName || ""}`.trim(),
+    email: user?.emailAddresses[0]?.emailAddress || "",
+    imageUrl: user?.imageUrl || "",
+  };
+
+  console.log(userData);
 
   // Base navigation items that are always shown
   const baseNavItems = [
@@ -61,8 +73,7 @@ const Sidebar: React.FC = () => {
   ];
 
   // Get dynamic navigation items
-  const dynamicNavItems = useDynamicNavItems();
-  const allNavItems = [...baseNavItems, ...dynamicNavItems];
+  const allNavItems = [...baseNavItems];
 
   return (
     <div
@@ -180,14 +191,7 @@ const Sidebar: React.FC = () => {
           </button>
         ) : (
           <SidebarFooter>
-            <NavUser
-              role={""}
-              user={{
-                name: "",
-                email: "",
-                avatar: "",
-              }}
-            />
+            <NavUser user={userData} />
           </SidebarFooter>
         )}
       </div>
