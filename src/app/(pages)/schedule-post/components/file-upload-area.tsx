@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { motion } from "framer-motion";
@@ -22,18 +22,7 @@ import { cn } from "@/lib/utils";
 import { UploadDropzone } from "@uploadthing/react";
 import type { OurFileRouter } from "@/app/api/uploadthing/core";
 import { trpc } from "@/lib/trpc/client";
-
-type FileWithPreview = {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  preview?: string;
-  file?: File;
-  isUploaded?: boolean;
-  url?: string;
-  isSelected?: boolean;
-};
+import { FileWithPreview } from "../types";
 
 interface UploadedFile {
   key: string;
@@ -58,48 +47,59 @@ export const FileUploadArea = ({ organizationId }: FileUploadAreaProps) => {
   const utils = trpc.useUtils();
   const [previewFile, setPreviewFile] = useState<FileWithPreview | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
-    {}
-  );
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
 
   const { startUpload } = useUploadThing("mediaUploader", {
     onClientUploadComplete: async (res) => {
       if (!res) return;
 
+      // Update files with upload status
+      setFiles((prevFiles) =>
+        prevFiles.map((file) => ({
+          ...file,
+          isUploaded: true,
+          isUploading: false,
+        }))
+      );
+
+      // Clear upload states
       setIsUploading(false);
+      setUploadingFiles(new Set());
+
       toast.success("File berhasil diupload");
-
-      // Clear files and progress
-      setFiles([]);
-      setUploadProgress({});
-
-      // Invalidate media query to trigger refetch
       utils.media.getAll.invalidate({ organizationId });
     },
     onUploadError: (error) => {
+      setFiles((prevFiles) =>
+        prevFiles.map((file) => ({
+          ...file,
+          isUploading: false,
+        }))
+      );
       setIsUploading(false);
+      setUploadingFiles(new Set());
+
       console.error("Upload error:", error);
       toast.error("Gagal mengupload file");
     },
     onUploadBegin: (fileName: string) => {
       setIsUploading(true);
-      setUploadProgress((prev) => ({
-        ...prev,
-        [fileName]: 0,
-      }));
-    },
-    onUploadProgress: (progress: number) => {
-      setUploadProgress((prev) => {
-        const fileName = Object.keys(prev).find((key) => prev[key] < 100);
-        if (fileName) {
-          return {
-            ...prev,
-            [fileName]: progress,
-          };
-        }
-        return prev;
+
+      setUploadingFiles((prev) => {
+        const newSet = new Set(prev);
+        newSet.add(fileName);
+        return newSet;
       });
+
+      setFiles((prevFiles) =>
+        prevFiles.map((file) =>
+          file.name === fileName ? { ...file, isUploading: true } : file
+        )
+      );
+    },
+    onUploadProgress: () => {
+      // We don't need to track progress anymore
     },
   });
 
@@ -123,7 +123,7 @@ export const FileUploadArea = ({ organizationId }: FileUploadAreaProps) => {
       });
 
       // Create previews and add to state
-      const filesWithPreview = validFiles.map((file) => ({
+      const filesWithPreview: FileWithPreview[] = validFiles.map((file) => ({
         id: Math.random().toString(36).substring(2, 9),
         name: file.name,
         type: file.type,
@@ -131,6 +131,9 @@ export const FileUploadArea = ({ organizationId }: FileUploadAreaProps) => {
         preview: URL.createObjectURL(file),
         file,
         isUploaded: false,
+        isUploading: false,
+        uploadProgress: 0,
+        isSelected: false,
       }));
 
       addFiles(filesWithPreview);
@@ -263,9 +266,10 @@ export const FileUploadArea = ({ organizationId }: FileUploadAreaProps) => {
                       moveFile={moveFile}
                       removeFile={removeFile}
                       isUploaded={file.isUploaded}
+                      isUploading={file.isUploading}
+                      uploadProgress={file.uploadProgress}
                       onPreview={handlePreview}
-                      uploadProgress={uploadProgress[file.name]}
-                      isDraggable={!file.isUploaded}
+                      isDraggable={!file.isUploaded && !file.isUploading}
                     />
                   ))}
                 </div>

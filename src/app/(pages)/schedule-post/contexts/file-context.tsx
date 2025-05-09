@@ -7,19 +7,7 @@ import {
   useCallback,
   ReactNode,
 } from "react";
-
-type FileWithPreview = {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  preview?: string;
-  file?: File;
-  isUploaded?: boolean;
-  url?: string;
-  isSelected?: boolean;
-  supabaseId?: string;
-};
+import { FileWithPreview } from "../types";
 
 type FileContextType = {
   files: FileWithPreview[];

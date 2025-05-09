@@ -3,189 +3,118 @@
 
 import { useDrag, useDrop } from "react-dnd";
 import { motion } from "framer-motion";
-import { X, CheckCircle2, XCircle } from "lucide-react";
+import { X, CheckCircle2, Loader2 } from "lucide-react";
 import { useRef } from "react";
-import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { FileWithPreview } from "../types";
 
-type DraggableMediaProps = {
-  file: {
-    id: string;
-    name: string;
-    type: string;
-    preview?: string;
-    size: number;
-    file?: File;
-    isUploaded?: boolean;
-    url?: string;
-    isSelected?: boolean;
-  };
+interface DraggableMediaProps {
+  file: FileWithPreview;
   index: number;
   moveFile: (fromIndex: number, toIndex: number) => void;
   removeFile: (id: string) => void;
   isUploaded?: boolean;
-  onPreview: (file: DraggableMediaProps["file"]) => void;
+  isUploading?: boolean;
   uploadProgress?: number;
-  onCancelUpload?: () => void;
-  isDraggable?: boolean;
+  onPreview: (file: FileWithPreview) => void;
+  isDraggable: boolean;
   isSelected?: boolean;
   onSelect?: () => void;
-};
+}
 
-export function DraggableMedia({
+export const DraggableMedia = ({
   file,
   index,
   moveFile,
   removeFile,
   isUploaded,
+  isUploading,
   onPreview,
-  uploadProgress,
-  onCancelUpload,
-  isDraggable = true,
+  isDraggable,
   isSelected = false,
   onSelect,
-}: DraggableMediaProps) {
+}: DraggableMediaProps) => {
   const ref = useRef<HTMLDivElement>(null);
 
-  // Only use drag and drop hooks if isDraggable is true
-  const [{ isDragging }, drag] = useDrag(
-    () => ({
-      type: "MEDIA",
-      item: { index },
-      collect: (monitor) => ({
-        isDragging: monitor.isDragging(),
-      }),
-      canDrag: isDraggable,
+  const [{ isDragging }, drag] = useDrag({
+    type: "MEDIA",
+    item: { index },
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
     }),
-    [index, isDraggable]
-  );
+    canDrag: isDraggable,
+  });
 
-  const [, drop] = useDrop(
-    () => ({
-      accept: "MEDIA",
-      hover: (item: { index: number }, monitor) => {
-        if (!ref.current || !isDraggable) return;
-        const dragIndex = item.index;
-        const hoverIndex = index;
+  const [, drop] = useDrop({
+    accept: "MEDIA",
+    hover: (item: { index: number }) => {
+      if (item.index !== index) {
+        moveFile(item.index, index);
+        item.index = index;
+      }
+    },
+  });
 
-        if (dragIndex === hoverIndex) return;
-
-        const hoverBoundingRect = ref.current.getBoundingClientRect();
-        const hoverMiddleX =
-          (hoverBoundingRect.right - hoverBoundingRect.left) / 2;
-        const clientOffset = monitor.getClientOffset();
-        const hoverClientX = clientOffset!.x - hoverBoundingRect.left;
-
-        if (dragIndex < hoverIndex && hoverClientX < hoverMiddleX) return;
-        if (dragIndex > hoverIndex && hoverClientX > hoverMiddleX) return;
-
-        moveFile(dragIndex, hoverIndex);
-        item.index = hoverIndex;
-      },
-    }),
-    [index, isDraggable, moveFile]
-  );
-
-  // Apply drag and drop functionality
+  // Combine drag and drop refs
   drag(drop(ref));
-
-  const isImage = file.type.startsWith("image/");
-  const isVideo = file.type.startsWith("video/");
-  const imageUrl = file.url || file.preview;
-  const isUploading =
-    typeof uploadProgress === "number" && uploadProgress < 100;
 
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: isDragging ? 0.5 : 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ duration: 0.2 }}
-      whileHover={{ scale: isDraggable ? 1.03 : 1 }}
-      style={{ opacity: isDragging ? 0.5 : 1 }}
-      className={`relative group ${
-        isDraggable ? "cursor-pointer" : "cursor-default"
-      }`}
-      onClick={(e) => {
-        e.stopPropagation();
-        onPreview(file);
-      }}
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.8 }}
+      className={`relative group ${isDragging ? "opacity-50" : ""}`}
     >
-      {isImage && imageUrl && (
-        <img
-          src={imageUrl}
-          alt={file.name}
-          className="h-32 w-32 object-cover rounded-md shadow-sm border border-gray-200"
-        />
-      )}
-      {isVideo && imageUrl && (
-        <div className="h-32 w-32 bg-gray-100 rounded-md shadow-sm border border-gray-200 flex items-center justify-center">
-          <video className="h-full w-full object-cover rounded-md">
-            <source src={imageUrl} type={file.type} />
-          </video>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-10 h-10 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="white"
-                className="w-6 h-6 ml-1"
-              >
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-      )}
+      <div
+        className="relative w-32 h-32 rounded-lg overflow-hidden cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          onPreview(file);
+        }}
+      >
+        {file.type.startsWith("image/") && file.preview && (
+          <img
+            src={file.preview}
+            alt={file.name}
+            className="w-full h-full object-cover"
+          />
+        )}
+        {file.type.startsWith("video/") && file.preview && (
+          <video src={file.preview} className="w-full h-full object-cover" />
+        )}
 
-      {/* Upload Progress */}
-      {isUploading && (
-        <div className="absolute inset-0 bg-black/50 rounded-md flex items-center justify-center">
-          <div className="w-full px-2">
-            <Progress value={uploadProgress} className="h-1" />
+        {/* Loading Overlay */}
+        {isUploading && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 text-white animate-spin" />
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Action Buttons */}
-      <div className="absolute -top-2 -right-2 flex gap-1">
-        {isUploading ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onCancelUpload?.();
-            }}
-            className="bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
-          >
-            <XCircle className="w-3 h-3" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (!isUploaded) {
-                removeFile(file.id);
-              }
-            }}
-            className={`${
-              isUploaded ? "bg-green-500" : "bg-red-500"
-            } text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:${
-              isUploaded ? "bg-green-600" : "bg-red-600"
-            }`}
-          >
-            {isUploaded ? (
-              <CheckCircle2 className="w-3 h-3" />
-            ) : (
-              <X className="w-3 h-3" />
-            )}
-          </button>
+        {/* Success Overlay */}
+        {isUploaded && (
+          <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center">
+            <CheckCircle2 className="w-6 h-6 text-green-500" />
+          </div>
         )}
       </div>
+
+      {/* Remove Button - Only show if file is not uploaded and not uploading */}
+      {!isUploading && !isUploaded && (
+        <Button
+          variant="destructive"
+          size="icon"
+          className="absolute -top-2 -right-2 w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            removeFile(file.id);
+          }}
+        >
+          <X className="w-4 h-4" />
+        </Button>
+      )}
 
       {/* Selection Checkbox */}
       {isUploaded && onSelect && (
@@ -200,10 +129,10 @@ export function DraggableMedia({
         </div>
       )}
 
-      <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 text-center rounded-b-md truncate">
+      {/* File Name */}
+      <div className="mt-1 text-xs text-center truncate max-w-[128px]">
         {file.name}
-        {isUploaded && <span className="ml-1 text-green-400">✓</span>}
       </div>
     </motion.div>
   );
-}
+};
