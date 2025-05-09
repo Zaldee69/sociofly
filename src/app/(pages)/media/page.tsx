@@ -56,6 +56,8 @@ const Media = () => {
   const [organizationId, setOrganizationId] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const isMobile = useIsMobile();
 
@@ -183,12 +185,24 @@ const Media = () => {
               </Select>
 
               <Dialog
+                open={isDialogOpen}
                 onOpenChange={(open) => {
-                  if (!open) setFiles([]);
+                  // Prevent closing during upload
+                  if (!open && isUploading) {
+                    toast.error("Please wait until the upload is complete");
+                    return;
+                  }
+                  setIsDialogOpen(open);
+                  if (!open) {
+                    setFiles([]);
+                  }
                 }}
               >
                 <DialogTrigger className="w-fit" asChild>
-                  <Button disabled={!organizationId}>
+                  <Button
+                    disabled={!organizationId}
+                    onClick={() => setIsDialogOpen(true)}
+                  >
                     <UploadCloud className="w-4 h-4 mr-2" />
                     Upload Media
                   </Button>
@@ -196,13 +210,30 @@ const Media = () => {
                 <DialogContent className="max-w-5xl min-w-[600px]">
                   <DialogHeader>
                     <DialogTitle>Upload Media</DialogTitle>
-                    <DialogDescription>
-                      Upload media to your library. You can upload multiple
-                      files at once.
+                    <DialogDescription asChild>
+                      <div className="space-y-2">
+                        <p className="text-muted-foreground text-sm">
+                          Upload media to your library. You can upload multiple
+                          files at once.
+                        </p>
+                        {isUploading && (
+                          <p className="text-sm text-yellow-600">
+                            Please wait until the upload is complete...
+                          </p>
+                        )}
+                      </div>
                     </DialogDescription>
                   </DialogHeader>
                   {organizationId ? (
-                    <FileUploadArea organizationId={organizationId} />
+                    <FileUploadArea
+                      organizationId={organizationId}
+                      onUploadStart={() => setIsUploading(true)}
+                      onUploadComplete={() => {
+                        setIsUploading(false);
+                        setIsDialogOpen(false);
+                      }}
+                      onUploadError={() => setIsUploading(false)}
+                    />
                   ) : (
                     <div className="flex items-center justify-center h-[300px] border-2 border-dashed rounded-lg">
                       <div className="text-center text-muted-foreground">
@@ -336,7 +367,7 @@ const Media = () => {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="py-4 border-t">
+                <div className="py-4 border-t hidden md:block">
                   <Pagination>
                     <PaginationContent>
                       <PaginationItem>

@@ -33,9 +33,17 @@ interface UploadedFile {
 
 interface FileUploadAreaProps {
   organizationId: string;
+  onUploadStart?: () => void;
+  onUploadComplete?: () => void;
+  onUploadError?: () => void;
 }
 
-export const FileUploadArea = ({ organizationId }: FileUploadAreaProps) => {
+export const FileUploadArea = ({
+  organizationId,
+  onUploadStart,
+  onUploadComplete,
+  onUploadError,
+}: FileUploadAreaProps) => {
   const {
     files,
     setFiles,
@@ -69,6 +77,7 @@ export const FileUploadArea = ({ organizationId }: FileUploadAreaProps) => {
 
       toast.success("File berhasil diupload");
       utils.media.getAll.invalidate({ organizationId });
+      onUploadComplete?.();
     },
     onUploadError: (error) => {
       setFiles((prevFiles) =>
@@ -82,9 +91,11 @@ export const FileUploadArea = ({ organizationId }: FileUploadAreaProps) => {
 
       console.error("Upload error:", error);
       toast.error("Gagal mengupload file");
+      onUploadError?.();
     },
     onUploadBegin: (fileName: string) => {
       setIsUploading(true);
+      onUploadStart?.();
 
       setUploadingFiles((prev) => {
         const newSet = new Set(prev);
