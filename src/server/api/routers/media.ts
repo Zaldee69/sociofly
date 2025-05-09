@@ -35,6 +35,8 @@ export const mediaRouter = createTRPCRouter({
         filter: z.enum(["all", "images", "videos"]).default("all"),
         search: z.string().optional(),
         organizationId: z.string(),
+        page: z.number().min(1).default(1),
+        limit: z.number().min(1).default(5),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -47,54 +49,33 @@ export const mediaRouter = createTRPCRouter({
         Role.VIEWER,
       ]);
 
-      const { filter, search, organizationId } = input;
+      const { filter, search, organizationId, page, limit } = input;
+      const skip = (page - 1) * limit;
 
-      const baseWhere: Prisma.MediaWhereInput = {
+      const where: Prisma.MediaWhereInput = {
         organizationId,
+        ...(filter === "images" && { type: MediaType.IMAGE }),
+        ...(filter === "videos" && { type: MediaType.VIDEO }),
+        ...(search && {
+          OR: [
+            {
+              name: {
+                contains: search,
+                mode: "insensitive" as Prisma.QueryMode,
+              },
+            },
+            { tags: { has: search } },
+          ],
+        }),
       };
 
-      if (search) {
-        baseWhere.OR = [
-          {
-            url: {
-              contains: search,
-              mode: "insensitive" as Prisma.QueryMode,
-            },
-          },
-          {
-            tags: {
-              has: search,
-            },
-          },
-        ];
-      }
+      // Get total count for pagination
+      const total = await ctx.prisma.media.count({ where });
 
-      // First get all media
+      // Get paginated media
       const media = await ctx.prisma.media.findMany({
-        where: {
-          organizationId,
-          ...(filter === "images" && { type: MediaType.IMAGE }),
-          ...(filter === "videos" && { type: MediaType.VIDEO }),
-          ...(search && {
-            OR: [
-              { name: { contains: search, mode: "insensitive" } },
-              { tags: { has: search } },
-            ],
-          }),
-        },
-        select: {
-          id: true,
-          name: true,
-          url: true,
-          type: true,
-          size: true,
-          createdAt: true,
-          updatedAt: true,
-          tags: true,
-          userId: true,
-          organizationId: true,
-          usageCount: true,
-          lastUsedAt: true,
+        where,
+        include: {
           user: {
             select: {
               email: true,
@@ -105,12 +86,17 @@ export const mediaRouter = createTRPCRouter({
         orderBy: {
           createdAt: "desc",
         },
+        skip,
+        take: limit,
       });
 
       // Then get all posts to check media usage
       const posts = await ctx.prisma.post.findMany({
         where: {
           organizationId,
+          mediaUrls: {
+            hasSome: media.map((m) => m.url),
+          },
         },
         select: {
           mediaUrls: true,
@@ -134,14 +120,13 @@ export const mediaRouter = createTRPCRouter({
         usedIn: mediaUsageCount[item.url] || 0,
       }));
 
-      // Apply used/unused filter
-      if (filter === "images") {
-        return enrichedMedia.filter((item) => item.type === MediaType.IMAGE);
-      } else if (filter === "videos") {
-        return enrichedMedia.filter((item) => item.type === MediaType.VIDEO);
-      }
-
-      return enrichedMedia;
+      return {
+        items: enrichedMedia,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
     }),
 
   delete: protectedProcedure

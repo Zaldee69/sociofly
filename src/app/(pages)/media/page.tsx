@@ -38,12 +38,24 @@ import { MediaThumbnail } from "./components/media-thumbnail";
 import Link from "next/link";
 import { MediaTable } from "./components/media-table";
 import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { cn } from "@/lib/utils";
 
 const Media = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState<"all" | "images" | "videos">("all");
   const [organizationId, setOrganizationId] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   const isMobile = useIsMobile();
 
@@ -63,12 +75,14 @@ const Media = () => {
     }
   }, [organizations, organizationId]);
 
-  const { data: media = [], isLoading: isLoadingMedia } =
+  const { data: mediaData, isLoading: isLoadingMedia } =
     trpc.media.getAll.useQuery(
       {
         filter,
         search: searchTerm,
         organizationId,
+        page: currentPage,
+        limit: itemsPerPage,
       },
       {
         enabled: !!organizationId,
@@ -76,6 +90,9 @@ const Media = () => {
         staleTime: 1000 * 30, // Cache for 30 seconds
       }
     );
+
+  const media = mediaData?.items || [];
+  const totalPages = mediaData?.totalPages || 1;
 
   const isLoading = isLoadingOrgs || isLoadingMedia;
 
@@ -310,15 +327,59 @@ const Media = () => {
                   </div>
                 ) : (
                   <MediaTable
-                    items={media.map((item) => ({
-                      ...item,
-                      createdAt: item.createdAt.toISOString(),
-                    }))}
+                    items={media}
                     onDelete={handleDelete}
                     onAddTag={handleAddTag}
                   />
                 )}
               </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="py-4 border-t">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          onClick={() =>
+                            setCurrentPage((p) => Math.max(1, p - 1))
+                          }
+                          className={cn(
+                            "cursor-pointer",
+                            currentPage === 1 &&
+                              "pointer-events-none opacity-50"
+                          )}
+                        />
+                      </PaginationItem>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                        (page) => (
+                          <PaginationItem key={page}>
+                            <PaginationLink
+                              onClick={() => setCurrentPage(page)}
+                              isActive={currentPage === page}
+                              className="cursor-pointer"
+                            >
+                              {page}
+                            </PaginationLink>
+                          </PaginationItem>
+                        )
+                      )}
+                      <PaginationItem>
+                        <PaginationNext
+                          onClick={() =>
+                            setCurrentPage((p) => Math.min(totalPages, p + 1))
+                          }
+                          className={cn(
+                            "cursor-pointer",
+                            currentPage === totalPages &&
+                              "pointer-events-none opacity-50"
+                          )}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
             </>
           )}
         </CardContent>
