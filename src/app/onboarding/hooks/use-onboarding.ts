@@ -162,7 +162,10 @@ export const useOnboarding = () => {
       const emails =
         teamEmails.length > 0
           ? teamEmails
-          : teams?.split(",").map((email) => email.trim());
+          : teams?.length! > 0
+            ? teams?.split(",").map((email) => email.trim())
+            : [];
+
       const organizationName =
         types === "team"
           ? orgName || (searchParams.get("orgName") as string)

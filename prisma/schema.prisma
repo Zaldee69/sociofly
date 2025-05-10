@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -59,6 +60,7 @@ model SocialAccount {
   updatedAt      DateTime       @updatedAt
   userId         String
   organizationId String
+  profilePicture String?
   name           String?
   platform       SocialPlatform
   posts          Post[]

@@ -7,7 +7,16 @@ import { sendInviteEmail } from "@/lib/email/send-invite-email";
 const onboardingSchema = z.object({
   userType: z.enum(["solo", "team"]),
   organizationName: z.string().optional(),
-  teamEmails: z.array(z.string().email()).optional(),
+  teamEmails: z
+    .array(
+      z
+        .string()
+        .email("Email tidak valid")
+        .transform((email) => email.toLowerCase().trim())
+    )
+    .optional()
+    .nullable()
+    .default([]),
   socialAccounts: z
     .object({
       instagram: z.boolean(),
@@ -22,6 +31,7 @@ const onboardingSchema = z.object({
         platform: z.nativeEnum(SocialPlatform),
         accessToken: z.string(),
         name: z.string(),
+        profilePicture: z.string().optional().nullable(),
       })
     )
     .optional(),
@@ -33,6 +43,8 @@ export const onboardingRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { userType, organizationName, teamEmails, pagesData } = input;
 
+      console.log("Organization created:", teamEmails);
+
       if (!ctx.userId) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
@@ -41,13 +53,6 @@ export const onboardingRouter = createTRPCRouter({
       }
 
       const userId = ctx.userId;
-
-      console.log("Starting onboarding process:", {
-        userType,
-        organizationName,
-        teamEmailsCount: teamEmails?.length,
-        hasPagesData: !!pagesData,
-      });
 
       try {
         // Get existing user
@@ -83,7 +88,6 @@ export const onboardingRouter = createTRPCRouter({
               },
             },
           });
-          console.log("Created team organization:", organization.name);
         } else {
           const defaultOrgName =
             existingUser.name || existingUser.email || "My Organization";
@@ -100,41 +104,17 @@ export const onboardingRouter = createTRPCRouter({
               },
             },
           });
-          console.log("Created solo organization:", organization.name);
         }
 
-        // Process team invitations if it's a team
-        if (userType === "team" && teamEmails && teamEmails.length > 0) {
-          console.log(`Processing ${teamEmails.length} team invitations`);
+        // Process team invitations if it's a team and has emails
+        if (
+          userType === "team" &&
+          teamEmails &&
+          Array.isArray(teamEmails) &&
+          teamEmails.length > 0
+        ) {
           for (const email of teamEmails) {
             try {
-              console.log(`Processing invitation for: ${email}`);
-              const invitedUser = await ctx.prisma.user.findUnique({
-                where: { email },
-              });
-
-              // if (invitedUser) {
-              //   // User exists, create membership
-              //   const existingMembership =
-              //     await ctx.prisma.membership.findFirst({
-              //       where: {
-              //         userId: invitedUser.id,
-              //         organizationId: organization.id,
-              //       },
-              //     });
-
-              //   if (!existingMembership) {
-              //     await ctx.prisma.membership.create({
-              //       data: {
-              //         userId: invitedUser.id,
-              //         organizationId: organization.id,
-              //         role: "EDITOR",
-              //       },
-              //     });
-              //     console.log(`Created membership for existing user: ${email}`);
-              //   }
-              // } else {
-              // Create invitation for new user
               await ctx.prisma.invitation.create({
                 data: {
                   email,
@@ -142,8 +122,6 @@ export const onboardingRouter = createTRPCRouter({
                   role: "EDITOR",
                 },
               });
-              console.log(`Created invitation for new user: ${email}`);
-              // }
 
               // Send invitation email
               await sendInviteEmail({
@@ -151,7 +129,6 @@ export const onboardingRouter = createTRPCRouter({
                 organizationName: organization.name,
                 role: "EDITOR",
               });
-              console.log(`Sent invitation email to: ${email}`);
             } catch (error) {
               console.error(`Error processing team member ${email}:`, error);
               // Continue with next email instead of failing the whole process
@@ -162,7 +139,6 @@ export const onboardingRouter = createTRPCRouter({
 
         // Process social accounts if provided
         if (pagesData && pagesData.length > 0) {
-          console.log(`Processing ${pagesData.length} social accounts`);
           for (const page of pagesData) {
             try {
               await ctx.prisma.socialAccount.create({
@@ -172,6 +148,7 @@ export const onboardingRouter = createTRPCRouter({
                   name: page.name,
                   userId,
                   organizationId: organization.id,
+                  profilePicture: page.profilePicture || null,
                 },
               });
               console.log(

@@ -98,8 +98,6 @@ const Onboarding: React.FC = () => {
     const pagesData = JSON.parse(searchParams.get("pagesData") ?? "[]");
     const accounts = pagesData?.map((account: any) => account.platform);
 
-    console.log(accounts);
-
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}

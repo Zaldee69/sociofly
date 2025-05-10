@@ -1,0 +1,6 @@
+-- CreateEnum
+CREATE TYPE "MemberStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED');
+
+-- AlterTable
+ALTER TABLE "Membership" ADD COLUMN     "lastActiveAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "status" "MemberStatus" NOT NULL DEFAULT 'ACTIVE';

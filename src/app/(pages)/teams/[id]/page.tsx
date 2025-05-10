@@ -26,6 +26,7 @@ import {
   Twitter,
   Linkedin,
   Youtube,
+  ExternalLink,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -474,9 +475,10 @@ const Page = () => {
                       className="flex items-center justify-between p-4 border rounded-lg"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="p-2 rounded-full bg-primary">
-                          {renderPlatformIcon(account.platform)}
-                        </div>
+                        <img
+                          src={account.profilePicture!}
+                          className="ml-2 text-white hover:text-gray-200 h-10 w-10 rounded-full"
+                        />
                         <div>
                           <h3 className="font-medium">{account.name}</h3>
                           <p className="text-sm text-muted-foreground capitalize">

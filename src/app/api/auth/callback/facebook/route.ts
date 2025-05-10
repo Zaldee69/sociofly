@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma/client";
 import { SocialPlatform } from "@prisma/client";
+import { pages } from "next/dist/build/templates/app-page";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -57,19 +58,26 @@ export async function GET(request: NextRequest) {
 
   // Store user's Facebook pages
   for (const page of pagesData.data) {
+    const profileResponse = await fetch(
+      `https://graph.facebook.com/v21.0/${page.id}/picture?type=large&redirect=false&access_token=${page.access_token}`
+    );
+    const profileData = await profileResponse.json();
+
     datas.push({
       platform: SocialPlatform.FACEBOOK,
       accessToken: page.access_token,
+      pagesId: page.id,
       userId: existingUser.id,
       name: page.name,
+      profilePicture: profileData.data.url,
     });
   }
 
-  const pagasData = encodeURIComponent(JSON.stringify(datas));
+  const data = encodeURIComponent(JSON.stringify(datas));
 
   return NextResponse.redirect(
     new URL(
-      `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&pagesData=${pagasData}`,
+      `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&pagesData=${data}`,
       request.url
     )
   );
