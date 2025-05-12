@@ -48,12 +48,12 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
+import { useOrganization } from "@/contexts/organization-context";
 
 const Media = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState<"all" | "images" | "videos">("all");
-  const [organizationId, setOrganizationId] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
   const [isUploading, setIsUploading] = useState(false);
@@ -61,33 +61,22 @@ const Media = () => {
 
   const isMobile = useIsMobile();
 
+  const { selectedOrganization, isLoading: isLoadingOrg } = useOrganization();
+
   const { setFiles } = useFiles();
   const utils = trpc.useUtils();
-
-  // Get user's organizations
-  const { data: organizations = [], isLoading: isLoadingOrgs } =
-    trpc.organization.getAll.useQuery(undefined, {
-      staleTime: 1000 * 60 * 5, // Cache for 5 minutes
-    });
-
-  // Set default organization if not set
-  useEffect(() => {
-    if (organizations.length > 0 && !organizationId) {
-      setOrganizationId(organizations[0].id);
-    }
-  }, [organizations, organizationId]);
 
   const { data: mediaData, isLoading: isLoadingMedia } =
     trpc.media.getAll.useQuery(
       {
         filter,
         search: searchTerm,
-        organizationId,
+        organizationId: selectedOrganization?.id!,
         page: currentPage,
         limit: itemsPerPage,
       },
       {
-        enabled: !!organizationId,
+        enabled: !!selectedOrganization?.id,
         refetchOnWindowFocus: false,
         staleTime: 1000 * 30, // Cache for 30 seconds
       }
@@ -96,7 +85,7 @@ const Media = () => {
   const media = mediaData?.items || [];
   const totalPages = mediaData?.totalPages || 1;
 
-  const isLoading = isLoadingOrgs || isLoadingMedia;
+  const isLoading = isLoadingOrg || isLoadingMedia;
 
   // Mutations
   const { mutate: deleteMedia } = trpc.media.delete.useMutation({
@@ -133,25 +122,25 @@ const Media = () => {
   // Handlers
   const handleDelete = useCallback(
     (id: string) => {
-      if (!organizationId) return;
-      deleteMedia({ id, organizationId });
+      if (!selectedOrganization?.id) return;
+      deleteMedia({ id, organizationId: selectedOrganization.id });
     },
-    [deleteMedia, organizationId]
+    [deleteMedia, selectedOrganization?.id]
   );
 
   const handleAddTag = useCallback(
     (mediaId: string, currentTags: string[]) => {
-      if (!organizationId) return;
+      if (!selectedOrganization?.id) return;
       const tag = prompt("Enter new tag:");
       if (tag && !currentTags.includes(tag)) {
         updateTags({
           id: mediaId,
           tags: [...currentTags, tag],
-          organizationId,
+          organizationId: selectedOrganization.id,
         });
       }
     },
-    [updateTags, organizationId]
+    [updateTags, selectedOrganization?.id]
   );
 
   return (
@@ -168,22 +157,6 @@ const Media = () => {
 
             {/* Organization Selector and Upload Button */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-              <Select
-                value={organizationId}
-                onValueChange={(value: string) => setOrganizationId(value)}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Select Organization" />
-                </SelectTrigger>
-                <SelectContent>
-                  {organizations.map((org: { id: string; name: string }) => (
-                    <SelectItem key={org.id} value={org.id}>
-                      {org.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
               <Dialog
                 open={isDialogOpen}
                 onOpenChange={(open) => {
@@ -200,7 +173,7 @@ const Media = () => {
               >
                 <DialogTrigger className="w-fit" asChild>
                   <Button
-                    disabled={!organizationId}
+                    disabled={!selectedOrganization?.id}
                     onClick={() => setIsDialogOpen(true)}
                   >
                     <UploadCloud className="w-4 h-4 mr-2" />
@@ -224,9 +197,8 @@ const Media = () => {
                       </div>
                     </DialogDescription>
                   </DialogHeader>
-                  {organizationId ? (
+                  {selectedOrganization?.id ? (
                     <FileUploadArea
-                      organizationId={organizationId}
                       onUploadStart={() => setIsUploading(true)}
                       onUploadComplete={() => {
                         setIsUploading(false);

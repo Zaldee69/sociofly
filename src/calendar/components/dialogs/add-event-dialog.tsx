@@ -89,6 +89,8 @@ import { socialAccounts } from "@/app/(pages)/schedule-post/page";
 import { MediaThumbnail } from "@/app/(pages)/media/components/media-thumbnail";
 import { trpc } from "@/lib/trpc/client";
 import { format } from "date-fns";
+import { FileUploadArea } from "@/app/(pages)/schedule-post/components/file-upload-area";
+import { useOrganization } from "@/contexts/organization-context";
 
 interface IProps {
   children: React.ReactNode;
@@ -98,6 +100,8 @@ interface IProps {
 
 export function AddEventDialog({ children, startDate, startTime }: IProps) {
   const { users } = useCalendar();
+
+  const { selectedOrganization } = useOrganization();
 
   const [isOpen, setIsOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
@@ -162,12 +166,12 @@ export function AddEventDialog({ children, startDate, startTime }: IProps) {
       {
         filter: "all",
         search: "",
-        organizationId: "cmaiutaah0001vxtzu0upw9z1",
+        organizationId: selectedOrganization?.id!,
         page: 1,
         limit: 10,
       },
       {
-        enabled: true,
+        enabled: !!selectedOrganization?.id,
         refetchOnWindowFocus: false,
         staleTime: 1000 * 30, // Cache for 30 seconds
       }
@@ -214,21 +218,12 @@ export function AddEventDialog({ children, startDate, startTime }: IProps) {
                     multiple files at once.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="flex items-center justify-center h-[300px] border-2 border-dashed rounded-lg">
-                  <div className="text-center text-muted-foreground">
-                    <UploadCloud className="w-12 h-12 mx-auto mb-2" />
-                    <div>Drag & drop files here or click to browse</div>
-                    <div className="text-sm mt-1">
-                      Maximum file size: 8MB for images, 64MB for videos
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => {}}>
-                    Cancel
-                  </Button>
-                  <Button onClick={() => {}}>Upload</Button>
-                </DialogFooter>
+                <FileUploadArea
+                  onUploadComplete={() => {
+                    setIsUploadDialogOpen(false);
+                  }}
+                  onUploadError={() => setIsUploadDialogOpen(false)}
+                />
               </DialogContent>
             </Dialog>
 
@@ -244,7 +239,7 @@ export function AddEventDialog({ children, startDate, startTime }: IProps) {
                     <MenubarTrigger>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger className="cursor-pointer">
+                          <TooltipTrigger asChild className="cursor-pointer">
                             <ImagePlus size={20} />
                           </TooltipTrigger>
                           <TooltipContent>
@@ -273,6 +268,7 @@ export function AddEventDialog({ children, startDate, startTime }: IProps) {
                           <div className="grid grid-cols-3 gap-4">
                             {media.map((item) => (
                               <div
+                                key={item.id}
                                 className={`group relative cursor-pointer rounded-md overflow-hidden border max-w-40`}
                               >
                                 <div className="aspect-square">
@@ -318,7 +314,7 @@ export function AddEventDialog({ children, startDate, startTime }: IProps) {
                     <MenubarTrigger>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <Hash size={20} />
                           </TooltipTrigger>
                           <TooltipContent>
@@ -355,7 +351,7 @@ export function AddEventDialog({ children, startDate, startTime }: IProps) {
                     <MenubarTrigger>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <MapPin size={20} />
                           </TooltipTrigger>
                           <TooltipContent>
@@ -388,7 +384,7 @@ export function AddEventDialog({ children, startDate, startTime }: IProps) {
                     <MenubarTrigger>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <WandSparkles size={20} />
                           </TooltipTrigger>
                           <TooltipContent>

@@ -161,6 +161,7 @@ export const teamRouter = createTRPCRouter({
         data: {
           name: input.name,
           slug: input.description,
+          ownerId: ctx.userId,
           memberships: {
             create: {
               userId: ctx.userId,

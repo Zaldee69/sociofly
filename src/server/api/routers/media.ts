@@ -69,45 +69,47 @@ export const mediaRouter = createTRPCRouter({
         }),
       };
 
-      // Get total count for pagination
-      const total = await ctx.prisma.media.count({ where });
+      // Use Promise.all to run queries in parallel
+      const [total, media, mediaUsage] = await Promise.all([
+        // Get total count
+        ctx.prisma.media.count({ where }),
 
-      // Get paginated media
-      const media = await ctx.prisma.media.findMany({
-        where,
-        include: {
-          user: {
-            select: {
-              email: true,
-              name: true,
+        // Get paginated media
+        ctx.prisma.media.findMany({
+          where,
+          include: {
+            user: {
+              select: {
+                email: true,
+                name: true,
+              },
             },
           },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        skip,
-        take: limit,
-      });
-
-      // Then get all posts to check media usage
-      const posts = await ctx.prisma.post.findMany({
-        where: {
-          organizationId,
-          mediaUrls: {
-            hasSome: media.map((m) => m.url),
+          orderBy: {
+            createdAt: "desc",
           },
-        },
-        select: {
-          mediaUrls: true,
-        },
-      });
+          skip,
+          take: limit,
+        }),
 
-      // Count how many times each media URL is used
-      const mediaUsageCount = posts.reduce(
-        (acc, post) => {
-          post.mediaUrls.forEach((url) => {
-            acc[url] = (acc[url] || 0) + 1;
+        // Get media usage counts directly from database
+        ctx.prisma.post.groupBy({
+          by: ["mediaUrls"],
+          where: {
+            organizationId,
+            mediaUrls: {
+              hasSome: [], // Will be filled after media query
+            },
+          },
+          _count: true,
+        }),
+      ]);
+
+      // Create a map of media URL to usage count
+      const mediaUsageCount = mediaUsage.reduce(
+        (acc, { mediaUrls, _count }) => {
+          mediaUrls.forEach((url) => {
+            acc[url] = _count;
           });
           return acc;
         },

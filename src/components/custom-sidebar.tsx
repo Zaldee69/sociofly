@@ -21,6 +21,7 @@ import { usePathname } from "next/navigation";
 import { SidebarFooter } from "./ui/sidebar";
 import { NavUser } from "./nav-user";
 import { useUser } from "@clerk/nextjs";
+import { OrganizationSwitcher } from "@/components/organization-switcher";
 
 const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -121,15 +122,7 @@ const Sidebar: React.FC = () => {
             <PlusCircle className="h-4 w-4" />
           </Button>
         ) : (
-          <Button
-            asChild
-            className="w-full bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90"
-          >
-            <Link href="/schedule-post">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Compose
-            </Link>
-          </Button>
+          <OrganizationSwitcher />
         )}
       </div>
 

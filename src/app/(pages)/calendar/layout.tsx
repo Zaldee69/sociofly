@@ -12,6 +12,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { getUsers, getEvents } from "@/calendar/requests";
+import { FileProvider } from "../schedule-post/contexts/file-context";
 
 export default async function Layout({
   children,
@@ -21,28 +22,30 @@ export default async function Layout({
   const [events, users] = await Promise.all([getEvents(), getUsers()]);
 
   return (
-    <CalendarProvider users={users} events={events}>
-      <div className="mx-auto flex w-full flex-col gap-4">
-        {children}
-        <Accordion type="single" collapsible>
-          <AccordionItem value="item-1" className="border-none">
-            <AccordionTrigger className="flex-none gap-2 py-0 hover:no-underline">
-              <div className="flex items-center gap-2">
-                <Settings className="size-4" />
-                <p className="text-base font-semibold">Calendar settings</p>
-              </div>
-            </AccordionTrigger>
+    <FileProvider>
+      <CalendarProvider users={users} events={events}>
+        <div className="mx-auto flex w-full flex-col gap-4">
+          {children}
+          <Accordion type="single" collapsible>
+            <AccordionItem value="item-1" className="border-none">
+              <AccordionTrigger className="flex-none gap-2 py-0 hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Settings className="size-4" />
+                  <p className="text-base font-semibold">Calendar settings</p>
+                </div>
+              </AccordionTrigger>
 
-            <AccordionContent>
-              <div className="mt-4 flex flex-col gap-6">
-                <ChangeBadgeVariantInput />
-                <ChangeVisibleHoursInput />
-                <ChangeWorkingHoursInput />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </div>
-    </CalendarProvider>
+              <AccordionContent>
+                <div className="mt-4 flex flex-col gap-6">
+                  <ChangeBadgeVariantInput />
+                  <ChangeVisibleHoursInput />
+                  <ChangeWorkingHoursInput />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </div>
+      </CalendarProvider>
+    </FileProvider>
   );
 }

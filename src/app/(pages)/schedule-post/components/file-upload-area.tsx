@@ -1,8 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useRef } from "react";
-import { DndProvider } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { DraggableMedia } from "./draggable-media";
@@ -19,31 +17,22 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFiles } from "../contexts/file-context";
 import { cn } from "@/lib/utils";
-import { UploadDropzone } from "@uploadthing/react";
-import type { OurFileRouter } from "@/app/api/uploadthing/core";
 import { trpc } from "@/lib/trpc/client";
 import { FileWithPreview } from "../types";
-
-interface UploadedFile {
-  key: string;
-  name: string;
-  url: string;
-  type: string;
-}
+import { useOrganization } from "@/contexts/organization-context";
 
 interface FileUploadAreaProps {
-  organizationId: string;
   onUploadStart?: () => void;
   onUploadComplete?: () => void;
   onUploadError?: () => void;
 }
 
 export const FileUploadArea = ({
-  organizationId,
   onUploadStart,
   onUploadComplete,
   onUploadError,
 }: FileUploadAreaProps) => {
+  const { selectedOrganization } = useOrganization();
   const {
     files,
     setFiles,
@@ -76,7 +65,9 @@ export const FileUploadArea = ({
       setUploadingFiles(new Set());
 
       toast.success("File berhasil diupload");
-      utils.media.getAll.invalidate({ organizationId });
+      utils.media.getAll.invalidate({
+        organizationId: selectedOrganization?.id,
+      });
       onUploadComplete?.();
     },
     onUploadError: (error) => {
@@ -153,19 +144,24 @@ export const FileUploadArea = ({
   );
 
   const handleUpload = useCallback(async () => {
+    if (!selectedOrganization) {
+      toast.error("Please select an organization first");
+      return;
+    }
+
     const filesToUpload = files.filter((f) => !f.isUploaded && f.file);
     if (filesToUpload.length === 0) return;
 
     try {
       await startUpload(
         filesToUpload.map((f) => f.file!),
-        { organizationId }
+        { organizationId: selectedOrganization.id }
       );
     } catch (error) {
       console.error("Upload failed:", error);
-      toast.error("Gagal mengupload file");
+      toast.error("Failed to upload file");
     }
-  }, [files, startUpload, organizationId]);
+  }, [files, startUpload, selectedOrganization]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: handleFileSelect,
@@ -262,35 +258,33 @@ export const FileUploadArea = ({
               </span>
             </div>
           ) : (
-            <DndProvider backend={HTML5Backend}>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="w-full"
-              >
-                <div className="flex flex-wrap gap-4">
-                  {files.map((file, index) => (
-                    <DraggableMedia
-                      key={file.id}
-                      file={file}
-                      index={index}
-                      moveFile={moveFile}
-                      removeFile={removeFile}
-                      isUploaded={file.isUploaded}
-                      isUploading={file.isUploading}
-                      uploadProgress={file.uploadProgress}
-                      onPreview={handlePreview}
-                      isDraggable={!file.isUploaded && !file.isUploading}
-                    />
-                  ))}
-                </div>
-                <div className="mt-2 text-sm text-muted-foreground">
-                  {files.some((f) => !f.isUploaded)
-                    ? "Drag and drop files to reorder them before uploading"
-                    : "Select files to post to Facebook"}
-                </div>
-              </motion.div>
-            </DndProvider>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full"
+            >
+              <div className="flex flex-wrap gap-4">
+                {files.map((file, index) => (
+                  <DraggableMedia
+                    key={file.id}
+                    file={file}
+                    index={index}
+                    moveFile={moveFile}
+                    removeFile={removeFile}
+                    isUploaded={file.isUploaded}
+                    isUploading={file.isUploading}
+                    uploadProgress={file.uploadProgress}
+                    onPreview={handlePreview}
+                    isDraggable={!file.isUploaded && !file.isUploading}
+                  />
+                ))}
+              </div>
+              <div className="mt-2 text-sm text-muted-foreground">
+                {files.some((f) => !f.isUploaded)
+                  ? "Drag and drop files to reorder them before uploading"
+                  : "Select files to post to Facebook"}
+              </div>
+            </motion.div>
           )}
         </div>
       </div>
