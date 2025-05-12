@@ -80,6 +80,7 @@ export const onboardingRouter = createTRPCRouter({
             data: {
               name: organizationName,
               slug: organizationName.toLowerCase().replace(/\s+/g, "-"),
+              ownerId: userId,
               memberships: {
                 create: {
                   userId,
@@ -96,6 +97,7 @@ export const onboardingRouter = createTRPCRouter({
             data: {
               name: defaultOrgName,
               slug: `${existingUser.email.split("@")[0]}-org`,
+              ownerId: userId,
               memberships: {
                 create: {
                   userId,

@@ -13,6 +13,7 @@ model User {
   clerkId          String           @unique
   email            String           @unique
   name             String?
+  subscriptionPlan BillingPlan      @default(FREE) // Tambahkan di User
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   onboardingStatus OnboardingStatus @default(NOT_STARTED)
@@ -20,6 +21,7 @@ model User {
   posts            Post[]
   socialAccounts   SocialAccount[]
   media            Media[]
+  Organization     Organization[]
 }
 
 model Organization {
@@ -34,6 +36,8 @@ model Organization {
   socialAccounts SocialAccount[]
   invitations    Invitation[]
   Media          Media[]
+  ownerId        String // Tambahkan Owner ID 
+  owner          User            @relation(fields: [ownerId], references: [id])
 }
 
 model Membership {
@@ -155,4 +159,10 @@ enum MemberStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
+}
+
+enum BillingPlan {
+  FREE
+  PRO
+  ENTERPRISE
 }

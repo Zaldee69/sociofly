@@ -37,7 +37,7 @@ import { FileUploadArea } from "./components/file-upload-area";
 import { AIContentProvider, useAIContent } from "./contexts/ai-content-context";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 
-const socialAccounts = [
+export const socialAccounts = [
   {
     id: "acc_1",
     platform: "twitter",

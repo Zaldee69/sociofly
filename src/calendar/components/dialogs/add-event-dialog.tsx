@@ -37,11 +37,58 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+import {
+  Facebook,
+  Instagram,
+  Linkedin,
+  PenLine,
+  Twitter,
+  Wand,
+  Sparkles,
+  Upload,
+  ImagePlus,
+  Hash,
+  MapPin,
+  WandSparkles,
+  Image,
+  Video,
+  FolderOpen,
+  UploadCloud,
+  PlusCircle,
+} from "lucide-react";
 import { eventSchema } from "@/calendar/schemas";
+
+import {
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarSeparator,
+  MenubarShortcut,
+  MenubarSubTrigger,
+  MenubarSub,
+  MenubarTrigger,
+  MenubarSubContent,
+  MenubarCheckboxItem,
+  MenubarRadioGroup,
+  MenubarRadioItem,
+} from "@/components/ui/menubar";
 
 import type { TimeValue } from "react-aria-components";
 import type { TEventFormData } from "@/calendar/schemas";
 import { useState } from "react";
+import { MultiSelect } from "@/components/multi-select";
+import { socialAccounts } from "@/app/(pages)/schedule-post/page";
+import { MediaThumbnail } from "@/app/(pages)/media/components/media-thumbnail";
+import { trpc } from "@/lib/trpc/client";
+import { format } from "date-fns";
 
 interface IProps {
   children: React.ReactNode;
@@ -53,7 +100,8 @@ export function AddEventDialog({ children, startDate, startTime }: IProps) {
   const { users } = useCalendar();
 
   const [isOpen, setIsOpen] = useState(false);
-
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const form = useForm<TEventFormData>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
@@ -64,282 +112,325 @@ export function AddEventDialog({ children, startDate, startTime }: IProps) {
     },
   });
 
+  const groupedAccounts = socialAccounts?.reduce(
+    (acc: Record<string, typeof socialAccounts>, account) => {
+      const platform = account.platform;
+      if (!acc[platform]) {
+        acc[platform] = [];
+      }
+      acc[platform].push(account);
+      return acc;
+    },
+    {} as Record<string, typeof socialAccounts>
+  );
+
+  const accounts = Object.entries(groupedAccounts || {}).map(
+    ([platform, accounts]) => {
+      const IconComponent =
+        platform === "instagram"
+          ? Instagram
+          : platform === "twitter"
+            ? Twitter
+            : platform === "facebook"
+              ? Facebook
+              : undefined;
+
+      return {
+        label: platform.charAt(0).toUpperCase() + platform.slice(1),
+        value: platform,
+        icon: IconComponent,
+        group: true,
+        children: (
+          accounts as Array<{
+            username: string;
+            platform: string;
+            platform_user_id: string;
+            profile_picture_url?: string;
+          }>
+        ).map((account) => ({
+          label: account.username,
+          value: `${account.platform}_${account.platform_user_id}`,
+          icon: IconComponent,
+          profile_picture_url: account.profile_picture_url,
+        })),
+      };
+    }
+  );
+
+  const { data: mediaData, isLoading: isLoadingMedia } =
+    trpc.media.getAll.useQuery(
+      {
+        filter: "all",
+        search: "",
+        organizationId: "cmaiutaah0001vxtzu0upw9z1",
+        page: 1,
+        limit: 10,
+      },
+      {
+        enabled: true,
+        refetchOnWindowFocus: false,
+        staleTime: 1000 * 30, // Cache for 30 seconds
+      }
+    );
+
   const onSubmit = (_values: TEventFormData) => {
     // TO DO: Create use-add-event hook
     form.reset();
   };
+  const media = mediaData?.items || [];
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
 
-      <DialogContent>
+      <DialogContent className="min-w-7xl">
         <DialogHeader>
-          <DialogTitle>Add New Event</DialogTitle>
-          <DialogDescription>
-            This is just and example of how to use the form. In a real
-            application, you would call the API to create the event
-          </DialogDescription>
+          <DialogTitle>Buat Post</DialogTitle>
         </DialogHeader>
 
-        <Form {...form}>
-          <form
-            id="event-form"
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="grid gap-4 py-4"
-          >
-            <FormField
-              control={form.control}
-              name="user"
-              render={({ field, fieldState }) => (
-                <FormItem>
-                  <FormLabel>Responsible</FormLabel>
-                  <FormControl>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger data-invalid={fieldState.invalid}>
-                        <SelectValue placeholder="Select an option" />
-                      </SelectTrigger>
-
-                      <SelectContent>
-                        {users.map((user) => (
-                          <SelectItem
-                            key={user.id}
-                            value={user.id}
-                            className="flex-1"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Avatar key={user.id} className="size-6">
-                                <AvatarImage
-                                  src={user.picturePath ?? undefined}
-                                  alt={user.name}
-                                />
-                                <AvatarFallback className="text-xxs">
-                                  {user.name[0]}
-                                </AvatarFallback>
-                              </Avatar>
-
-                              <p className="truncate">{user.name}</p>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+        <div className="flex gap-4">
+          <div className="w-7/12">
+            <MultiSelect
+              className="w-fit"
+              placeholder="Pilih Akun"
+              variant="secondary"
+              animation={2}
+              maxCount={5}
+              options={accounts}
+              value={selectedAccounts}
+              onValueChange={setSelectedAccounts}
+              grouped
             />
 
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field, fieldState }) => (
-                <FormItem>
-                  <FormLabel htmlFor="title">Title</FormLabel>
+            <Dialog
+              open={isUploadDialogOpen}
+              onOpenChange={setIsUploadDialogOpen}
+            >
+              <DialogContent className="max-w-5xl min-w-[600px]">
+                <DialogHeader>
+                  <DialogTitle>Upload Media</DialogTitle>
+                  <DialogDescription>
+                    Upload media to include in your post. You can upload
+                    multiple files at once.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex items-center justify-center h-[300px] border-2 border-dashed rounded-lg">
+                  <div className="text-center text-muted-foreground">
+                    <UploadCloud className="w-12 h-12 mx-auto mb-2" />
+                    <div>Drag & drop files here or click to browse</div>
+                    <div className="text-sm mt-1">
+                      Maximum file size: 8MB for images, 64MB for videos
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => {}}>
+                    Cancel
+                  </Button>
+                  <Button onClick={() => {}}>Upload</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
-                  <FormControl>
-                    <Input
-                      id="title"
-                      placeholder="Enter a title"
-                      data-invalid={fieldState.invalid}
-                      {...field}
-                    />
-                  </FormControl>
-
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="flex items-start gap-2">
-              <FormField
-                control={form.control}
-                name="startDate"
-                render={({ field, fieldState }) => (
-                  <FormItem className="flex-1">
-                    <FormLabel htmlFor="startDate">Start Date</FormLabel>
-
-                    <FormControl>
-                      <SingleDayPicker
-                        id="startDate"
-                        value={field.value}
-                        onSelect={(date) => field.onChange(date as Date)}
-                        placeholder="Select a date"
-                        data-invalid={fieldState.invalid}
-                      />
-                    </FormControl>
-
-                    <FormMessage />
-                  </FormItem>
-                )}
+            <div className="mt-4 border border-input rounded-md p-2 min-h-80 flex flex-col justify-between">
+              <Textarea
+                className="resize-none border-none active:border-none focus-visible:border-none active:ring-0 focus-visible:ring-0 shadow-none p-0 max-h-[250px]"
+                rows={10}
               />
 
-              <FormField
-                control={form.control}
-                name="startTime"
-                render={({ field, fieldState }) => (
-                  <FormItem className="flex-1">
-                    <FormLabel>Start Time</FormLabel>
-
-                    <FormControl>
-                      <TimeInput
-                        value={field.value as TimeValue}
-                        onChange={field.onChange}
-                        hourCycle={12}
-                        data-invalid={fieldState.invalid}
-                      />
-                    </FormControl>
-
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="mt-4">
+                <Menubar className="border-none shadow-none !p-1">
+                  <MenubarMenu>
+                    <MenubarTrigger>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger className="cursor-pointer">
+                            <ImagePlus size={20} />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Add Multmedia</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </MenubarTrigger>
+                    <MenubarContent>
+                      <MenubarItem onClick={() => setIsUploadDialogOpen(true)}>
+                        <Image className="text-black" /> Add Image
+                      </MenubarItem>
+                      <MenubarItem>
+                        <Video className="text-black" /> Add Video
+                      </MenubarItem>
+                      <MenubarSeparator />
+                      <MenubarSub>
+                        <MenubarSubTrigger>
+                          <FolderOpen size={16} className="mr-2" />
+                          Media Library
+                        </MenubarSubTrigger>
+                        <MenubarSubContent
+                          sideOffset={10}
+                          className="max-w-[450px] overflow-y-auto mb-10"
+                        >
+                          <div className="grid grid-cols-3 gap-4">
+                            {media.map((item) => (
+                              <div
+                                className={`group relative cursor-pointer rounded-md overflow-hidden border max-w-40`}
+                              >
+                                <div className="aspect-square">
+                                  <MediaThumbnail item={item} />
+                                </div>
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="bg-white/80 hover:bg-white"
+                                  >
+                                    <PlusCircle size={18} />
+                                  </Button>
+                                </div>
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-2">
+                                  <div className="text-sm truncate">
+                                    {item.name}
+                                  </div>
+                                  <div className="text-xs opacity-80 flex justify-between">
+                                    <span>
+                                      {format(
+                                        new Date(item.createdAt),
+                                        "MMM d, yyyy"
+                                      )}
+                                    </span>
+                                    <span>
+                                      {(item.size / 1024 / 1024).toFixed(1)} MB
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </MenubarSubContent>
+                      </MenubarSub>
+                      <MenubarSeparator />
+                      <MenubarItem>
+                        Print... <MenubarShortcut>⌘P</MenubarShortcut>
+                      </MenubarItem>
+                    </MenubarContent>
+                  </MenubarMenu>
+                  <MenubarMenu>
+                    <MenubarTrigger>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Hash size={20} />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Add Hashtag</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </MenubarTrigger>
+                    <MenubarContent>
+                      <MenubarItem>
+                        Undo <MenubarShortcut>⌘Z</MenubarShortcut>
+                      </MenubarItem>
+                      <MenubarItem>
+                        Redo <MenubarShortcut>⇧⌘Z</MenubarShortcut>
+                      </MenubarItem>
+                      <MenubarSeparator />
+                      <MenubarSub>
+                        <MenubarSubTrigger>Find</MenubarSubTrigger>
+                        <MenubarSubContent>
+                          <MenubarItem>Search the web</MenubarItem>
+                          <MenubarSeparator />
+                          <MenubarItem>Find...</MenubarItem>
+                          <MenubarItem>Find Next</MenubarItem>
+                          <MenubarItem>Find Previous</MenubarItem>
+                        </MenubarSubContent>
+                      </MenubarSub>
+                      <MenubarSeparator />
+                      <MenubarItem>Cut</MenubarItem>
+                      <MenubarItem>Copy</MenubarItem>
+                      <MenubarItem>Paste</MenubarItem>
+                    </MenubarContent>
+                  </MenubarMenu>
+                  <MenubarMenu>
+                    <MenubarTrigger>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <MapPin size={20} />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Add Location</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </MenubarTrigger>
+                    <MenubarContent>
+                      <MenubarCheckboxItem>
+                        Always Show Bookmarks Bar
+                      </MenubarCheckboxItem>
+                      <MenubarCheckboxItem checked>
+                        Always Show Full URLs
+                      </MenubarCheckboxItem>
+                      <MenubarSeparator />
+                      <MenubarItem inset>
+                        Reload <MenubarShortcut>⌘R</MenubarShortcut>
+                      </MenubarItem>
+                      <MenubarItem disabled inset>
+                        Force Reload <MenubarShortcut>⇧⌘R</MenubarShortcut>
+                      </MenubarItem>
+                      <MenubarSeparator />
+                      <MenubarItem inset>Toggle Fullscreen</MenubarItem>
+                      <MenubarSeparator />
+                      <MenubarItem inset>Hide Sidebar</MenubarItem>
+                    </MenubarContent>
+                  </MenubarMenu>
+                  <MenubarMenu>
+                    <MenubarTrigger>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <WandSparkles size={20} />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Generate Post With AI</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </MenubarTrigger>
+                    <MenubarContent>
+                      <MenubarRadioGroup value="benoit">
+                        <MenubarRadioItem value="andy">Andy</MenubarRadioItem>
+                        <MenubarRadioItem value="benoit">
+                          Benoit
+                        </MenubarRadioItem>
+                        <MenubarRadioItem value="Luis">Luis</MenubarRadioItem>
+                      </MenubarRadioGroup>
+                      <MenubarSeparator />
+                      <MenubarItem inset>Edit...</MenubarItem>
+                      <MenubarSeparator />
+                      <MenubarItem inset>Add Profile...</MenubarItem>
+                    </MenubarContent>
+                  </MenubarMenu>
+                </Menubar>
+              </div>
             </div>
 
-            <div className="flex items-start gap-2">
-              <FormField
-                control={form.control}
-                name="endDate"
-                render={({ field, fieldState }) => (
-                  <FormItem className="flex-1">
-                    <FormLabel>End Date</FormLabel>
-                    <FormControl>
-                      <SingleDayPicker
-                        value={field.value}
-                        onSelect={(date) => field.onChange(date as Date)}
-                        placeholder="Select a date"
-                        data-invalid={fieldState.invalid}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <DialogFooter className="mt-4">
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  Cancel
+                </Button>
+              </DialogClose>
 
-              <FormField
-                control={form.control}
-                name="endTime"
-                render={({ field, fieldState }) => (
-                  <FormItem className="flex-1">
-                    <FormLabel>End Time</FormLabel>
-
-                    <FormControl>
-                      <TimeInput
-                        value={field.value as TimeValue}
-                        onChange={field.onChange}
-                        hourCycle={12}
-                        data-invalid={fieldState.invalid}
-                      />
-                    </FormControl>
-
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="color"
-              render={({ field, fieldState }) => (
-                <FormItem>
-                  <FormLabel>Color</FormLabel>
-                  <FormControl>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger data-invalid={fieldState.invalid}>
-                        <SelectValue placeholder="Select an option" />
-                      </SelectTrigger>
-
-                      <SelectContent>
-                        <SelectItem value="blue">
-                          <div className="flex items-center gap-2">
-                            <div className="size-3.5 rounded-full bg-blue-600" />
-                            Blue
-                          </div>
-                        </SelectItem>
-
-                        <SelectItem value="green">
-                          <div className="flex items-center gap-2">
-                            <div className="size-3.5 rounded-full bg-green-600" />
-                            Green
-                          </div>
-                        </SelectItem>
-
-                        <SelectItem value="red">
-                          <div className="flex items-center gap-2">
-                            <div className="size-3.5 rounded-full bg-red-600" />
-                            Red
-                          </div>
-                        </SelectItem>
-
-                        <SelectItem value="yellow">
-                          <div className="flex items-center gap-2">
-                            <div className="size-3.5 rounded-full bg-yellow-600" />
-                            Yellow
-                          </div>
-                        </SelectItem>
-
-                        <SelectItem value="purple">
-                          <div className="flex items-center gap-2">
-                            <div className="size-3.5 rounded-full bg-purple-600" />
-                            Purple
-                          </div>
-                        </SelectItem>
-
-                        <SelectItem value="orange">
-                          <div className="flex items-center gap-2">
-                            <div className="size-3.5 rounded-full bg-orange-600" />
-                            Orange
-                          </div>
-                        </SelectItem>
-
-                        <SelectItem value="gray">
-                          <div className="flex items-center gap-2">
-                            <div className="size-3.5 rounded-full bg-neutral-600" />
-                            Gray
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field, fieldState }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      value={field.value}
-                      data-invalid={fieldState.invalid}
-                    />
-                  </FormControl>
-
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </form>
-        </Form>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">
-              Cancel
-            </Button>
-          </DialogClose>
-
-          <Button form="event-form" type="submit">
-            Create Event
-          </Button>
-        </DialogFooter>
+              <Button form="event-form" type="submit">
+                Create Event
+              </Button>
+            </DialogFooter>
+          </div>
+          <div>
+            <div className="w-full">jajsha</div>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
