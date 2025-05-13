@@ -221,8 +221,11 @@ export const onboardingRouter = createTRPCRouter({
         id: true,
         platform: true,
         name: true,
+        profilePicture: true,
       },
     });
+
+    console.log(socialAccounts);
 
     return socialAccounts;
   }),
