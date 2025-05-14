@@ -5,8 +5,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 import { useCalendar } from "@/calendar/contexts/calendar-context";
 
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { TimeInput } from "@/components/ui/time-input";
 import { SingleDayPicker } from "@/components/ui/single-day-picker";
@@ -75,6 +77,15 @@ import {
   Ellipsis,
   Trash,
   Edit,
+  MoreHorizontal,
+  Heart,
+  MessageCircle,
+  Share2,
+  Globe,
+  Earth,
+  InstagramIcon,
+  ThumbsUp,
+  ThumbsUpIcon,
 } from "lucide-react";
 import { eventSchema } from "@/calendar/schemas";
 
@@ -98,11 +109,20 @@ import type { TimeValue } from "react-aria-components";
 import type { TEventFormData } from "@/calendar/schemas";
 import { useState, useEffect } from "react";
 import { MultiSelect } from "@/components/multi-select";
-import { MediaThumbnail } from "@/app/(pages)/media/components/media-thumbnail";
 import { trpc } from "@/lib/trpc/client";
 import { format } from "date-fns";
 import { FileUploadArea } from "@/app/(pages)/schedule-post/components/file-upload-area";
 import { useOrganization } from "@/contexts/organization-context";
+import { Tab } from "facebook-nodejs-business-sdk";
+import { FacebookIcon } from "@/components/icons/social-media-icons";
+import { type SocialPlatform } from "@prisma/client";
+import {
+  FacebookLikeIcon,
+  FacebookMessageIcon,
+} from "@/components/icons/facebook-native-icon";
+import { cn } from "@/lib/utils";
+import { MediaThumbnail } from "../media-thumbnail";
+import { DateTimePicker24hForm } from "@/components/ui/date-time-picker";
 
 interface IProps {
   children: React.ReactNode;
@@ -114,15 +134,25 @@ interface FileWithPreview extends File {
   preview: string;
 }
 
+interface SocialAccount {
+  platform: SocialPlatform;
+  name: string | null;
+  profilePicture: string | null;
+  id: string;
+}
+
 export function AddEventDialog({ children, startDate, startTime }: IProps) {
-  // const { users } = useCalendar();
+  const { users } = useCalendar();
 
   const { selectedOrganization } = useOrganization();
 
   const [isOpen, setIsOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [selectedAccounts, setSelectedAccounts] = useState<SocialAccount[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<FileWithPreview[]>([]);
+  const [accountPostPreview, setAccountPostPreview] = useState(
+    selectedAccounts[0]
+  );
   const form = useForm<TEventFormData>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
@@ -132,6 +162,8 @@ export function AddEventDialog({ children, startDate, startTime }: IProps) {
       startTime: typeof startTime !== "undefined" ? startTime : undefined,
     },
   });
+
+  const description = form.watch("description");
 
   const { data: socialAccounts } = trpc.onboarding.getSocialAccounts.useQuery();
 
@@ -246,6 +278,15 @@ export function AddEventDialog({ children, startDate, startTime }: IProps) {
     setSelectedFiles((files) => files.filter((file) => file !== fileToRemove));
   };
 
+  const formatHashtags = (input: string) => {
+    const escaped = input
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br />"); // Add this to handle newlines
+
+    return escaped.replace(/(#\w+)/g, `<span class="hashtag">$1</span>`);
+  };
+
   // Cleanup previews when component unmounts
   useEffect(() => {
     return () => {
@@ -259,312 +300,525 @@ export function AddEventDialog({ children, startDate, startTime }: IProps) {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
 
-      <DialogContent className="min-w-7xl">
-        <DialogHeader>
-          <DialogTitle>Buat Post</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="min-w-7xl p-0">
+        <Form {...form}>
+          <form
+            id="event-form"
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="contents"
+          >
+            <div className="flex gap-4">
+              <div className="w-7/12 pl-2.5 py-2.5">
+                <h1 className="text-2xl font-bold mb-4">Buat Post</h1>
+                <MultiSelect
+                  className="w-fit"
+                  placeholder="Pilih Akun"
+                  variant="secondary"
+                  animation={2}
+                  maxCount={5}
+                  options={accounts}
+                  value={selectedAccounts.map(
+                    (acc) => `${acc.platform}_${acc.id}`
+                  )}
+                  onValueChange={(values) => {
+                    const selected = values
+                      .map((value) => {
+                        const [platform, id] = value.split("_");
+                        return socialAccounts?.find(
+                          (acc) => acc.platform === platform && acc.id === id
+                        );
+                      })
+                      .filter(
+                        (acc): acc is NonNullable<typeof acc> => acc != null
+                      );
+                    setSelectedAccounts(selected);
+                    if (selected.length === 1) {
+                      setAccountPostPreview(selected[0]);
+                    }
+                  }}
+                  grouped
+                />
 
-        <div className="flex gap-4">
-          <div className="w-7/12">
-            <MultiSelect
-              className="w-fit"
-              placeholder="Pilih Akun"
-              variant="secondary"
-              animation={2}
-              maxCount={5}
-              options={accounts}
-              value={selectedAccounts}
-              onValueChange={setSelectedAccounts}
-              grouped
-            />
-
-            <Dialog
-              open={isUploadDialogOpen}
-              onOpenChange={setIsUploadDialogOpen}
-            >
-              <DialogContent className="max-w-5xl min-w-[600px]">
-                <DialogHeader>
-                  <DialogTitle>Upload Media</DialogTitle>
-                  <DialogDescription>
-                    Upload media to include in your post. You can upload
-                    multiple files at once.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="mt-4">
-                  <div
-                    className="border-2 border-dashed border-input rounded-lg p-8 text-center"
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onDrop={handleFileDrop}
-                  >
-                    <label>
-                      <div className="flex flex-col items-center gap-2">
-                        <Upload className="h-10 w-10 text-muted-foreground" />
-                        <div className="text-sm text-muted-foreground">
-                          <span className="font-medium">Click to upload</span>{" "}
-                          or drag and drop
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          PNG, JPG, GIF up to 10MB
-                        </div>
+                <Dialog
+                  open={isUploadDialogOpen}
+                  onOpenChange={setIsUploadDialogOpen}
+                >
+                  <DialogContent className="max-w-5xl min-w-[600px]">
+                    <DialogHeader>
+                      <DialogTitle>Upload Media</DialogTitle>
+                      <DialogDescription>
+                        Upload media to include in your post. You can upload
+                        multiple files at once.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="mt-4">
+                      <div
+                        className="border-2 border-dashed border-input rounded-lg p-8 text-center"
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        onDrop={handleFileDrop}
+                      >
+                        <label>
+                          <div className="flex flex-col items-center gap-2">
+                            <Upload className="h-10 w-10 text-muted-foreground" />
+                            <div className="text-sm text-muted-foreground">
+                              <span className="font-medium">
+                                Click to upload
+                              </span>{" "}
+                              or drag and drop
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              PNG, JPG, GIF up to 10MB
+                            </div>
+                          </div>
+                          <input
+                            type="file"
+                            className="hidden"
+                            multiple
+                            accept="image/*"
+                            onChange={handleFileSelect}
+                          />
+                        </label>
                       </div>
-                      <input
-                        type="file"
-                        className="hidden"
-                        multiple
-                        accept="image/*"
-                        onChange={handleFileSelect}
-                      />
-                    </label>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                <div className="mt-4 border border-input rounded-md p-2 min-h-80 flex flex-col">
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Textarea
+                            placeholder="What's on your mind?"
+                            className="resize-none border-none active:border-none focus-visible:border-none focus-visible:ring-0 shadow-none p-0 min-h-[150px] max-h-[250px]"
+                            rows={10}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="flex flex-col justify-end flex-1">
+                    <div className="mt-5">
+                      {selectedFiles.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedFiles.map((file, index) => (
+                            <div
+                              key={index}
+                              className="relative group border rounded-md w-fit"
+                            >
+                              <img
+                                src={file.preview}
+                                alt={file.name}
+                                className="w-20 object-cover rounded-lg"
+                              />
+                              <DropdownMenu modal={false}>
+                                <DropdownMenuTrigger className="absolute -top-2 -right-2 p-1 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Ellipsis className="h-4 w-4 text-white" />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent side="right">
+                                  <DropdownMenuItem>
+                                    {" "}
+                                    <Edit /> Edit Image
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-red-500 hover:!text-red-500"
+                                    onClick={() => removeFile(file)}
+                                  >
+                                    <Trash className="h-4 w-4 text-red-500" />{" "}
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4">
+                      <Menubar className="border-none shadow-none !p-1">
+                        <MenubarMenu>
+                          <MenubarTrigger>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger
+                                  asChild
+                                  className="cursor-pointer"
+                                >
+                                  <ImagePlus size={20} />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Add Multmedia</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </MenubarTrigger>
+                          <MenubarContent>
+                            <MenubarItem
+                              onClick={() => setIsUploadDialogOpen(true)}
+                            >
+                              <Image className="text-black" /> Add Image
+                            </MenubarItem>
+                            <MenubarItem>
+                              <Video className="text-black" /> Add Video
+                            </MenubarItem>
+                            <MenubarSeparator />
+                            <MenubarSub>
+                              <MenubarSubTrigger>
+                                <FolderOpen size={16} className="mr-2" />
+                                Media Library
+                              </MenubarSubTrigger>
+                              <MenubarSubContent
+                                sideOffset={10}
+                                className="max-w-[450px] overflow-y-auto mb-10"
+                              >
+                                <div className="grid grid-cols-3 gap-4">
+                                  {media.map((item) => (
+                                    <div
+                                      onClick={() => {
+                                        // Create a new FileWithPreview object
+                                        const file = new File(
+                                          [item.name], // Use some dummy content
+                                          item.name,
+                                          { type: item.type }
+                                        );
+
+                                        // Add preview URL to the file
+                                        const fileWithPreview = Object.assign(
+                                          file,
+                                          {
+                                            preview: item.url || "",
+                                          }
+                                        );
+
+                                        setSelectedFiles((prev) => [
+                                          ...prev,
+                                          fileWithPreview,
+                                        ]);
+                                        setIsUploadDialogOpen(false);
+                                      }}
+                                      key={item.id}
+                                      className={`group relative cursor-pointer rounded-md overflow-hidden border max-w-40`}
+                                    >
+                                      <div className="aspect-square">
+                                        <MediaThumbnail item={item} />
+                                      </div>
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          className="bg-white/80 hover:bg-white"
+                                        >
+                                          <PlusCircle size={18} />
+                                        </Button>
+                                      </div>
+                                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-2">
+                                        <div className="text-sm truncate">
+                                          {item.name}
+                                        </div>
+                                        <div className="text-xs opacity-80 flex justify-between">
+                                          <span>
+                                            {format(
+                                              new Date(item.createdAt),
+                                              "MMM d, yyyy"
+                                            )}
+                                          </span>
+                                          <span>
+                                            {(item.size / 1024 / 1024).toFixed(
+                                              1
+                                            )}{" "}
+                                            MB
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </MenubarSubContent>
+                            </MenubarSub>
+                            <MenubarSeparator />
+                            <MenubarItem>
+                              Print... <MenubarShortcut>⌘P</MenubarShortcut>
+                            </MenubarItem>
+                          </MenubarContent>
+                        </MenubarMenu>
+                        <MenubarMenu>
+                          <MenubarTrigger>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Hash size={20} />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Add Hashtag</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </MenubarTrigger>
+                          <MenubarContent>
+                            <MenubarItem>
+                              Undo <MenubarShortcut>⌘Z</MenubarShortcut>
+                            </MenubarItem>
+                            <MenubarItem>
+                              Redo <MenubarShortcut>⇧⌘Z</MenubarShortcut>
+                            </MenubarItem>
+                            <MenubarSeparator />
+                            <MenubarSub>
+                              <MenubarSubTrigger>Find</MenubarSubTrigger>
+                              <MenubarSubContent>
+                                <MenubarItem>Search the web</MenubarItem>
+                                <MenubarSeparator />
+                                <MenubarItem>Find...</MenubarItem>
+                                <MenubarItem>Find Next</MenubarItem>
+                                <MenubarItem>Find Previous</MenubarItem>
+                              </MenubarSubContent>
+                            </MenubarSub>
+                            <MenubarSeparator />
+                            <MenubarItem>Cut</MenubarItem>
+                            <MenubarItem>Copy</MenubarItem>
+                            <MenubarItem>Paste</MenubarItem>
+                          </MenubarContent>
+                        </MenubarMenu>
+                        <MenubarMenu>
+                          <MenubarTrigger>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <MapPin size={20} />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Add Location</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </MenubarTrigger>
+                          <MenubarContent>
+                            <MenubarCheckboxItem>
+                              Always Show Bookmarks Bar
+                            </MenubarCheckboxItem>
+                            <MenubarCheckboxItem checked>
+                              Always Show Full URLs
+                            </MenubarCheckboxItem>
+                            <MenubarSeparator />
+                            <MenubarItem inset>
+                              Reload <MenubarShortcut>⌘R</MenubarShortcut>
+                            </MenubarItem>
+                            <MenubarItem disabled inset>
+                              Force Reload{" "}
+                              <MenubarShortcut>⇧⌘R</MenubarShortcut>
+                            </MenubarItem>
+                            <MenubarSeparator />
+                            <MenubarItem inset>Toggle Fullscreen</MenubarItem>
+                            <MenubarSeparator />
+                            <MenubarItem inset>Hide Sidebar</MenubarItem>
+                          </MenubarContent>
+                        </MenubarMenu>
+                        <MenubarMenu>
+                          <MenubarTrigger>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <WandSparkles size={20} />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Generate Post With AI</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </MenubarTrigger>
+                          <MenubarContent>
+                            <MenubarRadioGroup value="benoit">
+                              <MenubarRadioItem value="andy">
+                                Andy
+                              </MenubarRadioItem>
+                              <MenubarRadioItem value="benoit">
+                                Benoit
+                              </MenubarRadioItem>
+                              <MenubarRadioItem value="Luis">
+                                Luis
+                              </MenubarRadioItem>
+                            </MenubarRadioGroup>
+                            <MenubarSeparator />
+                            <MenubarItem inset>Edit...</MenubarItem>
+                            <MenubarSeparator />
+                            <MenubarItem inset>Add Profile...</MenubarItem>
+                          </MenubarContent>
+                        </MenubarMenu>
+                      </Menubar>
+                    </div>
                   </div>
                 </div>
-              </DialogContent>
-            </Dialog>
 
-            <div className="mt-4 border border-input rounded-md p-2 min-h-80 flex flex-col">
-              <Textarea
-                className="resize-none border-none active:border-none focus-visible:border-none focus-visible:ring-0 shadow-none p-0 min-h-[150px] max-h-[250px]"
-                rows={10}
-              />
+                <DialogFooter className="mt-4 !justify-between">
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline">
+                      Cancel
+                    </Button>
+                  </DialogClose>
 
-              <div className="flex flex-col justify-end flex-1">
-                <div className="mt-5">
-                  {selectedFiles.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {selectedFiles.map((file, index) => (
-                        <div
-                          key={index}
-                          className="relative group border rounded-md w-fit"
+                  <div className="flex gap-2">
+                    <DateTimePicker24hForm />
+
+                    <Button form="event-form" type="submit">
+                      Create Event
+                    </Button>
+                  </div>
+                </DialogFooter>
+              </div>
+              <div className="w-5/12 bg-[#f7fafc] rounded-r-lg relative">
+                <div className="w-full p-4 sticky top-0">
+                  {selectedAccounts.map((account) => (
+                    <TooltipProvider key={account.id}>
+                      <Tooltip>
+                        <TooltipTrigger
+                          className={buttonVariants({
+                            variant: "outline",
+                            className:
+                              "!rounded-full !p-2.5 flex-1 bg-black hover:bg-black/80",
+                          })}
                         >
-                          <img
-                            src={file.preview}
-                            alt={file.name}
-                            className="w-20 object-cover rounded-lg"
-                          />
-                          <DropdownMenu modal={false}>
-                            <DropdownMenuTrigger className="absolute cursor-pointer -top-2 -right-2 p-1 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Ellipsis className="h-4 w-4 text-white" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent side="right">
-                              <DropdownMenuItem>
-                                {" "}
-                                <Edit /> Edit Image
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-red-500 hover:!text-red-500"
-                                onClick={() => removeFile(file)}
-                              >
-                                <Trash className="h-4 w-4 text-red-500" />{" "}
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                          {account.platform === "FACEBOOK" ? (
+                            <FacebookIcon className="fill-white" />
+                          ) : account.platform === "INSTAGRAM" ? (
+                            <InstagramIcon className="w-5 h-5 text-white" />
+                          ) : account.platform === "TWITTER" ? (
+                            <Twitter />
+                          ) : null}
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{account.name}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ))}
                 </div>
 
-                <div className="mt-4">
-                  <Menubar className="border-none shadow-none !p-1">
-                    <MenubarMenu>
-                      <MenubarTrigger>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild className="cursor-pointer">
-                              <ImagePlus size={20} />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Add Multmedia</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </MenubarTrigger>
-                      <MenubarContent>
-                        <MenubarItem
-                          onClick={() => setIsUploadDialogOpen(true)}
-                        >
-                          <Image className="text-black" /> Add Image
-                        </MenubarItem>
-                        <MenubarItem>
-                          <Video className="text-black" /> Add Video
-                        </MenubarItem>
-                        <MenubarSeparator />
-                        <MenubarSub>
-                          <MenubarSubTrigger>
-                            <FolderOpen size={16} className="mr-2" />
-                            Media Library
-                          </MenubarSubTrigger>
-                          <MenubarSubContent
-                            sideOffset={10}
-                            className="max-w-[450px] overflow-y-auto mb-10"
-                          >
-                            <div className="grid grid-cols-3 gap-4">
-                              {media.map((item) => (
+                <div className="container">
+                  <ScrollArea className="h-[450px]">
+                    <div className="w-full max-w-[340px] mx-auto h-full">
+                      {selectedAccounts.length > 0 && (
+                        <div className="bg-white rounded-lg shadow-sm mb-4 overflow-hidden">
+                          <div className="p-2 border-b">
+                            <div className="flex items-center gap-1">
+                              <div className="relative h-10 w-10 overflow-hidden">
+                                <Avatar>
+                                  <AvatarImage
+                                    className="w-full"
+                                    src={
+                                      accountPostPreview?.profilePicture ||
+                                      undefined
+                                    }
+                                  />
+                                  <AvatarFallback>
+                                    {accountPostPreview?.name?.[0]?.toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                              </div>
+                              <div>
+                                <div className="font-medium">
+                                  {accountPostPreview?.name}
+                                </div>
+                                <div className="text-sm text-muted-foreground flex gap-1.5 items-center">
+                                  {format(new Date(), "d MMM")}
+                                  <p>·</p>
+                                  <Earth className="w-4 h-4 text-black" />
+                                </div>
+                              </div>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="ml-auto rounded-full"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="p-2">
+                            <p
+                              dangerouslySetInnerHTML={{
+                                __html: formatHashtags(description) + "<br />",
+                              }}
+                              className="text-sm"
+                            />
+                          </div>
+
+                          {selectedFiles.length > 0 && (
+                            <div
+                              className={cn(
+                                "grid gap-1",
+                                selectedFiles.length === 1
+                                  ? "grid-cols-1"
+                                  : "grid-cols-2"
+                              )}
+                            >
+                              {selectedFiles.slice(0, 4).map((file, index) => (
                                 <div
-                                  key={item.id}
-                                  className={`group relative cursor-pointer rounded-md overflow-hidden border max-w-40`}
+                                  key={index}
+                                  className={cn(
+                                    "relative",
+                                    selectedFiles.length === 1
+                                      ? "aspect-[4/3]"
+                                      : "aspect-square",
+                                    // Make first image bigger when there are 3 images
+                                    selectedFiles.length === 3 && index === 0
+                                      ? "col-span-2"
+                                      : ""
+                                  )}
                                 >
-                                  <div className="aspect-square">
-                                    <MediaThumbnail item={item} />
-                                  </div>
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      className="bg-white/80 hover:bg-white"
-                                    >
-                                      <PlusCircle size={18} />
-                                    </Button>
-                                  </div>
-                                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-2">
-                                    <div className="text-sm truncate">
-                                      {item.name}
-                                    </div>
-                                    <div className="text-xs opacity-80 flex justify-between">
-                                      <span>
-                                        {format(
-                                          new Date(item.createdAt),
-                                          "MMM d, yyyy"
-                                        )}
-                                      </span>
-                                      <span>
-                                        {(item.size / 1024 / 1024).toFixed(1)}{" "}
-                                        MB
+                                  <img
+                                    src={file.preview}
+                                    alt={file.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  {/* Show overlay on last visible image if there are more */}
+                                  {index === 3 && selectedFiles.length > 4 && (
+                                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                      <span className="text-white text-2xl font-medium">
+                                        +{selectedFiles.length - 4}
                                       </span>
                                     </div>
-                                  </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
-                          </MenubarSubContent>
-                        </MenubarSub>
-                        <MenubarSeparator />
-                        <MenubarItem>
-                          Print... <MenubarShortcut>⌘P</MenubarShortcut>
-                        </MenubarItem>
-                      </MenubarContent>
-                    </MenubarMenu>
-                    <MenubarMenu>
-                      <MenubarTrigger>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Hash size={20} />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Add Hashtag</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </MenubarTrigger>
-                      <MenubarContent>
-                        <MenubarItem>
-                          Undo <MenubarShortcut>⌘Z</MenubarShortcut>
-                        </MenubarItem>
-                        <MenubarItem>
-                          Redo <MenubarShortcut>⇧⌘Z</MenubarShortcut>
-                        </MenubarItem>
-                        <MenubarSeparator />
-                        <MenubarSub>
-                          <MenubarSubTrigger>Find</MenubarSubTrigger>
-                          <MenubarSubContent>
-                            <MenubarItem>Search the web</MenubarItem>
-                            <MenubarSeparator />
-                            <MenubarItem>Find...</MenubarItem>
-                            <MenubarItem>Find Next</MenubarItem>
-                            <MenubarItem>Find Previous</MenubarItem>
-                          </MenubarSubContent>
-                        </MenubarSub>
-                        <MenubarSeparator />
-                        <MenubarItem>Cut</MenubarItem>
-                        <MenubarItem>Copy</MenubarItem>
-                        <MenubarItem>Paste</MenubarItem>
-                      </MenubarContent>
-                    </MenubarMenu>
-                    <MenubarMenu>
-                      <MenubarTrigger>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <MapPin size={20} />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Add Location</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </MenubarTrigger>
-                      <MenubarContent>
-                        <MenubarCheckboxItem>
-                          Always Show Bookmarks Bar
-                        </MenubarCheckboxItem>
-                        <MenubarCheckboxItem checked>
-                          Always Show Full URLs
-                        </MenubarCheckboxItem>
-                        <MenubarSeparator />
-                        <MenubarItem inset>
-                          Reload <MenubarShortcut>⌘R</MenubarShortcut>
-                        </MenubarItem>
-                        <MenubarItem disabled inset>
-                          Force Reload <MenubarShortcut>⇧⌘R</MenubarShortcut>
-                        </MenubarItem>
-                        <MenubarSeparator />
-                        <MenubarItem inset>Toggle Fullscreen</MenubarItem>
-                        <MenubarSeparator />
-                        <MenubarItem inset>Hide Sidebar</MenubarItem>
-                      </MenubarContent>
-                    </MenubarMenu>
-                    <MenubarMenu>
-                      <MenubarTrigger>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <WandSparkles size={20} />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Generate Post With AI</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </MenubarTrigger>
-                      <MenubarContent>
-                        <MenubarRadioGroup value="benoit">
-                          <MenubarRadioItem value="andy">Andy</MenubarRadioItem>
-                          <MenubarRadioItem value="benoit">
-                            Benoit
-                          </MenubarRadioItem>
-                          <MenubarRadioItem value="Luis">Luis</MenubarRadioItem>
-                        </MenubarRadioGroup>
-                        <MenubarSeparator />
-                        <MenubarItem inset>Edit...</MenubarItem>
-                        <MenubarSeparator />
-                        <MenubarItem inset>Add Profile...</MenubarItem>
-                      </MenubarContent>
-                    </MenubarMenu>
-                  </Menubar>
+                          )}
+
+                          <div className="border-t mt-1">
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-1 px-5 py-2">
+                                <FacebookLikeIcon height={20} width={20} />
+                                <p className="text-sm text-[#65686c]">Like</p>
+                              </div>
+                              <div className="flex items-center gap-1 px-5">
+                                <FacebookMessageIcon height={20} width={20} />
+                                <p className="text-sm text-[#65686c]">
+                                  Comment
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1 px-5">
+                                <Share2 className="text-[#65686c]" size={20} />
+                                <p className="text-sm text-[#65686c]">Share</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
                 </div>
               </div>
             </div>
-
-            <DialogFooter className="mt-4">
-              <DialogClose asChild>
-                <Button type="button" variant="outline">
-                  Cancel
-                </Button>
-              </DialogClose>
-
-              <Button form="event-form" type="submit">
-                Create Event
-              </Button>
-            </DialogFooter>
-          </div>
-          <div>
-            <div className="w-full">jajsha</div>
-          </div>
-        </div>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
