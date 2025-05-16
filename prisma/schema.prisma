@@ -122,6 +122,17 @@ model Media {
   @@index([userId])
 }
 
+model Hashtag {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  category    String
+  frequency   Int      @default(0)
+  lastUpdated DateTime @updatedAt
+
+  @@index([category])
+  @@index([frequency])
+}
+
 enum MediaType {
   IMAGE
   VIDEO

@@ -33,9 +33,11 @@ import {
   MenubarRadioGroup,
   MenubarRadioItem,
 } from "@/components/ui/menubar";
+
 import { MediaThumbnail } from "../../../media-thumbnail";
 import { FileWithStablePreview } from "../types";
 import { toast } from "sonner";
+import { HashtagBrowser } from "@/components/hashtag-browser";
 
 interface PostToolbarProps {
   onUploadClick: () => void;
@@ -162,28 +164,10 @@ export function PostToolbar({
             </Tooltip>
           </TooltipProvider>
         </MenubarTrigger>
-        <MenubarContent>
-          <MenubarItem>
-            Undo <MenubarShortcut>⌘Z</MenubarShortcut>
-          </MenubarItem>
-          <MenubarItem>
-            Redo <MenubarShortcut>⇧⌘Z</MenubarShortcut>
-          </MenubarItem>
-          <MenubarSeparator />
-          <MenubarSub>
-            <MenubarSubTrigger>Find</MenubarSubTrigger>
-            <MenubarSubContent>
-              <MenubarItem>Search the web</MenubarItem>
-              <MenubarSeparator />
-              <MenubarItem>Find...</MenubarItem>
-              <MenubarItem>Find Next</MenubarItem>
-              <MenubarItem>Find Previous</MenubarItem>
-            </MenubarSubContent>
-          </MenubarSub>
-          <MenubarSeparator />
-          <MenubarItem>Cut</MenubarItem>
-          <MenubarItem>Copy</MenubarItem>
-          <MenubarItem>Paste</MenubarItem>
+        <MenubarContent side="top" className="w-[400px] p-0">
+          <div className="p-4">
+            <HashtagBrowser />
+          </div>
         </MenubarContent>
       </MenubarMenu>
       <MenubarMenu>
