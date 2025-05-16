@@ -7,6 +7,9 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get("state");
   const code = searchParams.get("code");
 
+  const decodedState = JSON.parse(decodeURIComponent(state!));
+  const { userId, userType, orgName, teamEmails } = decodedState;
+
   if (!state || !code) {
     return NextResponse.json(
       { error: "Missing state or code" },
@@ -16,35 +19,17 @@ export async function GET(request: NextRequest) {
 
   const existingUser = await prisma.user.findUnique({
     where: {
-      clerkId: state,
+      clerkId: userId,
     },
     include: {
-      memberships: true,
+      memberships: {
+        take: 1,
+      },
     },
   });
 
   if (!existingUser) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-
-  let organizationId = existingUser.memberships[0]?.organizationId;
-  if (!organizationId) {
-    const organization = await prisma.organization.create({
-      data: {
-        name: `${existingUser.name || existingUser.email}'s Organization`,
-        slug: `${existingUser.email.split("@")[0]}-org`,
-      },
-    });
-    organizationId = organization.id;
-
-    // Create membership
-    await prisma.membership.create({
-      data: {
-        userId: existingUser.id,
-        organizationId: organization.id,
-        role: "ADMIN",
-      },
-    });
   }
 
   // Exchange code for access token
@@ -127,20 +112,22 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Store Instagram account
-  await prisma.socialAccount.create({
-    data: {
+  const datas = [
+    {
       platform: SocialPlatform.INSTAGRAM,
       accessToken: tokenData.access_token,
+      pagesId: instagramData.instagram_business_account.id,
       userId: existingUser.id,
-      organizationId: organizationId,
       name: instagramAccountData.username,
+      profilePicture: instagramAccountData.profile_picture_url,
     },
-  });
+  ];
+
+  const data = encodeURIComponent(JSON.stringify(datas));
 
   return NextResponse.redirect(
     new URL(
-      `/onboarding?step=add_social_accounts&userType=${searchParams.get("userType")}&refresh=true`,
+      `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&pagesData=${data}`,
       request.url
     )
   );

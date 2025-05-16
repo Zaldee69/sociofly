@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Instagram, Twitter, Facebook } from "lucide-react";
 
-import { useCalendar } from "@/calendar/contexts/calendar-context";
 import { useOrganization } from "@/contexts/organization-context";
 import { trpc } from "@/lib/trpc/client";
 import { eventSchema } from "@/calendar/schemas";
@@ -49,6 +48,7 @@ import type {
   SocialAccount,
 } from "./types";
 import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function AddEventDialog({
   children,
@@ -164,6 +164,13 @@ export function AddEventDialog({
       <DialogTrigger asChild>{children}</DialogTrigger>
 
       <DialogContent className="min-w-7xl p-0">
+        <DialogHeader className="hidden">
+          <DialogTitle>Buat Post</DialogTitle>
+          <DialogDescription>
+            Buat post untuk akun yang dipilih
+          </DialogDescription>
+        </DialogHeader>
+
         <Form {...form}>
           <form
             id="event-form"
@@ -230,7 +237,7 @@ export function AddEventDialog({
                   <div className="flex flex-col justify-end flex-1">
                     <div className="mt-5">
                       {selectedFiles.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 aspect-auto">
                           {selectedFiles.map((file, index) => (
                             <div
                               key={index}
@@ -287,10 +294,17 @@ export function AddEventDialog({
                     <TooltipProvider key={account.id}>
                       <Tooltip>
                         <TooltipTrigger
+                          onClick={() => {
+                            setAccountPostPreview(account);
+                          }}
                           className={buttonVariants({
                             variant: "outline",
-                            className:
-                              "!rounded-full !p-2.5 flex-1 bg-black hover:bg-black/80",
+                            className: cn(
+                              "!rounded-full !p-2.5 flex-1 mr-1",
+                              accountPostPreview?.id === account.id
+                                ? "bg-black hover:bg-black/80"
+                                : "bg-gray-200 hover:bg-gray-300"
+                            ),
                           })}
                         >
                           {account.platform === "FACEBOOK" ? (
