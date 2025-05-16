@@ -1,9 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Instagram, Twitter, Facebook } from "lucide-react";
+import { Instagram, Twitter, Facebook, ChevronDown, Check } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import { useOrganization } from "@/contexts/organization-context";
 import { trpc } from "@/lib/trpc/client";
@@ -39,16 +56,124 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+
 import { MediaUploader } from "./components/media-uploader";
 import { PostPreview } from "./components/post-preview";
 import { PostToolbar } from "./components/post-toolbar";
-import type {
-  AddEventDialogProps,
-  FileWithPreview,
-  SocialAccount,
-} from "./types";
+import type { AddEventDialogProps, SocialAccount } from "./types";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+interface FileWithStablePreview extends File {
+  preview: string;
+  stableId: string;
+}
+
+interface TActions {
+  value: string;
+  title: string;
+  description: string;
+}
+
+const actions: TActions[] = [
+  {
+    value: "post_now",
+    title: "Publish Sekarang",
+    description: "Buat postingan dan publish sekarang",
+  },
+  {
+    value: "schedule",
+    title: "Jadwalkan",
+    description: "Buat postingan dan jadwalkan untuk publish nanti",
+  },
+  {
+    value: "save_as_draft",
+    title: "Simpan Sebagai Draft",
+    description: "Buat postingan dan simpan sebagai draft",
+  },
+  {
+    value: "request_review",
+    title: "Ajukan Review",
+    description: "Buat postingan dan ajukan review kepada pengguna lain",
+  },
+];
+
+const SortableImage = memo(
+  ({
+    file,
+    index,
+    onRemove,
+  }: {
+    file: FileWithStablePreview;
+    index: number;
+    onRemove: (file: FileWithStablePreview) => void;
+  }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({
+      id: file.stableId,
+    });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      zIndex: isDragging ? 1 : 0,
+      opacity: isDragging ? 0.5 : 1,
+      touchAction: "none",
+    };
+
+    return (
+      <div className="relative group">
+        <div
+          ref={setNodeRef}
+          style={style}
+          className="border rounded-md w-fit cursor-move"
+          {...attributes}
+          {...listeners}
+        >
+          <img
+            src={file.preview}
+            alt={file.name}
+            className="w-20 h-20 object-cover rounded-lg"
+            draggable={false}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRemove(file);
+          }}
+          className="absolute -top-2 -right-2 h-5 w-5 bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 z-50 rounded-full text-sm font-medium hover:cursor-pointer"
+        >
+          ×
+        </button>
+      </div>
+    );
+  }
+);
+
+SortableImage.displayName = "SortableImage";
 
 export function AddEventDialog({
   children,
@@ -57,12 +182,16 @@ export function AddEventDialog({
 }: AddEventDialogProps) {
   const { selectedOrganization } = useOrganization();
   const [isOpen, setIsOpen] = useState(false);
+  const [isOpenPopover, setIsOpenPopover] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [selectedAccounts, setSelectedAccounts] = useState<SocialAccount[]>([]);
-  const [selectedFiles, setSelectedFiles] = useState<FileWithPreview[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<FileWithStablePreview[]>(
+    []
+  );
   const [accountPostPreview, setAccountPostPreview] = useState(
     selectedAccounts[0]
   );
+  const [action, setAction] = useState<TActions>(actions[0]);
 
   const form = useForm({
     resolver: zodResolver(eventSchema),
@@ -139,31 +268,76 @@ export function AddEventDialog({
   );
 
   const onSubmit = (_values: any) => {
+    console.log(_values);
     form.reset();
   };
 
-  const handleFileSelect = (files: FileWithPreview[]) => {
-    setSelectedFiles((prev) => [...prev, ...files]);
+  const handleFileSelect = (files: File[] | FileWithStablePreview[]) => {
+    // Check if files already have preview & stableId (from MediaUploader)
+    if (files.length > 0 && "preview" in files[0]) {
+      setSelectedFiles((prev) => [
+        ...prev,
+        ...(files as FileWithStablePreview[]),
+      ]);
+      return;
+    }
+
+    // Handle files from regular file upload
+    const filesWithPreview = (files as File[]).map((file) => {
+      const preview = URL.createObjectURL(file);
+      return Object.assign(file, {
+        preview,
+        stableId: crypto.randomUUID(),
+      }) as FileWithStablePreview;
+    });
+    setSelectedFiles((prev) => [...prev, ...filesWithPreview]);
   };
 
-  const removeFile = (fileToRemove: FileWithPreview) => {
+  const removeFile = (fileToRemove: FileWithStablePreview) => {
+    console.log(fileToRemove);
     URL.revokeObjectURL(fileToRemove.preview);
-    setSelectedFiles((files) => files.filter((file) => file !== fileToRemove));
+    setSelectedFiles((files) =>
+      files.filter((file) => file.stableId !== fileToRemove.stableId)
+    );
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setSelectedFiles((files) => {
+        const oldIndex = files.findIndex((file) => file.stableId === active.id);
+        const newIndex = files.findIndex((file) => file.stableId === over.id);
+
+        // Use spread to create a new array but maintain file references
+        return arrayMove([...files], oldIndex, newIndex);
+      });
+    }
   };
 
   useEffect(() => {
     return () => {
+      // Cleanup preview URLs when component unmounts
       selectedFiles.forEach((file) => {
-        URL.revokeObjectURL(file.preview);
+        if (file.preview) {
+          URL.revokeObjectURL(file.preview);
+        }
       });
     };
-  }, [selectedFiles]);
+  }, []);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
 
-      <DialogContent className="min-w-7xl p-0">
+      <DialogContent className="xl:min-w-7xl w-full p-0 max-h-[90vh] overflow-hidden">
         <DialogHeader className="hidden">
           <DialogTitle>Buat Post</DialogTitle>
           <DialogDescription>
@@ -171,50 +345,46 @@ export function AddEventDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form
-            id="event-form"
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="contents"
-          >
-            <div className="flex gap-4">
-              <div className="w-7/12 pl-2.5 py-2.5">
-                <h1 className="text-2xl font-bold mb-4">Buat Post</h1>
-                <MultiSelect
-                  className="w-fit"
-                  placeholder="Pilih Akun"
-                  variant="secondary"
-                  animation={2}
-                  maxCount={5}
-                  options={accounts}
-                  value={selectedAccounts.map(
-                    (acc) => `${acc.platform}_${acc.id}`
-                  )}
-                  onValueChange={(values) => {
-                    const selected = values
-                      .map((value) => {
-                        const [platform, id] = value.split("_");
-                        return socialAccounts?.find(
-                          (acc) => acc.platform === platform && acc.id === id
-                        );
-                      })
-                      .filter(
-                        (acc): acc is NonNullable<typeof acc> => acc != null
-                      );
-                    setSelectedAccounts(selected);
-                    if (selected.length === 1) {
-                      setAccountPostPreview(selected[0]);
-                    }
-                  }}
-                  grouped
-                />
+        <div className="block xl:flex gap-4 h-full max-h-[90vh] overflow-hidden pr-2 xl:pr-0">
+          <div className="w-full xl:w-7/12 pl-2.5 py-2.5 overflow-y-auto">
+            <h1 className="text-2xl font-bold mb-4">Buat Post</h1>
+            <MultiSelect
+              className="w-fit"
+              placeholder="Pilih Akun"
+              variant="secondary"
+              animation={2}
+              maxCount={5}
+              options={accounts}
+              value={selectedAccounts.map((acc) => `${acc.platform}_${acc.id}`)}
+              onValueChange={(values) => {
+                const selected = values
+                  .map((value) => {
+                    const [platform, id] = value.split("_");
+                    return socialAccounts?.find(
+                      (acc) => acc.platform === platform && acc.id === id
+                    );
+                  })
+                  .filter((acc): acc is NonNullable<typeof acc> => acc != null);
+                setSelectedAccounts(selected);
+                if (selected.length === 1) {
+                  setAccountPostPreview(selected[0]);
+                }
+              }}
+              grouped
+            />
 
-                <MediaUploader
-                  isOpen={isUploadDialogOpen}
-                  onOpenChange={setIsUploadDialogOpen}
-                  onFileSelect={handleFileSelect}
-                />
+            <MediaUploader
+              isOpen={isUploadDialogOpen}
+              onOpenChange={setIsUploadDialogOpen}
+              onFileSelect={handleFileSelect}
+            />
 
+            <Form {...form}>
+              <form
+                id="event-form"
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="contents"
+              >
                 <div className="mt-4 border border-input rounded-md p-2 min-h-80 flex flex-col">
                   <FormField
                     control={form.control}
@@ -229,7 +399,6 @@ export function AddEventDialog({
                             {...field}
                           />
                         </FormControl>
-                        <FormMessage />
                       </FormItem>
                     )}
                   />
@@ -237,28 +406,27 @@ export function AddEventDialog({
                   <div className="flex flex-col justify-end flex-1">
                     <div className="mt-5">
                       {selectedFiles.length > 0 && (
-                        <div className="flex flex-wrap gap-2 aspect-auto">
-                          {selectedFiles.map((file, index) => (
-                            <div
-                              key={index}
-                              className="relative group border rounded-md w-fit"
-                            >
-                              <img
-                                src={file.preview}
-                                alt={file.name}
-                                className="w-20 object-cover rounded-lg"
-                              />
-                              <Button
-                                variant="destructive"
-                                size="icon"
-                                className="absolute -top-2 -right-2 h-5 w-5 opacity-0 group-hover:opacity-100"
-                                onClick={() => removeFile(file)}
-                              >
-                                ×
-                              </Button>
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={handleDragEnd}
+                        >
+                          <SortableContext
+                            items={selectedFiles.map((f) => f.stableId)}
+                            strategy={rectSortingStrategy}
+                          >
+                            <div className="flex flex-wrap gap-2 aspect-auto">
+                              {selectedFiles.map((file, index) => (
+                                <SortableImage
+                                  key={file.stableId}
+                                  file={file}
+                                  index={index}
+                                  onRemove={removeFile}
+                                />
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          </SortableContext>
+                        </DndContext>
                       )}
                     </div>
 
@@ -281,59 +449,142 @@ export function AddEventDialog({
 
                   <div className="flex gap-2">
                     <DateTimePicker24hForm />
-                    <Button form="event-form" type="submit">
-                      Create Event
-                    </Button>
+
+                    <div
+                      className={buttonVariants({
+                        className: "pr-0",
+                      })}
+                    >
+                      <button
+                        form="event-form"
+                        type="submit"
+                        className="cursor-pointer"
+                      >
+                        {actions.find((a) => a.value === action.value)?.title}
+                      </button>
+                      <Popover
+                        open={isOpenPopover}
+                        onOpenChange={setIsOpenPopover}
+                      >
+                        <PopoverTrigger asChild>
+                          <button className="p-2 border-l">
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="p-0"
+                          align="end"
+                          side="top"
+                          sideOffset={10}
+                        >
+                          <Command>
+                            <CommandList>
+                              <CommandGroup>
+                                {actions.map((actionItem) => (
+                                  <CommandItem
+                                    className="justify-between"
+                                    key={actionItem.value}
+                                    value={actionItem.value}
+                                    onSelect={(currentValue) => {
+                                      setAction(
+                                        actions.find(
+                                          (a) => a.value === currentValue
+                                        )!
+                                      );
+                                      setIsOpenPopover(false);
+                                    }}
+                                  >
+                                    <div>
+                                      <p
+                                        className={cn({
+                                          "font-semibold":
+                                            actionItem.value === action.value,
+                                        })}
+                                      >
+                                        {actionItem.title}
+                                      </p>
+                                      <p
+                                        className={cn(
+                                          "text-xs italic text-muted-foreground",
+                                          {
+                                            "font-medium":
+                                              actionItem.value === action.value,
+                                          }
+                                        )}
+                                      >
+                                        {actionItem.description}
+                                      </p>
+                                    </div>
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        actionItem.value === action.value
+                                          ? "opacity-100"
+                                          : "opacity-0"
+                                      )}
+                                    />
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </div>
                 </DialogFooter>
-              </div>
+              </form>
+            </Form>
+          </div>
 
-              <div className="w-5/12 bg-[#f7fafc] rounded-r-lg relative">
-                <div className="w-full p-4 sticky top-0">
-                  {selectedAccounts.map((account) => (
-                    <TooltipProvider key={account.id}>
-                      <Tooltip>
-                        <TooltipTrigger
-                          onClick={() => {
-                            setAccountPostPreview(account);
-                          }}
-                          className={buttonVariants({
-                            variant: "outline",
-                            className: cn(
-                              "!rounded-full !p-2.5 flex-1 mr-1",
-                              accountPostPreview?.id === account.id
-                                ? "bg-black hover:bg-black/80"
-                                : "bg-gray-200 hover:bg-gray-300"
-                            ),
-                          })}
-                        >
-                          {account.platform === "FACEBOOK" ? (
-                            <FacebookIcon className="fill-white" />
-                          ) : account.platform === "INSTAGRAM" ? (
-                            <InstagramIcon className="w-5 h-5 text-white" />
-                          ) : account.platform === "TWITTER" ? (
-                            <Twitter />
-                          ) : null}
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{account.name}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  ))}
-                </div>
-
-                <div className="container">
-                  <PostPreview
-                    description={description}
-                    selectedFiles={selectedFiles}
-                    accountPostPreview={accountPostPreview}
-                  />
-                </div>
-              </div>
+          <div className="w-5/12 bg-[#f7fafc] rounded-r-lg relative hidden xl:block h-full overflow-hidden">
+            <div className="w-full p-4 sticky top-0 z-10 bg-[#f7fafc]">
+              {selectedAccounts.map((account) => (
+                <TooltipProvider key={account.id}>
+                  <Tooltip>
+                    <TooltipTrigger
+                      type="button"
+                      onClick={() => {
+                        setAccountPostPreview(account);
+                      }}
+                      className={buttonVariants({
+                        variant: "outline",
+                        className: cn(
+                          "!rounded-full !p-2.5 flex-1 mr-1",
+                          accountPostPreview?.id === account.id
+                            ? "bg-black hover:bg-black/80"
+                            : "bg-gray-200 hover:bg-gray-300"
+                        ),
+                      })}
+                    >
+                      {account.platform === "FACEBOOK" ? (
+                        <FacebookIcon className="fill-white" />
+                      ) : account.platform === "INSTAGRAM" ? (
+                        <InstagramIcon className="w-5 h-5 text-white" />
+                      ) : account.platform === "TWITTER" ? (
+                        <Twitter />
+                      ) : null}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{account.name}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ))}
             </div>
-          </form>
-        </Form>
+
+            <div
+              className="container overflow-auto"
+              style={{ maxHeight: "calc(90vh - 120px)" }}
+            >
+              <PostPreview
+                description={description}
+                selectedFiles={selectedFiles}
+                accountPostPreview={accountPostPreview}
+              />
+            </div>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

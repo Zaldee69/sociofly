@@ -30,3 +30,11 @@ export interface SocialAccountGroup {
     profile_picture_url: string;
   }[];
 }
+
+export interface FileWithPreview extends File {
+  preview: string;
+}
+
+export interface FileWithStablePreview extends FileWithPreview {
+  stableId: string;
+}

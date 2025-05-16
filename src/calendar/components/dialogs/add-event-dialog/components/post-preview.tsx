@@ -20,7 +20,6 @@ import {
   FacebookMessageIcon,
 } from "@/components/icons/facebook-native-icon";
 import { cn } from "@/lib/utils";
-import { FileWithPreview, SocialAccount } from "../types";
 import {
   Fragment,
   useEffect,
@@ -37,10 +36,12 @@ import {
 } from "@/components/ui/carousel";
 
 import { type CarouselApi } from "@/components/ui/carousel";
+import { SocialAccount } from "../types";
+import { FileWithStablePreview } from "../types";
 
 interface PostPreviewProps {
   description: string;
-  selectedFiles: FileWithPreview[];
+  selectedFiles: FileWithStablePreview[];
   accountPostPreview: SocialAccount | undefined;
 }
 
@@ -53,46 +54,76 @@ const formatHashtags = (input: string) => {
   return escaped.replace(/(#\w+)/g, `<span class="hashtag">$1</span>`);
 };
 
-const InstagramCarousel = memo(({ files }: { files: FileWithPreview[] }) => {
-  const [api, setApi] = useState<CarouselApi>();
-  const [current, setCurrent] = useState(1);
-  const [count, setCount] = useState(0);
+const InstagramCarousel = memo(
+  ({ files }: { files: FileWithStablePreview[] }) => {
+    const [api, setApi] = useState<CarouselApi>();
+    const [current, setCurrent] = useState(1);
+    const [count, setCount] = useState(0);
 
-  useEffect(() => {
-    if (!api) return;
+    useEffect(() => {
+      // Update the count whenever files change
+      if (files.length !== count) {
+        setCount(files.length);
+      }
+    }, [files, count]);
 
-    setCount(api.scrollSnapList().length);
-    setCurrent(api.selectedScrollSnap() + 1);
+    useEffect(() => {
+      if (!api) return;
 
-    const onSelect = () => {
+      // Set initial values
+      setCount(api.scrollSnapList().length);
       setCurrent(api.selectedScrollSnap() + 1);
-    };
 
-    api.on("select", onSelect);
-    return () => {
-      api.off("select", onSelect);
-    };
-  }, [api]);
+      const onSelect = () => {
+        setCurrent(api.selectedScrollSnap() + 1);
+      };
 
-  if (files.length === 0) return null;
+      api.on("select", onSelect);
+      return () => {
+        api.off("select", onSelect);
+      };
+    }, [api]);
 
-  return (
-    <Carousel setApi={setApi} className="w-full relative">
-      {count > 0 && count !== 1 && (
-        <div className="absolute top-4 right-4 z-10 bg-black/60 text-white px-2 py-1 rounded-full text-xs">
-          {current}/{count}
-        </div>
-      )}
-      <CarouselContent>
-        {files.map((file, index) => (
-          <CarouselItem key={index}>
-            <img src={file.preview} alt={file.name} className="w-full h-full" />
-          </CarouselItem>
-        ))}
-      </CarouselContent>
-    </Carousel>
-  );
-});
+    // Force carousel to re-initialize when files change
+    useEffect(() => {
+      if (api) {
+        api.scrollTo(0);
+        setCount(api.scrollSnapList().length);
+        setCurrent(1);
+      }
+    }, [files.length, api]);
+
+    if (files.length === 0) return null;
+
+    return (
+      <Carousel
+        setApi={setApi}
+        className="w-full relative"
+        key={`carousel-${files.length}`}
+      >
+        {count > 0 && count !== 1 && (
+          <div className="absolute top-4 right-4 z-10 bg-black/60 text-white px-2 py-1 rounded-full text-xs">
+            {current}/{count}
+          </div>
+        )}
+        <CarouselContent>
+          {files.map((file) => (
+            <CarouselItem key={file.stableId}>
+              <div className="w-full aspect-square relative">
+                <img
+                  src={file.preview}
+                  alt={file.name}
+                  className="w-full h-full object-cover"
+                  loading="eager"
+                />
+              </div>
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+      </Carousel>
+    );
+  }
+);
 
 InstagramCarousel.displayName = "InstagramCarousel";
 
@@ -146,14 +177,16 @@ const FacebookPreview = memo(
           </div>
         </div>
 
-        <div className="p-2">
-          <p
-            dangerouslySetInnerHTML={{
-              __html: formatHashtags(description) + "<br />",
-            }}
-            className="text-sm"
-          />
-        </div>
+        {description.length > 0 && (
+          <div className="p-2">
+            <p
+              dangerouslySetInnerHTML={{
+                __html: formatHashtags(description) + "<br />",
+              }}
+              className="text-sm"
+            />
+          </div>
+        )}
 
         {selectedFiles.length > 0 && (
           <div
@@ -273,16 +306,19 @@ export const PostPreview = memo(
   ({ description, selectedFiles, accountPostPreview }: PostPreviewProps) => {
     const [isScrolled, setIsScrolled] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
+    // Handler for scroll events
     const handleScroll = useCallback((event: Event) => {
       const target = event.target as HTMLDivElement;
       setIsScrolled(target.scrollTop > 0);
     }, []);
 
+    // Setup scroll event listener
     useEffect(() => {
-      const scrollContainer = scrollRef.current?.querySelector(
-        "[data-radix-scroll-area-viewport]"
-      );
+      // Menggunakan parent container untuk scroll event karena kita tidak lagi
+      // menggunakan ScrollArea component
+      const scrollContainer = containerRef.current?.closest(".overflow-auto");
       if (scrollContainer) {
         scrollContainer.addEventListener("scroll", handleScroll);
         return () =>
@@ -291,33 +327,31 @@ export const PostPreview = memo(
     }, [handleScroll]);
 
     return (
-      <ScrollArea ref={scrollRef} className="h-[450px]">
-        <div className="w-full max-w-[340px] mx-auto h-full">
-          <div
-            className={cn(
-              "sticky top-0 z-10 transition-colors duration-200",
-              isScrolled ? "bg-white shadow-sm" : "bg-transparent"
+      <div ref={containerRef} className="w-full max-w-[340px] mx-auto">
+        <div
+          className={cn(
+            "sticky top-0 z-10 transition-colors duration-200",
+            isScrolled ? "bg-white shadow-sm" : "bg-transparent"
+          )}
+        >
+          <div className="bg-white rounded-lg shadow-sm mb-4 overflow-hidden">
+            {accountPostPreview?.platform === "FACEBOOK" && (
+              <FacebookPreview
+                description={description}
+                selectedFiles={selectedFiles}
+                accountPostPreview={accountPostPreview}
+              />
             )}
-          >
-            <div className="bg-white rounded-lg shadow-sm mb-4 overflow-hidden">
-              {accountPostPreview?.platform === "FACEBOOK" && (
-                <FacebookPreview
-                  description={description}
-                  selectedFiles={selectedFiles}
-                  accountPostPreview={accountPostPreview}
-                />
-              )}
-              {accountPostPreview?.platform === "INSTAGRAM" && (
-                <InstagramPreview
-                  description={description}
-                  selectedFiles={selectedFiles}
-                  accountPostPreview={accountPostPreview}
-                />
-              )}
-            </div>
+            {accountPostPreview?.platform === "INSTAGRAM" && (
+              <InstagramPreview
+                description={description}
+                selectedFiles={selectedFiles}
+                accountPostPreview={accountPostPreview}
+              />
+            )}
           </div>
         </div>
-      </ScrollArea>
+      </div>
     );
   }
 );

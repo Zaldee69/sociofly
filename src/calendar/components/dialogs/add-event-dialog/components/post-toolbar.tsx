@@ -34,13 +34,32 @@ import {
   MenubarRadioItem,
 } from "@/components/ui/menubar";
 import { MediaThumbnail } from "../../../media-thumbnail";
-import { FileWithPreview } from "../types";
+import { FileWithStablePreview } from "../types";
+import { toast } from "sonner";
 
 interface PostToolbarProps {
   onUploadClick: () => void;
-  onMediaSelect: (file: FileWithPreview) => void;
-  media: any[];
+  onMediaSelect: (file: FileWithStablePreview) => void;
+  media: Array<{
+    id: string;
+    name: string;
+    url: string;
+    type: any; // Allow any type from server
+    createdAt: Date | string;
+    size?: number;
+    [key: string]: any; // Allow for additional properties
+  }>;
 }
+
+// Helper function to format file size
+const formatBytes = (bytes: number, decimals = 1) => {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+};
 
 export function PostToolbar({
   onUploadClick,
@@ -88,8 +107,10 @@ export function PostToolbar({
                       });
                       const fileWithPreview = Object.assign(file, {
                         preview: item.url || "",
-                      }) as FileWithPreview;
+                        stableId: crypto.randomUUID(),
+                      }) as FileWithStablePreview;
                       onMediaSelect(fileWithPreview);
+                      toast.success("Media added to post");
                     }}
                     key={item.id}
                     className="group relative cursor-pointer rounded-md overflow-hidden border max-w-40"
@@ -112,7 +133,9 @@ export function PostToolbar({
                         <span>
                           {format(new Date(item.createdAt), "MMM d, yyyy")}
                         </span>
-                        <span>{(item.size / 1024 / 1024).toFixed(1)} MB</span>
+                        <span>
+                          {item.size ? formatBytes(item.size) : "Unknown"}
+                        </span>
                       </div>
                     </div>
                   </div>
