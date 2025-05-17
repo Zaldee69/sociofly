@@ -77,7 +77,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { eventSchema } from "./schema";
-import { CalendarEvent } from "../types";
 
 interface FileWithStablePreview extends File {
   preview: string;
