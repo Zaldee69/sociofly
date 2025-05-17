@@ -14,12 +14,14 @@ interface HashtagSearchProps {
   category?: string;
   limit?: number;
   className?: string;
+  onHashtagClick?: (hashtag: string) => void;
 }
 
 export function HashtagSearch({
   category,
   limit = 15,
   className,
+  onHashtagClick,
 }: HashtagSearchProps) {
   const [hasSearched, setHasSearched] = useState(false);
 
@@ -53,6 +55,13 @@ export function HashtagSearch({
   const clearSearch = () => {
     setSearchQuery("");
     setHasSearched(false);
+  };
+
+  // Handle clicking on a hashtag
+  const handleHashtagClick = (hashtag: string) => {
+    if (onHashtagClick) {
+      onHashtagClick(hashtag);
+    }
   };
 
   return (
@@ -98,7 +107,8 @@ export function HashtagSearch({
                 <Badge
                   key={hashtag.id}
                   variant="outline"
-                  className="rounded-full gap-1 px-3 py-1.5 hover:bg-muted/50 cursor-default inline-flex w-full justify-start"
+                  className="rounded-full gap-1 px-3 py-1.5 hover:bg-muted/50 cursor-pointer inline-flex w-full justify-start"
+                  onClick={() => handleHashtagClick(hashtag.name)}
                 >
                   <Hash className="h-3.5 w-3.5 mr-1 flex-shrink-0" />
                   <span className="truncate">{hashtag.name}</span>

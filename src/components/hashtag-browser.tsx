@@ -7,12 +7,14 @@ interface HashtagBrowserProps {
   category?: string;
   limit?: number;
   className?: string;
+  onHashtagClick?: (hashtag: string) => void;
 }
 
 export function HashtagBrowser({
   category,
   limit = 15,
   className,
+  onHashtagClick,
 }: HashtagBrowserProps) {
   return (
     <div className="space-y-4">
@@ -22,6 +24,7 @@ export function HashtagBrowser({
           category={category}
           limit={limit}
           className={className}
+          onHashtagClick={onHashtagClick}
         />
       </div>
     </div>

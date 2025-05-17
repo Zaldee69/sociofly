@@ -42,6 +42,7 @@ import { HashtagBrowser } from "@/components/hashtag-browser";
 interface PostToolbarProps {
   onUploadClick: () => void;
   onMediaSelect: (file: FileWithStablePreview) => void;
+  onHashtagSelect?: (hashtag: string) => void;
   media: Array<{
     id: string;
     name: string;
@@ -66,6 +67,7 @@ const formatBytes = (bytes: number, decimals = 1) => {
 export function PostToolbar({
   onUploadClick,
   onMediaSelect,
+  onHashtagSelect,
   media,
 }: PostToolbarProps) {
   return (
@@ -166,7 +168,7 @@ export function PostToolbar({
         </MenubarTrigger>
         <MenubarContent side="top" className="w-[400px] p-0">
           <div className="p-4">
-            <HashtagBrowser />
+            <HashtagBrowser onHashtagClick={onHashtagSelect} />
           </div>
         </MenubarContent>
       </MenubarMenu>

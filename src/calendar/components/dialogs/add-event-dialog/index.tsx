@@ -435,6 +435,19 @@ export function AddEventDialog({
                         onUploadClick={() => setIsUploadDialogOpen(true)}
                         onMediaSelect={(file) => handleFileSelect([file])}
                         media={mediaData?.items || []}
+                        onHashtagSelect={(hashtag) => {
+                          // Get current description text
+                          const currentDescription =
+                            form.getValues("description");
+                          // Append hashtag with a space before it if needed
+                          const newDescription = currentDescription
+                            ? `${currentDescription}${currentDescription.endsWith(" ") ? "" : " "}#${hashtag}`
+                            : `#${hashtag}`;
+                          // Update the form field
+                          form.setValue("description", newDescription, {
+                            shouldDirty: true,
+                          });
+                        }}
                       />
                     </div>
                   </div>
