@@ -3,6 +3,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -96,6 +97,19 @@
   --sidebar-ring: oklch(0.708 0 0);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
+  
+  /* Add explicit sidebar width variables */
+  --sidebar-width: 16rem;
+  --sidebar-width-icon: 3rem;
+  --sidebar-width-mobile: 18rem;
+
+  /* Support for dragging state */
+  transition: all 0.2s ease-linear;
+}
+
+/* When dragging, disable transitions */
+:root[style*="--drag-in-progress"] * {
+  transition-duration: 0s !important;
 }
 
 .dark {

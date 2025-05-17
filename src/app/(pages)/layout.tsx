@@ -1,13 +1,14 @@
-import Sidebar from "@/components/custom-sidebar";
+import { Providers } from "@/components/providers/sidebar";
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
+    <Providers>
       <div className="h-screen flex">
-        <Sidebar />
         <main className="flex-1 overflow-auto">
-          <div className="w-full p-6">{children}</div>
+          <div className="w-full p-6 pt-0">{children}</div>
         </main>
       </div>
+    </Providers>
   );
 };
 

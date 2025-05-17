@@ -8,9 +8,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Building2, Loader2, Users } from "lucide-react";
+import {
+  Building2,
+  Loader2,
+  Users,
+  Plus,
+  ChevronsUpDown,
+  AudioWaveform,
+} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { SidebarMenuButton } from "./ui/sidebar";
 
 export function OrganizationSwitcher() {
   const { selectedOrganization, organizations, switchOrganization, isLoading } =
@@ -19,49 +38,56 @@ export function OrganizationSwitcher() {
   if (organizations.length <= 1) return null;
 
   return (
-    <div className="px-2 animate-in slide-in-from-top-2 duration-300">
-      <Select
-        value={selectedOrganization?.id}
-        onValueChange={switchOrganization}
-      >
-        <SelectTrigger
-          className={cn(
-            "w-full bg-background",
-            !selectedOrganization && "text-muted-foreground"
-          )}
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <SidebarMenuButton
+          size="lg"
+          className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
         >
-          {isLoading ? (
-            <div className="flex items-center gap-2">
-              <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
+          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+            <AudioWaveform className="size-4" />
+          </div>
+          <div className="grid flex-1 text-left text-sm leading-tight">
+            <span className="truncate font-semibold">
+              {selectedOrganization?.name}
+            </span>
+            <span className="truncate text-xs">
+              {selectedOrganization?.role}
+            </span>
+          </div>
+          <ChevronsUpDown className="ml-auto" />
+        </SidebarMenuButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+        align="start"
+        side="bottom"
+        sideOffset={4}
+      >
+        <DropdownMenuLabel className="text-xs text-muted-foreground">
+          Teams
+        </DropdownMenuLabel>
+        {organizations.map((org, index) => (
+          <DropdownMenuItem
+            key={org.name}
+            onClick={() => switchOrganization(org.id)}
+            className="gap-2 p-2"
+          >
+            <div className="flex size-6 items-center justify-center rounded-sm border">
+              <AudioWaveform className="size-4 shrink-0" />
             </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-muted-foreground" />
-              <SelectValue placeholder="Select Organization">
-                {selectedOrganization?.name || "Select Organization"}
-              </SelectValue>
-            </div>
-          )}
-        </SelectTrigger>
-        <SelectContent>
-          {organizations.map((org) => (
-            <SelectItem
-              key={org.id}
-              value={org.id}
-              className="cursor-pointer hover:bg-accent transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <span>{org.name}</span>
-                {org.role && (
-                  <span className="text-xs text-muted-foreground">
-                    ({org.role})
-                  </span>
-                )}
-              </div>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+            {org.name}
+            <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="gap-2 p-2">
+          <div className="flex size-6 items-center justify-center rounded-md border bg-background">
+            <Plus className="size-4" />
+          </div>
+          <div className="font-medium text-muted-foreground">Add team</div>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

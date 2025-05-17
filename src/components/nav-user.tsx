@@ -23,34 +23,32 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useSignOut } from "@/lib/auth-utils";
 import Link from "next/link";
-export function NavUser({
-  user,
-}: {
-  user: {
-    name: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    imageUrl: string;
-    id: string;
-  };
-}) {
+import { useUser } from "@clerk/nextjs";
+
+export function NavUser() {
+  const { user } = useUser();
   const signOut = useSignOut();
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <div className="flex w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md px-2 py-1.5 hover:bg-accent hover:text-accent-foreground">
           <Avatar className="h-8 w-8 rounded-lg">
-            <AvatarImage src={user.imageUrl} alt={user.name} />
+            <AvatarImage src={user.imageUrl} alt={user.firstName!} />
             <AvatarFallback className="rounded-lg">
-              {user.name.charAt(0)}
+              {user.firstName?.charAt(0)}
             </AvatarFallback>
           </Avatar>
           <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-medium">{user.name}</span>
+            <span className="truncate font-medium">
+              {user.firstName + " " + user.lastName}
+            </span>
             <span className="truncate text-xs text-muted-foreground">
-              {user.email}
+              {user.emailAddresses[0].emailAddress}
             </span>
           </div>
           <MoreVerticalIcon className="ml-auto size-4" />
@@ -65,15 +63,17 @@ export function NavUser({
         <DropdownMenuLabel className="p-0 font-normal">
           <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
             <Avatar className="h-8 w-8 rounded-lg">
-              <AvatarImage src={user.imageUrl} alt={user.name} />
+              <AvatarImage src={user.imageUrl} alt={user.firstName!} />
               <AvatarFallback className="rounded-lg">
-                {user.name.charAt(0)}
+                {user.firstName?.charAt(0)}
               </AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">{user.name}</span>
+              <span className="truncate font-medium">
+                {user.firstName + " " + user.lastName}
+              </span>
               <span className="truncate text-xs text-muted-foreground">
-                {user.email}
+                {user.emailAddresses[0].emailAddress}
               </span>
             </div>
           </div>
