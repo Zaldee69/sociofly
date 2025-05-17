@@ -34,7 +34,7 @@ import {
   MenubarRadioItem,
 } from "@/components/ui/menubar";
 
-import { MediaThumbnail } from "../../../media-thumbnail";
+import { MediaThumbnail } from "@/app/(pages)/media/components/media-thumbnail";
 import { FileWithStablePreview } from "../types";
 import { toast } from "sonner";
 import { HashtagBrowser } from "@/components/hashtag-browser";

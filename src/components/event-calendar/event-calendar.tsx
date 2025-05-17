@@ -47,6 +47,7 @@ import {
   WeekCellsHeight,
 } from "./constants";
 import { CalendarEvent } from "./types";
+import { AddEventDialog } from "./add-event-dialog";
 
 export interface EventCalendarProps {
   events?: CalendarEvent[];
@@ -397,7 +398,7 @@ export function EventCalendar({
           )}
         </div>
 
-        <EventDialog
+        <AddEventDialog
           event={selectedEvent}
           isOpen={isEventDialogOpen}
           onClose={() => {

@@ -24,7 +24,6 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { useOrganization } from "@/contexts/organization-context";
 import { trpc } from "@/lib/trpc/client";
-import { eventSchema } from "@/calendar/schemas";
 
 import { Button } from "@/components/ui/button";
 import { MultiSelect } from "@/components/multi-select";
@@ -77,6 +76,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { eventSchema } from "./schema";
+import { CalendarEvent } from "../types";
 
 interface FileWithStablePreview extends File {
   preview: string;
@@ -176,12 +177,15 @@ const SortableImage = memo(
 SortableImage.displayName = "SortableImage";
 
 export function AddEventDialog({
-  children,
   startDate,
   startTime,
+  isOpen,
+  onClose,
+  onSave,
+  onDelete,
+  event,
 }: AddEventDialogProps) {
   const { selectedOrganization } = useOrganization();
-  const [isOpen, setIsOpen] = useState(false);
   const [isOpenPopover, setIsOpenPopover] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [selectedAccounts, setSelectedAccounts] = useState<SocialAccount[]>([]);
@@ -334,9 +338,7 @@ export function AddEventDialog({
   );
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
-
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="xl:min-w-7xl w-full p-0 max-h-[90vh] overflow-hidden">
         <DialogHeader className="hidden">
           <DialogTitle>Buat Post</DialogTitle>
@@ -347,7 +349,9 @@ export function AddEventDialog({
 
         <div className="block xl:flex gap-4 h-full max-h-[90vh] overflow-hidden pr-2 xl:pr-0">
           <div className="w-full xl:w-7/12 pl-2.5 py-2.5 overflow-y-auto">
-            <h1 className="text-2xl font-bold mb-4">Buat Post</h1>
+            <h1 className="text-2xl font-bold mb-4">
+              {event?.id ? "Edit Post" : "Buat Post"}
+            </h1>
             <MultiSelect
               className="w-fit"
               placeholder="Pilih Akun"
@@ -591,7 +595,7 @@ export function AddEventDialog({
               style={{ maxHeight: "calc(90vh - 120px)" }}
             >
               <PostPreview
-                description={description}
+                description={description || ""}
                 selectedFiles={selectedFiles}
                 accountPostPreview={accountPostPreview}
               />

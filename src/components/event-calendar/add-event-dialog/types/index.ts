@@ -1,10 +1,15 @@
 import { SocialPlatform } from "@prisma/client";
 import { TimeValue } from "react-aria-components";
+import { CalendarEvent } from "../../types";
 
 export interface AddEventDialogProps {
-  children: React.ReactNode;
+  event: CalendarEvent | null;
   startDate?: Date;
   startTime?: { hour: number; minute: number };
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (event: CalendarEvent) => void;
+  onDelete: (eventId: string) => void;
 }
 
 export interface FileWithPreview extends File {
