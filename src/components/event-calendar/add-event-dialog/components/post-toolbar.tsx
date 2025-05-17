@@ -38,6 +38,15 @@ import { MediaThumbnail } from "@/app/(pages)/media/components/media-thumbnail";
 import { FileWithStablePreview } from "../types";
 import { toast } from "sonner";
 import { HashtagBrowser } from "@/components/hashtag-browser";
+import { CustomChat } from "@/components/ai-chatbot";
+import {
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
 
 interface PostToolbarProps {
   onUploadClick: () => void;
@@ -204,29 +213,30 @@ export function PostToolbar({
         </MenubarContent>
       </MenubarMenu>
       <MenubarMenu>
-        <MenubarTrigger>
+        <Dialog>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <WandSparkles size={20} />
+                <DialogTrigger asChild>
+                  <button>
+                    <WandSparkles size={20} />
+                  </button>
+                </DialogTrigger>
               </TooltipTrigger>
               <TooltipContent>
                 <p>Generate Post With AI</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        </MenubarTrigger>
-        <MenubarContent>
-          <MenubarRadioGroup value="benoit">
-            <MenubarRadioItem value="andy">Andy</MenubarRadioItem>
-            <MenubarRadioItem value="benoit">Benoit</MenubarRadioItem>
-            <MenubarRadioItem value="Luis">Luis</MenubarRadioItem>
-          </MenubarRadioGroup>
-          <MenubarSeparator />
-          <MenubarItem inset>Edit...</MenubarItem>
-          <MenubarSeparator />
-          <MenubarItem inset>Add Profile...</MenubarItem>
-        </MenubarContent>
+
+          <DialogContent className="min-w-5xl min-h-[70vh] max-h-[70vh] overflow-hidden w-full pb-2">
+            <DialogHeader>
+              <DialogTitle>Generate Post With AI</DialogTitle>
+            </DialogHeader>
+
+            <CustomChat />
+          </DialogContent>
+        </Dialog>
       </MenubarMenu>
     </Menubar>
   );
