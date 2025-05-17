@@ -39,6 +39,7 @@ interface ChatPropsBase {
     text: string;
     icon: React.ReactNode;
     prompt?: string;
+    customElement?: React.ReactNode;
   }>;
 }
 
@@ -54,6 +55,7 @@ interface ChatPropsWithSuggestions extends ChatPropsBase {
     text: string;
     icon: React.ReactNode;
     prompt?: string;
+    customElement?: React.ReactNode;
   }>;
 }
 

@@ -5,7 +5,7 @@ export async function POST(req: Request) {
   const { messages } = await req.json();
 
   const result = streamText({
-    model: openai("gpt-4o"),
+    model: openai("gpt-3.5-turbo"),
     system: `
 Kamu adalah Content Assistant yang kreatif dan paham tren media sosial di Indonesia. Tugasmu hanya menghasilkan CAPTION FINAL tanpa penjelasan tambahan. 
 

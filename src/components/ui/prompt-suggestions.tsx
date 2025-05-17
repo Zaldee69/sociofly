@@ -9,6 +9,7 @@ interface PromptSuggestionsProps {
     text: string;
     icon: ReactNode;
     prompt?: string;
+    customElement?: ReactNode;
   }>;
 }
 
@@ -20,27 +21,32 @@ export function PromptSuggestions({
 }: PromptSuggestionsProps) {
   return (
     <div
-      style={{ maxHeight: "calc(90vh - 120px)" }}
-      className="space-y-4 pl-4 w-5/12 container overflow-auto"
+      style={{ maxHeight: "calc(76vh - 120px)" }}
+      className="space-y-4 pl-4 pr-4 w-5/12 container overflow-auto"
     >
       <h2 className="text-center text-2xl font-bold">{label}</h2>
-      {/* <ScrollArea className="h-[240px] pr-4"> */}
+
       <div className="flex flex-col gap-3 text-sm">
         {suggestionsWithIcons
           ? suggestionsWithIcons.map((suggestion) => (
-              <button
-                key={suggestion.text}
-                onClick={() =>
-                  append({
-                    role: "user",
-                    content: suggestion.prompt || suggestion.text,
-                  })
-                }
-                className="h-max flex-1 rounded-xl border bg-background p-4 hover:bg-muted flex items-center"
-              >
-                {suggestion.icon}
-                <span>{suggestion.text}</span>
-              </button>
+              <div key={suggestion.text}>
+                {suggestion.customElement ? (
+                  <div>{suggestion.customElement}</div>
+                ) : (
+                  <button
+                    onClick={() =>
+                      append({
+                        role: "user",
+                        content: suggestion.prompt || suggestion.text,
+                      })
+                    }
+                    className="w-full h-max flex-1 rounded-xl border bg-background p-4 hover:bg-muted flex items-center"
+                  >
+                    {suggestion.icon}
+                    <span>{suggestion.text}</span>
+                  </button>
+                )}
+              </div>
             ))
           : suggestions.map((suggestion) => (
               <button
@@ -52,7 +58,6 @@ export function PromptSuggestions({
               </button>
             ))}
       </div>
-      {/* </ScrollArea> */}
     </div>
   );
 }
