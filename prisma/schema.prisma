@@ -67,6 +67,7 @@ model SocialAccount {
   profilePicture String?
   name           String?
   platform       SocialPlatform
+  profileId      String? // Added to store platform-specific profile IDs like Instagram user ID
   posts          Post[]
   organization   Organization   @relation(fields: [organizationId], references: [id])
   user           User           @relation(fields: [userId], references: [id])
@@ -131,6 +132,18 @@ model Hashtag {
 
   @@index([category])
   @@index([frequency])
+}
+
+model CronLog {
+  id         String   @id @default(cuid())
+  name       String
+  status     String
+  executedAt DateTime @default(now())
+  message    String?
+
+  @@index([name])
+  @@index([status])
+  @@index([executedAt])
 }
 
 enum MediaType {

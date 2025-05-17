@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/api/webhooks/clerk",
   "/api/uploadthing",
+  "/api/cron/update-hashtags",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
