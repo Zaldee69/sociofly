@@ -71,7 +71,6 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   });
 
   const onSubmit = (values: FormValues) => {
-    console.log(values);
     onAddMember(values);
     form.reset();
   };

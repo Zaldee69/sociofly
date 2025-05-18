@@ -217,7 +217,15 @@ export function AddPostDialog({
 
   const description = form.watch("description");
 
-  const { data: socialAccounts } = trpc.onboarding.getSocialAccounts.useQuery();
+  const { data: socialAccounts } = trpc.onboarding.getSocialAccounts.useQuery(
+    {
+      organizationId: selectedOrganization?.id!,
+    },
+    {
+      enabled: !!selectedOrganization?.id,
+      refetchOnWindowFocus: false,
+    }
+  );
 
   // Update to use the correct TRPC method
   const { data: teamMembers } = trpc.team.getTeamMembers.useQuery(
@@ -225,10 +233,8 @@ export function AddPostDialog({
     { enabled: !!selectedOrganization?.id }
   );
 
-  console.log(teamMembers);
-
   const groupedAccounts = socialAccounts?.reduce(
-    (acc: Record<string, typeof socialAccounts>, account) => {
+    (acc: Record<string, typeof socialAccounts>, account: SocialAccount) => {
       const platform = account.platform;
       if (!acc[platform]) {
         acc[platform] = [];
@@ -395,7 +401,8 @@ export function AddPostDialog({
                   .map((value) => {
                     const [platform, id] = value.split("_");
                     return socialAccounts?.find(
-                      (acc) => acc.platform === platform && acc.id === id
+                      (acc: SocialAccount) =>
+                        acc.platform === platform && acc.id === id
                     );
                   })
                   .filter((acc): acc is NonNullable<typeof acc> => acc != null);
@@ -503,7 +510,7 @@ export function AddPostDialog({
                           <SelectValue placeholder="Select reviewer" />
                         </SelectTrigger>
                         <SelectContent>
-                          {teamMembers?.map((member) => (
+                          {teamMembers?.map((member: any) => (
                             <SelectItem
                               key={member.id}
                               value={member.email || ""}

@@ -203,30 +203,33 @@ export const onboardingRouter = createTRPCRouter({
     };
   }),
 
-  getSocialAccounts: protectedProcedure.query(async ({ ctx }) => {
-    if (!ctx.userId) {
-      throw new TRPCError({
-        code: "UNAUTHORIZED",
-        message: "User not authenticated",
+  getSocialAccounts: protectedProcedure
+    .input(z.object({ organizationId: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.userId) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "User not authenticated",
+        });
+      }
+
+      const socialAccounts = await ctx.prisma.socialAccount.findMany({
+        where: {
+          userId: ctx.userId,
+          ...(input.organizationId
+            ? { organizationId: input.organizationId }
+            : {}),
+        },
+        select: {
+          id: true,
+          platform: true,
+          name: true,
+          profilePicture: true,
+        },
       });
-    }
 
-    const socialAccounts = await ctx.prisma.socialAccount.findMany({
-      where: {
-        userId: ctx.userId,
-      },
-      select: {
-        id: true,
-        platform: true,
-        name: true,
-        profilePicture: true,
-      },
-    });
-
-    console.log(socialAccounts);
-
-    return socialAccounts;
-  }),
+      return socialAccounts;
+    }),
 
   updateOnboardingStatus: protectedProcedure
     .input(

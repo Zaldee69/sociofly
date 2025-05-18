@@ -217,22 +217,53 @@ export const teamRouter = createTRPCRouter({
           message: "Invitation already exists",
         });
       }
+
+      const user = await ctx.prisma.user.findFirst({
+        where: {
+          email: input.email,
+        },
+      });
+
+      const userAlreadyMember = await ctx.prisma.membership.findFirst({
+        where: {
+          userId: user?.id,
+          organizationId: input.teamId,
+        },
+      });
+
+      if (userAlreadyMember) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "User already a member of this team",
+        });
+      }
+
       await sendInviteEmail({
         email: input.email,
         organizationName: input.name,
         role: input.role,
       });
 
-      return ctx.prisma.invitation.create({
-        data: {
-          email: input.email,
-          role: input.role,
-          organizationId: input.teamId,
-        },
-        include: {
-          organization: true,
-        },
-      });
+      if (user) {
+        return ctx.prisma.membership.create({
+          data: {
+            userId: user.id,
+            organizationId: input.teamId,
+            role: input.role,
+          },
+        });
+      } else {
+        return ctx.prisma.invitation.create({
+          data: {
+            email: input.email,
+            role: input.role,
+            organizationId: input.teamId,
+          },
+          include: {
+            organization: true,
+          },
+        });
+      }
     }),
 
   // Get pending invites for a team
