@@ -6,7 +6,6 @@ import { TRPCProvider } from "@/components/providers/trpc-provider";
 import { ClerkProvider } from "@clerk/nextjs";
 import { OrganizationProvider } from "@/contexts/organization-context";
 import { Inter } from "next/font/google";
-import { Providers } from "./providers";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -36,9 +35,7 @@ export default function RootLayout({
           <Toaster />
           <TRPCProvider>
             <OrganizationProvider>
-              <Providers>
-                <main className="flex-1">{children}</main>
-              </Providers>
+              <main className="flex-1">{children}</main>
             </OrganizationProvider>
           </TRPCProvider>
         </body>

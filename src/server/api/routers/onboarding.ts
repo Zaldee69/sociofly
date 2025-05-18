@@ -43,8 +43,6 @@ export const onboardingRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { userType, organizationName, teamEmails, pagesData } = input;
 
-      console.log("Organization created:", teamEmails);
-
       if (!ctx.userId) {
         throw new TRPCError({
           code: "UNAUTHORIZED",

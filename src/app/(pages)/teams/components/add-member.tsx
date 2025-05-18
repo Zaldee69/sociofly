@@ -35,22 +35,22 @@ import {
 // Define the form schema with validation
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
-  name: z.string().min(2, { message: "Name must be at least 2 characters" }),
   role: z.string().min(1, { message: "Please select a role" }),
   team: z.string().min(1, { message: "Please select a team" }),
+  teamId: z.string().min(1, { message: "Please select a team" }).optional(),
   message: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 interface Team {
-  id: number;
+  id: string;
   name: string;
   description: string;
 }
 
 interface AddMemberModalProps {
-  teams: Team[];
+  teams: Team;
   onAddMember: (values: FormValues) => void;
 }
 
@@ -63,15 +63,16 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
-      name: "",
       role: "ADMIN",
-      team: teams.length > 0 ? teams[0].name : "",
+      team: teams.name,
+      teamId: teams.id,
       message: "",
     },
   });
 
   const onSubmit = (values: FormValues) => {
-    values;
+    console.log(values);
+    onAddMember(values);
     form.reset();
   };
 
@@ -151,7 +152,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
                   <FormItem>
                     <FormLabel>Team</FormLabel>
                     <FormControl>
-                      <Input defaultValue={teams[0].name} disabled readOnly />
+                      <Input defaultValue={teams.name} disabled readOnly />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

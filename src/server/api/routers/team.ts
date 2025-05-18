@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { Role, SocialPlatform } from "@prisma/client";
+import { sendInviteEmail } from "@/lib/email/send-invite-email";
 
 // Zod schemas for validation
 const TeamSchema = z.object({
@@ -181,6 +182,7 @@ export const teamRouter = createTRPCRouter({
         email: z.string().email(),
         teamId: z.string(),
         role: z.enum([Role.ADMIN, Role.EDITOR, Role.VIEWER]),
+        name: z.string(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -201,6 +203,25 @@ export const teamRouter = createTRPCRouter({
           message: "Only admins can invite members",
         });
       }
+
+      const invitationAlreadExist = await ctx.prisma.invitation.findFirst({
+        where: {
+          email: input.email,
+          organizationId: input.teamId,
+        },
+      });
+
+      if (invitationAlreadExist) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Invitation already exists",
+        });
+      }
+      await sendInviteEmail({
+        email: input.email,
+        organizationName: input.name,
+        role: input.role,
+      });
 
       return ctx.prisma.invitation.create({
         data: {

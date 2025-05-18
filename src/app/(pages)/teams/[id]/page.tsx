@@ -50,13 +50,10 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import AccountSelector from "@/components/analytics/account-selector";
-import { Label } from "@/components/ui/label";
 
 interface Member {
   id: string;
@@ -177,15 +174,17 @@ const Page = () => {
   // Handlers
   const handleAddMember = (values: {
     team: string;
-    name: string;
+    teamId?: string;
     role: string;
     email: string;
     message?: string;
   }) => {
+    console.log(values);
     inviteMutation.mutate({
       email: values.email,
-      teamId: values.team,
+      teamId: values.teamId || (teamId as string),
       role: values.role as Role,
+      name: values.team || "",
     });
   };
 
@@ -324,10 +323,7 @@ const Page = () => {
             <p className="text-muted-foreground">{team.description}</p>
           </div>
           {team.role === "ADMIN" && (
-            <AddMemberModal
-              teams={[{ ...team, id: parseInt(team.id) }]}
-              onAddMember={handleAddMember}
-            />
+            <AddMemberModal teams={team} onAddMember={handleAddMember} />
           )}
         </div>
       </div>
@@ -611,10 +607,7 @@ const Page = () => {
                 )}
 
                 <div className="mt-6">
-                  <AddMemberModal
-                    teams={[{ ...team, id: parseInt(team.id) }]}
-                    onAddMember={handleAddMember}
-                  />
+                  <AddMemberModal teams={team} onAddMember={handleAddMember} />
                 </div>
               </CardContent>
             </Card>

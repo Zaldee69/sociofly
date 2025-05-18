@@ -64,6 +64,14 @@ import {
   CommandList,
 } from "@/components/ui/command";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 import { MediaUploader } from "./components/media-uploader";
 import { PostPreview } from "./components/post-preview";
 import { PostToolbar } from "./components/post-toolbar";
@@ -195,6 +203,7 @@ export function AddPostDialog({
     selectedAccounts[0]
   );
   const [action, setAction] = useState<TActions>(actions[0]);
+  const [reviewer, setReviewer] = useState<string>("");
 
   const form = useForm({
     resolver: zodResolver(eventSchema),
@@ -209,6 +218,14 @@ export function AddPostDialog({
   const description = form.watch("description");
 
   const { data: socialAccounts } = trpc.onboarding.getSocialAccounts.useQuery();
+
+  // Update to use the correct TRPC method
+  const { data: teamMembers } = trpc.team.getTeamMembers.useQuery(
+    { teamId: selectedOrganization?.id! },
+    { enabled: !!selectedOrganization?.id }
+  );
+
+  console.log(teamMembers);
 
   const groupedAccounts = socialAccounts?.reduce(
     (acc: Record<string, typeof socialAccounts>, account) => {
@@ -271,7 +288,14 @@ export function AddPostDialog({
   );
 
   const onSubmit = (_values: any) => {
-    console.log(_values);
+    // Include reviewer in the submission when action is request_review
+    const submissionData = {
+      ..._values,
+      action: action.value,
+      ...(action.value === "request_review" && { reviewer }),
+    };
+
+    console.log(submissionData);
     form.reset();
   };
 
@@ -328,6 +352,13 @@ export function AddPostDialog({
       });
     };
   }, []);
+
+  // Reset reviewer when action changes
+  useEffect(() => {
+    if (action.value !== "request_review") {
+      setReviewer("");
+    }
+  }, [action]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -466,6 +497,24 @@ export function AddPostDialog({
                   <div className="flex gap-2">
                     <DateTimePicker24hForm />
 
+                    {action.value === "request_review" && (
+                      <Select value={reviewer} onValueChange={setReviewer}>
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="Select reviewer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {teamMembers?.map((member) => (
+                            <SelectItem
+                              key={member.id}
+                              value={member.email || ""}
+                            >
+                              {member.name || member.email}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+
                     <div
                       className={buttonVariants({
                         className: "pr-0",
@@ -475,6 +524,9 @@ export function AddPostDialog({
                         form="event-form"
                         type="submit"
                         className="cursor-pointer"
+                        disabled={
+                          action.value === "request_review" && !reviewer
+                        }
                       >
                         {actions.find((a) => a.value === action.value)?.title}
                       </button>
