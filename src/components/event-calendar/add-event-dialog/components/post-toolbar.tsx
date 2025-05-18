@@ -47,6 +47,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Dialog } from "@/components/ui/dialog";
+import { useState, useCallback } from "react";
+import { useFormContext } from "react-hook-form";
 
 interface PostToolbarProps {
   onUploadClick: () => void;
@@ -64,11 +66,11 @@ interface PostToolbarProps {
 }
 
 // Helper function to format file size
-const formatBytes = (bytes: number, decimals = 1) => {
+const formatBytes = (bytes: number, decimals = 2): string => {
   if (bytes === 0) return "0 Bytes";
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 };
@@ -79,8 +81,62 @@ export function PostToolbar({
   onHashtagSelect,
   media,
 }: PostToolbarProps) {
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
+  const [initialContext, setInitialContext] = useState("");
+  const [chatState, setChatState] = useState<{
+    messages: any[];
+    promptSelected: boolean;
+    initialPromptShown: boolean;
+  } | null>(null);
+  const form = useFormContext();
+
+  const handleAIButtonClick = () => {
+    const description = form?.getValues("description");
+
+    if (!description || description.trim() === "") {
+      toast.warning(
+        "Harap buat konten awal terlebih dahulu sebelum menggunakan AI generator."
+      );
+      return;
+    }
+
+    setInitialContext(description);
+    setIsAIChatOpen(true);
+  };
+
+  // Fungsi untuk menerapkan hasil AI ke textarea
+  const handleAIResult = useCallback(
+    (result: string) => {
+      if (result && form) {
+        form.setValue("description", result, { shouldDirty: true });
+        toast.success("Konten AI telah diterapkan ke post");
+        setIsAIChatOpen(false);
+      }
+    },
+    [form]
+  );
+
   return (
     <Menubar className="border-none shadow-none !p-1">
+      <Dialog open={isAIChatOpen} onOpenChange={setIsAIChatOpen}>
+        <DialogContent className="min-w-5xl min-h-[70vh] max-h-[74vh] overflow-hidden w-full">
+          <DialogHeader>
+            <DialogTitle>Enhance Your Post with FlyBot</DialogTitle>
+            <DialogDescription>
+              FlyBot akan membantu meningkatkan konten Anda dengan berbagai gaya
+              dan format
+            </DialogDescription>
+          </DialogHeader>
+
+          <CustomChat
+            initialContext={initialContext}
+            onApplyResult={handleAIResult}
+            chatState={chatState}
+            onChatStateChange={setChatState}
+          />
+        </DialogContent>
+      </Dialog>
+
       <MenubarMenu>
         <MenubarTrigger>
           <TooltipProvider>
@@ -213,30 +269,18 @@ export function PostToolbar({
         </MenubarContent>
       </MenubarMenu>
       <MenubarMenu>
-        <Dialog>
+        <MenubarTrigger onClick={handleAIButtonClick}>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <DialogTrigger asChild>
-                  <button>
-                    <WandSparkles size={20} />
-                  </button>
-                </DialogTrigger>
+                <WandSparkles size={20} />
               </TooltipTrigger>
               <TooltipContent>
-                <p>Generate Post With AI</p>
+                <p>Enhance Your Post with FlyBot</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-
-          <DialogContent className="min-w-5xl min-h-[70vh] max-h-[70vh] overflow-hidden w-full pb-2">
-            <DialogHeader>
-              <DialogTitle>Generate Post With AI</DialogTitle>
-            </DialogHeader>
-
-            <CustomChat />
-          </DialogContent>
-        </Dialog>
+        </MenubarTrigger>
       </MenubarMenu>
     </Menubar>
   );
