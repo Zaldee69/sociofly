@@ -7,7 +7,7 @@ import {
   useState,
   type ReactElement,
 } from "react";
-import { ArrowDown, ThumbsDown, ThumbsUp } from "lucide-react";
+import { ArrowDown, ThumbsUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
@@ -170,30 +170,21 @@ export function Chat({
   const messageOptions = useCallback(
     (message: Message) => ({
       actions: onRateResponse ? (
-        <>
+        <div className="flex items-center gap-2">
           <div className="border-r pr-1">
             <CopyButton
               content={message.content}
               copyMessage="Copied response to clipboard!"
             />
           </div>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
+          <button
             onClick={() => onRateResponse(message.id, "thumbs-up")}
+            className="flex items-center gap-1.5 cursor-pointer"
           >
             <ThumbsUp className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={() => onRateResponse(message.id, "thumbs-down")}
-          >
-            <ThumbsDown className="h-4 w-4" />
-          </Button>
-        </>
+            <span className="text-xs">Apply</span>
+          </button>
+        </div>
       ) : (
         <CopyButton
           content={message.content}

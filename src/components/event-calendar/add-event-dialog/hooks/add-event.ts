@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { eventSchema } from "@/calendar/schemas";
 import { trpc } from "@/lib/trpc/client";
 import type { FileWithPreview, SocialAccount } from "../types";
+import { eventSchema } from "../schema";
 
 export function useAddEventDialog(
   startDate?: Date,
@@ -65,6 +65,7 @@ export function useAddEventDialog(
     handleFileSelect,
     removeFile,
     onSubmit,
+    resetForm: form.reset,
   };
 }
 

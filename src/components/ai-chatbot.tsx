@@ -2,7 +2,7 @@
 import { useChat } from "@ai-sdk/react";
 import { Chat } from "@/components/ui/chat";
 import { Message } from "@/components/ui/chat-message";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Hash,
   ScanText,
@@ -18,8 +18,8 @@ import {
   Shuffle,
   AlignJustify,
   Check,
+  Copy,
   ThumbsUp,
-  ThumbsDown,
 } from "lucide-react";
 import {
   Select,
@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { MessageList } from "@/components/ui/message-list";
 import { CopyButton } from "@/components/ui/copy-button";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
+import { toast } from "sonner";
 
 // Define tone options
 const toneOptions = [
@@ -181,15 +182,33 @@ export function CustomChat({
   );
   const [promptSelected, setPromptSelected] = useState(existingPromptSelected);
 
-  // Update parent component with chat state when it changes
+  // Add debounce reference to prevent excessive updates during streaming
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Update parent component with chat state when it changes - now with debouncing
   useEffect(() => {
-    if (onChatStateChange) {
+    if (!onChatStateChange) return;
+
+    // Clear any existing timeout
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+
+    // Set a new timeout for the update
+    updateTimeoutRef.current = setTimeout(() => {
       onChatStateChange({
         messages: aiMessages,
         promptSelected,
         initialPromptShown,
       } as ChatState);
-    }
+    }, 500); // 500ms debounce - adjust as needed
+
+    // Cleanup on unmount
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
   }, [aiMessages, promptSelected, initialPromptShown, onChatStateChange]);
 
   // State for selected tone
@@ -206,29 +225,34 @@ export function CustomChat({
   };
 
   // Function to handle prompt selection directly
-  const handlePromptSelection = (promptContent: string) => {
-    setPromptSelected(true);
+  const handlePromptSelection = useCallback(
+    (promptContent: string) => {
+      if (!promptSelected) {
+        setPromptSelected(true);
+      }
 
-    // Show initial welcome message only on first message
-    if (aiMessages.length === 0 && !initialPromptShown) {
-      setInitialPromptShown(true);
-    }
+      // Show initial welcome message only on first message
+      if (aiMessages.length === 0 && !initialPromptShown) {
+        setInitialPromptShown(true);
+      }
 
-    // Send the user prompt
-    append({
-      role: "user",
-      content: promptContent,
-    });
-  };
+      // Send the user prompt
+      append({
+        role: "user",
+        content: promptContent,
+      });
+    },
+    [promptSelected, aiMessages.length, initialPromptShown, append]
+  );
 
   // Function to execute the tone change when button is clicked
-  const handleToneButtonClick = () => {
+  const handleToneButtonClick = useCallback(() => {
     if (selectedTone) {
       handlePromptSelection(
         `${selectedTone.prompt} untuk konten berikut:\n\n${initialContext}`
       );
     }
-  };
+  }, [selectedTone, handlePromptSelection, initialContext]);
 
   // Function to apply AI results to the original content
   const handleApplyResults = useCallback(
@@ -240,13 +264,17 @@ export function CustomChat({
     [onApplyResult]
   );
 
-  // Convert AI SDK messages to the format expected by shadcn-chatbot-kit
-  const messages = aiMessages.map((msg) => ({
-    id: msg.id,
-    role: msg.role,
-    content: msg.content,
-    createdAt: new Date(),
-  })) as Message[];
+  // Convert AI SDK messages to the format expected by shadcn-chatbot-kit - now with memoization
+  const messages = useMemo(
+    () =>
+      aiMessages.map((msg) => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        createdAt: new Date(),
+      })) as Message[],
+    [aiMessages]
+  );
 
   // Define actionable prompt templates with icons
   const promptSuggestions: PromptSuggestion[] = [
@@ -370,6 +398,7 @@ export function CustomChat({
   ];
 
   // Use onRateResponse to detect when user wants to apply content from a message
+  // Only use thumbs-up for applying content
   const handleRateResponse = useCallback(
     (messageId: string, rating: "thumbs-up" | "thumbs-down") => {
       if (rating === "thumbs-up" && onApplyResult) {
@@ -382,9 +411,11 @@ export function CustomChat({
     [messages, handleApplyResults, onApplyResult]
   );
 
-  // Show welcome screen if no messages and prompt not selected
-  const showWelcomeScreen =
-    !promptSelected && aiMessages.length === 0 && initialContext;
+  // Show welcome screen if no messages and prompt not selected - memoized
+  const showWelcomeScreen = useMemo(
+    () => !promptSelected && aiMessages.length === 0 && initialContext,
+    [promptSelected, aiMessages.length, initialContext]
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -465,14 +496,6 @@ export function CustomChat({
               className="h-full w-full flex flex-row-reverse grid-rows-none"
               onRateResponse={handleRateResponse}
             />
-
-            {!promptSelected && (
-              <div className="absolute bottom-0 left-0 right-0 bg-background/80 backdrop-blur-sm p-2 z-10 border-t">
-                <div className="text-center text-sm text-muted-foreground">
-                  <p>Please select a prompt to start the conversation</p>
-                </div>
-              </div>
-            )}
           </div>
         </>
       )}

@@ -38,7 +38,7 @@ import { MediaThumbnail } from "@/app/(pages)/media/components/media-thumbnail";
 import { FileWithStablePreview } from "../types";
 import { toast } from "sonner";
 import { HashtagBrowser } from "@/components/hashtag-browser";
-import { CustomChat } from "@/components/ai-chatbot";
+import { CustomChat, ChatState } from "@/components/ai-chatbot";
 import {
   DialogContent,
   DialogDescription,
@@ -47,7 +47,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Dialog } from "@/components/ui/dialog";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useFormContext } from "react-hook-form";
 
 interface PostToolbarProps {
@@ -83,11 +83,13 @@ export function PostToolbar({
 }: PostToolbarProps) {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [initialContext, setInitialContext] = useState("");
-  const [chatState, setChatState] = useState<{
-    messages: any[];
-    promptSelected: boolean;
-    initialPromptShown: boolean;
-  } | null>(null);
+  const [chatState, setChatState] = useState<ChatState | null>(null);
+
+  // Add a reference to track when updates should be processed
+  const lastUpdateTimeRef = useRef<number>(0);
+  // Add a reference to store the latest state
+  const latestChatStateRef = useRef<ChatState | null>(null);
+
   const form = useFormContext();
 
   const handleAIButtonClick = () => {
@@ -116,6 +118,31 @@ export function PostToolbar({
     [form]
   );
 
+  // Optimized chat state handler with throttling
+  const handleChatStateChange = useCallback((newState: ChatState) => {
+    // Always update the ref with the latest state
+    latestChatStateRef.current = newState;
+
+    // Get current time
+    const now = Date.now();
+
+    // Only update state if sufficient time has passed since last update (throttling)
+    if (now - lastUpdateTimeRef.current > 1000) {
+      // 1 second throttle
+      setChatState(newState);
+      lastUpdateTimeRef.current = now;
+    } else {
+      // Schedule an update if we're throttling
+      setTimeout(() => {
+        // Only update if the ref hasn't been updated since
+        if (latestChatStateRef.current === newState) {
+          setChatState(latestChatStateRef.current);
+          lastUpdateTimeRef.current = Date.now();
+        }
+      }, 1000);
+    }
+  }, []);
+
   return (
     <Menubar className="border-none shadow-none !p-1">
       <Dialog open={isAIChatOpen} onOpenChange={setIsAIChatOpen}>
@@ -132,7 +159,7 @@ export function PostToolbar({
             initialContext={initialContext}
             onApplyResult={handleAIResult}
             chatState={chatState}
-            onChatStateChange={setChatState}
+            onChatStateChange={handleChatStateChange}
           />
         </DialogContent>
       </Dialog>
