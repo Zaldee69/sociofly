@@ -215,7 +215,6 @@ export const onboardingRouter = createTRPCRouter({
 
       const socialAccounts = await ctx.prisma.socialAccount.findMany({
         where: {
-          userId: ctx.userId,
           ...(input.organizationId
             ? { organizationId: input.organizationId }
             : {}),

@@ -69,7 +69,7 @@ export function OrganizationSwitcher() {
         </DropdownMenuLabel>
         {organizations.map((org, index) => (
           <DropdownMenuItem
-            key={org.name}
+            key={org.id}
             onClick={() => switchOrganization(org.id)}
             className="gap-2 p-2"
           >
