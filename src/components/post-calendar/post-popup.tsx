@@ -3,24 +3,24 @@
 import { useEffect, useMemo, useRef } from "react";
 import { format, isSameDay } from "date-fns";
 import { XIcon } from "lucide-react";
-import { CalendarEvent } from "./types";
-import { EventItem } from "./event-item";
+import { CalendarPost } from "./types";
+import { PostItem } from "./post-item";
 
-interface EventsPopupProps {
+interface PostsPopupProps {
   date: Date;
-  events: CalendarEvent[];
+  posts: CalendarPost[];
   position: { top: number; left: number };
   onClose: () => void;
-  onEventSelect: (event: CalendarEvent) => void;
+  onPostSelect: (post: CalendarPost) => void;
 }
 
-export function EventsPopup({
+export function PostsPopup({
   date,
-  events,
+  posts,
   position,
   onClose,
-  onEventSelect,
-}: EventsPopupProps) {
+  onPostSelect,
+}: PostsPopupProps) {
   const popupRef = useRef<HTMLDivElement>(null);
 
   // Handle click outside to close popup
@@ -54,8 +54,8 @@ export function EventsPopup({
     };
   }, [onClose]);
 
-  const handleEventClick = (event: CalendarEvent) => {
-    onEventSelect(event);
+  const handlePostClick = (post: CalendarPost) => {
+    onPostSelect(post);
     onClose();
   };
 
@@ -104,23 +104,23 @@ export function EventsPopup({
       </div>
 
       <div className="space-y-2 p-3">
-        {events.length === 0 ? (
-          <div className="text-muted-foreground py-2 text-sm">No events</div>
+        {posts.length === 0 ? (
+          <div className="text-muted-foreground py-2 text-sm">No posts</div>
         ) : (
-          events.map((event) => {
-            const eventStart = new Date(event.start);
-            const eventEnd = new Date(event.end);
-            const isFirstDay = isSameDay(date, eventStart);
-            const isLastDay = isSameDay(date, eventEnd);
+          posts.map((post) => {
+            const postStart = new Date(post.start);
+            const postEnd = new Date(post.end);
+            const isFirstDay = isSameDay(date, postStart);
+            const isLastDay = isSameDay(date, postEnd);
 
             return (
               <div
-                key={event.id}
+                key={post.id}
                 className="cursor-pointer"
-                onClick={() => handleEventClick(event)}
+                onClick={() => handlePostClick(post)}
               >
-                <EventItem
-                  event={event}
+                <PostItem
+                  post={post}
                   view="agenda"
                   isFirstDay={isFirstDay}
                   isLastDay={isLastDay}

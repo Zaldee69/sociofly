@@ -45,33 +45,31 @@ import {
   EventHeight,
   WeekCellsHeight,
 } from "./constants";
-import { CalendarEvent } from "./types";
-import { AddEventDialog } from "./add-event-dialog";
+import { CalendarPost } from "./types";
+import { AddPostDialog } from "./post-dialog";
 
-export interface EventCalendarProps {
-  events?: CalendarEvent[];
-  onEventAdd?: (event: CalendarEvent) => void;
-  onEventUpdate?: (event: CalendarEvent) => void;
-  onEventDelete?: (eventId: string) => void;
+export interface PostCalendarProps {
+  posts?: CalendarPost[];
+  onPostAdd?: (post: CalendarPost) => void;
+  onPostUpdate?: (post: CalendarPost) => void;
+  onPostDelete?: (postId: string) => void;
   className?: string;
   initialView?: CalendarView;
 }
 
-export function EventCalendar({
-  events = [],
-  onEventAdd,
-  onEventUpdate,
-  onEventDelete,
+export function PostCalendar({
+  posts = [],
+  onPostAdd,
+  onPostUpdate,
+  onPostDelete,
   className,
   initialView = "month",
-}: EventCalendarProps) {
+}: PostCalendarProps) {
   // Use the shared calendar context instead of local state
   const { currentDate, setCurrentDate } = useCalendarContext();
   const [view, setView] = useState<CalendarView>(initialView);
-  const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
-    null
-  );
+  const [isPostDialogOpen, setIsPostDialogOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null);
 
   // Add keyboard shortcuts for view switching
   useEffect(() => {
@@ -79,7 +77,7 @@ export function EventCalendar({
       // Skip if user is typing in an input, textarea or contentEditable element
       // or if the event dialog is open
       if (
-        isEventDialogOpen ||
+        isPostDialogOpen ||
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
         (e.target instanceof HTMLElement && e.target.isContentEditable)
@@ -108,7 +106,7 @@ export function EventCalendar({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isEventDialogOpen]);
+  }, [isPostDialogOpen]);
 
   const handlePrevious = () => {
     if (view === "month") {
@@ -140,14 +138,14 @@ export function EventCalendar({
     setCurrentDate(new Date());
   };
 
-  const handleEventSelect = (event: CalendarEvent) => {
-    console.log("Event selected:", event); // Debug log
-    setSelectedEvent(event);
-    setIsEventDialogOpen(true);
+  const handlePostSelect = (post: CalendarPost) => {
+    console.log("Post selected:", post); // Debug log
+    setSelectedPost(post);
+    setIsPostDialogOpen(true);
   };
 
-  const handleEventCreate = (startTime: Date) => {
-    console.log("Creating new event at:", startTime); // Debug log
+  const handlePostCreate = (startTime: Date) => {
+    console.log("Creating new post at:", startTime); // Debug log
 
     // Snap to 15-minute intervals
     const minutes = startTime.getMinutes();
@@ -164,61 +162,61 @@ export function EventCalendar({
       startTime.setMilliseconds(0);
     }
 
-    const newEvent: CalendarEvent = {
+    const newPost: CalendarPost = {
       id: "",
       title: "",
       start: startTime,
       end: addHoursToDate(startTime, 1),
       allDay: false,
     };
-    setSelectedEvent(newEvent);
-    setIsEventDialogOpen(true);
+    setSelectedPost(newPost);
+    setIsPostDialogOpen(true);
   };
 
-  const handleEventSave = (event: CalendarEvent) => {
-    if (event.id) {
-      onEventUpdate?.(event);
+  const handlePostSave = (post: CalendarPost) => {
+    if (post.id) {
+      onPostUpdate?.(post);
       // Show toast notification when an event is updated
-      toast(`Event "${event.title}" updated`, {
-        description: format(new Date(event.start), "MMM d, yyyy"),
+      toast(`Event "${post.title}" updated`, {
+        description: format(new Date(post.start), "MMM d, yyyy"),
         position: "bottom-left",
       });
     } else {
-      onEventAdd?.({
-        ...event,
+      onPostAdd?.({
+        ...post,
         id: Math.random().toString(36).substring(2, 11),
       });
       // Show toast notification when an event is added
-      toast(`Event "${event.title}" added`, {
-        description: format(new Date(event.start), "MMM d, yyyy"),
+      toast(`Event "${post.title}" added`, {
+        description: format(new Date(post.start), "MMM d, yyyy"),
         position: "bottom-left",
       });
     }
-    setIsEventDialogOpen(false);
-    setSelectedEvent(null);
+    setIsPostDialogOpen(false);
+    setSelectedPost(null);
   };
 
-  const handleEventDelete = (eventId: string) => {
-    const deletedEvent = events.find((e) => e.id === eventId);
-    onEventDelete?.(eventId);
-    setIsEventDialogOpen(false);
-    setSelectedEvent(null);
+  const handlePostDelete = (postId: string) => {
+    const deletedPost = posts.find((p) => p.id === postId);
+    onPostDelete?.(postId);
+    setIsPostDialogOpen(false);
+    setSelectedPost(null);
 
     // Show toast notification when an event is deleted
-    if (deletedEvent) {
-      toast(`Event "${deletedEvent.title}" deleted`, {
-        description: format(new Date(deletedEvent.start), "MMM d, yyyy"),
+    if (deletedPost) {
+      toast(`Event "${deletedPost.title}" deleted`, {
+        description: format(new Date(deletedPost.start), "MMM d, yyyy"),
         position: "bottom-left",
       });
     }
   };
 
-  const handleEventUpdate = (updatedEvent: CalendarEvent) => {
-    onEventUpdate?.(updatedEvent);
+  const handlePostUpdate = (updatedPost: CalendarPost) => {
+    onPostUpdate?.(updatedPost);
 
     // Show toast notification when an event is updated via drag and drop
-    toast(`Event "${updatedEvent.title}" moved`, {
-      description: format(new Date(updatedEvent.start), "MMM d, yyyy"),
+    toast(`Event "${updatedPost.title}" moved`, {
+      description: format(new Date(updatedPost.start), "MMM d, yyyy"),
       position: "bottom-left",
     });
   };
@@ -274,7 +272,7 @@ export function EventCalendar({
         } as React.CSSProperties
       }
     >
-      <CalendarDndProvider onEventUpdate={handleEventUpdate}>
+      <CalendarDndProvider onPostUpdate={handlePostUpdate}>
         <div
           className={cn(
             "flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-5 sm:px-4",
@@ -323,8 +321,8 @@ export function EventCalendar({
                 variant="outline"
                 className="max-sm:h-8 max-sm:px-2.5!"
                 onClick={() => {
-                  setSelectedEvent(null); // Ensure we're creating a new event
-                  setIsEventDialogOpen(true);
+                  setSelectedPost(null); // Ensure we're creating a new post
+                  setIsPostDialogOpen(true);
                 }}
               >
                 New Event
@@ -367,45 +365,45 @@ export function EventCalendar({
           {view === "month" && (
             <MonthView
               currentDate={currentDate}
-              events={events}
-              onEventSelect={handleEventSelect}
-              onEventCreate={handleEventCreate}
+              posts={posts}
+              onPostSelect={handlePostSelect}
+              onPostCreate={handlePostCreate}
             />
           )}
           {view === "week" && (
             <WeekView
               currentDate={currentDate}
-              events={events}
-              onEventSelect={handleEventSelect}
-              onEventCreate={handleEventCreate}
+              posts={posts}
+              onPostSelect={handlePostSelect}
+              onPostCreate={handlePostCreate}
             />
           )}
           {view === "day" && (
             <DayView
               currentDate={currentDate}
-              events={events}
-              onEventSelect={handleEventSelect}
-              onEventCreate={handleEventCreate}
+              posts={posts}
+              onPostSelect={handlePostSelect}
+              onPostCreate={handlePostCreate}
             />
           )}
           {view === "agenda" && (
             <AgendaView
               currentDate={currentDate}
-              events={events}
-              onEventSelect={handleEventSelect}
+              posts={posts}
+              onPostSelect={handlePostSelect}
             />
           )}
         </div>
 
-        <AddEventDialog
-          event={selectedEvent}
-          isOpen={isEventDialogOpen}
+        <AddPostDialog
+          post={selectedPost}
+          isOpen={isPostDialogOpen}
           onClose={() => {
-            setIsEventDialogOpen(false);
-            setSelectedEvent(null);
+            setIsPostDialogOpen(false);
+            setSelectedPost(null);
           }}
-          onSave={handleEventSave}
-          onDelete={handleEventDelete}
+          onSave={handlePostSave}
+          onDelete={handlePostDelete}
         />
       </CalendarDndProvider>
     </div>

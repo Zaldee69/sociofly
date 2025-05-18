@@ -67,7 +67,7 @@ import {
 import { MediaUploader } from "./components/media-uploader";
 import { PostPreview } from "./components/post-preview";
 import { PostToolbar } from "./components/post-toolbar";
-import type { AddEventDialogProps, SocialAccount } from "./types";
+import type { AddPostDialogProps, SocialAccount } from "./types";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -175,15 +175,15 @@ const SortableImage = memo(
 
 SortableImage.displayName = "SortableImage";
 
-export function AddEventDialog({
+export function AddPostDialog({
   startDate,
   startTime,
   isOpen,
   onClose,
   onSave,
   onDelete,
-  event,
-}: AddEventDialogProps) {
+  post,
+}: AddPostDialogProps) {
   const { selectedOrganization } = useOrganization();
   const [isOpenPopover, setIsOpenPopover] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
@@ -349,7 +349,7 @@ export function AddEventDialog({
         <div className="block xl:flex gap-4 h-full max-h-[90vh] overflow-hidden pr-2 xl:pr-0">
           <div className="w-full xl:w-7/12 pl-2.5 py-2.5 overflow-y-auto">
             <h1 className="text-2xl font-bold mb-4">
-              {event?.id ? "Edit Post" : "Buat Post"}
+              {post?.id ? "Edit Post" : "Buat Post"}
             </h1>
             <MultiSelect
               className="w-fit"

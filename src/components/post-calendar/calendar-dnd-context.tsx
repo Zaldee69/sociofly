@@ -22,16 +22,16 @@ import {
   type UniqueIdentifier,
 } from "@dnd-kit/core";
 import { addMinutes, differenceInMinutes } from "date-fns";
-import { CalendarEvent } from "./types";
-import { EventItem } from "./event-item";
+import { CalendarPost } from "./types";
+import { PostItem } from "./post-item";
 
 // Define the context type
 type CalendarDndContextType = {
-  activeEvent: CalendarEvent | null;
+  activePost: CalendarPost | null;
   activeId: UniqueIdentifier | null;
   activeView: "month" | "week" | "day" | null;
   currentTime: Date | null;
-  eventHeight: number | null;
+  postHeight: number | null;
   isMultiDay: boolean;
   multiDayWidth: number | null;
   dragHandlePosition: {
@@ -46,11 +46,11 @@ type CalendarDndContextType = {
 
 // Create the context
 const CalendarDndContext = createContext<CalendarDndContextType>({
-  activeEvent: null,
+  activePost: null,
   activeId: null,
   activeView: null,
   currentTime: null,
-  eventHeight: null,
+  postHeight: null,
   isMultiDay: false,
   multiDayWidth: null,
   dragHandlePosition: null,
@@ -62,20 +62,20 @@ export const useCalendarDnd = () => useContext(CalendarDndContext);
 // Props for the provider
 interface CalendarDndProviderProps {
   children: ReactNode;
-  onEventUpdate: (event: CalendarEvent) => void;
+  onPostUpdate: (post: CalendarPost) => void;
 }
 
 export function CalendarDndProvider({
   children,
-  onEventUpdate,
+  onPostUpdate,
 }: CalendarDndProviderProps) {
-  const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
+  const [activePost, setActivePost] = useState<CalendarPost | null>(null);
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [activeView, setActiveView] = useState<"month" | "week" | "day" | null>(
     null
   );
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
-  const [eventHeight, setEventHeight] = useState<number | null>(null);
+  const [postHeight, setPostHeight] = useState<number | null>(null);
   const [isMultiDay, setIsMultiDay] = useState(false);
   const [multiDayWidth, setMultiDayWidth] = useState<number | null>(null);
   const [dragHandlePosition, setDragHandlePosition] = useState<{
@@ -88,7 +88,7 @@ export function CalendarDndProvider({
   } | null>(null);
 
   // Store original event dimensions
-  const eventDimensions = useRef<{ height: number }>({ height: 0 });
+  const postDimensions = useRef<{ height: number }>({ height: 0 });
 
   // Configure sensors for better drag detection
   const sensors = useSensors(
@@ -126,14 +126,14 @@ export function CalendarDndProvider({
     }
 
     const {
-      event: calendarEvent,
+      post: calendarPost,
       view,
       height,
-      isMultiDay: eventIsMultiDay,
-      multiDayWidth: eventMultiDayWidth,
-      dragHandlePosition: eventDragHandlePosition,
+      isMultiDay: postIsMultiDay,
+      multiDayWidth: postMultiDayWidth,
+      dragHandlePosition: postDragHandlePosition,
     } = active.data.current as {
-      event: CalendarEvent;
+      post: CalendarPost;
       view: "month" | "week" | "day";
       height?: number;
       isMultiDay?: boolean;
@@ -148,25 +148,25 @@ export function CalendarDndProvider({
       };
     };
 
-    setActiveEvent(calendarEvent);
+    setActivePost(calendarPost);
     setActiveId(active.id);
     setActiveView(view);
-    setCurrentTime(new Date(calendarEvent.start));
-    setIsMultiDay(eventIsMultiDay || false);
-    setMultiDayWidth(eventMultiDayWidth || null);
-    setDragHandlePosition(eventDragHandlePosition || null);
+    setCurrentTime(new Date(calendarPost.start));
+    setIsMultiDay(postIsMultiDay || false);
+    setMultiDayWidth(postMultiDayWidth || null);
+    setDragHandlePosition(postDragHandlePosition || null);
 
     // Store event height if provided
     if (height) {
-      eventDimensions.current.height = height;
-      setEventHeight(height);
+      postDimensions.current.height = height;
+      setPostHeight(height);
     }
   };
 
   const handleDragOver = (event: DragOverEvent) => {
     const { over } = event;
 
-    if (over && activeEvent && over.data.current) {
+    if (over && activePost && over.data.current) {
       const { date, time } = over.data.current as { date: Date; time?: number };
 
       // Update time for week/day views
@@ -226,13 +226,13 @@ export function CalendarDndProvider({
     const { active, over } = event;
 
     // Add robust error checking
-    if (!over || !activeEvent || !currentTime) {
+    if (!over || !activePost || !currentTime) {
       // Reset state and exit early
-      setActiveEvent(null);
+      setActivePost(null);
       setActiveId(null);
       setActiveView(null);
       setCurrentTime(null);
-      setEventHeight(null);
+      setPostHeight(null);
       setIsMultiDay(false);
       setMultiDayWidth(null);
       setDragHandlePosition(null);
@@ -246,17 +246,17 @@ export function CalendarDndProvider({
       }
 
       const activeData = active.data.current as {
-        event?: CalendarEvent;
+        post?: CalendarPost;
         view?: string;
       };
       const overData = over.data.current as { date?: Date; time?: number };
 
       // Verify we have all required data
-      if (!activeData.event || !overData.date) {
-        throw new Error("Missing required event data");
+      if (!activeData.post || !overData.date) {
+        throw new Error("Missing required post data");
       }
 
-      const calendarEvent = activeData.event;
+      const calendarPost = activeData.post;
       const date = overData.date;
       const time = overData.time;
 
@@ -287,8 +287,8 @@ export function CalendarDndProvider({
       }
 
       // Calculate new end time based on the original duration
-      const originalStart = new Date(calendarEvent.start);
-      const originalEnd = new Date(calendarEvent.end);
+      const originalStart = new Date(calendarPost.start);
+      const originalEnd = new Date(calendarPost.end);
       const durationMinutes = differenceInMinutes(originalEnd, originalStart);
       const newEnd = addMinutes(newStart, durationMinutes);
 
@@ -302,8 +302,8 @@ export function CalendarDndProvider({
 
       if (hasStartTimeChanged) {
         // Update the event only if the time has changed
-        onEventUpdate({
-          ...calendarEvent,
+        onPostUpdate({
+          ...calendarPost,
           start: newStart,
           end: newEnd,
         });
@@ -312,11 +312,11 @@ export function CalendarDndProvider({
       console.error("Error in drag end handler:", error);
     } finally {
       // Always reset state
-      setActiveEvent(null);
+      setActivePost(null);
       setActiveId(null);
       setActiveView(null);
       setCurrentTime(null);
-      setEventHeight(null);
+      setPostHeight(null);
       setIsMultiDay(false);
       setMultiDayWidth(null);
       setDragHandlePosition(null);
@@ -333,11 +333,11 @@ export function CalendarDndProvider({
     >
       <CalendarDndContext.Provider
         value={{
-          activeEvent,
+          activePost,
           activeId,
           activeView,
           currentTime,
-          eventHeight,
+          postHeight,
           isMultiDay,
           multiDayWidth,
           dragHandlePosition,
@@ -346,17 +346,17 @@ export function CalendarDndProvider({
         {children}
 
         <DragOverlay adjustScale={false} dropAnimation={null}>
-          {activeEvent && activeView && (
+          {activePost && activeView && (
             <div
               style={{
-                height: eventHeight ? `${eventHeight}px` : "auto",
+                height: postHeight ? `${postHeight}px` : "auto",
                 width:
                   isMultiDay && multiDayWidth ? `${multiDayWidth}%` : "100%",
                 // Remove the transform that was causing the shift
               }}
             >
-              <EventItem
-                event={activeEvent}
+              <PostItem
+                post={activePost}
                 view={activeView}
                 isDragging={true}
                 showTime={activeView !== "month"}

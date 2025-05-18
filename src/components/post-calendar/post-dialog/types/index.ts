@@ -1,14 +1,14 @@
 import { SocialPlatform } from "@prisma/client";
 import { TimeValue } from "react-aria-components";
-import { CalendarEvent } from "../../types";
+import { CalendarPost } from "../../types";
 
-export interface AddEventDialogProps {
-  event: CalendarEvent | null;
+export interface AddPostDialogProps {
+  post: CalendarPost | null;
   startDate?: Date;
   startTime?: { hour: number; minute: number };
   isOpen: boolean;
   onClose: () => void;
-  onSave: (event: CalendarEvent) => void;
+  onSave: (post: CalendarPost) => void;
   onDelete: (eventId: string) => void;
 }
 

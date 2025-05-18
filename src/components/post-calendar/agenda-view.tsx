@@ -3,21 +3,21 @@
 import { useMemo } from "react";
 import { addDays, format, isToday } from "date-fns";
 import { AgendaDaysToShow } from "./constants";
-import { CalendarEvent } from "./types";
-import { getAgendaEventsForDay } from "./utils";
+import { CalendarPost } from "./types";
+import { getAgendaPostsForDay } from "./utils";
 import { Calendar } from "lucide-react";
-import { EventItem } from "./event-item";
+import { PostItem } from "./post-item";
 
 interface AgendaViewProps {
   currentDate: Date;
-  events: CalendarEvent[];
-  onEventSelect: (event: CalendarEvent) => void;
+  posts: CalendarPost[];
+  onPostSelect: (post: CalendarPost) => void;
 }
 
 export function AgendaView({
   currentDate,
-  events,
-  onEventSelect,
+  posts,
+  onPostSelect,
 }: AgendaViewProps) {
   // Show events for the next days based on constant
   const days = useMemo(() => {
@@ -27,20 +27,20 @@ export function AgendaView({
     );
   }, [currentDate]);
 
-  const handleEventClick = (event: CalendarEvent, e: React.MouseEvent) => {
+  const handlePostClick = (post: CalendarPost, e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log("Agenda view event clicked:", event);
-    onEventSelect(event);
+    console.log("Agenda view post clicked:", post);
+    onPostSelect(post);
   };
 
   // Check if there are any days with events
-  const hasEvents = days.some(
-    (day) => getAgendaEventsForDay(events, day).length > 0
+  const hasPosts = days.some(
+    (day) => getAgendaPostsForDay(posts, day).length > 0
   );
 
   return (
     <div className="border-border/70 border-t ps-4">
-      {!hasEvents ? (
+      {!hasPosts ? (
         <div className="flex min-h-[70svh] flex-col items-center justify-center py-16 text-center">
           <Calendar size={32} className="text-muted-foreground/50 mb-2" />
           <h3 className="text-lg font-medium">No events found</h3>
@@ -50,9 +50,9 @@ export function AgendaView({
         </div>
       ) : (
         days.map((day) => {
-          const dayEvents = getAgendaEventsForDay(events, day);
+          const dayPosts = getAgendaPostsForDay(posts, day);
 
-          if (dayEvents.length === 0) return null;
+          if (dayPosts.length === 0) return null;
 
           return (
             <div
@@ -66,12 +66,12 @@ export function AgendaView({
                 {format(day, "d MMM, EEEE")}
               </span>
               <div className="mt-6 space-y-2">
-                {dayEvents.map((event) => (
-                  <EventItem
-                    key={event.id}
-                    event={event}
+                {dayPosts.map((post) => (
+                  <PostItem
+                    key={post.id}
+                    post={post}
                     view="agenda"
-                    onClick={(e) => handleEventClick(event, e)}
+                    onClick={(e) => handlePostClick(post, e)}
                   />
                 ))}
               </div>

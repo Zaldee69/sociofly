@@ -17,25 +17,25 @@ import {
   StartHour,
   EndHour,
   WeekCellsHeight,
-} from "@/components/event-calendar/constants";
+} from "@/components/post-calendar/constants";
 import { cn } from "@/lib/utils";
 
-import { CalendarEvent } from "./types";
-import { isMultiDayEvent } from "./utils";
+import { isMultiDayPost } from "./utils";
 import { useCurrentTimeIndicator } from "./hooks/use-current-time-indicator";
-import { EventItem } from "./event-item";
-import { DraggableEvent } from "./draggable-event";
+import { PostItem } from "./post-item";
+import { DraggablePost } from "./draggable-post";
 import { DroppableCell } from "./droppable-cell";
+import { CalendarPost } from "./types";
 
 interface DayViewProps {
   currentDate: Date;
-  events: CalendarEvent[];
-  onEventSelect: (event: CalendarEvent) => void;
-  onEventCreate: (startTime: Date) => void;
+  posts: CalendarPost[];
+  onPostSelect: (post: CalendarPost) => void;
+  onPostCreate: (startTime: Date) => void;
 }
 
-interface PositionedEvent {
-  event: CalendarEvent;
+interface PositionedPost {
+  post: CalendarPost;
   top: number;
   height: number;
   left: number;
@@ -45,9 +45,9 @@ interface PositionedEvent {
 
 export function DayView({
   currentDate,
-  events,
-  onEventSelect,
-  onEventCreate,
+  posts,
+  onPostSelect,
+  onPostCreate,
 }: DayViewProps) {
   const hours = useMemo(() => {
     const dayStart = startOfDay(currentDate);
@@ -57,45 +57,45 @@ export function DayView({
     });
   }, [currentDate]);
 
-  const dayEvents = useMemo(() => {
-    return events
-      .filter((event) => {
-        const eventStart = new Date(event.start);
-        const eventEnd = new Date(event.end);
+  const dayPosts = useMemo(() => {
+    return posts
+      .filter((post) => {
+        const postStart = new Date(post.start);
+        const postEnd = new Date(post.end);
         return (
-          isSameDay(currentDate, eventStart) ||
-          isSameDay(currentDate, eventEnd) ||
-          (currentDate > eventStart && currentDate < eventEnd)
+          isSameDay(currentDate, postStart) ||
+          isSameDay(currentDate, postEnd) ||
+          (currentDate > postStart && currentDate < postEnd)
         );
       })
       .sort(
         (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
       );
-  }, [currentDate, events]);
+  }, [currentDate, posts]);
 
   // Filter all-day events
-  const allDayEvents = useMemo(() => {
-    return dayEvents.filter((event) => {
+  const allDayPosts = useMemo(() => {
+    return dayPosts.filter((post) => {
       // Include explicitly marked all-day events or multi-day events
-      return event.allDay || isMultiDayEvent(event);
+      return post.allDay || isMultiDayPost(post);
     });
-  }, [dayEvents]);
+  }, [dayPosts]);
 
   // Get only single-day time-based events
-  const timeEvents = useMemo(() => {
-    return dayEvents.filter((event) => {
+  const timePosts = useMemo(() => {
+    return dayPosts.filter((post) => {
       // Exclude all-day events and multi-day events
-      return !event.allDay && !isMultiDayEvent(event);
+      return !post.allDay && !isMultiDayPost(post);
     });
-  }, [dayEvents]);
+  }, [dayPosts]);
 
   // Process events to calculate positions
-  const positionedEvents = useMemo(() => {
-    const result: PositionedEvent[] = [];
+  const positionedPosts = useMemo(() => {
+    const result: PositionedPost[] = [];
     const dayStart = startOfDay(currentDate);
 
     // Sort events by start time and duration
-    const sortedEvents = [...timeEvents].sort((a, b) => {
+    const sortedPosts = [...timePosts].sort((a, b) => {
       const aStart = new Date(a.start);
       const bStart = new Date(b.start);
       const aEnd = new Date(a.end);
@@ -112,18 +112,18 @@ export function DayView({
     });
 
     // Track columns for overlapping events
-    const columns: { event: CalendarEvent; end: Date }[][] = [];
+    const columns: { post: CalendarPost; end: Date }[][] = [];
 
-    sortedEvents.forEach((event) => {
-      const eventStart = new Date(event.start);
-      const eventEnd = new Date(event.end);
+    sortedPosts.forEach((post) => {
+      const postStart = new Date(post.start);
+      const postEnd = new Date(post.end);
 
       // Adjust start and end times if they're outside this day
-      const adjustedStart = isSameDay(currentDate, eventStart)
-        ? eventStart
+      const adjustedStart = isSameDay(currentDate, postStart)
+        ? postStart
         : dayStart;
-      const adjustedEnd = isSameDay(currentDate, eventEnd)
-        ? eventEnd
+      const adjustedEnd = isSameDay(currentDate, postEnd)
+        ? postEnd
         : addHours(dayStart, 24);
 
       // Calculate top position and height
@@ -146,7 +146,7 @@ export function DayView({
           const overlaps = col.some((c) =>
             areIntervalsOverlapping(
               { start: adjustedStart, end: adjustedEnd },
-              { start: new Date(c.event.start), end: new Date(c.event.end) }
+              { start: new Date(c.post.start), end: new Date(c.post.end) }
             )
           );
           if (!overlaps) {
@@ -160,14 +160,14 @@ export function DayView({
       // Ensure column is initialized before pushing
       const currentColumn = columns[columnIndex] || [];
       columns[columnIndex] = currentColumn;
-      currentColumn.push({ event, end: adjustedEnd });
+      currentColumn.push({ post, end: adjustedEnd });
 
       // First column takes full width, others are indented by 10% and take 90% width
       const width = columnIndex === 0 ? 1 : 0.9;
       const left = columnIndex === 0 ? 0 : columnIndex * 0.1;
 
       result.push({
-        event,
+        post,
         top,
         height,
         left,
@@ -177,14 +177,14 @@ export function DayView({
     });
 
     return result;
-  }, [currentDate, timeEvents]);
+  }, [currentDate, timePosts]);
 
-  const handleEventClick = (event: CalendarEvent, e: React.MouseEvent) => {
+  const handlePostClick = (post: CalendarPost, e: React.MouseEvent) => {
     e.stopPropagation();
-    onEventSelect(event);
+    onPostSelect(post);
   };
 
-  const showAllDaySection = allDayEvents.length > 0;
+  const showAllDaySection = allDayPosts.length > 0;
   const { currentTimePosition, currentTimeVisible } = useCurrentTimeIndicator(
     currentDate,
     "day"
@@ -201,24 +201,24 @@ export function DayView({
               </span>
             </div>
             <div className="border-border/70 relative border-r p-1 last:border-r-0">
-              {allDayEvents.map((event) => {
-                const eventStart = new Date(event.start);
-                const eventEnd = new Date(event.end);
-                const isFirstDay = isSameDay(currentDate, eventStart);
-                const isLastDay = isSameDay(currentDate, eventEnd);
+              {allDayPosts.map((post) => {
+                const postStart = new Date(post.start);
+                const postEnd = new Date(post.end);
+                const isFirstDay = isSameDay(currentDate, postStart);
+                const isLastDay = isSameDay(currentDate, postEnd);
 
                 return (
-                  <EventItem
-                    key={`spanning-${event.id}`}
-                    onClick={(e) => handleEventClick(event, e)}
-                    event={event}
+                  <PostItem
+                    key={`spanning-${post.id}`}
+                    onClick={(e) => handlePostClick(post, e)}
+                    post={post}
                     view="month"
                     isFirstDay={isFirstDay}
                     isLastDay={isLastDay}
                   >
                     {/* Always show the title in day view for better usability */}
-                    <div>{event.title}</div>
-                  </EventItem>
+                    <div>{post.title}</div>
+                  </PostItem>
                 );
               })}
             </div>
@@ -244,25 +244,25 @@ export function DayView({
 
         <div className="relative">
           {/* Positioned events */}
-          {positionedEvents.map((positionedEvent) => (
+          {positionedPosts.map((positionedPost) => (
             <div
-              key={positionedEvent.event.id}
+              key={positionedPost.post.id}
               className="absolute z-10 px-0.5"
               style={{
-                top: `${positionedEvent.top}px`,
-                height: `${positionedEvent.height}px`,
-                left: `${positionedEvent.left * 100}%`,
-                width: `${positionedEvent.width * 100}%`,
-                zIndex: positionedEvent.zIndex,
+                top: `${positionedPost.top}px`,
+                height: `${positionedPost.height}px`,
+                left: `${positionedPost.left * 100}%`,
+                width: `${positionedPost.width * 100}%`,
+                zIndex: positionedPost.zIndex,
               }}
             >
               <div className="h-full w-full">
-                <DraggableEvent
-                  event={positionedEvent.event}
+                <DraggablePost
+                  post={positionedPost.post}
                   view="day"
-                  onClick={(e) => handleEventClick(positionedEvent.event, e)}
+                  onClick={(e) => handlePostClick(positionedPost.post, e)}
                   showTime
-                  height={positionedEvent.height}
+                  height={positionedPost.height}
                 />
               </div>
             </div>
@@ -312,7 +312,7 @@ export function DayView({
                         const startTime = new Date(currentDate);
                         startTime.setHours(hourValue);
                         startTime.setMinutes(quarter * 15);
-                        onEventCreate(startTime);
+                        onPostCreate(startTime);
                       }}
                     />
                   );

@@ -18,29 +18,29 @@ import {
   startOfWeek,
 } from "date-fns";
 
-import { CalendarEvent } from "./types";
+import { CalendarPost } from "./types";
 import { DroppableCell } from "./droppable-cell";
-import { EventItem } from "./event-item";
-import { DraggableEvent } from "./draggable-event";
+import { PostItem } from "./post-item";
+import { DraggablePost } from "./draggable-post";
 
 import {
   StartHour,
   EndHour,
   WeekCellsHeight,
-} from "@/components/event-calendar/constants";
+} from "@/components/post-calendar/constants";
 import { cn } from "@/lib/utils";
-import { isMultiDayEvent } from "./utils";
+import { isMultiDayPost } from "./utils";
 import { useCurrentTimeIndicator } from "./hooks/use-current-time-indicator";
 
 interface WeekViewProps {
   currentDate: Date;
-  events: CalendarEvent[];
-  onEventSelect: (event: CalendarEvent) => void;
-  onEventCreate: (startTime: Date) => void;
+  posts: CalendarPost[];
+  onPostSelect: (post: CalendarPost) => void;
+  onPostCreate: (startTime: Date) => void;
 }
 
-interface PositionedEvent {
-  event: CalendarEvent;
+interface PositionedPost {
+  post: CalendarPost;
   top: number;
   height: number;
   left: number;
@@ -50,9 +50,9 @@ interface PositionedEvent {
 
 export function WeekView({
   currentDate,
-  events,
-  onEventSelect,
-  onEventCreate,
+  posts,
+  onPostSelect,
+  onPostCreate,
 }: WeekViewProps) {
   const days = useMemo(() => {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
@@ -74,45 +74,45 @@ export function WeekView({
   }, [currentDate]);
 
   // Get all-day events and multi-day events for the week
-  const allDayEvents = useMemo(() => {
-    return events
-      .filter((event) => {
+  const allDayPosts = useMemo(() => {
+    return posts
+      .filter((post) => {
         // Include explicitly marked all-day events or multi-day events
-        return event.allDay || isMultiDayEvent(event);
+        return post.allDay || isMultiDayPost(post);
       })
-      .filter((event) => {
-        const eventStart = new Date(event.start);
-        const eventEnd = new Date(event.end);
+      .filter((post) => {
+        const postStart = new Date(post.start);
+        const postEnd = new Date(post.end);
         return days.some(
           (day) =>
-            isSameDay(day, eventStart) ||
-            isSameDay(day, eventEnd) ||
-            (day > eventStart && day < eventEnd)
+            isSameDay(day, postStart) ||
+            isSameDay(day, postEnd) ||
+            (day > postStart && day < postEnd)
         );
       });
-  }, [events, days]);
+  }, [posts, days]);
 
   // Process events for each day to calculate positions
   const processedDayEvents = useMemo(() => {
     const result = days.map((day) => {
       // Get events for this day that are not all-day events or multi-day events
-      const dayEvents = events.filter((event) => {
+      const dayPosts = posts.filter((post) => {
         // Skip all-day events and multi-day events
-        if (event.allDay || isMultiDayEvent(event)) return false;
+        if (post.allDay || isMultiDayPost(post)) return false;
 
-        const eventStart = new Date(event.start);
-        const eventEnd = new Date(event.end);
+        const postStart = new Date(post.start);
+        const postEnd = new Date(post.end);
 
         // Check if event is on this day
         return (
-          isSameDay(day, eventStart) ||
-          isSameDay(day, eventEnd) ||
-          (eventStart < day && eventEnd > day)
+          isSameDay(day, postStart) ||
+          isSameDay(day, postEnd) ||
+          (postStart < day && postEnd > day)
         );
       });
 
       // Sort events by start time and duration
-      const sortedEvents = [...dayEvents].sort((a, b) => {
+      const sortedPosts = [...dayPosts].sort((a, b) => {
         const aStart = new Date(a.start);
         const bStart = new Date(b.start);
         const aEnd = new Date(a.end);
@@ -129,22 +129,20 @@ export function WeekView({
       });
 
       // Calculate positions for each event
-      const positionedEvents: PositionedEvent[] = [];
+      const positionedPosts: PositionedPost[] = [];
       const dayStart = startOfDay(day);
 
       // Track columns for overlapping events
-      const columns: { event: CalendarEvent; end: Date }[][] = [];
+      const columns: { post: CalendarPost; end: Date }[][] = [];
 
-      sortedEvents.forEach((event) => {
-        const eventStart = new Date(event.start);
-        const eventEnd = new Date(event.end);
+      sortedPosts.forEach((post) => {
+        const postStart = new Date(post.start);
+        const postEnd = new Date(post.end);
 
         // Adjust start and end times if they're outside this day
-        const adjustedStart = isSameDay(day, eventStart)
-          ? eventStart
-          : dayStart;
-        const adjustedEnd = isSameDay(day, eventEnd)
-          ? eventEnd
+        const adjustedStart = isSameDay(day, postStart) ? postStart : dayStart;
+        const adjustedEnd = isSameDay(day, postEnd)
+          ? postEnd
           : addHours(dayStart, 24);
 
         // Calculate top position and height
@@ -170,8 +168,8 @@ export function WeekView({
               areIntervalsOverlapping(
                 { start: adjustedStart, end: adjustedEnd },
                 {
-                  start: new Date(c.event.start),
-                  end: new Date(c.event.end),
+                  start: new Date(c.post.start),
+                  end: new Date(c.post.end),
                 }
               )
             );
@@ -186,14 +184,14 @@ export function WeekView({
         // Ensure column is initialized before pushing
         const currentColumn = columns[columnIndex] || [];
         columns[columnIndex] = currentColumn;
-        currentColumn.push({ event, end: adjustedEnd });
+        currentColumn.push({ post, end: adjustedEnd });
 
         // Calculate width and left position based on number of columns
         const width = columnIndex === 0 ? 1 : 0.9;
         const left = columnIndex === 0 ? 0 : columnIndex * 0.1;
 
-        positionedEvents.push({
-          event,
+        positionedPosts.push({
+          post,
           top,
           height,
           left,
@@ -202,18 +200,18 @@ export function WeekView({
         });
       });
 
-      return positionedEvents;
+      return positionedPosts;
     });
 
     return result;
-  }, [days, events]);
+  }, [days, posts]);
 
-  const handleEventClick = (event: CalendarEvent, e: React.MouseEvent) => {
+  const handlePostClick = (post: CalendarPost, e: React.MouseEvent) => {
     e.stopPropagation();
-    onEventSelect(event);
+    onPostSelect(post);
   };
 
-  const showAllDaySection = allDayEvents.length > 0;
+  const showAllDaySection = allDayPosts.length > 0;
   const { currentTimePosition, currentTimeVisible } = useCurrentTimeIndicator(
     currentDate,
     "week"
@@ -248,13 +246,13 @@ export function WeekView({
               </span>
             </div>
             {days.map((day, dayIndex) => {
-              const dayAllDayEvents = allDayEvents.filter((event) => {
-                const eventStart = new Date(event.start);
-                const eventEnd = new Date(event.end);
+              const dayAllDayPosts = allDayPosts.filter((post) => {
+                const postStart = new Date(post.start);
+                const postEnd = new Date(post.end);
                 return (
-                  isSameDay(day, eventStart) ||
-                  (day > eventStart && day < eventEnd) ||
-                  isSameDay(day, eventEnd)
+                  isSameDay(day, postStart) ||
+                  (day > postStart && day < postEnd) ||
+                  isSameDay(day, postEnd)
                 );
               });
 
@@ -264,22 +262,22 @@ export function WeekView({
                   className="border-border/70 relative border-r p-1 last:border-r-0"
                   data-today={isToday(day) || undefined}
                 >
-                  {dayAllDayEvents.map((event) => {
-                    const eventStart = new Date(event.start);
-                    const eventEnd = new Date(event.end);
-                    const isFirstDay = isSameDay(day, eventStart);
-                    const isLastDay = isSameDay(day, eventEnd);
+                  {dayAllDayPosts.map((post) => {
+                    const postStart = new Date(post.start);
+                    const postEnd = new Date(post.end);
+                    const isFirstDay = isSameDay(day, postStart);
+                    const isLastDay = isSameDay(day, postEnd);
 
                     // Check if this is the first day in the current week view
                     const isFirstVisibleDay =
-                      dayIndex === 0 && isBefore(eventStart, weekStart);
+                      dayIndex === 0 && isBefore(postStart, weekStart);
                     const shouldShowTitle = isFirstDay || isFirstVisibleDay;
 
                     return (
-                      <EventItem
-                        key={`spanning-${event.id}`}
-                        onClick={(e) => handleEventClick(event, e)}
-                        event={event}
+                      <PostItem
+                        key={`spanning-${post.id}`}
+                        onClick={(e) => handlePostClick(post, e)}
+                        post={post}
                         view="month"
                         isFirstDay={isFirstDay}
                         isLastDay={isLastDay}
@@ -292,9 +290,9 @@ export function WeekView({
                           )}
                           aria-hidden={!shouldShowTitle}
                         >
-                          {event.title}
+                          {post.title}
                         </div>
-                      </EventItem>
+                      </PostItem>
                     );
                   })}
                 </div>
@@ -329,7 +327,7 @@ export function WeekView({
             {/* Positioned events */}
             {(processedDayEvents[dayIndex] ?? []).map((positionedEvent) => (
               <div
-                key={positionedEvent.event.id}
+                key={positionedEvent.post.id}
                 className="absolute z-10 px-0.5"
                 style={{
                   top: `${positionedEvent.top}px`,
@@ -341,10 +339,10 @@ export function WeekView({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="h-full w-full">
-                  <DraggableEvent
-                    event={positionedEvent.event}
+                  <DraggablePost
+                    post={positionedEvent.post}
                     view="week"
-                    onClick={(e) => handleEventClick(positionedEvent.event, e)}
+                    onClick={(e) => handlePostClick(positionedEvent.post, e)}
                     showTime
                     height={positionedEvent.height}
                   />
@@ -394,7 +392,7 @@ export function WeekView({
                           const startTime = new Date(day);
                           startTime.setHours(hourValue);
                           startTime.setMinutes(quarter * 15);
-                          onEventCreate(startTime);
+                          onPostCreate(startTime);
                         }}
                       />
                     );

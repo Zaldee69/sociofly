@@ -1,13 +1,13 @@
 import { isSameDay } from "date-fns";
-import { CalendarEvent, EventColor } from "./types";
+import { CalendarPost, PostColor } from "./types";
 
 /**
  * Get CSS classes for event colors
  */
-export function getEventColorClasses(color?: EventColor | string): string {
-  const eventColor = color || "sky";
+export function getPostColorClasses(color?: PostColor | string): string {
+  const postColor = color || "sky";
 
-  switch (eventColor) {
+  switch (postColor) {
     case "sky":
       return "bg-blue-200/50 hover:bg-blue-200/40 text-blue-900/90 dark:bg-blue-400/25 dark:hover:bg-blue-400/20 dark:text-blue-200 shadow-blue-700/8";
     case "violet":
@@ -44,23 +44,23 @@ export function getBorderRadiusClasses(
 /**
  * Check if an event is a multi-day event
  */
-export function isMultiDayEvent(event: CalendarEvent): boolean {
-  const eventStart = new Date(event.start);
-  const eventEnd = new Date(event.end);
-  return event.allDay || eventStart.getDate() !== eventEnd.getDate();
+export function isMultiDayPost(post: CalendarPost): boolean {
+  const postStart = new Date(post.start);
+  const postEnd = new Date(post.end);
+  return post.allDay || postStart.getDate() !== postEnd.getDate();
 }
 
 /**
  * Filter events for a specific day
  */
-export function getEventsForDay(
-  events: CalendarEvent[],
+export function getPostsForDay(
+  posts: CalendarPost[],
   day: Date
-): CalendarEvent[] {
-  return events
-    .filter((event) => {
-      const eventStart = new Date(event.start);
-      return isSameDay(day, eventStart);
+): CalendarPost[] {
+  return posts
+    .filter((post) => {
+      const postStart = new Date(post.start);
+      return isSameDay(day, postStart);
     })
     .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 }
@@ -68,10 +68,10 @@ export function getEventsForDay(
 /**
  * Sort events with multi-day events first, then by start time
  */
-export function sortEvents(events: CalendarEvent[]): CalendarEvent[] {
-  return [...events].sort((a, b) => {
-    const aIsMultiDay = isMultiDayEvent(a);
-    const bIsMultiDay = isMultiDayEvent(b);
+export function sortPosts(posts: CalendarPost[]): CalendarPost[] {
+  return [...posts].sort((a, b) => {
+    const aIsMultiDay = isMultiDayPost(a);
+    const bIsMultiDay = isMultiDayPost(b);
 
     if (aIsMultiDay && !bIsMultiDay) return -1;
     if (!aIsMultiDay && bIsMultiDay) return 1;
@@ -83,20 +83,20 @@ export function sortEvents(events: CalendarEvent[]): CalendarEvent[] {
 /**
  * Get multi-day events that span across a specific day (but don't start on that day)
  */
-export function getSpanningEventsForDay(
-  events: CalendarEvent[],
+export function getSpanningPostsForDay(
+  posts: CalendarPost[],
   day: Date
-): CalendarEvent[] {
-  return events.filter((event) => {
-    if (!isMultiDayEvent(event)) return false;
+): CalendarPost[] {
+  return posts.filter((post) => {
+    if (!isMultiDayPost(post)) return false;
 
-    const eventStart = new Date(event.start);
-    const eventEnd = new Date(event.end);
+    const postStart = new Date(post.start);
+    const postEnd = new Date(post.end);
 
     // Only include if it's not the start day but is either the end day or a middle day
     return (
-      !isSameDay(day, eventStart) &&
-      (isSameDay(day, eventEnd) || (day > eventStart && day < eventEnd))
+      !isSameDay(day, postStart) &&
+      (isSameDay(day, postEnd) || (day > postStart && day < postEnd))
     );
   });
 }
@@ -104,17 +104,17 @@ export function getSpanningEventsForDay(
 /**
  * Get all events visible on a specific day (starting, ending, or spanning)
  */
-export function getAllEventsForDay(
-  events: CalendarEvent[],
+export function getAllPostsForDay(
+  posts: CalendarPost[],
   day: Date
-): CalendarEvent[] {
-  return events.filter((event) => {
-    const eventStart = new Date(event.start);
-    const eventEnd = new Date(event.end);
+): CalendarPost[] {
+  return posts.filter((post) => {
+    const postStart = new Date(post.start);
+    const postEnd = new Date(post.end);
     return (
-      isSameDay(day, eventStart) ||
-      isSameDay(day, eventEnd) ||
-      (day > eventStart && day < eventEnd)
+      isSameDay(day, postStart) ||
+      isSameDay(day, postEnd) ||
+      (day > postStart && day < postEnd)
     );
   });
 }
@@ -122,18 +122,18 @@ export function getAllEventsForDay(
 /**
  * Get all events for a day (for agenda view)
  */
-export function getAgendaEventsForDay(
-  events: CalendarEvent[],
+export function getAgendaPostsForDay(
+  posts: CalendarPost[],
   day: Date
-): CalendarEvent[] {
-  return events
-    .filter((event) => {
-      const eventStart = new Date(event.start);
-      const eventEnd = new Date(event.end);
+): CalendarPost[] {
+  return posts
+    .filter((post) => {
+      const postStart = new Date(post.start);
+      const postEnd = new Date(post.end);
       return (
-        isSameDay(day, eventStart) ||
-        isSameDay(day, eventEnd) ||
-        (day > eventStart && day < eventEnd)
+        isSameDay(day, postStart) ||
+        isSameDay(day, postEnd) ||
+        (day > postStart && day < postEnd)
       );
     })
     .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());

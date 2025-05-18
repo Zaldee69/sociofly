@@ -2,40 +2,40 @@
 
 import { useState, useMemo } from "react";
 import { addDays, setHours, setMinutes, getDay } from "date-fns";
-import { useCalendarContext } from "@/components/event-calendar/calendar-context";
-import { CalendarEvent, EventColor } from "./event-calendar/types";
-import { EventCalendar } from "./event-calendar";
+import { useCalendarContext } from "@/components/post-calendar/calendar-context";
+import { CalendarPost, PostColor } from "./post-calendar/types";
+import { PostCalendar } from "./post-calendar";
 
 // Etiquettes data for calendar filtering
 export const etiquettes = [
   {
     id: "my-events",
     name: "My Events",
-    color: "emerald" as EventColor,
+    color: "emerald" as PostColor,
     isActive: true,
   },
   {
     id: "marketing-team",
     name: "Marketing Team",
-    color: "orange" as EventColor,
+    color: "orange" as PostColor,
     isActive: true,
   },
   {
     id: "interviews",
     name: "Interviews",
-    color: "violet" as EventColor,
+    color: "violet" as PostColor,
     isActive: true,
   },
   {
     id: "events-planning",
     name: "Events Planning",
-    color: "blue" as EventColor,
+    color: "blue" as PostColor,
     isActive: true,
   },
   {
     id: "holidays",
     name: "Holidays",
-    color: "rose" as EventColor,
+    color: "rose" as PostColor,
     isActive: true,
   },
 ];
@@ -53,7 +53,7 @@ const currentDate = new Date();
 const daysUntilNextSunday = getDaysUntilNextSunday(currentDate);
 
 // Sample events data with hardcoded times
-const sampleEvents: CalendarEvent[] = [
+const samplePosts: CalendarPost[] = [
   {
     id: "w1-0a",
     title: "Executive Board Meeting",
@@ -588,36 +588,34 @@ const sampleEvents: CalendarEvent[] = [
 ];
 
 export default function Component() {
-  const [events, setEvents] = useState<CalendarEvent[]>(sampleEvents);
+  const [posts, setPosts] = useState<CalendarPost[]>(samplePosts);
   const { isColorVisible } = useCalendarContext();
 
   // Filter events based on visible colors
-  const visibleEvents = useMemo(() => {
-    return events.filter((event) => isColorVisible(event.color));
-  }, [events, isColorVisible]);
+  const visiblePosts = useMemo(() => {
+    return posts.filter((post) => isColorVisible(post.color));
+  }, [posts, isColorVisible]);
 
-  const handleEventAdd = (event: CalendarEvent) => {
-    setEvents([...events, event]);
+  const handlePostAdd = (post: CalendarPost) => {
+    setPosts([...posts, post]);
   };
 
-  const handleEventUpdate = (updatedEvent: CalendarEvent) => {
-    setEvents(
-      events.map((event) =>
-        event.id === updatedEvent.id ? updatedEvent : event
-      )
+  const handlePostUpdate = (updatedPost: CalendarPost) => {
+    setPosts(
+      posts.map((post) => (post.id === updatedPost.id ? updatedPost : post))
     );
   };
 
-  const handleEventDelete = (eventId: string) => {
-    setEvents(events.filter((event) => event.id !== eventId));
+  const handlePostDelete = (postId: string) => {
+    setPosts(posts.filter((post) => post.id !== postId));
   };
 
   return (
-    <EventCalendar
-      events={visibleEvents}
-      onEventAdd={handleEventAdd}
-      onEventUpdate={handleEventUpdate}
-      onEventDelete={handleEventDelete}
+    <PostCalendar
+      posts={visiblePosts}
+      onPostAdd={handlePostAdd}
+      onPostUpdate={handlePostUpdate}
+      onPostDelete={handlePostDelete}
       initialView="week"
     />
   );

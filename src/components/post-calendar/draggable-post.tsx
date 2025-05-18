@@ -4,12 +4,12 @@ import { useRef, useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { differenceInDays } from "date-fns";
-import { CalendarEvent } from "./types";
+import { CalendarPost } from "./types";
 import { useCalendarDnd } from "./calendar-dnd-context";
-import { EventItem } from "./event-item";
+import { PostItem } from "./post-item";
 
-interface DraggableEventProps {
-  event: CalendarEvent;
+interface DraggablePostProps {
+  post: CalendarPost;
   view: "month" | "week" | "day";
   showTime?: boolean;
   onClick?: (e: React.MouseEvent) => void;
@@ -21,8 +21,8 @@ interface DraggableEventProps {
   "aria-hidden"?: boolean | "true" | "false";
 }
 
-export function DraggableEvent({
-  event,
+export function DraggablePost({
+  post,
   view,
   showTime,
   onClick,
@@ -32,7 +32,7 @@ export function DraggableEvent({
   isFirstDay = true,
   isLastDay = true,
   "aria-hidden": ariaHidden,
-}: DraggableEventProps) {
+}: DraggablePostProps) {
   const { activeId } = useCalendarDnd();
   const elementRef = useRef<HTMLDivElement>(null);
   const [dragHandlePosition, setDragHandlePosition] = useState<{
@@ -41,16 +41,16 @@ export function DraggableEvent({
   } | null>(null);
 
   // Check if this is a multi-day event
-  const eventStart = new Date(event.start);
-  const eventEnd = new Date(event.end);
+  const postStart = new Date(post.start);
+  const postEnd = new Date(post.end);
   const isMultiDayEvent =
-    isMultiDay || event.allDay || differenceInDays(eventEnd, eventStart) >= 1;
+    isMultiDay || post.allDay || differenceInDays(postEnd, postStart) >= 1;
 
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
-      id: `${event.id}-${view}`,
+      id: `${post.id}-${view}`,
       data: {
-        event,
+        post,
         view,
         height: height || elementRef.current?.offsetHeight || null,
         isMultiDay: isMultiDayEvent,
@@ -73,7 +73,7 @@ export function DraggableEvent({
   };
 
   // Don't render if this event is being dragged
-  if (isDragging || activeId === `${event.id}-${view}`) {
+  if (isDragging || activeId === `${post.id}-${view}`) {
     return (
       <div
         ref={setNodeRef}
@@ -119,8 +119,8 @@ export function DraggableEvent({
       style={style}
       className="touch-none"
     >
-      <EventItem
-        event={event}
+      <PostItem
+        post={post}
         view={view}
         showTime={showTime}
         isFirstDay={isFirstDay}
