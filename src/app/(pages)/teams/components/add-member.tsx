@@ -2,7 +2,8 @@ import React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { Mail, UserPlus } from "lucide-react";
+import { Mail, UserPlus, Loader2 } from "lucide-react";
+import { useState } from "react";
 
 import {
   Dialog,
@@ -51,13 +52,45 @@ interface Team {
 
 interface AddMemberModalProps {
   teams: Team;
-  onAddMember: (values: FormValues) => void;
+  onAddMember: (values: FormValues) => Promise<void>;
 }
+
+// Custom hook for handling member invitation
+const useInviteMember = (
+  onAddMember: (values: FormValues) => Promise<void>
+) => {
+  const [isInviting, setIsInviting] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const inviteMember = async (values: FormValues) => {
+    setIsInviting(true);
+    try {
+      await onAddMember(values);
+      setIsDialogOpen(false); // Close dialog on success
+      return true;
+    } catch (error) {
+      console.error("Error inviting member:", error);
+      return false;
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  return {
+    isInviting,
+    inviteMember,
+    isDialogOpen,
+    setIsDialogOpen,
+  };
+};
 
 const AddMemberModal: React.FC<AddMemberModalProps> = ({
   teams,
   onAddMember,
 }) => {
+  const { isInviting, inviteMember, isDialogOpen, setIsDialogOpen } =
+    useInviteMember(onAddMember);
+
   // Initialize the form with default values
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -70,15 +103,20 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     },
   });
 
-  const onSubmit = (values: FormValues) => {
-    onAddMember(values);
-    form.reset();
+  const onSubmit = async (values: FormValues) => {
+    const success = await inviteMember(values);
+    if (success) {
+      form.reset();
+    }
   };
 
   return (
-    <Dialog>
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button className="flex items-center gap-2">
+        <Button
+          className="flex items-center gap-2"
+          onClick={() => setIsDialogOpen(true)}
+        >
           <UserPlus className="h-4 w-4" />
           Invite Member
         </Button>
@@ -178,8 +216,19 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
             />
 
             <DialogFooter className="pt-4">
-              <Button type="submit" className="w-full sm:w-auto">
-                Send Invitation
+              <Button
+                type="submit"
+                disabled={isInviting}
+                className="w-full sm:w-auto"
+              >
+                {isInviting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending Invitation...
+                  </>
+                ) : (
+                  "Send Invitation"
+                )}
               </Button>
             </DialogFooter>
           </form>

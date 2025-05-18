@@ -172,19 +172,26 @@ const Page = () => {
   });
 
   // Handlers
-  const handleAddMember = (values: {
+  const handleAddMember = async (values: {
     team: string;
     teamId?: string;
     role: string;
     email: string;
     message?: string;
   }) => {
-    console.log(values);
-    inviteMutation.mutate({
-      email: values.email,
-      teamId: values.teamId || (teamId as string),
-      role: values.role as Role,
-      name: values.team || "",
+    return new Promise<void>((resolve, reject) => {
+      inviteMutation.mutate(
+        {
+          email: values.email,
+          teamId: values.teamId || (teamId as string),
+          role: values.role as Role,
+          name: values.team || "",
+        },
+        {
+          onSuccess: () => resolve(),
+          onError: (error) => reject(error),
+        }
+      );
     });
   };
 

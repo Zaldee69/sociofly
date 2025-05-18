@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,7 +22,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Plus } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 
 // Define schema for team creation
 const teamFormSchema = z.object({
@@ -40,9 +40,14 @@ type TeamFormValues = z.infer<typeof teamFormSchema>;
 
 interface CreateTeamModalProps {
   onCreateTeam: (values: TeamFormValues) => void;
+  isLoading?: boolean;
 }
 
-const CreateTeamModal = ({ onCreateTeam }: CreateTeamModalProps) => {
+const CreateTeamModal = ({
+  onCreateTeam,
+  isLoading = false,
+}: CreateTeamModalProps) => {
+  const [isOpen, setIsOpen] = useState(false);
   const form = useForm<TeamFormValues>({
     resolver: zodResolver(teamFormSchema),
     defaultValues: {
@@ -53,11 +58,19 @@ const CreateTeamModal = ({ onCreateTeam }: CreateTeamModalProps) => {
 
   const handleSubmit = (values: TeamFormValues) => {
     onCreateTeam(values);
-    form.reset();
+    // Don't reset the form immediately, wait for the operation to complete
+  };
+
+  // Reset form when dialog closes
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) {
+      form.reset();
+    }
   };
 
   return (
-    <Dialog>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm">
           <Plus className="h-4 w-4 mr-1" />
@@ -110,7 +123,16 @@ const CreateTeamModal = ({ onCreateTeam }: CreateTeamModalProps) => {
             />
 
             <DialogFooter>
-              <Button type="submit">Create Team</Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Team"
+                )}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

@@ -68,7 +68,10 @@ const TeamManagement = () => {
     <div className="container mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">My Teams</h1>
-        <CreateTeamModal onCreateTeam={handleCreateTeam} />
+        <CreateTeamModal
+          onCreateTeam={handleCreateTeam}
+          isLoading={createTeamMutation.isPending}
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -118,7 +121,10 @@ const TeamManagement = () => {
             <p className="text-xl text-muted-foreground mb-4">
               You haven't joined any teams yet
             </p>
-            <CreateTeamModal onCreateTeam={handleCreateTeam} />
+            <CreateTeamModal
+              onCreateTeam={handleCreateTeam}
+              isLoading={createTeamMutation.isPending}
+            />
           </CardContent>
         </Card>
       )}

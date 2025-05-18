@@ -224,18 +224,20 @@ export const teamRouter = createTRPCRouter({
         },
       });
 
-      const userAlreadyMember = await ctx.prisma.membership.findFirst({
-        where: {
-          userId: user?.id,
-          organizationId: input.teamId,
-        },
-      });
-
-      if (userAlreadyMember) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "User already a member of this team",
+      if (user) {
+        const userAlreadyMember = await ctx.prisma.membership.findFirst({
+          where: {
+            userId: user.id,
+            organizationId: input.teamId,
+          },
         });
+
+        if (userAlreadyMember) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "User already a member of this team",
+          });
+        }
       }
 
       await sendInviteEmail({
