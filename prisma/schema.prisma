@@ -36,21 +36,26 @@ model Organization {
   socialAccounts SocialAccount[]
   invitations    Invitation[]
   Media          Media[]
-  ownerId        String // Tambahkan Owner ID 
+  ownerId        String
   owner          User            @relation(fields: [ownerId], references: [id])
+  customRoles    CustomRole[]
 }
 
 model Membership {
-  id             String       @id @default(cuid())
-  role           Role         @default(CONTENT_PRODUCER)
-  status         MemberStatus @default(ACTIVE)
-  lastActiveAt   DateTime     @default(now())
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  userId         String
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  user           User         @relation(fields: [userId], references: [id])
+  id               String            @id @default(cuid())
+  role             Role              @default(CONTENT_PRODUCER)
+  status           MemberStatus      @default(ACTIVE)
+  lastActiveAt     DateTime          @default(now())
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  userId           String
+  organizationId   String
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  user             User              @relation(fields: [userId], references: [id])
+  customRoleId     String?
+  customRole       CustomRole?       @relation(fields: [customRoleId], references: [id])
+  grantsPermission MembershipGrant[]
+  deniesPermission MembershipDeny[]
 
   @@unique([userId, organizationId])
 }
@@ -158,9 +163,12 @@ model CronLog {
 }
 
 model Permission {
-  id    String           @id @default(cuid())
-  code  String           @unique // contoh: "content.create", "content.approve"
-  roles RolePermission[]
+  id              String                 @id @default(cuid())
+  code            String                 @unique // contoh: "content.create", "content.approve"
+  roles           RolePermission[]
+  customRoles     CustomRolePermission[]
+  MembershipGrant MembershipGrant[]
+  MembershipDeny  MembershipDeny[]
 }
 
 model RolePermission {
@@ -170,6 +178,53 @@ model RolePermission {
   permission   Permission @relation(fields: [permissionId], references: [id])
 
   @@unique([role, permissionId])
+}
+
+model CustomRole {
+  id             String                 @id @default(cuid())
+  name           String
+  displayName    String
+  description    String?
+  organizationId String
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  organization   Organization           @relation(fields: [organizationId], references: [id])
+  permissions    CustomRolePermission[]
+  memberships    Membership[]
+
+  @@unique([name, organizationId])
+}
+
+model CustomRolePermission {
+  id           String     @id @default(cuid())
+  customRoleId String
+  permissionId String
+  customRole   CustomRole @relation(fields: [customRoleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([customRoleId, permissionId])
+}
+
+model MembershipGrant {
+  id           String     @id @default(cuid())
+  membershipId String
+  permissionId String
+  createdAt    DateTime   @default(now())
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([membershipId, permissionId])
+}
+
+model MembershipDeny {
+  id           String     @id @default(cuid())
+  membershipId String
+  permissionId String
+  createdAt    DateTime   @default(now())
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([membershipId, permissionId])
 }
 
 enum MediaType {

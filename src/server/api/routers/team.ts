@@ -740,4 +740,598 @@ export const teamRouter = createTRPCRouter({
         },
       });
     }),
+
+  // Get all custom roles for a team
+  getCustomRoles: requirePermission("team.manage")
+    .input(z.object({ teamId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user is a member of this team
+      const membership = await ctx.prisma.membership.findFirst({
+        where: {
+          userId: ctx.userId,
+          organizationId: input.teamId,
+        },
+      });
+
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Not a team member",
+        });
+      }
+
+      // Get all custom roles for this team
+      const customRoles = await ctx.prisma.customRole.findMany({
+        where: {
+          organizationId: input.teamId,
+        },
+        include: {
+          permissions: {
+            include: {
+              permission: true,
+            },
+          },
+        },
+      });
+
+      // Transform the data to a more convenient format
+      return customRoles.map((role) => ({
+        id: role.id,
+        name: role.name,
+        displayName: role.displayName,
+        description: role.description,
+        permissions: role.permissions.map((p) => p.permission.code),
+      }));
+    }),
+
+  // Get all available permissions
+  getAvailablePermissions: requirePermission("team.manage").query(
+    async ({ ctx }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Get all permissions from the database
+      const permissions = await ctx.prisma.permission.findMany();
+
+      return permissions;
+    }
+  ),
+
+  // Create a new custom role
+  createCustomRole: requirePermission("team.manage")
+    .input(
+      z.object({
+        teamId: z.string(),
+        name: z.string().min(2),
+        displayName: z.string().min(2),
+        description: z.string().optional(),
+        permissions: z.array(z.string()),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Verify current user is a team owner
+      const currentUserMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          organizationId: input.teamId,
+          userId: ctx.userId,
+          role: Role.TEAM_OWNER,
+        },
+      });
+
+      if (!currentUserMembership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only Team Owner can create custom roles",
+        });
+      }
+
+      // Check if role with the same name already exists for this team
+      const existingRole = await ctx.prisma.customRole.findFirst({
+        where: {
+          name: input.name,
+          organizationId: input.teamId,
+        },
+      });
+
+      if (existingRole) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "A role with this name already exists",
+        });
+      }
+
+      // Get permission IDs for the provided permission codes
+      const permissions = await ctx.prisma.permission.findMany({
+        where: {
+          code: { in: input.permissions },
+        },
+      });
+
+      // Create the custom role
+      const customRole = await ctx.prisma.customRole.create({
+        data: {
+          name: input.name,
+          displayName: input.displayName,
+          description: input.description,
+          organization: {
+            connect: {
+              id: input.teamId,
+            },
+          },
+          permissions: {
+            create: permissions.map((permission) => ({
+              permission: {
+                connect: {
+                  id: permission.id,
+                },
+              },
+            })),
+          },
+        },
+        include: {
+          permissions: {
+            include: {
+              permission: true,
+            },
+          },
+        },
+      });
+
+      return {
+        id: customRole.id,
+        name: customRole.name,
+        displayName: customRole.displayName,
+        description: customRole.description,
+        permissions: customRole.permissions.map((p) => p.permission.code),
+      };
+    }),
+
+  // Update an existing custom role
+  updateCustomRole: requirePermission("team.manage")
+    .input(
+      z.object({
+        teamId: z.string(),
+        roleId: z.string(),
+        displayName: z.string().min(2),
+        description: z.string().optional(),
+        permissions: z.array(z.string()),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Verify current user is a team owner
+      const currentUserMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          organizationId: input.teamId,
+          userId: ctx.userId,
+          role: Role.TEAM_OWNER,
+        },
+      });
+
+      if (!currentUserMembership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only Team Owner can update custom roles",
+        });
+      }
+
+      // Check if role exists
+      const existingRole = await ctx.prisma.customRole.findFirst({
+        where: {
+          id: input.roleId,
+          organizationId: input.teamId,
+        },
+      });
+
+      if (!existingRole) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Custom role not found",
+        });
+      }
+
+      // Get permission IDs for the provided permission codes
+      const permissions = await ctx.prisma.permission.findMany({
+        where: {
+          code: { in: input.permissions },
+        },
+      });
+
+      // Delete existing permissions
+      await ctx.prisma.customRolePermission.deleteMany({
+        where: {
+          customRoleId: input.roleId,
+        },
+      });
+
+      // Update the custom role
+      const customRole = await ctx.prisma.customRole.update({
+        where: {
+          id: input.roleId,
+        },
+        data: {
+          displayName: input.displayName,
+          description: input.description,
+          permissions: {
+            create: permissions.map((permission) => ({
+              permission: {
+                connect: {
+                  id: permission.id,
+                },
+              },
+            })),
+          },
+        },
+        include: {
+          permissions: {
+            include: {
+              permission: true,
+            },
+          },
+        },
+      });
+
+      return {
+        id: customRole.id,
+        name: customRole.name,
+        displayName: customRole.displayName,
+        description: customRole.description,
+        permissions: customRole.permissions.map((p) => p.permission.code),
+      };
+    }),
+
+  // Delete a custom role
+  deleteCustomRole: requirePermission("team.manage")
+    .input(
+      z.object({
+        teamId: z.string(),
+        roleId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Verify current user is a team owner
+      const currentUserMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          organizationId: input.teamId,
+          userId: ctx.userId,
+          role: Role.TEAM_OWNER,
+        },
+      });
+
+      if (!currentUserMembership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only Team Owner can delete custom roles",
+        });
+      }
+
+      // Check if role exists
+      const existingRole = await ctx.prisma.customRole.findFirst({
+        where: {
+          id: input.roleId,
+          organizationId: input.teamId,
+        },
+      });
+
+      if (!existingRole) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Custom role not found",
+        });
+      }
+
+      // Check if any members are using this role
+      const membersUsingRole = await ctx.prisma.membership.findFirst({
+        where: {
+          customRoleId: input.roleId,
+        },
+      });
+
+      if (membersUsingRole) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "Cannot delete role because it is assigned to one or more members",
+        });
+      }
+
+      // Delete permissions first (cascade should handle this automatically, but being explicit)
+      await ctx.prisma.customRolePermission.deleteMany({
+        where: {
+          customRoleId: input.roleId,
+        },
+      });
+
+      // Delete the custom role
+      await ctx.prisma.customRole.delete({
+        where: {
+          id: input.roleId,
+        },
+      });
+
+      return { success: true };
+    }),
+
+  // Assign custom role to member
+  assignCustomRole: requirePermission("team.manage")
+    .input(
+      z.object({
+        teamId: z.string(),
+        memberId: z.string(),
+        customRoleId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Verify current user is a team owner
+      const currentUserMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          organizationId: input.teamId,
+          userId: ctx.userId,
+          role: Role.TEAM_OWNER,
+        },
+      });
+
+      if (!currentUserMembership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only Team Owner can assign custom roles",
+        });
+      }
+
+      // Check if target membership exists
+      const targetMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          id: input.memberId,
+          organizationId: input.teamId,
+        },
+      });
+
+      if (!targetMembership) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Team member not found",
+        });
+      }
+
+      // Check if custom role exists and belongs to this team
+      const customRole = await ctx.prisma.customRole.findFirst({
+        where: {
+          id: input.customRoleId,
+          organizationId: input.teamId,
+        },
+      });
+
+      if (!customRole) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Custom role not found",
+        });
+      }
+
+      // Update the membership with the custom role
+      return ctx.prisma.membership.update({
+        where: {
+          id: input.memberId,
+        },
+        data: {
+          // Set role to null or a placeholder value when using custom role
+          role: null as any, // This is a workaround for the required enum field
+          customRole: {
+            connect: {
+              id: input.customRoleId,
+            },
+          },
+        },
+      });
+    }),
+
+  // Update permissions for a built-in role
+  updateRolePermissions: requirePermission("team.manage")
+    .input(
+      z.object({
+        teamId: z.string(),
+        role: z.nativeEnum(Role),
+        permissions: z.array(z.string()),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Verify current user is a team owner
+      const currentUserMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          organizationId: input.teamId,
+          userId: ctx.userId,
+          role: Role.TEAM_OWNER,
+        },
+      });
+
+      if (!currentUserMembership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only Team Owner can update role permissions",
+        });
+      }
+
+      // Get permission IDs for the provided permission codes
+      const permissions = await ctx.prisma.permission.findMany({
+        where: {
+          code: { in: input.permissions },
+        },
+      });
+
+      // Delete existing role permissions
+      await ctx.prisma.rolePermission.deleteMany({
+        where: {
+          role: input.role,
+        },
+      });
+
+      // Create new role permissions
+      const rolePermissions = await Promise.all(
+        permissions.map((permission) =>
+          ctx.prisma.rolePermission.create({
+            data: {
+              role: input.role,
+              permission: {
+                connect: {
+                  id: permission.id,
+                },
+              },
+            },
+          })
+        )
+      );
+
+      return {
+        role: input.role,
+        permissions: permissions.map((p) => p.code),
+      };
+    }),
+
+  // Create default permissions if not exist
+  initializePermissions: requirePermission("team.manage").query(
+    async ({ ctx }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Default permissions to ensure exist in the database
+      const defaultPermissions = [
+        // Content permissions
+        "content.create",
+        "content.edit",
+        "content.view",
+        "content.delete",
+        "content.approve",
+        "content.publish", // Make sure this exists
+        "content.comment",
+        // Analytics permissions
+        "analytics.view",
+        "analytics.export",
+        // Team permissions
+        "team.invite",
+        "team.manage",
+        // Message permissions
+        "messages.view",
+        "messages.reply",
+      ];
+
+      // Create permissions if they don't exist
+      for (const code of defaultPermissions) {
+        const existingPermission = await ctx.prisma.permission.findUnique({
+          where: { code },
+        });
+
+        if (!existingPermission) {
+          await ctx.prisma.permission.create({
+            data: { code },
+          });
+        }
+      }
+
+      // Also initialize role-permission relationships for built-in roles
+      await initializeRolePermissions(ctx);
+
+      return { success: true };
+    }
+  ),
+
+  // Get role permissions
+  getRolePermissions: requirePermission("team.manage")
+    .input(z.object({ role: z.nativeEnum(Role) }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      const rolePermissions = await ctx.prisma.rolePermission.findMany({
+        where: {
+          role: input.role,
+        },
+        include: {
+          permission: true,
+        },
+      });
+
+      return rolePermissions.map((rp) => rp.permission.code);
+    }),
 });
+
+// Helper function to initialize default role-permission relationships
+async function initializeRolePermissions(ctx: any) {
+  // Default role permissions mapping
+  const rolePermissionsMap = {
+    [Role.CAMPAIGN_MANAGER]: [
+      "content.create",
+      "content.edit",
+      "content.view",
+      "content.publish",
+      "analytics.view",
+    ],
+    [Role.CONTENT_PRODUCER]: ["content.create", "content.edit", "content.view"],
+    [Role.CONTENT_REVIEWER]: ["content.view", "content.approve"],
+    [Role.CLIENT_REVIEWER]: ["content.view", "content.comment"],
+    [Role.ANALYTICS_OBSERVER]: ["analytics.view"],
+    [Role.INBOX_AGENT]: ["messages.view", "messages.reply"],
+    // TEAM_OWNER has all permissions, will be handled separately
+  };
+
+  // Get all permissions
+  const allPermissions = await ctx.prisma.permission.findMany();
+  const permissionMap = allPermissions.reduce((map: any, perm: any) => {
+    map[perm.code] = perm.id;
+    return map;
+  }, {});
+
+  // For each role, create the default permissions if they don't exist
+  for (const [role, permissions] of Object.entries(rolePermissionsMap)) {
+    // Skip if not a valid role
+    if (!Object.values(Role).includes(role as Role)) continue;
+
+    // Check if role already has any permissions
+    const existingRolePermissions = await ctx.prisma.rolePermission.findMany({
+      where: { role: role as Role },
+    });
+
+    // If role already has permissions, skip
+    if (existingRolePermissions.length > 0) continue;
+
+    // Create role permissions
+    for (const permissionCode of permissions) {
+      const permissionId = permissionMap[permissionCode];
+      if (permissionId) {
+        await ctx.prisma.rolePermission.create({
+          data: {
+            role: role as Role,
+            permission: {
+              connect: { id: permissionId },
+            },
+          },
+        });
+      }
+    }
+  }
+
+  // Special case for TEAM_OWNER, they get all permissions
+  const teamOwnerPermissions = await ctx.prisma.rolePermission.findMany({
+    where: { role: Role.TEAM_OWNER },
+  });
+
+  if (teamOwnerPermissions.length === 0) {
+    for (const perm of allPermissions) {
+      await ctx.prisma.rolePermission.create({
+        data: {
+          role: Role.TEAM_OWNER,
+          permission: {
+            connect: { id: perm.id },
+          },
+        },
+      });
+    }
+  }
+}

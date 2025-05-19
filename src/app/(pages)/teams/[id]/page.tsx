@@ -143,34 +143,10 @@ const Page = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [rolePermissions, setRolePermissions] = useState<
     Record<string, string[]>
-  >({
-    CAMPAIGN_MANAGER: [
-      "content.create",
-      "content.edit",
-      "content.publish",
-      "analytics.view",
-    ],
-    CONTENT_PRODUCER: ["content.create", "content.edit"],
-    CONTENT_REVIEWER: ["content.view", "content.approve"],
-    CLIENT_REVIEWER: ["content.view", "content.comment"],
-    ANALYTICS_OBSERVER: ["analytics.view"],
-    INBOX_AGENT: ["messages.view", "messages.reply"],
-  });
+  >({});
   const [originalRolePermissions, setOriginalRolePermissions] = useState<
     Record<string, string[]>
-  >({
-    CAMPAIGN_MANAGER: [
-      "content.create",
-      "content.edit",
-      "content.publish",
-      "analytics.view",
-    ],
-    CONTENT_PRODUCER: ["content.create", "content.edit"],
-    CONTENT_REVIEWER: ["content.view", "content.approve"],
-    CLIENT_REVIEWER: ["content.view", "content.comment"],
-    ANALYTICS_OBSERVER: ["analytics.view"],
-    INBOX_AGENT: ["messages.view", "messages.reply"],
-  });
+  >({});
   const [isRolePermissionsSaving, setIsRolePermissionsSaving] = useState(false);
   const [currentRole, setCurrentRole] = useState("CAMPAIGN_MANAGER");
   const [isCreateRoleOpen, setIsCreateRoleOpen] = useState(false);
@@ -178,6 +154,7 @@ const Page = () => {
   const [newRoleDescription, setNewRoleDescription] = useState("");
   const [newRolePermissions, setNewRolePermissions] = useState<string[]>([]);
   const [isCreatingRole, setIsCreatingRole] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
   // tRPC queries
@@ -300,7 +277,59 @@ const Page = () => {
     },
   });
 
-  // Available permissions
+  // Get custom roles from API
+  const { data: customRoles, isLoading: isLoadingCustomRoles } =
+    trpc.team.getCustomRoles.useQuery(
+      { teamId: teamId as string },
+      {
+        enabled: !!teamId && team?.role === "TEAM_OWNER",
+      }
+    );
+
+  // Get available permissions from API
+  const { data: availablePermissionsData } =
+    trpc.team.getAvailablePermissions.useQuery(undefined, {
+      enabled: !!teamId && team?.role === "TEAM_OWNER",
+    });
+
+  // Create custom role mutation
+  const createCustomRoleMutation = trpc.team.createCustomRole.useMutation({
+    onSuccess: () => {
+      toast.success("Custom role created successfully");
+      utils.team.getCustomRoles.invalidate({ teamId: teamId as string });
+      setIsCreateRoleOpen(false);
+      setNewRoleName("");
+      setNewRoleDescription("");
+      setNewRolePermissions([]);
+    },
+    onError: (error: TRPCClientErrorLike<any>) => {
+      toast.error(error.message || "Failed to create custom role");
+    },
+  });
+
+  // Update custom role mutation
+  const updateCustomRoleMutation = trpc.team.updateCustomRole.useMutation({
+    onSuccess: () => {
+      toast.success("Role permissions updated successfully");
+      utils.team.getCustomRoles.invalidate({ teamId: teamId as string });
+    },
+    onError: (error: TRPCClientErrorLike<any>) => {
+      toast.error(error.message || "Failed to update role permissions");
+    },
+  });
+
+  // Delete custom role mutation
+  const deleteCustomRoleMutation = trpc.team.deleteCustomRole.useMutation({
+    onSuccess: () => {
+      toast.success("Role deleted successfully");
+      utils.team.getCustomRoles.invalidate({ teamId: teamId as string });
+    },
+    onError: (error: TRPCClientErrorLike<any>) => {
+      toast.error(error.message || "Failed to delete role");
+    },
+  });
+
+  // Available permissions fallback
   const availablePermissions = [
     {
       id: "content.create",
@@ -365,14 +394,72 @@ const Page = () => {
   ];
 
   // Role descriptions
-  const roleDescriptions = {
+  const roleDescriptions: Record<string, string> = {
     CAMPAIGN_MANAGER: "Manages campaigns and has broad permissions",
     CONTENT_PRODUCER: "Creates and edits content",
     CONTENT_REVIEWER: "Reviews and approves content",
     CLIENT_REVIEWER: "Views and provides feedback on content",
     ANALYTICS_OBSERVER: "Views analytics and performance data",
     INBOX_AGENT: "Manages incoming messages and comments",
-  } as Record<string, string>;
+  };
+
+  // Format permissions data from the API
+  const formattedPermissions = React.useMemo(() => {
+    if (!availablePermissionsData) return [];
+
+    return availablePermissionsData.map((p: { code: string }) => ({
+      id: p.code,
+      name: p.code
+        .split(".")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+      description: `Can ${p.code.split(".")[1] || ""} ${p.code.split(".")[0] || ""}`,
+    }));
+  }, [availablePermissionsData]);
+
+  // Combined permissions and roles
+  const allPermissions =
+    formattedPermissions.length > 0
+      ? formattedPermissions
+      : availablePermissions;
+
+  // Combined role permissions data (built-in + custom)
+  const combinedRolePermissions = React.useMemo(() => {
+    const combined = { ...rolePermissions };
+
+    // Remove TEAM_OWNER role as it should not be editable
+    if (combined["TEAM_OWNER"]) {
+      delete combined["TEAM_OWNER"];
+    }
+
+    if (customRoles) {
+      customRoles.forEach((role: { name: string; permissions: string[] }) => {
+        combined[role.name] = role.permissions;
+      });
+    }
+
+    return combined;
+  }, [rolePermissions, customRoles]);
+
+  // Combined role descriptions
+  const combinedRoleDescriptions = React.useMemo(() => {
+    const combined = { ...roleDescriptions };
+
+    // Remove TEAM_OWNER role as it should not be editable
+    if (combined["TEAM_OWNER"]) {
+      delete combined["TEAM_OWNER"];
+    }
+
+    if (customRoles) {
+      customRoles.forEach(
+        (role: { name: string; description: string | null }) => {
+          combined[role.name] = role.description || "";
+        }
+      );
+    }
+
+    return combined;
+  }, [roleDescriptions, customRoles]);
 
   // Use effect to update form when team data changes
   useEffect(() => {
@@ -415,6 +502,178 @@ const Page = () => {
         originalFormData.notifications.contentReviewed
     );
   }, [teamFormData.notifications, originalFormData.notifications]);
+
+  // Initialize permissions
+  const { data: initializedPermissions } =
+    trpc.team.initializePermissions.useQuery(undefined, {
+      enabled: !!teamId && team?.role === "TEAM_OWNER",
+      staleTime: Infinity, // Only need to run once
+    });
+
+  // Get role permissions queries for each built-in role
+  const teamOwnerPermissions = trpc.team.getRolePermissions.useQuery(
+    { role: "TEAM_OWNER" as Role },
+    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
+  );
+
+  const campaignManagerPermissions = trpc.team.getRolePermissions.useQuery(
+    { role: "CAMPAIGN_MANAGER" as Role },
+    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
+  );
+
+  const contentProducerPermissions = trpc.team.getRolePermissions.useQuery(
+    { role: "CONTENT_PRODUCER" as Role },
+    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
+  );
+
+  const contentReviewerPermissions = trpc.team.getRolePermissions.useQuery(
+    { role: "CONTENT_REVIEWER" as Role },
+    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
+  );
+
+  const clientReviewerPermissions = trpc.team.getRolePermissions.useQuery(
+    { role: "CLIENT_REVIEWER" as Role },
+    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
+  );
+
+  const analyticsObserverPermissions = trpc.team.getRolePermissions.useQuery(
+    { role: "ANALYTICS_OBSERVER" as Role },
+    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
+  );
+
+  const inboxAgentPermissions = trpc.team.getRolePermissions.useQuery(
+    { role: "INBOX_AGENT" as Role },
+    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
+  );
+
+  // Update built-in role permissions mutation
+  const updateBuiltInRoleMutation = trpc.team.updateRolePermissions.useMutation(
+    {
+      onSuccess: () => {
+        toast.success("Role permissions updated successfully");
+        // Refresh the data
+        utils.team.getRolePermissions.invalidate();
+      },
+      onError: (error: TRPCClientErrorLike<any>) => {
+        toast.error(error.message || "Failed to update role permissions");
+      },
+    }
+  );
+
+  // Update role permissions from queries
+  useEffect(() => {
+    if (team?.role === "TEAM_OWNER" && initializedPermissions) {
+      const updatedRolePermissions = { ...rolePermissions };
+
+      // Skip TEAM_OWNER permissions as it should not be editable
+
+      if (campaignManagerPermissions.data) {
+        updatedRolePermissions["CAMPAIGN_MANAGER"] =
+          campaignManagerPermissions.data;
+      }
+
+      if (contentProducerPermissions.data) {
+        updatedRolePermissions["CONTENT_PRODUCER"] =
+          contentProducerPermissions.data;
+      }
+
+      if (contentReviewerPermissions.data) {
+        updatedRolePermissions["CONTENT_REVIEWER"] =
+          contentReviewerPermissions.data;
+      }
+
+      if (clientReviewerPermissions.data) {
+        updatedRolePermissions["CLIENT_REVIEWER"] =
+          clientReviewerPermissions.data;
+      }
+
+      if (analyticsObserverPermissions.data) {
+        updatedRolePermissions["ANALYTICS_OBSERVER"] =
+          analyticsObserverPermissions.data;
+      }
+
+      if (inboxAgentPermissions.data) {
+        updatedRolePermissions["INBOX_AGENT"] = inboxAgentPermissions.data;
+      }
+
+      if (Object.keys(updatedRolePermissions).length > 0) {
+        setRolePermissions(updatedRolePermissions);
+        setOriginalRolePermissions(updatedRolePermissions);
+      }
+    }
+  }, [
+    team,
+    initializedPermissions,
+    // Skip teamOwnerPermissions.data from dependency array
+    campaignManagerPermissions.data,
+    contentProducerPermissions.data,
+    contentReviewerPermissions.data,
+    clientReviewerPermissions.data,
+    analyticsObserverPermissions.data,
+    inboxAgentPermissions.data,
+  ]);
+
+  // Define permission hierarchy
+  const permissionHierarchy: Record<string, string[]> = {
+    // Team hierarchy
+    "team.manage": ["team.invite", "team.viewInvites", "team.view_members"],
+
+    // Content hierarchy
+    "content.edit": ["content.create", "content.view"],
+    "content.approve": ["content.view", "content.comment"],
+    "content.publish": ["content.view", "content.approve"],
+    "content.delete": ["content.view"],
+
+    // Media hierarchy
+    "media.edit": ["media.view"],
+    "media.delete": ["media.view"],
+    "media.copy": ["media.view"],
+    "media.upload": ["media.view"],
+
+    // Schedule hierarchy
+    "schedule.create": ["schedule.view"],
+    "schedule.reschedule": ["schedule.view"],
+    "schedule.unschedule": ["schedule.view"],
+
+    // Analytics hierarchy
+    "analytics.export": ["analytics.view"],
+
+    // Inbox hierarchy
+    "inbox.reply": ["inbox.view"],
+    "inbox.assign": ["inbox.view"],
+
+    // Messages hierarchy
+    "messages.reply": ["messages.view"],
+  };
+
+  // Helper function to check if the user has a specific permission
+  const hasPermission = (permission: string) => {
+    // TEAM_OWNER has all permissions
+    if (team?.role === "TEAM_OWNER") {
+      return true;
+    }
+
+    const userPermissions = combinedRolePermissions[team?.role as string] || [];
+
+    // Direct permission check
+    if (userPermissions.includes(permission)) {
+      return true;
+    }
+
+    // Check if user has a higher permission that includes this one
+    for (const [higherPerm, includedPerms] of Object.entries(
+      permissionHierarchy
+    )) {
+      if (
+        userPermissions.includes(higherPerm) &&
+        includedPerms.includes(permission)
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  };
 
   // Handlers
   const handleAddMember = async (values: {
@@ -532,15 +791,46 @@ const Page = () => {
   const handleSaveRolePermissions = async () => {
     try {
       setIsRolePermissionsSaving(true);
-      // Would implement API call here
-      toast.success("Role permissions updated successfully");
-      // Simulated delay for demonstration
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      // After successful save, update the original permissions
-      setOriginalRolePermissions({ ...rolePermissions });
+
+      // Check if this is a custom role or a built-in role
+      const isCustomRole = customRoles?.some(
+        (r: { name: string }) => r.name === currentRole
+      );
+
+      if (isCustomRole) {
+        // Find the role ID
+        const roleId = customRoles?.find(
+          (r: { name: string }) => r.name === currentRole
+        )?.id;
+
+        if (roleId) {
+          // Update custom role
+          await updateCustomRoleMutation.mutateAsync({
+            teamId: teamId as string,
+            roleId,
+            displayName: currentRole.replace(/_/g, " "),
+            description: combinedRoleDescriptions[currentRole],
+            permissions: combinedRolePermissions[currentRole],
+          });
+        }
+      } else {
+        // For built-in roles
+        // Check if the role is a valid built-in role
+        if (Object.values(Role).includes(currentRole as Role)) {
+          await updateBuiltInRoleMutation.mutateAsync({
+            teamId: teamId as string,
+            role: currentRole as Role,
+            permissions: combinedRolePermissions[currentRole],
+          });
+        } else {
+          toast.error("Invalid role");
+        }
+      }
+
+      // Update original permissions after save
+      setOriginalRolePermissions({ ...combinedRolePermissions });
     } catch (error) {
       console.error("Error updating role permissions:", error);
-      toast.error("Failed to update role permissions");
     } finally {
       setIsRolePermissionsSaving(false);
     }
@@ -603,44 +893,24 @@ const Page = () => {
         .replace(/\s+/g, "_");
 
       // Check if role already exists
-      if (rolePermissions[formattedRoleName]) {
+      if (combinedRolePermissions[formattedRoleName]) {
         toast.error("A role with this name already exists");
         return;
       }
 
-      // Would implement API call here
-      // For now, we'll just update the state
+      // Create the role in the database
+      createCustomRoleMutation.mutate({
+        teamId: teamId as string,
+        name: formattedRoleName,
+        displayName: newRoleName.trim(),
+        description: newRoleDescription,
+        permissions: newRolePermissions,
+      });
 
-      // Update role permissions
-      const updatedRolePermissions = {
-        ...rolePermissions,
-        [formattedRoleName]: newRolePermissions,
-      };
-
-      // Update role descriptions
-      roleDescriptions[formattedRoleName] = newRoleDescription;
-
-      // Update state
-      setRolePermissions(updatedRolePermissions);
-      setOriginalRolePermissions(updatedRolePermissions);
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Reset form and close dialog
-      setNewRoleName("");
-      setNewRoleDescription("");
-      setNewRolePermissions([]);
-      setIsCreateRoleOpen(false);
-
-      // Show success message
-      toast.success("Custom role created successfully");
-
-      // Set current role to the newly created one
+      // Set current role to the newly created one after successful creation
       setCurrentRole(formattedRoleName);
     } catch (error) {
       console.error("Error creating custom role:", error);
-      toast.error("Failed to create custom role");
     } finally {
       setIsCreatingRole(false);
     }
@@ -654,6 +924,29 @@ const Page = () => {
         return [...prev, permission];
       }
     });
+  };
+
+  const handleDeleteCustomRole = async (roleName: string) => {
+    const customRole = customRoles?.find(
+      (r: { name: string; id: string }) => r.name === roleName
+    );
+
+    if (!customRole) {
+      toast.error("Cannot delete built-in roles");
+      return;
+    }
+
+    try {
+      await deleteCustomRoleMutation.mutateAsync({
+        teamId: teamId as string,
+        roleId: customRole.id,
+      });
+
+      // Set current role to a default one
+      setCurrentRole("CAMPAIGN_MANAGER");
+    } catch (error) {
+      console.error("Error deleting custom role:", error);
+    }
   };
 
   const renderPlatformIcon = (platform: SocialPlatform) => {
@@ -780,7 +1073,7 @@ const Page = () => {
             <h1 className="text-3xl font-bold">{team.name}</h1>
             <p className="text-muted-foreground">{team.description}</p>
           </div>
-          {team.role === "TEAM_OWNER" && (
+          {hasPermission("team.invite") && (
             <AddMemberModal teams={team} onAddMember={handleAddMember} />
           )}
         </div>
@@ -796,19 +1089,19 @@ const Page = () => {
             <Users className="h-4 w-4 mr-2" />
             Social Accounts
           </TabsTrigger>
-          {team.role === "TEAM_OWNER" && (
+          {hasPermission("team.viewInvites") && (
             <TabsTrigger value="invites">
               <Mail className="h-4 w-4 mr-2" />
               Pending Invites
             </TabsTrigger>
           )}
-          {team.role === "TEAM_OWNER" && (
+          {hasPermission("team.manage") && (
             <TabsTrigger value="roles">
               <Settings className="h-4 w-4 mr-2" />
               Manage Roles
             </TabsTrigger>
           )}
-          {team.role === "TEAM_OWNER" && (
+          {hasPermission("team.manage") && (
             <TabsTrigger value="settings">
               <Settings className="h-4 w-4 mr-2" />
               Team Settings
@@ -1077,7 +1370,7 @@ const Page = () => {
                         </div>
                       </div>
 
-                      {team.role === "TEAM_OWNER" && (
+                      {hasPermission("social.connect") && (
                         <div className="flex items-center gap-2">
                           <Button
                             variant="outline"
@@ -1101,7 +1394,7 @@ const Page = () => {
                 </div>
               )}
 
-              {team.role === "TEAM_OWNER" && (
+              {hasPermission("social.connect") && (
                 <div className="mt-6">
                   <Dialog
                     open={isAddAccountOpen}
@@ -1147,7 +1440,7 @@ const Page = () => {
           </Card>
         </TabsContent>
 
-        {team.role === "TEAM_OWNER" && (
+        {hasPermission("team.viewInvites") && (
           <TabsContent value="invites">
             <Card>
               <CardHeader>
@@ -1213,7 +1506,7 @@ const Page = () => {
           </TabsContent>
         )}
 
-        {team.role === "TEAM_OWNER" && (
+        {hasPermission("team.manage") && (
           <TabsContent value="roles">
             <Card>
               <CardHeader>
@@ -1247,7 +1540,7 @@ const Page = () => {
                     value={currentRole}
                   >
                     <TabsList className="w-full justify-start overflow-auto">
-                      {Object.keys(rolePermissions).map((role) => (
+                      {Object.keys(combinedRolePermissions).map((role) => (
                         <TabsTrigger
                           key={role}
                           value={role}
@@ -1259,20 +1552,37 @@ const Page = () => {
                     </TabsList>
 
                     {/* Permission tables for each role */}
-                    {Object.keys(rolePermissions).map((role) => (
+                    {Object.keys(combinedRolePermissions).map((role) => (
                       <TabsContent key={role} value={role} className="mt-6">
                         <div className="flex flex-col gap-6">
-                          <div>
-                            <h3 className="text-lg font-medium">
-                              {role.replace("_", " ").replace(/_/g, " ")}
-                            </h3>
-                            <p className="text-sm text-muted-foreground">
-                              {
-                                roleDescriptions[
-                                  role as keyof typeof roleDescriptions
-                                ]
-                              }
-                            </p>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="text-lg font-medium">
+                                {role.replace("_", " ").replace(/_/g, " ")}
+                              </h3>
+                              <p className="text-sm text-muted-foreground">
+                                {
+                                  combinedRoleDescriptions[
+                                    role as keyof typeof combinedRoleDescriptions
+                                  ]
+                                }
+                              </p>
+                            </div>
+
+                            {/* Delete button for custom roles */}
+                            {customRoles?.some(
+                              (r: { name: string }) => r.name === role
+                            ) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-destructive"
+                                onClick={() => handleDeleteCustomRole(role)}
+                              >
+                                <Trash className="h-4 w-4 mr-2" />
+                                Delete Role
+                              </Button>
+                            )}
                           </div>
 
                           <div className="border rounded-md">
@@ -1291,7 +1601,7 @@ const Page = () => {
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {availablePermissions.map((permission) => (
+                                {allPermissions.map((permission) => (
                                   <TableRow key={permission.id}>
                                     <TableCell className="font-medium">
                                       {permission.name}
@@ -1301,9 +1611,9 @@ const Page = () => {
                                     </TableCell>
                                     <TableCell className="text-center">
                                       <Switch
-                                        checked={rolePermissions[role].includes(
-                                          permission.id
-                                        )}
+                                        checked={combinedRolePermissions[
+                                          role
+                                        ].includes(permission.id)}
                                         onCheckedChange={() =>
                                           handleTogglePermission(
                                             role,
@@ -1341,7 +1651,7 @@ const Page = () => {
           </TabsContent>
         )}
 
-        {team.role === "TEAM_OWNER" && (
+        {hasPermission("team.manage") && (
           <TabsContent value="settings">
             <Card>
               <CardHeader>
