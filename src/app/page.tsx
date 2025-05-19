@@ -1,103 +1,248 @@
 import Image from "next/image";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Calendar, CheckCircle, Clock, Users, ImageIcon } from "lucide-react";
 
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="flex flex-col min-h-screen">
+      {/* Hero Section */}
+      <section className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white py-20">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-10">
+            <div className="md:w-1/2 space-y-6">
+              <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
+                Manage Your Social Media Content{" "}
+                <span className="text-yellow-300">Effortlessly</span>
+              </h1>
+              <p className="text-lg md:text-xl opacity-90">
+                Schedule, collaborate, and publish your content across multiple
+                platforms with our powerful social media management tool.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                <Link href="/sign-up">
+                  <Button
+                    size="lg"
+                    className="w-full sm:w-auto bg-white text-blue-700 hover:bg-blue-50"
+                  >
+                    Get Started Free
+                  </Button>
+                </Link>
+                <Link href="/sign-in">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="w-full sm:w-auto border-white text-white hover:bg-white/10"
+                  >
+                    Sign In
+                  </Button>
+                </Link>
+              </div>
+            </div>
+            <div className="md:w-1/2">
+              <div className="relative w-full h-[400px]">
+                <Image
+                  src="/dashboard-preview.png"
+                  alt="Dashboard Preview"
+                  fill
+                  className="object-contain rounded-lg shadow-2xl"
+                  priority
+                />
+              </div>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+      </section>
+
+      {/* Features Section */}
+      <section className="py-20 bg-gray-50 dark:bg-gray-900">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Powerful Features for Teams
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+              Everything you need to streamline your social media workflow
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <FeatureCard
+              icon={<Calendar className="h-10 w-10 text-blue-600" />}
+              title="Content Calendar"
+              description="Plan and visualize your content strategy with an intuitive drag-and-drop calendar interface."
+            />
+            <FeatureCard
+              icon={<Clock className="h-10 w-10 text-blue-600" />}
+              title="Auto Scheduling"
+              description="Let our AI find the optimal posting times based on your audience's activity patterns."
+            />
+            <FeatureCard
+              icon={<Users className="h-10 w-10 text-blue-600" />}
+              title="Team Collaboration"
+              description="Work seamlessly with your team with customizable roles and permissions."
+            />
+            <FeatureCard
+              icon={<CheckCircle className="h-10 w-10 text-blue-600" />}
+              title="Approval Workflow"
+              description="Streamline content approval process with custom review stages."
+            />
+            <FeatureCard
+              icon={<ImageIcon className="h-10 w-10 text-blue-600" />}
+              title="Media Library"
+              description="Organize and reuse your media assets with our powerful media management system."
+            />
+            <FeatureCard
+              icon={<Clock className="h-10 w-10 text-blue-600" />}
+              title="Cross-Platform Publishing"
+              description="Publish to multiple social networks from a single dashboard."
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 bg-blue-600 text-white">
+        <div className="container mx-auto px-4 md:px-6 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-6">
+            Ready to Transform Your Social Media Strategy?
+          </h2>
+          <p className="text-xl mb-8 max-w-3xl mx-auto opacity-90">
+            Join thousands of teams that trust our platform for their social
+            media management needs.
+          </p>
+          <Link href="/sign-up">
+            <Button
+              size="lg"
+              className="bg-white text-blue-700 hover:bg-blue-50"
+            >
+              Start Your Free Trial
+            </Button>
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-12">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            <div>
+              <h3 className="font-semibold mb-4">Product</h3>
+              <ul className="space-y-2">
+                <li>
+                  <Link href="#" className="text-gray-400 hover:text-white">
+                    Features
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-gray-400 hover:text-white">
+                    Pricing
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-gray-400 hover:text-white">
+                    Integrations
+                  </Link>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Company</h3>
+              <ul className="space-y-2">
+                <li>
+                  <Link href="#" className="text-gray-400 hover:text-white">
+                    About
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-gray-400 hover:text-white">
+                    Blog
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-gray-400 hover:text-white">
+                    Careers
+                  </Link>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Resources</h3>
+              <ul className="space-y-2">
+                <li>
+                  <Link href="#" className="text-gray-400 hover:text-white">
+                    Documentation
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-gray-400 hover:text-white">
+                    Help Center
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-gray-400 hover:text-white">
+                    Guides
+                  </Link>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Legal</h3>
+              <ul className="space-y-2">
+                <li>
+                  <Link href="#" className="text-gray-400 hover:text-white">
+                    Privacy
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-gray-400 hover:text-white">
+                    Terms
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-gray-400 hover:text-white">
+                    Security
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
+            <p className="text-gray-400">
+              © {new Date().getFullYear()} My Scheduler App. All rights
+              reserved.
+            </p>
+            <div className="flex gap-4 mt-4 md:mt-0">
+              <Link href="#" className="text-gray-400 hover:text-white">
+                <span className="sr-only">Twitter</span>
+                {/* Twitter icon would be here */}
+              </Link>
+              <Link href="#" className="text-gray-400 hover:text-white">
+                <span className="sr-only">LinkedIn</span>
+                {/* LinkedIn icon would be here */}
+              </Link>
+            </div>
+          </div>
+        </div>
       </footer>
+    </div>
+  );
+}
+
+function FeatureCard({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+      <div className="mb-4">{icon}</div>
+      <h3 className="text-xl font-semibold mb-3">{title}</h3>
+      <p className="text-gray-600 dark:text-gray-400">{description}</p>
     </div>
   );
 }

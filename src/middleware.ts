@@ -1,5 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
+// Tentukan rute publik yang tidak memerlukan autentikasi
 const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
@@ -7,11 +9,40 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhooks/clerk",
   "/api/uploadthing",
   "/api/cron/update-hashtags",
+  "/error(.*)",
+  "/legal/(.*)",
+  "/about",
+  "/contact",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  if (!isPublicRoute(req)) {
-    await auth.protect();
+  try {
+    // Cek apakah rute memerlukan autentikasi
+    if (!isPublicRoute(req)) {
+      // Protect the route and redirect unauth users to sign-in
+      await auth.protect();
+    }
+
+    // Add security headers
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-content-type-options", "nosniff");
+    requestHeaders.set("x-frame-options", "DENY");
+    requestHeaders.set("x-xss-protection", "1; mode=block");
+
+    // Continue with modified headers
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+  } catch (error) {
+    console.error("Middleware error:", error);
+
+    // Handle auth errors by redirecting to sign-in
+    const signInUrl = new URL("/sign-in", req.url);
+    signInUrl.searchParams.set("redirect_url", req.url);
+
+    return NextResponse.redirect(signInUrl);
   }
 });
 

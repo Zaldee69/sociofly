@@ -289,7 +289,8 @@ const Page = () => {
   // Get available permissions from API
   const { data: availablePermissionsData } =
     trpc.team.getAvailablePermissions.useQuery(undefined, {
-      enabled: !!teamId && team?.role === "TEAM_OWNER",
+      enabled: !!teamId,
+      retry: false,
     });
 
   // Create custom role mutation
@@ -427,9 +428,10 @@ const Page = () => {
   const combinedRolePermissions = React.useMemo(() => {
     const combined = { ...rolePermissions };
 
-    // Remove TEAM_OWNER role as it should not be editable
+    // Jangan hapus TEAM_OWNER - kita tetapkan semua izin meskipun tidak bisa diedit
     if (combined["TEAM_OWNER"]) {
-      delete combined["TEAM_OWNER"];
+      // Pastikan TEAM_OWNER memiliki semua permission yang tersedia
+      combined["TEAM_OWNER"] = allPermissions.map((p) => p.id);
     }
 
     if (customRoles) {
@@ -439,7 +441,7 @@ const Page = () => {
     }
 
     return combined;
-  }, [rolePermissions, customRoles]);
+  }, [rolePermissions, customRoles, allPermissions]);
 
   // Combined role descriptions
   const combinedRoleDescriptions = React.useMemo(() => {
@@ -509,12 +511,6 @@ const Page = () => {
       enabled: !!teamId && team?.role === "TEAM_OWNER",
       staleTime: Infinity, // Only need to run once
     });
-
-  // Get role permissions queries for each built-in role
-  const teamOwnerPermissions = trpc.team.getRolePermissions.useQuery(
-    { role: "TEAM_OWNER" as Role },
-    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
-  );
 
   const campaignManagerPermissions = trpc.team.getRolePermissions.useQuery(
     { role: "CAMPAIGN_MANAGER" as Role },
@@ -648,12 +644,20 @@ const Page = () => {
 
   // Helper function to check if the user has a specific permission
   const hasPermission = (permission: string) => {
-    // TEAM_OWNER has all permissions
-    if (team?.role === "TEAM_OWNER") {
+    // Jika role tidak tersedia (masih loading) - tampilkan UI sesuai kondisi loading
+    if (!team || !team.role) {
+      return false;
+    }
+
+    // TEAM_OWNER selalu memiliki semua permission
+    if (team.role === "TEAM_OWNER") {
       return true;
     }
 
-    const userPermissions = combinedRolePermissions[team?.role as string] || [];
+    // Dapatkan permission untuk role user
+    const userPermissions = team.role
+      ? combinedRolePermissions[team.role] || []
+      : [];
 
     // Direct permission check
     if (userPermissions.includes(permission)) {
@@ -792,6 +796,13 @@ const Page = () => {
     try {
       setIsRolePermissionsSaving(true);
 
+      // Jangan perbolehkan perubahan untuk TEAM_OWNER
+      if (currentRole === "TEAM_OWNER") {
+        toast.error("TEAM_OWNER permissions cannot be modified");
+        setIsRolePermissionsSaving(false);
+        return;
+      }
+
       // Check if this is a custom role or a built-in role
       const isCustomRole = customRoles?.some(
         (r: { name: string }) => r.name === currentRole
@@ -809,8 +820,8 @@ const Page = () => {
             teamId: teamId as string,
             roleId,
             displayName: currentRole.replace(/_/g, " "),
-            description: combinedRoleDescriptions[currentRole],
-            permissions: combinedRolePermissions[currentRole],
+            description: combinedRoleDescriptions[currentRole] || "",
+            permissions: combinedRolePermissions[currentRole] || [],
           });
         }
       } else {
@@ -820,7 +831,7 @@ const Page = () => {
           await updateBuiltInRoleMutation.mutateAsync({
             teamId: teamId as string,
             role: currentRole as Role,
-            permissions: combinedRolePermissions[currentRole],
+            permissions: combinedRolePermissions[currentRole] || [],
           });
         } else {
           toast.error("Invalid role");

@@ -787,16 +787,14 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Get all available permissions
-  getAvailablePermissions: requirePermission("team.manage").query(
-    async ({ ctx }) => {
-      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+  getAvailablePermissions: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
 
-      // Get all permissions from the database
-      const permissions = await ctx.prisma.permission.findMany();
+    // Get all permissions from the database
+    const permissions = await ctx.prisma.permission.findMany();
 
-      return permissions;
-    }
-  ),
+    return permissions;
+  }),
 
   // Create a new custom role
   createCustomRole: requirePermission("team.manage")
