@@ -82,7 +82,7 @@ export const onboardingRouter = createTRPCRouter({
               memberships: {
                 create: {
                   userId,
-                  role: "ADMIN",
+                  role: "TEAM_OWNER",
                 },
               },
             },
@@ -99,7 +99,7 @@ export const onboardingRouter = createTRPCRouter({
               memberships: {
                 create: {
                   userId,
-                  role: "ADMIN",
+                  role: "TEAM_OWNER",
                 },
               },
             },
@@ -119,7 +119,7 @@ export const onboardingRouter = createTRPCRouter({
                 data: {
                   email,
                   organizationId: organization.id,
-                  role: "EDITOR",
+                  role: "CONTENT_PRODUCER",
                 },
               });
 
@@ -127,7 +127,7 @@ export const onboardingRouter = createTRPCRouter({
               await sendInviteEmail({
                 email,
                 organizationName: organization.name,
-                role: "EDITOR",
+                role: "CONTENT_PRODUCER",
               });
             } catch (error) {
               console.error(`Error processing team member ${email}:`, error);
@@ -212,6 +212,8 @@ export const onboardingRouter = createTRPCRouter({
           message: "User not authenticated",
         });
       }
+
+      console.log("input.organizationId", input.organizationId);
 
       const socialAccounts = await ctx.prisma.socialAccount.findMany({
         where: {

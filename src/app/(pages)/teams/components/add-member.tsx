@@ -96,7 +96,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
-      role: "ADMIN",
+      role: "CONTENT_PRODUCER",
       team: teams.name,
       teamId: teams.id,
       message: "",
@@ -171,9 +171,42 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
                           <SelectValue placeholder="Pilih Role" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="ADMIN">Admin</SelectItem>
-                          <SelectItem value="EDITOR">Editor</SelectItem>
-                          <SelectItem value="VIEWER">Viewer</SelectItem>
+                          {[
+                            {
+                              label: "Campaign Manager",
+                              value: "CAMPAIGN_MANAGER",
+                              description: "Manage campaigns and content",
+                            },
+                            {
+                              label: "Content Producer",
+                              value: "CONTENT_PRODUCER",
+                              description: "Create and manage content",
+                            },
+                            {
+                              label: "Client Reviewer",
+                              value: "CLIENT_REVIEWER",
+                              description: "Review content and approve/reject",
+                            },
+                            {
+                              label: "Analytics Observer",
+                              value: "ANALYTICS_OBSERVER",
+                              description: "View analytics and reports",
+                            },
+                            {
+                              label: "Inbox Agent",
+                              value: "INBOX_AGENT",
+                              description: "Manage inbox and replies",
+                            },
+                            {
+                              label: "Content Reviewer",
+                              value: "CONTENT_REVIEWER",
+                              description: "Review content and approve/reject",
+                            },
+                          ].map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </FormControl>

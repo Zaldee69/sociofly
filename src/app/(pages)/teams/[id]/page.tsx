@@ -116,7 +116,7 @@ const Page = () => {
     trpc.team.getTeamInvites.useQuery(
       { teamId: teamId as string },
       {
-        enabled: !!teamId && team?.role === "ADMIN",
+        enabled: !!teamId && team?.role === "TEAM_OWNER",
       }
     );
 
@@ -125,7 +125,7 @@ const Page = () => {
     trpc.team.getSocialAccounts.useQuery(
       { teamId: teamId as string },
       {
-        enabled: !!teamId && team?.role === "ADMIN",
+        enabled: !!teamId && team?.role === "TEAM_OWNER",
       }
     );
 
@@ -133,7 +133,7 @@ const Page = () => {
     trpc.team.getAvailableSocialAccounts.useQuery(
       { teamId: teamId as string },
       {
-        enabled: !!teamId && team?.role === "ADMIN",
+        enabled: !!teamId && team?.role === "TEAM_OWNER",
       }
     );
 
@@ -184,7 +184,15 @@ const Page = () => {
         {
           email: values.email,
           teamId: values.teamId || (teamId as string),
-          role: values.role as Role,
+          role: (values.role === "TEAM_OWNER"
+            ? "CAMPAIGN_MANAGER"
+            : values.role) as
+            | "CAMPAIGN_MANAGER"
+            | "CONTENT_PRODUCER"
+            | "CONTENT_REVIEWER"
+            | "CLIENT_REVIEWER"
+            | "ANALYTICS_OBSERVER"
+            | "INBOX_AGENT",
           name: values.team || "",
         },
         {
@@ -298,15 +306,20 @@ const Page = () => {
     }
   };
 
-  // Get role badge
   const getRoleBadge = (role: Role) => {
     switch (role) {
-      case "ADMIN":
-        return <Badge className="bg-purple-600">Admin</Badge>;
-      case "EDITOR":
-        return <Badge className="bg-blue-600">Editor</Badge>;
-      case "VIEWER":
-        return <Badge variant="secondary">Viewer</Badge>;
+      case "TEAM_OWNER":
+        return <Badge className="bg-purple-600">Team Owner</Badge>;
+      case "CAMPAIGN_MANAGER":
+        return <Badge className="bg-blue-600">Campaign Manager</Badge>;
+      case "CONTENT_PRODUCER":
+        return <Badge variant="secondary">Content Producer</Badge>;
+      case "CONTENT_REVIEWER":
+        return <Badge variant="secondary">Content Reviewer</Badge>;
+      case "CLIENT_REVIEWER":
+        return <Badge variant="secondary">Client Reviewer</Badge>;
+      case "ANALYTICS_OBSERVER":
+        return <Badge variant="secondary">Analytics Observer</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
     }
@@ -329,7 +342,7 @@ const Page = () => {
             <h1 className="text-3xl font-bold">{team.name}</h1>
             <p className="text-muted-foreground">{team.description}</p>
           </div>
-          {team.role === "ADMIN" && (
+          {team.role === "TEAM_OWNER" && (
             <AddMemberModal teams={team} onAddMember={handleAddMember} />
           )}
         </div>
@@ -345,13 +358,13 @@ const Page = () => {
             <Users className="h-4 w-4 mr-2" />
             Social Accounts
           </TabsTrigger>
-          {team.role === "ADMIN" && (
+          {team.role === "TEAM_OWNER" && (
             <TabsTrigger value="invites">
               <Mail className="h-4 w-4 mr-2" />
               Pending Invites
             </TabsTrigger>
           )}
-          {team.role === "ADMIN" && (
+          {team.role === "TEAM_OWNER" && (
             <TabsTrigger value="settings">
               <Settings className="h-4 w-4 mr-2" />
               Team Settings
@@ -390,7 +403,7 @@ const Page = () => {
                     <TableHead>Role</TableHead>
                     <TableHead>Last Active</TableHead>
                     <TableHead>Status</TableHead>
-                    {team.role === "ADMIN" && (
+                    {team.role === "TEAM_OWNER" && (
                       <TableHead className="text-right">Actions</TableHead>
                     )}
                   </TableRow>
@@ -420,18 +433,19 @@ const Page = () => {
                           member.status as "ACTIVE" | "INACTIVE" | "SUSPENDED"
                         )}
                       </TableCell>
-                      {team.role === "ADMIN" && member.role !== "ADMIN" && (
-                        <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled
-                            title="Role management coming soon"
-                          >
-                            Manage Role
-                          </Button>
-                        </TableCell>
-                      )}
+                      {team.role === "TEAM_OWNER" &&
+                        member.role !== "TEAM_OWNER" && (
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled
+                              title="Role management coming soon"
+                            >
+                              Manage Role
+                            </Button>
+                          </TableCell>
+                        )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -509,7 +523,7 @@ const Page = () => {
                 </div>
               )}
 
-              {team.role === "ADMIN" && (
+              {team.role === "TEAM_OWNER" && (
                 <div className="mt-6">
                   <Dialog
                     open={isAddAccountOpen}
@@ -555,7 +569,7 @@ const Page = () => {
           </Card>
         </TabsContent>
 
-        {team.role === "ADMIN" && (
+        {team.role === "TEAM_OWNER" && (
           <TabsContent value="invites">
             <Card>
               <CardHeader>
@@ -621,7 +635,7 @@ const Page = () => {
           </TabsContent>
         )}
 
-        {team.role === "ADMIN" && (
+        {team.role === "TEAM_OWNER" && (
           <TabsContent value="settings">
             <Card>
               <CardHeader>

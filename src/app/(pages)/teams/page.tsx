@@ -45,12 +45,18 @@ const TeamManagement = () => {
   // Get role badge
   const getRoleBadge = (role: Role) => {
     switch (role) {
-      case "ADMIN":
-        return <Badge className="bg-purple-600">Admin</Badge>;
-      case "EDITOR":
-        return <Badge className="bg-blue-600">Editor</Badge>;
-      case "VIEWER":
-        return <Badge variant="secondary">Viewer</Badge>;
+      case "TEAM_OWNER":
+        return <Badge className="bg-purple-600">Team Owner</Badge>;
+      case "CAMPAIGN_MANAGER":
+        return <Badge className="bg-blue-600">Campaign Manager</Badge>;
+      case "CONTENT_PRODUCER":
+        return <Badge variant="secondary">Content Producer</Badge>;
+      case "CONTENT_REVIEWER":
+        return <Badge variant="secondary">Content Reviewer</Badge>;
+      case "CLIENT_REVIEWER":
+        return <Badge variant="secondary">Client Reviewer</Badge>;
+      case "ANALYTICS_OBSERVER":
+        return <Badge variant="secondary">Analytics Observer</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
     }
@@ -92,7 +98,7 @@ const TeamManagement = () => {
                 <span>{team.memberCount} members</span>
               </div>
 
-              {team.role === "ADMIN" ? (
+              {team.role === "TEAM_OWNER" ? (
                 <Button
                   onClick={() => handleManageTeam(team.id)}
                   className="w-full"

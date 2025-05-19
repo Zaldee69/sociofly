@@ -46,10 +46,43 @@ export const FileUploadArea = ({
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
+  const [previewFadeOut, setPreviewFadeOut] = useState(false);
 
   const { startUpload } = useUploadThing("mediaUploader", {
     onClientUploadComplete: async (res) => {
       if (!res) return;
+
+      // Check for error in the server response data
+      const hasError = res.some(
+        (file) =>
+          "serverData" in file &&
+          file.serverData &&
+          typeof file.serverData === "object" &&
+          "error" in file.serverData
+      );
+      if (hasError) {
+        const errorFile = res.find(
+          (file) =>
+            "serverData" in file &&
+            file.serverData &&
+            typeof file.serverData === "object" &&
+            "error" in file.serverData
+        );
+        const errorMessage = errorFile?.serverData?.error || "Upload gagal";
+
+        setFiles((prevFiles) =>
+          prevFiles.map((file) => ({
+            ...file,
+            isUploading: false,
+          }))
+        );
+        setIsUploading(false);
+        setUploadingFiles(new Set());
+
+        toast.error(errorMessage as string);
+        onUploadError?.();
+        return;
+      }
 
       // Update files with upload status
       setFiles((prevFiles) =>
@@ -81,7 +114,22 @@ export const FileUploadArea = ({
       setUploadingFiles(new Set());
 
       console.error("Upload error:", error);
-      toast.error("Gagal mengupload file");
+
+      // Tampilkan pesan error yang lebih spesifik
+      if (error.message?.includes("Not authorized")) {
+        toast.error(
+          "Anda tidak memiliki izin untuk mengupload media di organisasi ini"
+        );
+      } else if (error.message?.includes("Failed to run middleware")) {
+        toast.error(
+          "Gagal menjalankan proses upload. Periksa koneksi atau izin Anda"
+        );
+      } else {
+        toast.error(
+          `Gagal mengupload file: ${error.message || "Unknown error"}`
+        );
+      }
+
       onUploadError?.();
     },
     onUploadBegin: (fileName: string) => {
@@ -145,7 +193,7 @@ export const FileUploadArea = ({
 
   const handleUpload = useCallback(async () => {
     if (!selectedOrganization) {
-      toast.error("Please select an organization first");
+      toast.error("Silakan pilih organisasi terlebih dahulu");
       return;
     }
 
@@ -157,11 +205,27 @@ export const FileUploadArea = ({
         filesToUpload.map((f) => f.file!),
         { organizationId: selectedOrganization.id }
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error("Upload failed:", error);
-      toast.error("Failed to upload file");
+
+      // Tampilkan pesan error yang lebih spesifik
+      if (error.message?.includes("Not authorized")) {
+        toast.error(
+          "Anda tidak memiliki izin untuk mengupload media di organisasi ini"
+        );
+      } else if (error.message?.includes("Failed to run middleware")) {
+        toast.error(
+          "Gagal menjalankan proses upload. Periksa koneksi atau izin Anda"
+        );
+      } else {
+        toast.error(
+          `Gagal mengupload file: ${error.message || "Unknown error"}`
+        );
+      }
+
+      onUploadError?.();
     }
-  }, [files, startUpload, selectedOrganization]);
+  }, [files, startUpload, selectedOrganization, onUploadError]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: handleFileSelect,

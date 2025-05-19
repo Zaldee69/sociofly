@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest",
-    "seed:hashtags": "npx tsx src/scripts/seed-hashtags.ts"
+    "seed:hashtags": "npx tsx src/scripts/seed-hashtags.ts",
+    "seed:role-permission": "npx tsx src/scripts/seed-role-permission.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

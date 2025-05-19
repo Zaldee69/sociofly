@@ -7,21 +7,28 @@ import { Upload, Link, X } from "lucide-react";
 import { Button } from "./button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./dialog";
 import { Input } from "./input";
+import { toast } from "sonner";
+import { useOrganization } from "@/contexts/organization-context";
 
 interface UploadButtonProps {
   onUploadComplete?: (urls: string[]) => void;
   endpoint: keyof OurFileRouter;
   maxFiles?: number;
+  organizationId?: string;
 }
 
 export function UploadButton({
   onUploadComplete,
   endpoint,
   maxFiles = 5,
+  organizationId,
 }: UploadButtonProps) {
+  const { selectedOrganization } = useOrganization();
   const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+
+  const currentOrgId = organizationId || selectedOrganization?.id;
 
   const handleUrlSubmit = () => {
     if (urlInput && onUploadComplete) {
@@ -40,20 +47,54 @@ export function UploadButton({
     }
   };
 
+  if (!currentOrgId) {
+    return (
+      <div className="p-4 bg-yellow-50 text-yellow-800 rounded-md">
+        Silakan pilih organisasi terlebih dahulu untuk mengupload file.
+      </div>
+    );
+  }
+
   return (
     <div className="w-full space-y-4">
       <UploadDropzone<OurFileRouter, keyof OurFileRouter>
         endpoint={endpoint}
+        input={{ organizationId: currentOrgId }}
         onClientUploadComplete={(res) => {
           if (!res) return;
+
+          // Check for error in the server response data
+          const hasError = res.some(
+            (file) =>
+              "serverData" in file &&
+              file.serverData &&
+              typeof file.serverData === "object" &&
+              "error" in file.serverData
+          );
+          if (hasError) {
+            const errorFile = res.find(
+              (file) =>
+                "serverData" in file &&
+                file.serverData &&
+                typeof file.serverData === "object" &&
+                "error" in file.serverData
+            );
+            const errorMessage = errorFile?.serverData?.error || "Upload gagal";
+            toast.error(errorMessage as string);
+            return;
+          }
+
           const urls = res.map((r) => r.url);
           setUploadedFiles((prev) => [...prev, ...urls]);
           if (onUploadComplete) {
             onUploadComplete([...uploadedFiles, ...urls]);
           }
+
+          toast.success("Upload berhasil");
         }}
         onUploadError={(error: Error) => {
           console.error("Upload error:", error.message);
+          toast.error(error.message || "Gagal mengupload file");
         }}
         config={{ mode: "auto" }}
         appearance={{

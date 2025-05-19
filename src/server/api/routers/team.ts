@@ -143,7 +143,8 @@ export const teamRouter = createTRPCRouter({
         email: m.user.email,
         lastActive: m.createdAt.toISOString(),
         status: "active",
-        canManage: userMembership.role === Role.ADMIN && m.role !== Role.ADMIN,
+        canManage:
+          userMembership.role === Role.TEAM_OWNER && m.role !== Role.TEAM_OWNER,
       }));
     }),
 
@@ -166,7 +167,7 @@ export const teamRouter = createTRPCRouter({
           memberships: {
             create: {
               userId: ctx.userId,
-              role: Role.ADMIN,
+              role: Role.TEAM_OWNER,
             },
           },
         },
@@ -181,7 +182,14 @@ export const teamRouter = createTRPCRouter({
       z.object({
         email: z.string().email(),
         teamId: z.string(),
-        role: z.enum([Role.ADMIN, Role.EDITOR, Role.VIEWER]),
+        role: z.enum([
+          Role.CAMPAIGN_MANAGER,
+          Role.CONTENT_PRODUCER,
+          Role.CONTENT_REVIEWER,
+          Role.CLIENT_REVIEWER,
+          Role.ANALYTICS_OBSERVER,
+          Role.INBOX_AGENT,
+        ]),
         name: z.string(),
       })
     )
@@ -193,14 +201,14 @@ export const teamRouter = createTRPCRouter({
         where: {
           userId: ctx.userId,
           organizationId: input.teamId,
-          role: Role.ADMIN,
+          role: Role.TEAM_OWNER,
         },
       });
 
       if (!membership) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Only admins can invite members",
+          message: "Only Team Owner can invite members",
         });
       }
 
@@ -279,14 +287,14 @@ export const teamRouter = createTRPCRouter({
         where: {
           userId: ctx.userId,
           organizationId: input.teamId,
-          role: Role.ADMIN,
+          role: Role.TEAM_OWNER,
         },
       });
 
       if (!membership) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Only admins can view invites",
+          message: "Only Team Owner can view invites",
         });
       }
 
@@ -352,7 +360,7 @@ export const teamRouter = createTRPCRouter({
         where: {
           organizationId: input.teamId,
           userId: ctx.userId,
-          role: "ADMIN",
+          role: Role.TEAM_OWNER,
         },
         select: {
           id: true,
@@ -404,7 +412,7 @@ export const teamRouter = createTRPCRouter({
         where: {
           organizationId: input.teamId,
           userId: ctx.userId,
-          role: "ADMIN",
+          role: Role.TEAM_OWNER,
         },
         select: {
           id: true,
@@ -469,7 +477,7 @@ export const teamRouter = createTRPCRouter({
         where: {
           organizationId: input.teamId,
           userId: ctx.userId,
-          role: "ADMIN",
+          role: Role.TEAM_OWNER,
         },
         select: {
           id: true,

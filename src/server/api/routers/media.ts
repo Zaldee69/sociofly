@@ -1,35 +1,10 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { MediaType, Prisma, Role } from "@prisma/client";
+import { createTRPCRouter, requirePermission } from "../trpc";
+import { MediaType, Prisma } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 
-// Helper function to check if user has required role in organization
-const checkPermission = async (
-  ctx: any,
-  organizationId: string,
-  requiredRoles: Role[]
-) => {
-  const membership = await ctx.prisma.membership.findUnique({
-    where: {
-      userId_organizationId: {
-        userId: ctx.userId,
-        organizationId,
-      },
-    },
-  });
-
-  if (!membership || !requiredRoles.includes(membership.role)) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "You don't have permission to perform this action",
-    });
-  }
-
-  return membership;
-};
-
 export const mediaRouter = createTRPCRouter({
-  getAll: protectedProcedure
+  getAll: requirePermission("media.view")
     .input(
       z.object({
         filter: z.enum(["all", "images", "videos"]).default("all"),
@@ -40,17 +15,24 @@ export const mediaRouter = createTRPCRouter({
       })
     )
     .query(async ({ ctx, input }) => {
-      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
-
-      // Check if user is member of the organization
-      await checkPermission(ctx, input.organizationId, [
-        Role.ADMIN,
-        Role.EDITOR,
-        Role.VIEWER,
-      ]);
-
       const { filter, search, organizationId, page, limit } = input;
       const skip = (page - 1) * limit;
+
+      // Validate organization access
+      const userId = ctx.userId as string;
+      const membership = await ctx.prisma.membership.findFirst({
+        where: {
+          userId,
+          organizationId,
+        },
+      });
+
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have access to this organization",
+        });
+      }
 
       const where: Prisma.MediaWhereInput = {
         organizationId,
@@ -131,7 +113,7 @@ export const mediaRouter = createTRPCRouter({
       };
     }),
 
-  delete: protectedProcedure
+  delete: requirePermission("media.delete")
     .input(
       z.object({
         id: z.string(),
@@ -139,13 +121,21 @@ export const mediaRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+      // Validate organization access
+      const userId = ctx.userId as string;
+      const membership = await ctx.prisma.membership.findFirst({
+        where: {
+          userId,
+          organizationId: input.organizationId,
+        },
+      });
 
-      // Check if user has permission to delete media
-      await checkPermission(ctx, input.organizationId, [
-        Role.ADMIN,
-        Role.EDITOR,
-      ]);
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have access to this organization",
+        });
+      }
 
       const media = await ctx.prisma.media.delete({
         where: {
@@ -156,7 +146,7 @@ export const mediaRouter = createTRPCRouter({
       return media;
     }),
 
-  updateTags: protectedProcedure
+  updateTags: requirePermission("media.edit")
     .input(
       z.object({
         id: z.string(),
@@ -165,13 +155,21 @@ export const mediaRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+      // Validate organization access
+      const userId = ctx.userId as string;
+      const membership = await ctx.prisma.membership.findFirst({
+        where: {
+          userId,
+          organizationId: input.organizationId,
+        },
+      });
 
-      // Check if user has permission to update media
-      await checkPermission(ctx, input.organizationId, [
-        Role.ADMIN,
-        Role.EDITOR,
-      ]);
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have access to this organization",
+        });
+      }
 
       const media = await ctx.prisma.media.update({
         where: {
@@ -186,7 +184,7 @@ export const mediaRouter = createTRPCRouter({
     }),
 
   // New procedure to copy media to another organization
-  copyToOrganization: protectedProcedure
+  copyToOrganization: requirePermission("media.copy")
     .input(
       z.object({
         mediaId: z.string(),
@@ -195,15 +193,28 @@ export const mediaRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
-
       // Check if user has permission in both organizations
-      await checkPermission(ctx, input.sourceOrgId, [
-        Role.ADMIN,
-        Role.EDITOR,
-        Role.VIEWER,
-      ]);
-      await checkPermission(ctx, input.targetOrgId, [Role.ADMIN, Role.EDITOR]);
+      const userId = ctx.userId as string;
+      const sourceMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          userId,
+          organizationId: input.sourceOrgId,
+        },
+      });
+
+      const targetMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          userId,
+          organizationId: input.targetOrgId,
+        },
+      });
+
+      if (!sourceMembership || !targetMembership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have access to one or both organizations",
+        });
+      }
 
       // Get the source media
       const sourceMedia = await ctx.prisma.media.findUnique({
@@ -228,12 +239,55 @@ export const mediaRouter = createTRPCRouter({
           size: sourceMedia.size,
           tags: sourceMedia.tags,
           name: sourceMedia.name,
-          userId: ctx.userId,
+          userId,
           organizationId: input.targetOrgId,
           usageCount: 0,
         },
       });
 
       return newMedia;
+    }),
+
+  upload: requirePermission("media.upload")
+    .input(
+      z.object({
+        url: z.string(),
+        name: z.string(),
+        type: z.nativeEnum(MediaType),
+        size: z.number(),
+        tags: z.array(z.string()).default([]),
+        organizationId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Validate organization access
+      const userId = ctx.userId as string;
+      const membership = await ctx.prisma.membership.findFirst({
+        where: {
+          userId,
+          organizationId: input.organizationId,
+        },
+      });
+
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have access to this organization",
+        });
+      }
+
+      const media = await ctx.prisma.media.create({
+        data: {
+          url: input.url,
+          name: input.name,
+          type: input.type,
+          size: input.size,
+          tags: input.tags,
+          userId,
+          organizationId: input.organizationId,
+        },
+      });
+
+      return media;
     }),
 });

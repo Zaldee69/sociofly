@@ -61,6 +61,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         ? organizations.find((o: Organization) => o.id === storedOrgId)
         : organizations[0];
 
+      console.log("org", organizations[0].id, storedOrgId);
+
       if (org) {
         setSelectedOrganization(org);
         localStorage.setItem(STORAGE_KEY, org.id);

@@ -42,7 +42,7 @@ model Organization {
 
 model Membership {
   id             String       @id @default(cuid())
-  role           Role         @default(VIEWER)
+  role           Role         @default(CONTENT_PRODUCER)
   status         MemberStatus @default(ACTIVE)
   lastActiveAt   DateTime     @default(now())
   createdAt      DateTime     @default(now())
@@ -56,45 +56,56 @@ model Membership {
 }
 
 model SocialAccount {
-  id             String         @id @default(cuid())
+  id             String              @id @default(cuid())
   accessToken    String
   refreshToken   String?
   expiresAt      DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
   userId         String
   organizationId String
   profilePicture String?
   name           String?
   platform       SocialPlatform
   profileId      String? // Added to store platform-specific profile IDs like Instagram user ID
-  posts          Post[]
-  organization   Organization   @relation(fields: [organizationId], references: [id])
-  user           User           @relation(fields: [userId], references: [id])
+  posts          PostSocialAccount[]
+  organization   Organization        @relation(fields: [organizationId], references: [id])
+  user           User                @relation(fields: [userId], references: [id])
 }
 
 model Post {
+  id             String              @id @default(cuid())
+  content        String
+  mediaUrls      String[]
+  scheduledAt    DateTime
+  platform       String
+  status         PostStatus          @default(DRAFT)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  publishedAt    DateTime?
+  userId         String
+  organizationId String
+  socialAccounts PostSocialAccount[]
+  organization   Organization        @relation(fields: [organizationId], references: [id])
+  user           User                @relation(fields: [userId], references: [id])
+}
+
+model PostSocialAccount {
   id              String        @id @default(cuid())
-  content         String
-  mediaUrls       String[]
-  scheduledAt     DateTime
-  platform        String
-  status          PostStatus    @default(DRAFT)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  publishedAt     DateTime?
-  userId          String
-  organizationId  String
+  postId          String
   socialAccountId String
-  organization    Organization  @relation(fields: [organizationId], references: [id])
-  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
-  user            User          @relation(fields: [userId], references: [id])
+  status          PostStatus    @default(DRAFT)
+  publishedAt     DateTime?
+  post            Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, socialAccountId])
 }
 
 model Invitation {
   id             String       @id @default(cuid())
   email          String
-  role           Role         @default(VIEWER)
+  role           Role         @default(CONTENT_PRODUCER)
   organizationId String
   createdAt      DateTime     @default(now())
   acceptedAt     DateTime?
@@ -146,6 +157,21 @@ model CronLog {
   @@index([executedAt])
 }
 
+model Permission {
+  id    String           @id @default(cuid())
+  code  String           @unique // contoh: "content.create", "content.approve"
+  roles RolePermission[]
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  role         Role
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([role, permissionId])
+}
+
 enum MediaType {
   IMAGE
   VIDEO
@@ -167,9 +193,13 @@ enum SocialPlatform {
 }
 
 enum Role {
-  ADMIN
-  EDITOR
-  VIEWER
+  TEAM_OWNER
+  CAMPAIGN_MANAGER
+  CONTENT_PRODUCER
+  CONTENT_REVIEWER
+  CLIENT_REVIEWER
+  ANALYTICS_OBSERVER
+  INBOX_AGENT
 }
 
 enum PostStatus {

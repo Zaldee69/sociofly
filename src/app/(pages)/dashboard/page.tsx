@@ -212,17 +212,6 @@ const Dashboard: React.FC = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Dashboard</h1>
-        <div className="flex gap-2">
-          {/* Show compose button only for ADMIN and EDITOR roles */}
-          {(selectedRole === "ADMIN" || selectedRole === "EDITOR") && (
-            <Button asChild>
-              <Link href="/schedule-post">
-                <Plus size={16} className="mr-1" />
-                Compose
-              </Link>
-            </Button>
-          )}
-        </div>
       </div>
 
       <Card className="mb-6">

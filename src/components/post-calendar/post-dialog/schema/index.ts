@@ -1,30 +1,34 @@
 import * as z from "zod";
-import { SocialPlatform } from "@prisma/client";
+import { SocialPlatform, PostStatus } from "@prisma/client";
 
-export const eventSchema = z.object({
-  title: z.string().optional(),
-  description: z.string().optional(),
-  startDate: z.date().optional(),
-  startTime: z
-    .object({
-      hour: z.number().min(0).max(23),
-      minute: z.number().min(0).max(59),
-    })
-    .optional(),
-  endDate: z.date().optional(),
-  endTime: z
-    .object({
-      hour: z.number().min(0).max(23),
-      minute: z.number().min(0).max(59),
-    })
-    .optional(),
-  location: z.string().optional(),
-  allDay: z.boolean().optional().default(false),
-  color: z
-    .enum(["blue", "violet", "rose", "emerald", "orange"])
-    .optional()
-    .default("blue"),
-  selectedPlatforms: z.array(z.nativeEnum(SocialPlatform)).optional(),
+export enum PostAction {
+  PUBLISH_NOW = "PUBLISH_NOW",
+  SCHEDULE = "SCHEDULE",
+  SAVE_AS_DRAFT = "SAVE_AS_DRAFT",
+  REQUEST_REVIEW = "REQUEST_REVIEW",
+}
+
+// Media item type for uploadthing
+export const mediaItemSchema = z.object({
+  preview: z.string(), // URL preview
+  name: z.string(), // Original filename
+  size: z.number(), // File size
+  type: z.string(), // MIME type
+  fileId: z.string().optional(), // For stableId or file identifier
+  uploadedUrl: z.string().optional(), // For when file is uploaded to storage
 });
 
-export type EventFormValues = z.infer<typeof eventSchema>;
+export type MediaItem = z.infer<typeof mediaItemSchema>;
+
+export const postSchema = z.object({
+  content: z.string(),
+  mediaUrls: z.array(mediaItemSchema).default([]),
+  scheduledAt: z.date(),
+  status: z.nativeEnum(PostStatus).default("DRAFT"),
+  userId: z.string().optional(),
+  organizationId: z.string().optional(),
+  socialAccounts: z.array(z.string()).min(1, "Pilih minimal satu akun sosial"),
+  postAction: z.nativeEnum(PostAction).default(PostAction.PUBLISH_NOW),
+});
+
+export type PostFormValues = z.infer<typeof postSchema>;

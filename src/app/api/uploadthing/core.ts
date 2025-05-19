@@ -1,10 +1,42 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma/client"; // Note: default import
-import { MediaType } from "@prisma/client";
+import { MediaType, Role } from "@prisma/client";
 import { z } from "zod";
 
 const f = createUploadthing();
+
+// Helper function to check if user has permission
+async function hasPermission(
+  userId: string,
+  organizationId: string,
+  permissionCode: string
+): Promise<boolean> {
+  // Get user membership
+  const membership = await prisma.membership.findFirst({
+    where: {
+      userId,
+      organizationId,
+    },
+  });
+
+  if (!membership) return false;
+
+  // Special case: Team Owner has all permissions
+  if (membership.role === Role.TEAM_OWNER) {
+    return true;
+  }
+
+  // Check if the user's role has the required permission
+  const hasRequiredPermission = await prisma.rolePermission.findFirst({
+    where: {
+      role: membership.role,
+      permission: { code: permissionCode },
+    },
+  });
+
+  return !!hasRequiredPermission;
+}
 
 export const ourFileRouter = {
   mediaUploader: f({
@@ -26,23 +58,22 @@ export const ourFileRouter = {
           where: {
             clerkId: clerkUser.id,
           },
-          include: {
-            memberships: {
-              where: {
-                organizationId: input.organizationId,
-                role: {
-                  in: ["ADMIN", "EDITOR"],
-                },
-              },
-            },
-          },
         });
 
         if (!user) throw new Error("User not found");
-        if (user.memberships.length === 0)
+
+        // Check for media.upload permission
+        const canUpload = await hasPermission(
+          user.id,
+          input.organizationId,
+          "media.upload"
+        );
+
+        if (!canUpload) {
           throw new Error(
             "Not authorized to upload media in this organization"
           );
+        }
 
         return { userId: user.id, organizationId: input.organizationId };
       } catch (error) {

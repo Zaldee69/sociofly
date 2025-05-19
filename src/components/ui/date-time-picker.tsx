@@ -26,36 +26,22 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { CalendarIcon } from "lucide-react";
 import { useState, useEffect } from "react";
-
-const FormSchema = z.object({
-  time: z.date({
-    required_error: "A date and time is required.",
-  }),
-});
+import { useFormContext } from "react-hook-form";
 
 export function DateTimePicker24hForm() {
   const [minTime, setMinTime] = useState<Date>(addMinutes(new Date(), 1));
 
-  const form = useForm<z.infer<typeof FormSchema>>({
-    resolver: zodResolver(FormSchema),
-    defaultValues: {
-      time: addMinutes(new Date(), 1),
-    },
-  });
+  const form = useFormContext();
 
   // Update minimum time whenever component renders
   useEffect(() => {
     setMinTime(addMinutes(new Date(), 1));
   }, []);
 
-  function onSubmit(data: z.infer<typeof FormSchema>) {
-    toast.success(`Selected date and time: ${format(data.time, "PPPP HH:mm")}`);
-  }
-
   function handleDateSelect(date: Date | undefined) {
     if (date) {
       // Get current values
-      const currentTime = form.getValues("time") || new Date();
+      const currentTime = form.getValues("scheduledAt") || new Date();
 
       // Create new date with selected date but keep current time
       const newDate = new Date(date);
@@ -68,12 +54,18 @@ export function DateTimePicker24hForm() {
         newDate.setMinutes(minTime.getMinutes());
       }
 
-      form.setValue("time", newDate);
+      console.log("newDate", newDate);
+
+      form.setValue("scheduledAt", newDate, {
+        shouldDirty: true,
+        shouldValidate: true,
+        shouldTouch: true,
+      });
     }
   }
 
   function handleTimeChange(type: "hour" | "minute", value: string) {
-    const currentDate = form.getValues("time") || new Date();
+    const currentDate = form.getValues("scheduledAt") || new Date();
     let newDate = new Date(currentDate);
 
     if (type === "hour") {
@@ -89,18 +81,22 @@ export function DateTimePicker24hForm() {
       return;
     }
 
-    form.setValue("time", newDate);
+    form.setValue("scheduledAt", newDate, {
+      shouldDirty: true,
+      shouldValidate: true,
+      shouldTouch: true,
+    });
   }
 
   // Determine if an hour button should be disabled
   function isHourDisabled(hour: number): boolean {
-    if (!isToday(form.getValues("time"))) return false;
+    if (!isToday(form.getValues("scheduledAt"))) return false;
     return hour < minTime.getHours();
   }
 
   // Determine if a minute button should be disabled
   function isMinuteDisabled(minute: number): boolean {
-    const currentValue = form.getValues("time");
+    const currentValue = form.getValues("scheduledAt");
     if (!currentValue || !isToday(currentValue)) return false;
 
     const currentHour = currentValue.getHours();
@@ -112,107 +108,105 @@ export function DateTimePicker24hForm() {
   }
 
   return (
-    <FormField
-      control={form.control}
-      name="time"
-      render={({ field }) => (
-        <FormItem className="flex flex-col">
-          <Popover>
-            <PopoverTrigger asChild>
-              <FormControl>
-                <Button
-                  variant={"outline"}
-                  className={cn(
-                    "w-full pl-3 text-left font-normal",
-                    !field.value && "text-muted-foreground"
-                  )}
-                >
-                  {field.value ? (
-                    format(field.value, "MM/dd/yyyy HH:mm")
-                  ) : (
-                    <span>MM/DD/YYYY HH:mm</span>
-                  )}
-                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                </Button>
-              </FormControl>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <div className="sm:flex">
-                <Calendar
-                  mode="single"
-                  selected={field.value}
-                  onSelect={handleDateSelect}
-                  fromDate={new Date()}
-                  initialFocus
-                />
-                <div className="flex flex-col sm:flex-row sm:h-[300px] divide-y sm:divide-y-0 sm:divide-x">
-                  <ScrollArea className="w-64 sm:w-auto">
-                    <div className="flex sm:flex-col p-2">
-                      {Array.from({ length: 24 }, (_, i) => i)
-                        .reverse()
-                        .map((hour) => (
-                          <Button
-                            key={hour}
-                            size="icon"
-                            variant={
-                              field.value && field.value.getHours() === hour
-                                ? "default"
-                                : "ghost"
-                            }
-                            className={cn(
-                              "sm:w-full shrink-0 aspect-square",
-                              isHourDisabled(hour) &&
-                                "opacity-50 cursor-not-allowed"
-                            )}
-                            onClick={() =>
-                              !isHourDisabled(hour) &&
-                              handleTimeChange("hour", hour.toString())
-                            }
-                            disabled={isHourDisabled(hour)}
-                          >
-                            {hour}
-                          </Button>
-                        ))}
-                    </div>
-                    <ScrollBar orientation="horizontal" className="sm:hidden" />
-                  </ScrollArea>
-                  <ScrollArea className="w-64 sm:w-auto">
-                    <div className="flex sm:flex-col p-2">
-                      {Array.from({ length: 12 }, (_, i) => i * 5).map(
-                        (minute) => (
-                          <Button
-                            key={minute}
-                            size="icon"
-                            variant={
-                              field.value && field.value.getMinutes() === minute
-                                ? "default"
-                                : "ghost"
-                            }
-                            className={cn(
-                              "sm:w-full shrink-0 aspect-square",
-                              isMinuteDisabled(minute) &&
-                                "opacity-50 cursor-not-allowed"
-                            )}
-                            onClick={() =>
-                              !isMinuteDisabled(minute) &&
-                              handleTimeChange("minute", minute.toString())
-                            }
-                            disabled={isMinuteDisabled(minute)}
-                          >
-                            {minute.toString().padStart(2, "0")}
-                          </Button>
-                        )
-                      )}
-                    </div>
-                    <ScrollBar orientation="horizontal" className="sm:hidden" />
-                  </ScrollArea>
-                </div>
+    <div>
+      <Popover>
+        <PopoverTrigger asChild>
+          <FormControl>
+            <Button
+              variant={"outline"}
+              className={cn(
+                "w-full pl-3 text-left font-normal",
+                !form.getValues("scheduledAt") && "text-muted-foreground"
+              )}
+            >
+              {form.getValues("scheduledAt") ? (
+                format(form.getValues("scheduledAt"), "MM/dd/yyyy HH:mm")
+              ) : (
+                <span>MM/DD/YYYY HH:mm</span>
+              )}
+              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+            </Button>
+          </FormControl>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0">
+          <div className="sm:flex">
+            {form.formState.errors.scheduledAt && (
+              <div className="text-red-500 text-sm">
+                {form.formState.errors.scheduledAt.message?.toString()}
               </div>
-            </PopoverContent>
-          </Popover>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
+            )}
+            <Calendar
+              mode="single"
+              selected={form.getValues("scheduledAt")}
+              onSelect={handleDateSelect}
+              fromDate={new Date()}
+              initialFocus
+            />
+            <div className="flex flex-col sm:flex-row sm:h-[300px] divide-y sm:divide-y-0 sm:divide-x">
+              <ScrollArea className="w-64 sm:w-auto">
+                <div className="flex sm:flex-col p-2">
+                  {Array.from({ length: 24 }, (_, i) => i)
+                    .reverse()
+                    .map((hour) => (
+                      <Button
+                        key={hour}
+                        size="icon"
+                        variant={
+                          form.getValues("scheduledAt") &&
+                          form.getValues("scheduledAt").getHours() === hour
+                            ? "default"
+                            : "ghost"
+                        }
+                        className={cn(
+                          "sm:w-full shrink-0 aspect-square",
+                          isHourDisabled(hour) &&
+                            "opacity-50 cursor-not-allowed"
+                        )}
+                        onClick={() =>
+                          !isHourDisabled(hour) &&
+                          handleTimeChange("hour", hour.toString())
+                        }
+                        disabled={isHourDisabled(hour)}
+                      >
+                        {hour}
+                      </Button>
+                    ))}
+                </div>
+                <ScrollBar orientation="horizontal" className="sm:hidden" />
+              </ScrollArea>
+              <ScrollArea className="w-64 sm:w-auto">
+                <div className="flex sm:flex-col p-2">
+                  {Array.from({ length: 12 }, (_, i) => i * 5).map((minute) => (
+                    <Button
+                      key={minute}
+                      size="icon"
+                      variant={
+                        form.getValues("scheduledAt") &&
+                        form.getValues("scheduledAt").getMinutes() === minute
+                          ? "default"
+                          : "ghost"
+                      }
+                      className={cn(
+                        "sm:w-full shrink-0 aspect-square",
+                        isMinuteDisabled(minute) &&
+                          "opacity-50 cursor-not-allowed"
+                      )}
+                      onClick={() =>
+                        !isMinuteDisabled(minute) &&
+                        handleTimeChange("minute", minute.toString())
+                      }
+                      disabled={isMinuteDisabled(minute)}
+                    >
+                      {minute.toString().padStart(2, "0")}
+                    </Button>
+                  ))}
+                </div>
+                <ScrollBar orientation="horizontal" className="sm:hidden" />
+              </ScrollArea>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }

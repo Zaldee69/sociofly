@@ -1,7 +1,6 @@
 // components/draggable-media.tsx
 "use client";
 
-import { useDrag, useDrop } from "react-dnd";
 import { motion } from "framer-motion";
 import { X, CheckCircle2, Loader2 } from "lucide-react";
 import { useRef } from "react";
@@ -37,35 +36,13 @@ export const DraggableMedia = ({
 }: DraggableMediaProps) => {
   const ref = useRef<HTMLDivElement>(null);
 
-  const [{ isDragging }, drag] = useDrag({
-    type: "MEDIA",
-    item: { index },
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
-    canDrag: isDraggable,
-  });
-
-  const [, drop] = useDrop({
-    accept: "MEDIA",
-    hover: (item: { index: number }) => {
-      if (item.index !== index) {
-        moveFile(item.index, index);
-        item.index = index;
-      }
-    },
-  });
-
-  // Combine drag and drop refs
-  drag(drop(ref));
-
   return (
     <motion.div
       ref={ref}
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8 }}
-      className={`relative group ${isDragging ? "opacity-50" : ""}`}
+      className={`relative group`}
     >
       <div
         className="relative w-32 h-32 rounded-lg overflow-hidden cursor-pointer"

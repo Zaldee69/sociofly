@@ -21,6 +21,7 @@ import {
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { PostStatus } from "@prisma/client";
 
 import { useOrganization } from "@/contexts/organization-context";
 import { trpc } from "@/lib/trpc/client";
@@ -84,7 +85,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { eventSchema } from "./schema";
+import { PostAction, PostFormValues, postSchema, MediaItem } from "./schema";
 
 interface FileWithStablePreview extends File {
   preview: string;
@@ -92,29 +93,29 @@ interface FileWithStablePreview extends File {
 }
 
 interface TActions {
-  value: string;
+  value: PostAction;
   title: string;
   description: string;
 }
 
 const actions: TActions[] = [
   {
-    value: "post_now",
+    value: PostAction.PUBLISH_NOW,
     title: "Publish Sekarang",
     description: "Buat postingan dan publish sekarang",
   },
   {
-    value: "schedule",
+    value: PostAction.SCHEDULE,
     title: "Jadwalkan",
     description: "Buat postingan dan jadwalkan untuk publish nanti",
   },
   {
-    value: "save_as_draft",
+    value: PostAction.SAVE_AS_DRAFT,
     title: "Simpan Sebagai Draft",
     description: "Buat postingan dan simpan sebagai draft",
   },
   {
-    value: "request_review",
+    value: PostAction.REQUEST_REVIEW,
     title: "Ajukan Review",
     description: "Buat postingan dan ajukan review kepada pengguna lain",
   },
@@ -195,27 +196,32 @@ export function AddPostDialog({
   const { selectedOrganization } = useOrganization();
   const [isOpenPopover, setIsOpenPopover] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-  const [selectedAccounts, setSelectedAccounts] = useState<SocialAccount[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<FileWithStablePreview[]>(
     []
   );
-  const [accountPostPreview, setAccountPostPreview] = useState(
-    selectedAccounts[0]
-  );
-  const [action, setAction] = useState<TActions>(actions[0]);
+
+  const [accountPostPreview, setAccountPostPreview] = useState<
+    SocialAccount | undefined
+  >(undefined);
   const [reviewer, setReviewer] = useState<string>("");
 
+  // @ts-ignore
   const form = useForm({
-    resolver: zodResolver(eventSchema),
+    resolver: zodResolver(postSchema),
     defaultValues: {
-      title: "",
-      description: "",
-      startDate: typeof startDate !== "undefined" ? startDate : undefined,
-      startTime: typeof startTime !== "undefined" ? startTime : undefined,
+      content: "",
+      mediaUrls: [],
+      scheduledAt: startDate || new Date(),
+      status: "DRAFT" as PostStatus,
+      postAction: PostAction.PUBLISH_NOW,
+      socialAccounts: [],
     },
   });
 
-  const description = form.watch("description");
+  const content = form.watch("content");
+  const selectedAccounts = form.watch("socialAccounts");
+  const postAction = form.watch("postAction");
+  const mediaUrls = form.watch("mediaUrls");
 
   const { data: socialAccounts } = trpc.onboarding.getSocialAccounts.useQuery(
     {
@@ -293,45 +299,74 @@ export function AddPostDialog({
     }
   );
 
-  const onSubmit = (_values: any) => {
-    // Include reviewer in the submission when action is request_review
-    const submissionData = {
-      ..._values,
-      action: action.value,
-      ...(action.value === "request_review" && { reviewer }),
-    };
-
-    console.log(submissionData);
-    form.reset();
-  };
-
   const handleFileSelect = (files: File[] | FileWithStablePreview[]) => {
     // Check if files already have preview & stableId (from MediaUploader)
     if (files.length > 0 && "preview" in files[0]) {
-      setSelectedFiles((prev) => [
-        ...prev,
-        ...(files as FileWithStablePreview[]),
-      ]);
+      const newFiles = files as FileWithStablePreview[];
+      setSelectedFiles((prev) => [...prev, ...newFiles]);
+
+      // Update mediaUrls in form with full metadata
+      const currentMediaUrls = form.getValues("mediaUrls") || [];
+      const newMediaItems: MediaItem[] = newFiles.map((file) => ({
+        preview: file.preview,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        fileId: file.stableId,
+      }));
+
+      form.setValue("mediaUrls", [...currentMediaUrls, ...newMediaItems], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
       return;
     }
 
     // Handle files from regular file upload
     const filesWithPreview = (files as File[]).map((file) => {
       const preview = URL.createObjectURL(file);
+      const stableId = crypto.randomUUID();
       return Object.assign(file, {
         preview,
-        stableId: crypto.randomUUID(),
+        stableId,
       }) as FileWithStablePreview;
     });
+
     setSelectedFiles((prev) => [...prev, ...filesWithPreview]);
+
+    // Update mediaUrls in form with full metadata
+    const currentMediaUrls = form.getValues("mediaUrls") || [];
+    const newMediaItems: MediaItem[] = filesWithPreview.map((file) => ({
+      preview: file.preview,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      fileId: file.stableId,
+    }));
+
+    form.setValue("mediaUrls", [...currentMediaUrls, ...newMediaItems], {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
   };
 
   const removeFile = (fileToRemove: FileWithStablePreview) => {
-    console.log(fileToRemove);
     URL.revokeObjectURL(fileToRemove.preview);
+
+    // Remove from selectedFiles
     setSelectedFiles((files) =>
       files.filter((file) => file.stableId !== fileToRemove.stableId)
     );
+
+    // Remove from mediaUrls in form
+    const currentMediaUrls = form.getValues("mediaUrls") || [];
+    const newMediaUrls = currentMediaUrls.filter(
+      (item) => item.fileId !== fileToRemove.stableId
+    );
+    form.setValue("mediaUrls", newMediaUrls, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -342,12 +377,87 @@ export function AddPostDialog({
         const oldIndex = files.findIndex((file) => file.stableId === active.id);
         const newIndex = files.findIndex((file) => file.stableId === over.id);
 
-        // Use spread to create a new array but maintain file references
-        return arrayMove([...files], oldIndex, newIndex);
+        // Use arrayMove to reorder the files array
+        const newFiles = arrayMove([...files], oldIndex, newIndex);
+
+        // Update mediaUrls in form to match the new order while preserving metadata
+        const currentMediaUrls = form.getValues("mediaUrls") || [];
+        const newMediaUrls = newFiles.map((file) => {
+          // Find existing item or create new one
+          const existingItem = currentMediaUrls.find(
+            (item) => item.fileId === file.stableId
+          );
+          if (existingItem) return existingItem;
+
+          // Create new item if not found
+          return {
+            preview: file.preview,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            fileId: file.stableId,
+          };
+        });
+
+        form.setValue("mediaUrls", newMediaUrls, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+
+        return newFiles;
       });
     }
   };
 
+  // Sync between selectedFiles and mediaUrls if needed
+  useEffect(() => {
+    // Hanya jalankan jika mediaUrls ada dan selectedFiles kosong
+    if (mediaUrls && mediaUrls.length > 0 && selectedFiles.length === 0) {
+      // Create file-like objects from mediaItems
+      const filesFromMedia = mediaUrls.map((item) => {
+        // Create a mock file-like object
+        return {
+          name: item.name,
+          size: item.size,
+          type: item.type,
+          preview: item.preview,
+          stableId: item.fileId || crypto.randomUUID(),
+        } as FileWithStablePreview;
+      });
+
+      setSelectedFiles(filesFromMedia);
+    }
+  }, [mediaUrls, selectedFiles.length]);
+
+  // @ts-ignore
+  const onSubmit = (values: any) => {
+    // Include reviewer in the submission when action is request_review
+    const submissionData = {
+      ...values,
+      // mediaUrls is already updated in the form, no need to set it here
+      ...(values.postAction === PostAction.REQUEST_REVIEW && { reviewer }),
+    };
+
+    console.log(submissionData);
+
+    // form.reset();
+  };
+
+  // Reset reviewer when action changes
+  useEffect(() => {
+    if (postAction !== PostAction.REQUEST_REVIEW) {
+      setReviewer("");
+    }
+  }, [postAction]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Membersihkan preview URLs saat komponen unmount
   useEffect(() => {
     return () => {
       // Cleanup preview URLs when component unmounts
@@ -358,20 +468,6 @@ export function AddPostDialog({
       });
     };
   }, []);
-
-  // Reset reviewer when action changes
-  useEffect(() => {
-    if (action.value !== "request_review") {
-      setReviewer("");
-    }
-  }, [action]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -395,20 +491,29 @@ export function AddPostDialog({
               animation={2}
               maxCount={5}
               options={accounts}
-              value={selectedAccounts.map((acc) => `${acc.platform}_${acc.id}`)}
+              value={selectedAccounts}
               onValueChange={(values) => {
-                const selected = values
-                  .map((value) => {
-                    const [platform, id] = value.split("_");
-                    return socialAccounts?.find(
-                      (acc: SocialAccount) =>
-                        acc.platform === platform && acc.id === id
-                    );
-                  })
-                  .filter((acc): acc is NonNullable<typeof acc> => acc != null);
-                setSelectedAccounts(selected);
-                if (selected.length === 1) {
-                  setAccountPostPreview(selected[0]);
+                // Update form value
+                form.setValue("socialAccounts", values, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+
+                // Set preview account if it's the first selection or current preview is no longer selected
+                if (
+                  values.length === 1 ||
+                  !values.includes(
+                    `${accountPostPreview?.platform}_${accountPostPreview?.id}`
+                  )
+                ) {
+                  const [platform, id] = values[0]?.split("_") || [];
+                  const account = socialAccounts?.find(
+                    (acc: SocialAccount) =>
+                      acc.platform === platform && acc.id === id
+                  );
+                  if (account) {
+                    setAccountPostPreview(account);
+                  }
                 }
               }}
               grouped
@@ -423,13 +528,17 @@ export function AddPostDialog({
             <Form {...form}>
               <form
                 id="event-form"
-                onSubmit={form.handleSubmit(onSubmit)}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  console.log(form.getValues());
+                }}
                 className="contents"
               >
                 <div className="mt-4 border border-input rounded-md p-2 min-h-80 flex flex-col">
+                  {/* @ts-ignore */}
                   <FormField
                     control={form.control}
-                    name="description"
+                    name="content"
                     render={({ field }) => (
                       <FormItem>
                         <FormControl>
@@ -478,14 +587,13 @@ export function AddPostDialog({
                         media={mediaData?.items || []}
                         onHashtagSelect={(hashtag) => {
                           // Get current description text
-                          const currentDescription =
-                            form.getValues("description");
+                          const currentDescription = form.getValues("content");
                           // Append hashtag with a space before it if needed
                           const newDescription = currentDescription
                             ? `${currentDescription}${currentDescription.endsWith(" ") ? "" : " "}#${hashtag}`
                             : `#${hashtag}`;
                           // Update the form field
-                          form.setValue("description", newDescription, {
+                          form.setValue("content", newDescription, {
                             shouldDirty: true,
                           });
                         }}
@@ -504,7 +612,7 @@ export function AddPostDialog({
                   <div className="flex gap-2">
                     <DateTimePicker24hForm />
 
-                    {action.value === "request_review" && (
+                    {postAction === PostAction.REQUEST_REVIEW && (
                       <Select value={reviewer} onValueChange={setReviewer}>
                         <SelectTrigger className="w-[200px]">
                           <SelectValue placeholder="Select reviewer" />
@@ -532,10 +640,10 @@ export function AddPostDialog({
                         type="submit"
                         className="cursor-pointer"
                         disabled={
-                          action.value === "request_review" && !reviewer
+                          postAction === PostAction.REQUEST_REVIEW && !reviewer
                         }
                       >
-                        {actions.find((a) => a.value === action.value)?.title}
+                        {actions.find((a) => a.value === postAction)?.title}
                       </button>
                       <Popover
                         open={isOpenPopover}
@@ -561,10 +669,16 @@ export function AddPostDialog({
                                     key={actionItem.value}
                                     value={actionItem.value}
                                     onSelect={(currentValue) => {
-                                      setAction(
-                                        actions.find(
-                                          (a) => a.value === currentValue
-                                        )!
+                                      const selectedAction = actions.find(
+                                        (a) => a.value === currentValue
+                                      )!;
+                                      form.setValue(
+                                        "postAction",
+                                        selectedAction.value,
+                                        {
+                                          shouldDirty: true,
+                                          shouldValidate: true,
+                                        }
                                       );
                                       setIsOpenPopover(false);
                                     }}
@@ -573,7 +687,7 @@ export function AddPostDialog({
                                       <p
                                         className={cn({
                                           "font-semibold":
-                                            actionItem.value === action.value,
+                                            actionItem.value === postAction,
                                         })}
                                       >
                                         {actionItem.title}
@@ -583,7 +697,7 @@ export function AddPostDialog({
                                           "text-xs italic text-muted-foreground",
                                           {
                                             "font-medium":
-                                              actionItem.value === action.value,
+                                              actionItem.value === postAction,
                                           }
                                         )}
                                       >
@@ -593,7 +707,7 @@ export function AddPostDialog({
                                     <Check
                                       className={cn(
                                         "mr-2 h-4 w-4",
-                                        actionItem.value === action.value
+                                        actionItem.value === postAction
                                           ? "opacity-100"
                                           : "opacity-0"
                                       )}
@@ -614,38 +728,48 @@ export function AddPostDialog({
 
           <div className="w-5/12 bg-[#f7fafc] rounded-r-lg relative hidden xl:block h-full overflow-hidden">
             <div className="w-full p-4 sticky top-0 z-10 bg-[#f7fafc]">
-              {selectedAccounts.map((account) => (
-                <TooltipProvider key={account.id}>
-                  <Tooltip>
-                    <TooltipTrigger
-                      type="button"
-                      onClick={() => {
-                        setAccountPostPreview(account);
-                      }}
-                      className={buttonVariants({
-                        variant: "outline",
-                        className: cn(
-                          "!rounded-full !p-2.5 flex-1 mr-1",
-                          accountPostPreview?.id === account.id
-                            ? "bg-black hover:bg-black/80"
-                            : "bg-gray-200 hover:bg-gray-300"
-                        ),
-                      })}
-                    >
-                      {account.platform === "FACEBOOK" ? (
-                        <FacebookIcon className="fill-white" />
-                      ) : account.platform === "INSTAGRAM" ? (
-                        <InstagramIcon className="w-5 h-5 text-white" />
-                      ) : account.platform === "TWITTER" ? (
-                        <Twitter />
-                      ) : null}
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{account.name}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ))}
+              {selectedAccounts.map((accountValue) => {
+                const [platform, id] = accountValue.split("_");
+                const account = socialAccounts?.find(
+                  (acc: SocialAccount) =>
+                    acc.platform === platform && acc.id === id
+                );
+
+                if (!account) return null;
+
+                return (
+                  <TooltipProvider key={account.id}>
+                    <Tooltip>
+                      <TooltipTrigger
+                        type="button"
+                        onClick={() => {
+                          setAccountPostPreview(account);
+                        }}
+                        className={buttonVariants({
+                          variant: "outline",
+                          className: cn(
+                            "!rounded-full !p-2.5 flex-1 mr-1",
+                            accountPostPreview?.id === account.id
+                              ? "bg-black hover:bg-black/80"
+                              : "bg-gray-200 hover:bg-gray-300"
+                          ),
+                        })}
+                      >
+                        {account.platform === "FACEBOOK" ? (
+                          <FacebookIcon className="fill-white" />
+                        ) : account.platform === "INSTAGRAM" ? (
+                          <InstagramIcon className="w-5 h-5 text-white" />
+                        ) : account.platform === "TWITTER" ? (
+                          <Twitter />
+                        ) : null}
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{account.name}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                );
+              })}
             </div>
 
             <div
@@ -653,7 +777,7 @@ export function AddPostDialog({
               style={{ maxHeight: "calc(90vh - 120px)" }}
             >
               <PostPreview
-                description={description || ""}
+                description={content || ""}
                 selectedFiles={selectedFiles}
                 accountPostPreview={accountPostPreview}
               />

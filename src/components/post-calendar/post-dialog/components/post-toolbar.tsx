@@ -93,16 +93,16 @@ export function PostToolbar({
   const form = useFormContext();
 
   const handleAIButtonClick = () => {
-    const description = form?.getValues("description");
+    const content = form?.getValues("content");
 
-    if (!description || description.trim() === "") {
+    if (!content || content.trim() === "") {
       toast.warning(
         "Harap buat konten awal terlebih dahulu sebelum menggunakan AI generator."
       );
       return;
     }
 
-    setInitialContext(description);
+    setInitialContext(content);
     setIsAIChatOpen(true);
   };
 
@@ -110,7 +110,7 @@ export function PostToolbar({
   const handleAIResult = useCallback(
     (result: string) => {
       if (result && form) {
-        form.setValue("description", result, { shouldDirty: true });
+        form.setValue("content", result, { shouldDirty: true });
         toast.success("Konten AI telah diterapkan ke post");
         setIsAIChatOpen(false);
       }
