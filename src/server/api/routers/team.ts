@@ -1,34 +1,12 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  requirePermission,
+} from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { Role, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
-
-// Zod schemas for validation
-const TeamSchema = z.object({
-  id: z.number(),
-  name: z.string(),
-  description: z.string(),
-});
-
-const TeamMemberSchema = z.object({
-  id: z.number(),
-  name: z.string(),
-  role: z.enum(["Admin", "Editor", "Viewer"]),
-  email: z.string().email(),
-  team: z.string(),
-  lastActive: z.string(),
-  status: z.enum(["active", "inactive"]),
-});
-
-const InvitationSchema = z.object({
-  id: z.number(),
-  email: z.string().email(),
-  team: z.string(),
-  role: z.enum(["Admin", "Editor", "Viewer"]),
-  sentAt: z.string(),
-  expiresAt: z.string(),
-});
 
 export const teamRouter = createTRPCRouter({
   // Get all teams user is a member of
@@ -149,7 +127,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Create a new team
-  createTeam: protectedProcedure
+  createTeam: requirePermission("team.create")
     .input(
       z.object({
         name: z.string().min(2),
@@ -177,7 +155,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Invite member
-  inviteMember: protectedProcedure
+  inviteMember: requirePermission("team.invite")
     .input(
       z.object({
         email: z.string().email(),
@@ -277,7 +255,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Get pending invites for a team
-  getTeamInvites: protectedProcedure
+  getTeamInvites: requirePermission("team.viewInvites")
     .input(z.object({ teamId: z.string() }))
     .query(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
@@ -347,7 +325,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Get available social platforms for connecting
-  getAvailableSocialAccounts: protectedProcedure
+  getAvailableSocialAccounts: requirePermission("social.connect")
     .input(
       z.object({
         teamId: z.string(),
@@ -394,7 +372,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Add a social account
-  addSocialAccount: protectedProcedure
+  addSocialAccount: requirePermission("social.connect")
     .input(
       z.object({
         teamId: z.string(),
@@ -463,7 +441,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Remove a social account
-  removeSocialAccount: protectedProcedure
+  removeSocialAccount: requirePermission("social.connect")
     .input(
       z.object({
         teamId: z.string(),

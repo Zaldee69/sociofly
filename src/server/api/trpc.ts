@@ -91,8 +91,6 @@ export const requirePermission = (requiredPermission: string) =>
       },
     });
 
-    console.log("hasPermission", hasPermission);
-
     if (!hasPermission) {
       throw new TRPCError({
         code: "FORBIDDEN",

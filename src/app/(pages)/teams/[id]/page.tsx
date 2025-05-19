@@ -27,6 +27,7 @@ import {
   Linkedin,
   Youtube,
   ExternalLink,
+  Ellipsis,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -106,9 +107,10 @@ const Page = () => {
 
   const { data: members, isLoading: isLoadingMembers } =
     trpc.team.getTeamMembers.useQuery(
-      { teamId: teamId as string, searchQuery },
+      { teamId: teamId as string, searchQuery: "" },
       {
         enabled: !!teamId,
+        staleTime: 1000 * 60 * 5, // Data tetap fresh selama 5 menit
       }
     );
 
@@ -122,12 +124,7 @@ const Page = () => {
 
   // Social Account queries and mutations
   const { data: socialAccounts, isLoading: isLoadingSocialAccounts } =
-    trpc.team.getSocialAccounts.useQuery(
-      { teamId: teamId as string },
-      {
-        enabled: !!teamId && team?.role === "TEAM_OWNER",
-      }
-    );
+    trpc.team.getSocialAccounts.useQuery({ teamId: teamId as string });
 
   const { data: availableSocialAccounts } =
     trpc.team.getAvailableSocialAccounts.useQuery(
@@ -246,7 +243,8 @@ const Page = () => {
         member.email.toLowerCase().includes(searchQuery.toLowerCase())
     ) ?? [];
 
-  if (isLoadingTeam || isLoadingMembers || isLoadingSocialAccounts) {
+  // Hanya tampilkan loading untuk seluruh halaman pada awal load
+  if ((isLoadingTeam || isLoadingMembers) && !searchQuery) {
     return (
       <div className="container mx-auto py-6">
         <div className="mb-6">
@@ -294,10 +292,10 @@ const Page = () => {
 
   // Get status badge
   const getStatusBadge = (status: Member["status"]) => {
-    switch (status) {
-      case "ACTIVE":
+    switch (status.toLowerCase()) {
+      case "active":
         return <Badge className="bg-green-600">Active</Badge>;
-      case "INACTIVE":
+      case "inactive":
         return <Badge variant="outline">Inactive</Badge>;
       case "SUSPENDED":
         return <Badge variant="destructive">Suspended</Badge>;
@@ -320,6 +318,8 @@ const Page = () => {
         return <Badge variant="secondary">Client Reviewer</Badge>;
       case "ANALYTICS_OBSERVER":
         return <Badge variant="secondary">Analytics Observer</Badge>;
+      case "INBOX_AGENT":
+        return <Badge variant="secondary">Inbox Agent</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
     }
@@ -409,49 +409,77 @@ const Page = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredMembers.map((member) => (
-                    <TableRow key={member.id}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{member.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {member.email}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getRoleBadge(member.role)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-sm">
-                            {new Date(member.lastActive).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {getStatusBadge(
-                          member.status as "ACTIVE" | "INACTIVE" | "SUSPENDED"
-                        )}
-                      </TableCell>
-                      {team.role === "TEAM_OWNER" &&
-                        member.role !== "TEAM_OWNER" && (
-                          <TableCell className="text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled
-                              title="Role management coming soon"
-                            >
-                              Manage Role
-                            </Button>
+                  {isLoadingMembers && searchQuery
+                    ? // Tampilkan skeleton loading hanya untuk tabel saat pencarian
+                      Array(3)
+                        .fill(0)
+                        .map((_, i) => (
+                          <TableRow key={`skeleton-${i}`}>
+                            <TableCell>
+                              <div>
+                                <Skeleton className="h-4 w-[150px] mb-2" />
+                                <Skeleton className="h-3 w-[120px]" />
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Skeleton className="h-4 w-[80px]" />
+                            </TableCell>
+                            <TableCell>
+                              <Skeleton className="h-4 w-[100px]" />
+                            </TableCell>
+                            <TableCell>
+                              <Skeleton className="h-4 w-[60px]" />
+                            </TableCell>
+                            {team.role === "TEAM_OWNER" && (
+                              <TableCell className="text-right">
+                                <Skeleton className="h-8 w-8 ml-auto" />
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))
+                    : filteredMembers.map((member) => (
+                        <TableRow key={member.id}>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{member.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {member.email}
+                              </p>
+                            </div>
                           </TableCell>
-                        )}
-                    </TableRow>
-                  ))}
+                          <TableCell>{getRoleBadge(member.role)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-sm">
+                                {new Date(
+                                  member.lastActive
+                                ).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(
+                              member.status as
+                                | "ACTIVE"
+                                | "INACTIVE"
+                                | "SUSPENDED"
+                            )}
+                          </TableCell>
+                          {team.role === "TEAM_OWNER" &&
+                            member.role !== "TEAM_OWNER" && (
+                              <TableCell className="text-right">
+                                <Button variant="ghost" size="sm">
+                                  <Ellipsis />
+                                </Button>
+                              </TableCell>
+                            )}
+                        </TableRow>
+                      ))}
                 </TableBody>
               </Table>
 
-              {filteredMembers.length === 0 && (
+              {!isLoadingMembers && filteredMembers.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   No team members found matching your criteria
                 </div>
@@ -503,17 +531,22 @@ const Page = () => {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleRemoveSocialAccount(account.id)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <X className="h-4 w-4" />
-                          Remove
-                        </Button>
-                      </div>
+
+                      {team.role === "TEAM_OWNER" && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              handleRemoveSocialAccount(account.id)
+                            }
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <X className="h-4 w-4" />
+                            Remove
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
