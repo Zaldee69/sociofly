@@ -489,4 +489,255 @@ export const teamRouter = createTRPCRouter({
         },
       });
     }),
+
+  // Update a team member's role
+  updateMemberRole: requirePermission("team.manage")
+    .input(
+      z.object({
+        teamId: z.string(),
+        memberId: z.string(),
+        role: z.enum([
+          Role.CAMPAIGN_MANAGER,
+          Role.CONTENT_PRODUCER,
+          Role.CONTENT_REVIEWER,
+          Role.CLIENT_REVIEWER,
+          Role.ANALYTICS_OBSERVER,
+          Role.INBOX_AGENT,
+        ]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Verify current user is a team owner
+      const currentUserMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          organizationId: input.teamId,
+          userId: ctx.userId,
+          role: Role.TEAM_OWNER,
+        },
+      });
+
+      if (!currentUserMembership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only Team Owner can update member roles",
+        });
+      }
+
+      // Find the target membership record
+      const targetMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          id: input.memberId,
+          organizationId: input.teamId,
+        },
+        include: {
+          user: true,
+        },
+      });
+
+      if (!targetMembership) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Team member not found",
+        });
+      }
+
+      // Prevent changes to TEAM_OWNER role
+      if (targetMembership.role === Role.TEAM_OWNER) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Cannot change role of a Team Owner",
+        });
+      }
+
+      // Update the role
+      return ctx.prisma.membership.update({
+        where: {
+          id: input.memberId,
+        },
+        data: {
+          role: input.role,
+        },
+        include: {
+          user: true,
+        },
+      });
+    }),
+
+  // Remove a team member
+  removeMember: requirePermission("team.manage")
+    .input(
+      z.object({
+        teamId: z.string(),
+        memberId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Verify current user is a team owner
+      const currentUserMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          organizationId: input.teamId,
+          userId: ctx.userId,
+          role: Role.TEAM_OWNER,
+        },
+      });
+
+      if (!currentUserMembership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only Team Owner can remove members",
+        });
+      }
+
+      // Find the target membership
+      const targetMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          id: input.memberId,
+          organizationId: input.teamId,
+        },
+      });
+
+      if (!targetMembership) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Team member not found",
+        });
+      }
+
+      // Prevent removing a TEAM_OWNER
+      if (targetMembership.role === Role.TEAM_OWNER) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Cannot remove a Team Owner",
+        });
+      }
+
+      // Delete the membership
+      return ctx.prisma.membership.delete({
+        where: {
+          id: input.memberId,
+        },
+      });
+    }),
+
+  // Update team settings
+  updateTeam: requirePermission("team.manage")
+    .input(
+      z.object({
+        teamId: z.string(),
+        name: z.string().min(2),
+        description: z.string(),
+        color: z.string().optional(),
+        notificationSettings: z
+          .object({
+            memberJoined: z.boolean(),
+            memberLeft: z.boolean(),
+            contentCreated: z.boolean(),
+            contentReviewed: z.boolean(),
+          })
+          .optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Verify current user is a team owner
+      const currentUserMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          organizationId: input.teamId,
+          userId: ctx.userId,
+          role: Role.TEAM_OWNER,
+        },
+      });
+
+      if (!currentUserMembership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only Team Owner can update team settings",
+        });
+      }
+
+      const organization = await ctx.prisma.organization.findUnique({
+        where: {
+          id: input.teamId,
+        },
+      });
+
+      if (!organization) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Team not found",
+        });
+      }
+
+      // Update the organization
+      return ctx.prisma.organization.update({
+        where: {
+          id: input.teamId,
+        },
+        data: {
+          name: input.name,
+          slug: input.description,
+          // Store color in metadata if needed
+          // Other fields can go here
+        },
+      });
+    }),
+
+  // Delete a team
+  deleteTeam: requirePermission("team.manage")
+    .input(
+      z.object({
+        teamId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Verify current user is a team owner
+      const currentUserMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          organizationId: input.teamId,
+          userId: ctx.userId,
+          role: Role.TEAM_OWNER,
+        },
+      });
+
+      if (!currentUserMembership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only Team Owner can delete a team",
+        });
+      }
+
+      const organization = await ctx.prisma.organization.findUnique({
+        where: {
+          id: input.teamId,
+        },
+      });
+
+      if (!organization) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Team not found",
+        });
+      }
+
+      if (organization.ownerId !== ctx.userId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only the team creator can delete a team",
+        });
+      }
+
+      // Delete the team and all related records
+      return ctx.prisma.organization.delete({
+        where: {
+          id: input.teamId,
+        },
+      });
+    }),
 });
