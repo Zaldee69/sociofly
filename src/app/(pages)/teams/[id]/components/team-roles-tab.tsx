@@ -23,13 +23,21 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Settings, Plus, Trash } from "lucide-react";
+import { Settings, Plus, Trash, AlertTriangle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Permission, CustomRole } from "../types";
 
@@ -50,6 +58,13 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
   const [originalRolePermissions, setOriginalRolePermissions] = useState<
     Record<string, string[]>
   >({});
+  const [isDeleteRoleOpen, setIsDeleteRoleOpen] = useState(false);
+  const [roleToDelete, setRoleToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [fallbackRole, setFallbackRole] = useState<Role>(Role.CONTENT_CREATOR);
+  const [membersUsingRole, setMembersUsingRole] = useState<number>(0);
 
   const { rolePermissions: permissionsFromHook, isPermissionsLoaded } =
     usePermissions(teamId);
@@ -344,6 +359,32 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
     });
   };
 
+  // Check members using custom role
+  const { data: memberCountData } =
+    trpc.team.countMembersWithCustomRole.useQuery(
+      { teamId, roleId: roleToDelete?.id || "" },
+      {
+        enabled: !!roleToDelete?.id,
+      }
+    );
+
+  // Handle member count data changes
+  useEffect(() => {
+    if (!memberCountData || !roleToDelete) return;
+
+    setMembersUsingRole(memberCountData.count);
+
+    if (memberCountData.count > 0) {
+      setIsDeleteRoleOpen(true);
+    } else {
+      // If no members are using the role, delete it directly
+      deleteCustomRoleMutation.mutate({
+        teamId,
+        roleId: roleToDelete.id,
+      });
+    }
+  }, [memberCountData, roleToDelete]);
+
   const handleDeleteCustomRole = async (roleName: string) => {
     const customRole = customRoles?.find(
       (r: { name: string; id: string }) => r.name === roleName
@@ -354,14 +395,25 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
       return;
     }
 
+    setRoleToDelete({ id: customRole.id, name: roleName });
+
+    // This will trigger the query to run since we're setting roleToDelete
+  };
+
+  const confirmDeleteRole = async () => {
+    if (!roleToDelete) return;
+
     try {
       await deleteCustomRoleMutation.mutateAsync({
         teamId,
-        roleId: customRole.id,
+        roleId: roleToDelete.id,
+        fallbackRole,
       });
 
       // Set current role to a default one
       setCurrentRole("MANAGER");
+      setIsDeleteRoleOpen(false);
+      setRoleToDelete(null);
     } catch (error) {
       console.error("Error deleting custom role:", error);
     }
@@ -634,6 +686,86 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
               {isCreatingRole ? "Creating..." : "Create Role"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Role Confirmation Dialog */}
+      <Dialog open={isDeleteRoleOpen} onOpenChange={setIsDeleteRoleOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Delete Custom Role
+            </DialogTitle>
+            <DialogDescription>
+              {membersUsingRole > 0 ? (
+                <>
+                  There {membersUsingRole === 1 ? "is" : "are"} currently{" "}
+                  <strong>{membersUsingRole}</strong>{" "}
+                  {membersUsingRole === 1 ? "member" : "members"} assigned to
+                  the "{roleToDelete?.name}" role. Please select a fallback role
+                  to assign these members to.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to delete this role? This action cannot
+                  be undone.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {membersUsingRole > 0 && (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Fallback Role</label>
+                <Select
+                  value={fallbackRole}
+                  onValueChange={(value) => setFallbackRole(value as Role)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a fallback role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.values(Role)
+                      .filter((role) => role !== "OWNER")
+                      .map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {role
+                            .replace(/_/g, " ")
+                            .split(" ")
+                            .map(
+                              (word) =>
+                                word.charAt(0).toUpperCase() +
+                                word.slice(1).toLowerCase()
+                            )
+                            .join(" ")}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  All members with this custom role will be assigned to this
+                  role
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleteRoleOpen(false);
+                setRoleToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteRole}>
+              Delete Role
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

@@ -830,6 +830,7 @@ export const teamRouter = createTRPCRouter({
       z.object({
         teamId: z.string(),
         roleId: z.string(),
+        fallbackRole: z.nativeEnum(Role).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -850,19 +851,36 @@ export const teamRouter = createTRPCRouter({
         });
       }
 
-      // Check if any members are using this role
-      const membersUsingRole = await ctx.prisma.membership.findFirst({
+      // Get all members using this role
+      const membersUsingRole = await ctx.prisma.membership.findMany({
         where: {
           customRoleId: input.roleId,
         },
+        select: {
+          id: true,
+          userId: true,
+          organizationId: true,
+        },
       });
 
-      if (membersUsingRole) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message:
-            "Cannot delete role because it is assigned to one or more members",
+      // If there are members using this role, reassign them to the fallback role
+      if (membersUsingRole.length > 0) {
+        const fallbackRole = input.fallbackRole || Role.CONTENT_CREATOR;
+
+        // Reassign all members to the fallback role
+        await ctx.prisma.membership.updateMany({
+          where: {
+            customRoleId: input.roleId,
+          },
+          data: {
+            role: fallbackRole,
+            customRoleId: null,
+          },
         });
+
+        console.log(
+          `Reassigned ${membersUsingRole.length} members from custom role ${existingRole.name} to ${fallbackRole}`
+        );
       }
 
       // Delete permissions first (cascade should handle this automatically, but being explicit)
@@ -879,7 +897,14 @@ export const teamRouter = createTRPCRouter({
         },
       });
 
-      return { success: true };
+      return {
+        success: true,
+        membersReassigned: membersUsingRole.length,
+        reassignedRole:
+          membersUsingRole.length > 0
+            ? input.fallbackRole || Role.CONTENT_CREATOR
+            : null,
+      };
     }),
 
   // Assign custom role to member
@@ -1120,5 +1145,41 @@ export const teamRouter = createTRPCRouter({
       }
 
       return membership;
+    }),
+
+  // Count members using a custom role
+  countMembersWithCustomRole: requirePermission("team.manage")
+    .input(
+      z.object({
+        teamId: z.string(),
+        roleId: z.string(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if role exists
+      const existingRole = await ctx.prisma.customRole.findFirst({
+        where: {
+          id: input.roleId,
+          organizationId: input.teamId,
+        },
+      });
+
+      if (!existingRole) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Custom role not found",
+        });
+      }
+
+      // Count members using this role
+      const count = await ctx.prisma.membership.count({
+        where: {
+          customRoleId: input.roleId,
+        },
+      });
+
+      return { count };
     }),
 });

@@ -3,7 +3,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Mail, UserPlus, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { trpc } from "@/lib/trpc/client";
+import { Role } from "@prisma/client";
 
 import {
   Dialog,
@@ -84,12 +86,34 @@ const useInviteMember = (
   };
 };
 
+// Define built-in role descriptions
+const roleDescriptions: Record<string, string> = {
+  MANAGER: "Manage campaigns and content",
+  SUPERVISOR: "Manage campaigns and content",
+  CONTENT_CREATOR: "Create and manage content",
+  INTERNAL_REVIEWER: "Review content and approve/reject",
+  CLIENT_REVIEWER: "Review content and approve/reject",
+  ANALYST: "View analytics and reports",
+  INBOX_AGENT: "Manage inbox and replies",
+};
+
 const AddMemberModal: React.FC<AddMemberModalProps> = ({
   teams,
   onAddMember,
 }) => {
   const { isInviting, inviteMember, isDialogOpen, setIsDialogOpen } =
     useInviteMember(onAddMember);
+
+  // Get available roles (built-in and custom)
+  const [availableRoles, setAvailableRoles] = useState<
+    { label: string; value: string; description: string }[]
+  >([]);
+
+  // Get custom roles from API
+  const { data: customRoles } = trpc.team.getCustomRoles.useQuery(
+    { teamId: teams.id },
+    { enabled: !!teams.id }
+  );
 
   // Initialize the form with default values
   const form = useForm<FormValues>({
@@ -102,6 +126,43 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       message: "",
     },
   });
+
+  // Combine built-in roles and custom roles
+  useEffect(() => {
+    const builtInRoles = Object.values(Role)
+      // Filter out OWNER role which shouldn't be assigned through invitation
+      .filter((role) => role !== "OWNER" && role !== ("TEAM_OWNER" as Role))
+      .map((role) => ({
+        label: role
+          .replace(/_/g, " ")
+          .split(" ")
+          .map(
+            (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          )
+          .join(" "),
+        value: role,
+        description:
+          roleDescriptions[role] || `${role.replace(/_/g, " ")} role`,
+      }));
+
+    const customRolesList =
+      customRoles?.map((role) => ({
+        label:
+          role.displayName ||
+          role.name
+            .replace(/_/g, " ")
+            .split(" ")
+            .map(
+              (word) =>
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+            )
+            .join(" "),
+        value: role.name,
+        description: role.description || `Custom role`,
+      })) || [];
+
+    setAvailableRoles([...builtInRoles, ...customRolesList]);
+  }, [customRoles]);
 
   const onSubmit = async (values: FormValues) => {
     const success = await inviteMember(values);
@@ -171,43 +232,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
                           <SelectValue placeholder="Pilih Role" />
                         </SelectTrigger>
                         <SelectContent>
-                          {[
-                            {
-                              label: "Manager",
-                              value: "MANAGER",
-                              description: "Manage campaigns and content",
-                            },
-                            {
-                              label: "Supervisor",
-                              value: "SUPERVISOR",
-                              description: "Manage campaigns and content",
-                            },
-                            {
-                              label: "Content Creator",
-                              value: "CONTENT_CREATOR",
-                              description: "Create and manage content",
-                            },
-                            {
-                              label: "Internal Reviewer",
-                              value: "INTERNAL_REVIEWER",
-                              description: "Review content and approve/reject",
-                            },
-                            {
-                              label: "Client Reviewer",
-                              value: "CLIENT_REVIEWER",
-                              description: "Review content and approve/reject",
-                            },
-                            {
-                              label: "Analyst",
-                              value: "ANALYST",
-                              description: "View analytics and reports",
-                            },
-                            {
-                              label: "Inbox Agent",
-                              value: "INBOX_AGENT",
-                              description: "Manage inbox and replies",
-                            },
-                          ].map((item) => (
+                          {availableRoles.map((item) => (
                             <SelectItem key={item.value} value={item.value}>
                               {item.label}
                             </SelectItem>
