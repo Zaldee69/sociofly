@@ -117,6 +117,7 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
     onSuccess: () => {
       toast.success("Custom role created successfully");
       utils.team.getCustomRoles.invalidate({ teamId });
+      utils.team.getAllRolePermissions.invalidate(); // Invalidate permissions cache to refresh
       setIsCreateRoleOpen(false);
       setNewRoleName("");
       setNewRoleDescription("");
@@ -132,6 +133,7 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
     onSuccess: () => {
       toast.success("Role permissions updated successfully");
       utils.team.getCustomRoles.invalidate({ teamId });
+      utils.team.getAllRolePermissions.invalidate(); // Invalidate permissions cache to refresh
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to update role permissions");
@@ -143,6 +145,7 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
     onSuccess: () => {
       toast.success("Role deleted successfully");
       utils.team.getCustomRoles.invalidate({ teamId });
+      utils.team.getAllRolePermissions.invalidate(); // Invalidate permissions cache to refresh
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to delete role");
@@ -154,7 +157,7 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
     trpc.team.setDefaultRolePermissions.useMutation({
       onSuccess: () => {
         toast.success("Default role permissions updated successfully");
-        utils.team.getDefaultRolePermissions.invalidate();
+        utils.team.getAllRolePermissions.invalidate(); // Invalidate all permissions instead of just one role
       },
       onError: (error: any) => {
         toast.error(

@@ -14,54 +14,9 @@ export function usePermissions(teamId: string) {
     { enabled: !!teamId }
   );
 
-  // Get role permissions from API endpoints
-  const { data: ownerPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "OWNER" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: managerPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "MANAGER" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: supervisorPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "SUPERVISOR" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: contentCreatorPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "CONTENT_CREATOR" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: internalReviewerPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "INTERNAL_REVIEWER" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: clientReviewerPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "CLIENT_REVIEWER" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: analystPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "ANALYST" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: inboxAgentPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "INBOX_AGENT" as Role },
-      { enabled: !!teamId }
-    );
+  // Get ALL role permissions in a single query
+  const { data: allRolePermissions, isLoading: isLoadingRolePermissions } =
+    trpc.team.getAllRolePermissions.useQuery(undefined, { enabled: !!teamId });
 
   // Get custom roles from API
   const { data: customRoles, isLoading: isLoadingCustomRoles } =
@@ -98,95 +53,35 @@ export function usePermissions(teamId: string) {
   const wasEverLoaded = useRef(false);
 
   // Keep track of loading states for different permission queries
-  const isLoadingBasePermissions = !ownerPermissions && !managerPermissions;
   const isLoadingTeamData = !team;
   const isLoadingUserMembership = !userMembership && !!teamId;
 
   // Overall loading state that includes all permission-related data
   const isPermissionsLoading =
-    isLoadingBasePermissions ||
+    isLoadingRolePermissions ||
     isLoadingTeamData ||
     isLoadingUserMembership ||
     (!!userMembership?.id && isLoadingPermissionOverrides) ||
     isLoadingCustomRoles;
 
-  // Format and combine role permissions
+  // Update role permissions when allRolePermissions data changes
   useEffect(() => {
-    // Wait until we have at least some base permissions
-    if (isLoadingBasePermissions) {
-      return;
-    }
+    if (allRolePermissions) {
+      // Start with the permissions from the server
+      const updatedPermissions = { ...allRolePermissions };
 
-    const updatedRolePermissions: Record<string, string[]> = {};
-    let hasAnyPermissions = false;
+      // Add custom roles if available
+      if (customRoles?.length) {
+        customRoles.forEach((role) => {
+          if (role.permissions?.length) {
+            updatedPermissions[role.name] = role.permissions;
+          }
+        });
+      }
 
-    // Load permissions from the new API endpoints
-    if (ownerPermissions?.length) {
-      updatedRolePermissions["OWNER"] = ownerPermissions;
-      hasAnyPermissions = true;
+      setRolePermissions(updatedPermissions);
     }
-
-    if (managerPermissions?.length) {
-      updatedRolePermissions["MANAGER"] = managerPermissions;
-      hasAnyPermissions = true;
-    }
-
-    if (supervisorPermissions?.length) {
-      updatedRolePermissions["SUPERVISOR"] = supervisorPermissions;
-      hasAnyPermissions = true;
-    }
-
-    if (contentCreatorPermissions?.length) {
-      updatedRolePermissions["CONTENT_CREATOR"] = contentCreatorPermissions;
-      hasAnyPermissions = true;
-    }
-
-    if (internalReviewerPermissions?.length) {
-      updatedRolePermissions["INTERNAL_REVIEWER"] = internalReviewerPermissions;
-      hasAnyPermissions = true;
-    }
-
-    if (clientReviewerPermissions?.length) {
-      updatedRolePermissions["CLIENT_REVIEWER"] = clientReviewerPermissions;
-      hasAnyPermissions = true;
-    }
-
-    if (analystPermissions?.length) {
-      updatedRolePermissions["ANALYST"] = analystPermissions;
-      hasAnyPermissions = true;
-    }
-
-    if (inboxAgentPermissions?.length) {
-      updatedRolePermissions["INBOX_AGENT"] = inboxAgentPermissions;
-      hasAnyPermissions = true;
-    }
-
-    // Add custom roles if available
-    if (customRoles?.length) {
-      customRoles.forEach((role) => {
-        if (role.permissions?.length) {
-          updatedRolePermissions[role.name] = role.permissions;
-          hasAnyPermissions = true;
-        }
-      });
-    }
-
-    // Update permissions in state if we have any
-    if (hasAnyPermissions) {
-      setRolePermissions(updatedRolePermissions);
-    }
-  }, [
-    ownerPermissions,
-    managerPermissions,
-    supervisorPermissions,
-    contentCreatorPermissions,
-    internalReviewerPermissions,
-    clientReviewerPermissions,
-    analystPermissions,
-    inboxAgentPermissions,
-    customRoles,
-    isLoadingBasePermissions,
-  ]);
+  }, [allRolePermissions, customRoles]);
 
   // Update loading state based on all permission data availability
   useEffect(() => {
@@ -229,8 +124,6 @@ export function usePermissions(teamId: string) {
     // Direct permission check from database-sourced permissions
     return userPermissions.includes(permission);
   };
-
-  console.log(isPermissionsLoaded);
 
   return {
     hasPermission,

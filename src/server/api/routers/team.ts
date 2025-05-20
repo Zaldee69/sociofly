@@ -1200,6 +1200,31 @@ export const teamRouter = createTRPCRouter({
       return rolePermissions.map((rp) => rp.permission.code);
     }),
 
+  // Get permissions for all roles in one call
+  getAllRolePermissions: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+    // Get all role permissions
+    const rolePermissions = await ctx.prisma.rolePermission.findMany({
+      include: {
+        permission: true,
+      },
+    });
+
+    // Group by role
+    const permissionsByRole: Record<string, string[]> = {};
+
+    rolePermissions.forEach((rp) => {
+      const role = rp.role;
+      if (!permissionsByRole[role]) {
+        permissionsByRole[role] = [];
+      }
+      permissionsByRole[role].push(rp.permission.code);
+    });
+
+    return permissionsByRole;
+  }),
+
   // Get current user's membership for a team
   getTeamMembership: protectedProcedure
     .input(z.object({ teamId: z.string() }))
