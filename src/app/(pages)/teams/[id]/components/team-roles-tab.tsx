@@ -105,8 +105,6 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
       }
     );
 
-  console.log(customRoles);
-
   // Get available permissions from API
   const { data: availablePermissionsData, isLoading: isLoadingPermissions } =
     trpc.team.getAvailablePermissions.useQuery(undefined, {

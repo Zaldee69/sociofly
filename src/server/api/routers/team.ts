@@ -600,11 +600,92 @@ export const teamRouter = createTRPCRouter({
         });
       }
 
-      // Delete the team and all related records
-      return ctx.prisma.organization.delete({
-        where: {
-          id: input.teamId,
-        },
+      // Use transaction to ensure all related records are deleted
+      return ctx.prisma.$transaction(async (tx) => {
+        // 1. Delete all membership grants and denies
+        await tx.membershipGrant.deleteMany({
+          where: {
+            membership: {
+              organizationId: input.teamId,
+            },
+          },
+        });
+
+        await tx.membershipDeny.deleteMany({
+          where: {
+            membership: {
+              organizationId: input.teamId,
+            },
+          },
+        });
+
+        // 2. Delete all social account related things
+        // First delete post-social account connections
+        await tx.postSocialAccount.deleteMany({
+          where: {
+            socialAccount: {
+              organizationId: input.teamId,
+            },
+          },
+        });
+
+        // 3. Delete all social accounts
+        await tx.socialAccount.deleteMany({
+          where: {
+            organizationId: input.teamId,
+          },
+        });
+
+        // 4. Delete all posts
+        await tx.post.deleteMany({
+          where: {
+            organizationId: input.teamId,
+          },
+        });
+
+        // 5. Delete all media
+        await tx.media.deleteMany({
+          where: {
+            organizationId: input.teamId,
+          },
+        });
+
+        // 6. Delete all custom role permissions
+        await tx.customRolePermission.deleteMany({
+          where: {
+            customRole: {
+              organizationId: input.teamId,
+            },
+          },
+        });
+
+        // 7. Delete all custom roles
+        await tx.customRole.deleteMany({
+          where: {
+            organizationId: input.teamId,
+          },
+        });
+
+        // 8. Delete all invitations
+        await tx.invitation.deleteMany({
+          where: {
+            organizationId: input.teamId,
+          },
+        });
+
+        // 9. Delete all memberships
+        await tx.membership.deleteMany({
+          where: {
+            organizationId: input.teamId,
+          },
+        });
+
+        // 10. Finally, delete the organization itself
+        return tx.organization.delete({
+          where: {
+            id: input.teamId,
+          },
+        });
       });
     }),
 

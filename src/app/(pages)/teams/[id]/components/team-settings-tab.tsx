@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Settings } from "lucide-react";
+import { Settings, Loader2 } from "lucide-react";
 
 interface TeamSettingsTabProps {
   teamId: string;
@@ -30,6 +30,7 @@ interface TeamSettingsTabProps {
 export const TeamSettingsTab = ({ teamId, team }: TeamSettingsTabProps) => {
   const router = useRouter();
   const [isDeleteTeamDialogOpen, setIsDeleteTeamDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [teamFormData, setTeamFormData] = useState<TeamFormData>({
@@ -74,12 +75,25 @@ export const TeamSettingsTab = ({ teamId, team }: TeamSettingsTabProps) => {
   const deleteTeamMutation = trpc.team.deleteTeam.useMutation({
     onSuccess: () => {
       toast.success("Team deleted successfully");
+      setIsDeleting(false);
       router.push("/teams");
     },
     onError: (error) => {
+      setIsDeleting(false);
       toast.error(error.message || "Could not delete team. Please try again.");
     },
   });
+
+  // Handle dialog close
+  const handleDialogOpenChange = (open: boolean) => {
+    // Prevent closing while deletion is in progress
+    if (!isDeleting) {
+      setIsDeleteTeamDialogOpen(open);
+      if (!open) {
+        setDeleteConfirmText("");
+      }
+    }
+  };
 
   // Update form when team data changes
   useEffect(() => {
@@ -145,12 +159,16 @@ export const TeamSettingsTab = ({ teamId, team }: TeamSettingsTabProps) => {
 
   // Handle team deletion
   const handleTeamDelete = async () => {
+    if (deleteConfirmText !== team?.name) return;
+
     try {
+      setIsDeleting(true);
       deleteTeamMutation.mutate({
         teamId,
       });
     } catch (error) {
       console.error("Error deleting team:", error);
+      setIsDeleting(false);
     }
   };
 
@@ -229,7 +247,14 @@ export const TeamSettingsTab = ({ teamId, team }: TeamSettingsTabProps) => {
                   onClick={handleTeamUpdate}
                   disabled={!hasGeneralSettingsChanged || isSaving}
                 >
-                  {isSaving ? "Saving..." : "Save Changes"}
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
                 </Button>
               </div>
             </div>
@@ -363,47 +388,71 @@ export const TeamSettingsTab = ({ teamId, team }: TeamSettingsTabProps) => {
       {/* Delete Team Confirmation Dialog */}
       <Dialog
         open={isDeleteTeamDialogOpen}
-        onOpenChange={setIsDeleteTeamDialogOpen}
+        onOpenChange={handleDialogOpenChange}
       >
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Team</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete the team{" "}
-              <span className="font-bold">{team?.name}</span>? This action will
-              permanently delete all team data, including members, posts, and
-              settings. This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mt-4">
-            <p className="text-sm text-muted-foreground mb-4">
-              Please type <span className="font-bold">{team?.name}</span> to
-              confirm:
-            </p>
-            <Input
-              className="mb-4"
-              placeholder={`Type "${team?.name}" to confirm`}
-              value={deleteConfirmText}
-              onChange={(e) => setDeleteConfirmText(e.target.value)}
-            />
-          </div>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsDeleteTeamDialogOpen(false);
-                setDeleteConfirmText("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleTeamDelete}
-              disabled={deleteConfirmText !== team?.name}
-            >
-              Delete Permanently
-            </Button>
+          <div className="relative">
+            {isDeleting && (
+              <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50 rounded-md">
+                <div className="flex flex-col items-center space-y-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-destructive" />
+                  <p className="text-sm font-medium">Deleting team...</p>
+                  <p className="text-xs text-muted-foreground max-w-xs text-center">
+                    This may take a moment as we're removing all associated
+                    data.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <DialogHeader>
+              <DialogTitle>Delete Team</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete the team{" "}
+                <span className="font-bold">{team?.name}</span>? This action
+                will permanently delete all team data, including members, posts,
+                and settings. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-4">
+              <p className="text-sm text-muted-foreground mb-4">
+                Please type <span className="font-bold">{team?.name}</span> to
+                confirm:
+              </p>
+              <Input
+                className="mb-4"
+                placeholder={`Type "${team?.name}" to confirm`}
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                disabled={isDeleting}
+              />
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDeleteTeamDialogOpen(false);
+                  setDeleteConfirmText("");
+                }}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleTeamDelete}
+                disabled={deleteConfirmText !== team?.name || isDeleting}
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete Permanently"
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

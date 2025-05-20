@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Settings, Users, Mail } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Components
 import {
@@ -20,6 +21,40 @@ import {
 // Hooks
 import { useTeamPageData } from "./hooks";
 import { usePermissions } from "@/hooks/use-permissions";
+
+// Animation variants
+const pageTransition = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.3 },
+  },
+  exit: {
+    opacity: 0,
+    y: -20,
+    transition: { duration: 0.2 },
+  },
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const fadeInUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4 },
+  },
+};
 
 const TeamPage = () => {
   const { id: teamId } = useParams();
@@ -37,7 +72,12 @@ const TeamPage = () => {
   // Show loading skeleton
   if (isLoading || !isPermissionsLoaded || !team) {
     return (
-      <div className="container mx-auto py-6">
+      <motion.div
+        className="container mx-auto py-6"
+        initial="hidden"
+        animate="visible"
+        variants={pageTransition}
+      >
         <div className="mb-6">
           <Button variant="outline" className="mb-4" disabled>
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -66,13 +106,18 @@ const TeamPage = () => {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="mb-6">
+    <motion.div
+      className="container mx-auto py-6"
+      initial="hidden"
+      animate="visible"
+      variants={pageTransition}
+    >
+      <motion.div className="mb-6" variants={fadeInUp}>
         <Button
           variant="outline"
           className="mb-4"
@@ -83,65 +128,99 @@ const TeamPage = () => {
         </Button>
 
         {team && <TeamHeader team={team} />}
-      </div>
+      </motion.div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-6">
-          <TabsTrigger value="members">
-            <Users className="h-4 w-4 mr-2" />
-            Team Members
-          </TabsTrigger>
-          <TabsTrigger value="social-accounts">
-            <Users className="h-4 w-4 mr-2" />
-            Social Accounts
-          </TabsTrigger>
-          {hasPermission("team.manage") && (
-            <TabsTrigger value="invites">
-              <Mail className="h-4 w-4 mr-2" />
-              Pending Invites
-            </TabsTrigger>
-          )}
-          {hasPermission("team.manage") && (
-            <TabsTrigger value="roles">
-              <Settings className="h-4 w-4 mr-2" />
-              Manage Roles
-            </TabsTrigger>
-          )}
-          {hasPermission("team.manage") && (
-            <TabsTrigger value="settings">
-              <Settings className="h-4 w-4 mr-2" />
-              Team Settings
-            </TabsTrigger>
-          )}
-        </TabsList>
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+        >
+          <TabsList className="mb-6">
+            <motion.div variants={fadeInUp}>
+              <TabsTrigger value="members">
+                <Users className="h-4 w-4 mr-2" />
+                Team Members
+              </TabsTrigger>
+            </motion.div>
 
-        <TabsContent value="members">
-          <TeamMembersTab teamId={teamId as string} />
-        </TabsContent>
+            <motion.div variants={fadeInUp}>
+              <TabsTrigger value="social-accounts">
+                <Users className="h-4 w-4 mr-2" />
+                Social Accounts
+              </TabsTrigger>
+            </motion.div>
 
-        <TabsContent value="social-accounts">
-          <SocialAccountsTab teamId={teamId as string} />
-        </TabsContent>
+            {hasPermission("team.manage") && (
+              <motion.div variants={fadeInUp}>
+                <TabsTrigger value="invites">
+                  <Mail className="h-4 w-4 mr-2" />
+                  Pending Invites
+                </TabsTrigger>
+              </motion.div>
+            )}
 
-        {hasPermission("team.viewInvites") && (
-          <TabsContent value="invites">
-            <TeamInvitesTab teamId={teamId as string} team={team} />
-          </TabsContent>
-        )}
+            {hasPermission("team.manage") && (
+              <motion.div variants={fadeInUp}>
+                <TabsTrigger value="roles">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Manage Roles
+                </TabsTrigger>
+              </motion.div>
+            )}
 
-        {hasPermission("team.manage") && (
-          <TabsContent value="roles">
-            <TeamRolesTab teamId={teamId as string} />
-          </TabsContent>
-        )}
+            {hasPermission("team.manage") && (
+              <motion.div variants={fadeInUp}>
+                <TabsTrigger value="settings">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Team Settings
+                </TabsTrigger>
+              </motion.div>
+            )}
+          </TabsList>
+        </motion.div>
 
-        {hasPermission("team.manage") && (
-          <TabsContent value="settings">
-            <TeamSettingsTab teamId={teamId as string} team={team} />
-          </TabsContent>
-        )}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+          >
+            {activeTab === "members" && (
+              <TabsContent value="members" forceMount>
+                <TeamMembersTab teamId={teamId as string} />
+              </TabsContent>
+            )}
+
+            {activeTab === "social-accounts" && (
+              <TabsContent value="social-accounts" forceMount>
+                <SocialAccountsTab teamId={teamId as string} />
+              </TabsContent>
+            )}
+
+            {hasPermission("team.viewInvites") && activeTab === "invites" && (
+              <TabsContent value="invites" forceMount>
+                <TeamInvitesTab teamId={teamId as string} team={team} />
+              </TabsContent>
+            )}
+
+            {hasPermission("team.manage") && activeTab === "roles" && (
+              <TabsContent value="roles" forceMount>
+                <TeamRolesTab teamId={teamId as string} />
+              </TabsContent>
+            )}
+
+            {hasPermission("team.manage") && activeTab === "settings" && (
+              <TabsContent value="settings" forceMount>
+                <TeamSettingsTab teamId={teamId as string} team={team} />
+              </TabsContent>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </Tabs>
-    </div>
+    </motion.div>
   );
 };
 
