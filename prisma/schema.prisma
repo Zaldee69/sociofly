@@ -43,7 +43,7 @@ model Organization {
 
 model Membership {
   id               String            @id @default(cuid())
-  role             Role              @default(CONTENT_PRODUCER)
+  role             Role              @default(CONTENT_CREATOR)
   status           MemberStatus      @default(ACTIVE)
   lastActiveAt     DateTime          @default(now())
   createdAt        DateTime          @default(now())
@@ -110,7 +110,7 @@ model PostSocialAccount {
 model Invitation {
   id             String       @id @default(cuid())
   email          String
-  role           Role         @default(CONTENT_PRODUCER)
+  role           Role         @default(CONTENT_CREATOR)
   organizationId String
   createdAt      DateTime     @default(now())
   acceptedAt     DateTime?
@@ -165,6 +165,7 @@ model CronLog {
 model Permission {
   id              String                 @id @default(cuid())
   code            String                 @unique // contoh: "content.create", "content.approve"
+  description     String                 @default("") // Deskripsi untuk permission
   roles           RolePermission[]
   customRoles     CustomRolePermission[]
   MembershipGrant MembershipGrant[]
@@ -248,12 +249,12 @@ enum SocialPlatform {
 }
 
 enum Role {
-  TEAM_OWNER
-  CAMPAIGN_MANAGER
-  CONTENT_PRODUCER
-  CONTENT_REVIEWER
+  MANAGER
+  SUPERVISOR
+  CONTENT_CREATOR
+  INTERNAL_REVIEWER
   CLIENT_REVIEWER
-  ANALYTICS_OBSERVER
+  ANALYST
   INBOX_AGENT
 }
 
