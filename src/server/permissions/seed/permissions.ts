@@ -2,43 +2,49 @@
  * Standard permission codes for the application
  */
 export const PERMISSIONS = {
+  // Team management
+  MANAGE_TEAM_MEMBERS: "manage_team_members",
+
+  // Billing management
+  MANAGE_BILLING: "manage_billing",
+
+  // Social accounts management
+  MANAGE_SOCIAL_ACCOUNTS: "manage_social_accounts",
+
+  // Campaign management
+  CREATE_CAMPAIGN: "create_campaign",
+  EDIT_CAMPAIGN: "edit_campaign",
+  APPROVE_CAMPAIGN: "approve_campaign",
+  PUBLISH_CAMPAIGN: "publish_campaign",
+
   // Content management
-  CONTENT_CREATE: "content.create",
-  CONTENT_EDIT_OWN: "content.edit.own",
-  CONTENT_EDIT_ANY: "content.edit.any",
-  CONTENT_DELETE_OWN: "content.delete.own",
-  CONTENT_DELETE_ANY: "content.delete.any",
-  CONTENT_PUBLISH_OWN: "content.publish.own",
-  CONTENT_PUBLISH_ANY: "content.publish.any",
-  CONTENT_APPROVE: "content.approve",
-  CONTENT_SCHEDULE: "content.schedule",
-
-  // Media management
-  MEDIA_UPLOAD: "media.upload",
-  MEDIA_DELETE_OWN: "media.delete.own",
-  MEDIA_DELETE_ANY: "media.delete.any",
-
-  // Social accounts
-  ACCOUNT_CONNECT: "account.connect",
-  ACCOUNT_DISCONNECT: "account.disconnect",
-  ACCOUNT_MANAGE: "account.manage",
+  CREATE_CONTENT: "create_content",
+  EDIT_CONTENT: "edit_content",
+  APPROVE_CONTENT: "approve_content",
+  PUBLISH_CONTENT: "publish_content",
 
   // Analytics
-  ANALYTICS_VIEW: "analytics.view",
-  ANALYTICS_EXPORT: "analytics.export",
+  VIEW_ANALYTICS: "view_analytics",
 
-  // Inbox/Comments
-  INBOX_VIEW: "inbox.view",
-  INBOX_REPLY: "inbox.reply",
+  // Inbox management
+  HANDLE_INBOX: "handle_inbox",
+};
 
-  // Organization management
-  ORG_SETTINGS_EDIT: "org.settings.edit",
-  ORG_MEMBERS_VIEW: "org.members.view",
-  ORG_MEMBERS_INVITE: "org.members.invite",
-  ORG_MEMBERS_REMOVE: "org.members.remove",
-  ORG_MEMBERS_EDIT_ROLE: "org.members.edit_role",
-
-  // Permission management
-  PERMISSIONS_MANAGE: "permissions.manage",
-  CUSTOM_ROLES_MANAGE: "custom_roles.manage",
+/**
+ * Permission descriptions for UI display
+ */
+export const PERMISSION_DESCRIPTIONS = {
+  [PERMISSIONS.MANAGE_TEAM_MEMBERS]: "Tambah, ubah, hapus anggota tim",
+  [PERMISSIONS.MANAGE_BILLING]: "Kelola tagihan & paket langganan",
+  [PERMISSIONS.MANAGE_SOCIAL_ACCOUNTS]: "Hubungkan & kelola akun sosial",
+  [PERMISSIONS.CREATE_CAMPAIGN]: "Buat campaign baru",
+  [PERMISSIONS.EDIT_CAMPAIGN]: "Edit campaign",
+  [PERMISSIONS.APPROVE_CAMPAIGN]: "Menyetujui campaign",
+  [PERMISSIONS.PUBLISH_CAMPAIGN]: "Mempublikasikan campaign",
+  [PERMISSIONS.CREATE_CONTENT]: "Buat konten",
+  [PERMISSIONS.EDIT_CONTENT]: "Edit konten",
+  [PERMISSIONS.APPROVE_CONTENT]: "Menyetujui konten",
+  [PERMISSIONS.PUBLISH_CONTENT]: "Mempublikasikan konten",
+  [PERMISSIONS.VIEW_ANALYTICS]: "Melihat laporan & statistik",
+  [PERMISSIONS.HANDLE_INBOX]: "Mengelola dan membalas pesan",
 };

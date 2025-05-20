@@ -179,7 +179,7 @@ const Page = () => {
     trpc.team.getTeamInvites.useQuery(
       { teamId: teamId as string },
       {
-        enabled: !!teamId && team?.role === "TEAM_OWNER",
+        enabled: !!teamId && team?.role === Role.OWNER,
       }
     );
 
@@ -191,7 +191,7 @@ const Page = () => {
     trpc.team.getAvailableSocialAccounts.useQuery(
       { teamId: teamId as string },
       {
-        enabled: !!teamId && team?.role === "TEAM_OWNER",
+        enabled: !!teamId && team?.role === Role.OWNER,
       }
     );
 
@@ -282,7 +282,7 @@ const Page = () => {
     trpc.team.getCustomRoles.useQuery(
       { teamId: teamId as string },
       {
-        enabled: !!teamId && team?.role === "TEAM_OWNER",
+        enabled: !!teamId && team?.role === Role.OWNER,
       }
     );
 
@@ -508,38 +508,38 @@ const Page = () => {
   // Initialize permissions
   const { data: initializedPermissions } =
     trpc.team.initializePermissions.useQuery(undefined, {
-      enabled: !!teamId && team?.role === "TEAM_OWNER",
+      enabled: !!teamId,
       staleTime: Infinity, // Only need to run once
     });
 
   const campaignManagerPermissions = trpc.team.getRolePermissions.useQuery(
     { role: "CAMPAIGN_MANAGER" as Role },
-    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
+    { enabled: !!teamId }
   );
 
   const contentProducerPermissions = trpc.team.getRolePermissions.useQuery(
     { role: "CONTENT_PRODUCER" as Role },
-    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
+    { enabled: !!teamId }
   );
 
   const contentReviewerPermissions = trpc.team.getRolePermissions.useQuery(
     { role: "CONTENT_REVIEWER" as Role },
-    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
+    { enabled: !!teamId }
   );
 
   const clientReviewerPermissions = trpc.team.getRolePermissions.useQuery(
     { role: "CLIENT_REVIEWER" as Role },
-    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
+    { enabled: !!teamId }
   );
 
   const analyticsObserverPermissions = trpc.team.getRolePermissions.useQuery(
     { role: "ANALYTICS_OBSERVER" as Role },
-    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
+    { enabled: !!teamId }
   );
 
   const inboxAgentPermissions = trpc.team.getRolePermissions.useQuery(
     { role: "INBOX_AGENT" as Role },
-    { enabled: !!teamId && team?.role === "TEAM_OWNER" }
+    { enabled: !!teamId }
   );
 
   // Update built-in role permissions mutation
@@ -558,7 +558,7 @@ const Page = () => {
 
   // Update role permissions from queries
   useEffect(() => {
-    if (team?.role === "TEAM_OWNER" && initializedPermissions) {
+    if (initializedPermissions) {
       const updatedRolePermissions = { ...rolePermissions };
 
       // Skip TEAM_OWNER permissions as it should not be editable
@@ -650,7 +650,7 @@ const Page = () => {
     }
 
     // TEAM_OWNER selalu memiliki semua permission
-    if (team.role === "TEAM_OWNER") {
+    if (team.role === Role.OWNER) {
       return true;
     }
 
@@ -692,14 +692,13 @@ const Page = () => {
         {
           email: values.email,
           teamId: values.teamId || (teamId as string),
-          role: (values.role === "TEAM_OWNER"
-            ? "CAMPAIGN_MANAGER"
-            : values.role) as
-            | "CAMPAIGN_MANAGER"
-            | "CONTENT_PRODUCER"
-            | "CONTENT_REVIEWER"
+          role: (values.role === "OWNER" ? "MANAGER" : values.role) as
+            | "MANAGER"
+            | "SUPERVISOR"
+            | "CONTENT_CREATOR"
+            | "INTERNAL_REVIEWER"
             | "CLIENT_REVIEWER"
-            | "ANALYTICS_OBSERVER"
+            | "ANALYST"
             | "INBOX_AGENT",
           name: values.team || "",
         },
@@ -732,11 +731,12 @@ const Page = () => {
   const handleChangeRole = async (
     memberId: string,
     role:
-      | "CAMPAIGN_MANAGER"
-      | "CONTENT_PRODUCER"
-      | "CONTENT_REVIEWER"
+      | "MANAGER"
+      | "SUPERVISOR"
+      | "CONTENT_CREATOR"
+      | "INTERNAL_REVIEWER"
       | "CLIENT_REVIEWER"
-      | "ANALYTICS_OBSERVER"
+      | "ANALYST"
       | "INBOX_AGENT"
   ) => {
     try {
@@ -1048,20 +1048,18 @@ const Page = () => {
 
   const getRoleBadge = (role: Role) => {
     switch (role) {
-      case "TEAM_OWNER":
+      case "OWNER":
         return <Badge className="bg-purple-600">Team Owner</Badge>;
-      case "CAMPAIGN_MANAGER":
-        return <Badge className="bg-blue-600">Campaign Manager</Badge>;
-      case "CONTENT_PRODUCER":
-        return <Badge variant="secondary">Content Producer</Badge>;
-      case "CONTENT_REVIEWER":
-        return <Badge variant="secondary">Content Reviewer</Badge>;
+      case "SUPERVISOR":
+        return <Badge className="bg-blue-600">Supervisor</Badge>;
+      case "CONTENT_CREATOR":
+        return <Badge variant="secondary">Content Creator</Badge>;
       case "CLIENT_REVIEWER":
         return <Badge variant="secondary">Client Reviewer</Badge>;
-      case "ANALYTICS_OBSERVER":
-        return <Badge variant="secondary">Analytics Observer</Badge>;
-      case "INBOX_AGENT":
-        return <Badge variant="secondary">Inbox Agent</Badge>;
+      case "INTERNAL_REVIEWER":
+        return <Badge variant="secondary">Internal Reviewer</Badge>;
+      case "ANALYST":
+        return <Badge variant="secondary">Analyst</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
     }
@@ -1151,9 +1149,6 @@ const Page = () => {
                     <TableHead>Role</TableHead>
                     <TableHead>Last Active</TableHead>
                     <TableHead>Status</TableHead>
-                    {/* {team.role === "TEAM_OWNER" && (
-                      <TableHead className="text-right">Actions</TableHead>
-                    )} */}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1178,7 +1173,7 @@ const Page = () => {
                             <TableCell>
                               <Skeleton className="h-4 w-[60px]" />
                             </TableCell>
-                            {team.role === "TEAM_OWNER" && (
+                            {team.role === Role.OWNER && (
                               <TableCell className="text-right">
                                 <Skeleton className="h-8 w-8 ml-auto" />
                               </TableCell>
@@ -1214,8 +1209,8 @@ const Page = () => {
                                 | "SUSPENDED"
                             )}
                           </TableCell>
-                          {team.role === "TEAM_OWNER" &&
-                            member.role !== "TEAM_OWNER" && (
+                          {team.role === Role.OWNER &&
+                            member.role !== Role.OWNER && (
                               <TableCell className="text-right">
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
@@ -1245,31 +1240,31 @@ const Page = () => {
                                               onClick={() =>
                                                 handleChangeRole(
                                                   member.id,
-                                                  "CAMPAIGN_MANAGER"
+                                                  "MANAGER"
                                                 )
                                               }
                                             >
-                                              Campaign Manager
+                                              Manager
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                               onClick={() =>
                                                 handleChangeRole(
                                                   member.id,
-                                                  "CONTENT_PRODUCER"
+                                                  "SUPERVISOR"
                                                 )
                                               }
                                             >
-                                              Content Producer
+                                              Supervisor
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                               onClick={() =>
                                                 handleChangeRole(
                                                   member.id,
-                                                  "CONTENT_REVIEWER"
+                                                  "CONTENT_CREATOR"
                                                 )
                                               }
                                             >
-                                              Content Reviewer
+                                              Content Creator
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                               onClick={() =>
@@ -1285,11 +1280,11 @@ const Page = () => {
                                               onClick={() =>
                                                 handleChangeRole(
                                                   member.id,
-                                                  "ANALYTICS_OBSERVER"
+                                                  "ANALYST"
                                                 )
                                               }
                                             >
-                                              Analytics Observer
+                                              Analyst
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                               onClick={() =>
@@ -1545,7 +1540,7 @@ const Page = () => {
 
                   {/* Role selector tabs */}
                   <Tabs
-                    defaultValue="CAMPAIGN_MANAGER"
+                    defaultValue="MANAGER"
                     className="w-full"
                     onValueChange={(value) => setCurrentRole(value)}
                     value={currentRole}

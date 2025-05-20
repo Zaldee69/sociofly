@@ -96,7 +96,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
-      role: "CONTENT_PRODUCER",
+      role: "CONTENT_CREATOR",
       team: teams.name,
       teamId: teams.id,
       message: "",
@@ -173,14 +173,24 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
                         <SelectContent>
                           {[
                             {
-                              label: "Campaign Manager",
-                              value: "CAMPAIGN_MANAGER",
+                              label: "Manager",
+                              value: "MANAGER",
                               description: "Manage campaigns and content",
                             },
                             {
-                              label: "Content Producer",
-                              value: "CONTENT_PRODUCER",
+                              label: "Supervisor",
+                              value: "SUPERVISOR",
+                              description: "Manage campaigns and content",
+                            },
+                            {
+                              label: "Content Creator",
+                              value: "CONTENT_CREATOR",
                               description: "Create and manage content",
+                            },
+                            {
+                              label: "Internal Reviewer",
+                              value: "INTERNAL_REVIEWER",
+                              description: "Review content and approve/reject",
                             },
                             {
                               label: "Client Reviewer",
@@ -188,19 +198,14 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
                               description: "Review content and approve/reject",
                             },
                             {
-                              label: "Analytics Observer",
-                              value: "ANALYTICS_OBSERVER",
+                              label: "Analyst",
+                              value: "ANALYST",
                               description: "View analytics and reports",
                             },
                             {
                               label: "Inbox Agent",
                               value: "INBOX_AGENT",
                               description: "Manage inbox and replies",
-                            },
-                            {
-                              label: "Content Reviewer",
-                              value: "CONTENT_REVIEWER",
-                              description: "Review content and approve/reject",
                             },
                           ].map((item) => (
                             <SelectItem key={item.value} value={item.value}>

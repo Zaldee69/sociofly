@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { OnboardingStatus, SocialPlatform } from "@prisma/client";
+import { OnboardingStatus, Role, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
 
 const onboardingSchema = z.object({
@@ -82,7 +82,7 @@ export const onboardingRouter = createTRPCRouter({
               memberships: {
                 create: {
                   userId,
-                  role: "TEAM_OWNER",
+                  role: Role.OWNER,
                 },
               },
             },
@@ -99,7 +99,7 @@ export const onboardingRouter = createTRPCRouter({
               memberships: {
                 create: {
                   userId,
-                  role: "TEAM_OWNER",
+                  role: Role.OWNER,
                 },
               },
             },
@@ -119,7 +119,7 @@ export const onboardingRouter = createTRPCRouter({
                 data: {
                   email,
                   organizationId: organization.id,
-                  role: "CONTENT_PRODUCER",
+                  role: Role.CONTENT_CREATOR,
                 },
               });
 
@@ -127,7 +127,7 @@ export const onboardingRouter = createTRPCRouter({
               await sendInviteEmail({
                 email,
                 organizationName: organization.name,
-                role: "CONTENT_PRODUCER",
+                role: Role.CONTENT_CREATOR,
               });
             } catch (error) {
               console.error(`Error processing team member ${email}:`, error);

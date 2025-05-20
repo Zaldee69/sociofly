@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import CreateTeamModal from "./components/create-team";
 import { trpc } from "@/lib/trpc/client";
-import { type Role } from "@prisma/client";
+import { Role } from "@prisma/client";
 
 const TeamManagement = () => {
   const router = useRouter();
@@ -45,18 +45,16 @@ const TeamManagement = () => {
   // Get role badge
   const getRoleBadge = (role: Role) => {
     switch (role) {
-      case "TEAM_OWNER":
+      case "OWNER":
         return <Badge className="bg-purple-600">Team Owner</Badge>;
-      case "CAMPAIGN_MANAGER":
-        return <Badge className="bg-blue-600">Campaign Manager</Badge>;
-      case "CONTENT_PRODUCER":
-        return <Badge variant="secondary">Content Producer</Badge>;
-      case "CONTENT_REVIEWER":
-        return <Badge variant="secondary">Content Reviewer</Badge>;
+      case "SUPERVISOR":
+        return <Badge className="bg-blue-600">Supervisor</Badge>;
+      case "CONTENT_CREATOR":
+        return <Badge variant="secondary">Content Creator</Badge>;
       case "CLIENT_REVIEWER":
         return <Badge variant="secondary">Client Reviewer</Badge>;
-      case "ANALYTICS_OBSERVER":
-        return <Badge variant="secondary">Analytics Observer</Badge>;
+      case "ANALYST":
+        return <Badge variant="secondary">Analyst</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
     }
@@ -98,7 +96,7 @@ const TeamManagement = () => {
                 <span>{team.memberCount} members</span>
               </div>
 
-              {team.role === "TEAM_OWNER" ? (
+              {team.role === Role.OWNER ? (
                 <Button
                   onClick={() => handleManageTeam(team.id)}
                   className="w-full"

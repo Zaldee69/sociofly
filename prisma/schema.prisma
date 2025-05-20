@@ -249,6 +249,7 @@ enum SocialPlatform {
 }
 
 enum Role {
+  OWNER
   MANAGER
   SUPERVISOR
   CONTENT_CREATOR
