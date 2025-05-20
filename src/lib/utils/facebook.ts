@@ -1,4 +1,4 @@
-import { FacebookAdsApi, Page } from 'facebook-nodejs-business-sdk';
+import { FacebookAdsApi, Page } from "facebook-nodejs-business-sdk";
 
 export async function postToFacebook(
   pageId: string,

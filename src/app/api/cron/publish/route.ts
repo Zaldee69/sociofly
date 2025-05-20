@@ -1,13 +1,9 @@
-// app/api/cron/publish/route.ts
 import { NextResponse } from "next/server";
-// import { createClient } from "@/lib/utils/supabase/server";
 import { SocialPublishingService } from "@/lib/social-publisher";
 
 export async function GET() {
-  // const supabase = await createClient();
   const service = new SocialPublishingService();
 
-  // TODO: Replace with real data fetching logic
   const posts: any[] = [];
 
   if (!posts || posts.length === 0) {

@@ -103,11 +103,11 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
 
   // Platform icon mapping
   const platformIcons: Record<SocialPlatform, React.ReactNode> = {
-    INSTAGRAM: <Instagram className="h-5 w-5 text-white" />,
-    FACEBOOK: <Facebook className="h-5 w-5 text-white" />,
-    TWITTER: <Twitter className="h-5 w-5 text-white" />,
-    LINKEDIN: <Linkedin className="h-5 w-5 text-white" />,
-    YOUTUBE: <Youtube className="h-5 w-5 text-white" />,
+    INSTAGRAM: <Instagram className="h-5 w-5 text-blue" />,
+    FACEBOOK: <Facebook className="h-5 w-5 text-blue" />,
+    TWITTER: <Twitter className="h-5 w-5 text-blue" />,
+    LINKEDIN: <Linkedin className="h-5 w-5 text-blue" />,
+    YOUTUBE: <Youtube className="h-5 w-5 text-blue" />,
     TIKTOK: <ExternalLink className="h-5 w-5 text-white" />, // Fallback icon for TikTok
   };
 
@@ -210,6 +210,12 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
                       key={platform}
                       variant="outline"
                       className="w-full justify-start"
+                      disabled={
+                        platform === SocialPlatform.TIKTOK ||
+                        platform === SocialPlatform.TWITTER ||
+                        platform === SocialPlatform.YOUTUBE ||
+                        platform === SocialPlatform.LINKEDIN
+                      }
                       onClick={() => {
                         handleAddSocialAccount(platform);
                       }}

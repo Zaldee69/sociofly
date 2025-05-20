@@ -27,9 +27,6 @@ export const useOnboarding = () => {
     }
   }, [onboardingStatus, router]);
 
-  const { data: userSocialAccounts, refetch: refetchSocialAccounts } =
-    trpc.onboarding.getSocialAccounts.useQuery();
-
   const updateOnboardingStatus =
     trpc.onboarding.updateOnboardingStatus.useMutation({
       onError: (error) => {
@@ -64,12 +61,8 @@ export const useOnboarding = () => {
       if (savedUserType) {
         setUserType(savedUserType);
       }
-      if (refresh === "true") {
-        // Refetch social accounts data when returning from OAuth
-        refetchSocialAccounts();
-      }
     }
-  }, [searchParams, refetchSocialAccounts]);
+  }, [searchParams]);
 
   const handleUserTypeSelect = (type: "solo" | "team") => {
     setUserType(type);
@@ -227,7 +220,6 @@ export const useOnboarding = () => {
     logoPreview,
     teamEmails,
     currentEmail,
-    userSocialAccounts,
     completeOnboarding,
     handleUserTypeSelect,
     handleLogoUpload,

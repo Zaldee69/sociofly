@@ -22,7 +22,6 @@ const Onboarding: React.FC = () => {
     logoPreview,
     teamEmails,
     currentEmail,
-    userSocialAccounts,
     completeOnboarding,
     handleUserTypeSelect,
     handleLogoUpload,
