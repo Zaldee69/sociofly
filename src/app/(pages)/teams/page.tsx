@@ -49,6 +49,8 @@ const TeamManagement = () => {
         return <Badge className="bg-purple-600">Team Owner</Badge>;
       case "SUPERVISOR":
         return <Badge className="bg-blue-600">Supervisor</Badge>;
+      case "MANAGER":
+        return <Badge className="bg-green-600">Manager</Badge>;
       case "CONTENT_CREATOR":
         return <Badge variant="secondary">Content Creator</Badge>;
       case "CLIENT_REVIEWER":

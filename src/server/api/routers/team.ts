@@ -657,8 +657,15 @@ export const teamRouter = createTRPCRouter({
   getAvailablePermissions: protectedProcedure.query(async ({ ctx }) => {
     if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
 
-    // Get all permissions from the database
-    const permissions = await ctx.prisma.permission.findMany();
+    // Get all permissions from the database with description field included
+    // Description akan digunakan di UI untuk menampilkan detail permission
+    const permissions = await ctx.prisma.permission.findMany({
+      select: {
+        id: true,
+        code: true,
+        description: true,
+      },
+    });
 
     return permissions;
   }),
@@ -982,52 +989,6 @@ export const teamRouter = createTRPCRouter({
       };
     }),
 
-  // Create default permissions if not exist
-  initializePermissions: requirePermission("team.manage").query(
-    async ({ ctx }) => {
-      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
-
-      // Default permissions to ensure exist in the database
-      const defaultPermissions = [
-        // Content permissions
-        "content.create",
-        "content.edit",
-        "content.view",
-        "content.delete",
-        "content.approve",
-        "content.publish", // Make sure this exists
-        "content.comment",
-        // Analytics permissions
-        "analytics.view",
-        "analytics.export",
-        // Team permissions
-        "team.invite",
-        "team.manage",
-        // Message permissions
-        "messages.view",
-        "messages.reply",
-      ];
-
-      // Create permissions if they don't exist
-      for (const code of defaultPermissions) {
-        const existingPermission = await ctx.prisma.permission.findUnique({
-          where: { code },
-        });
-
-        if (!existingPermission) {
-          await ctx.prisma.permission.create({
-            data: { code },
-          });
-        }
-      }
-
-      // Also initialize role-permission relationships for built-in roles
-      await initializeRolePermissions(ctx);
-
-      return { success: true };
-    }
-  ),
-
   // Get role permissions
   getRolePermissions: requirePermission("team.manage")
     .input(z.object({ role: z.nativeEnum(Role) }))
@@ -1071,47 +1032,56 @@ export const teamRouter = createTRPCRouter({
 
       // Validate all permission codes exist
       const permissions = await ctx.prisma.permission.findMany({
-        where: { code: { in: input.permissionCodes } },
+        where: {
+          code: {
+            in: input.permissionCodes,
+          },
+        },
       });
 
       if (permissions.length !== input.permissionCodes.length) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "One or more permission codes are invalid",
+          message: "Some permission codes do not exist",
         });
       }
 
-      // Delete existing role permissions for this role globally
-      await ctx.prisma.rolePermission.deleteMany({
-        where: { role: input.role },
+      // Transaction to update role permissions
+      await ctx.prisma.$transaction(async (prisma) => {
+        // Delete existing role permissions for this role
+        await prisma.rolePermission.deleteMany({
+          where: {
+            role: input.role,
+          },
+        });
+
+        // Create new role permissions
+        await Promise.all(
+          permissions.map((permission) =>
+            prisma.rolePermission.create({
+              data: {
+                role: input.role,
+                permissionId: permission.id,
+              },
+            })
+          )
+        );
       });
 
-      // Create new role permissions
-      await Promise.all(
-        permissions.map((permission) =>
-          ctx.prisma.rolePermission.create({
-            data: {
-              role: input.role,
-              permission: {
-                connect: { id: permission.id },
-              },
-            },
-          })
-        )
-      );
-
-      return {
-        role: input.role,
-        permissions: permissions.map((p) => p.code),
-      };
+      return { success: true };
     }),
 
-  // Get default permissions for a role
+  // Get default permissions for a role from the database
   getDefaultRolePermissions: protectedProcedure
-    .input(z.object({ role: z.nativeEnum(Role) }))
+    .input(
+      z.object({
+        role: z.nativeEnum(Role),
+      })
+    )
     .query(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
 
+      // Get all permissions for the specified role
       const rolePermissions = await ctx.prisma.rolePermission.findMany({
         where: {
           role: input.role,
@@ -1121,6 +1091,7 @@ export const teamRouter = createTRPCRouter({
         },
       });
 
+      // Return just the permission codes
       return rolePermissions.map((rp) => rp.permission.code);
     }),
 });
@@ -1154,59 +1125,6 @@ async function initializeRolePermissions(ctx: any) {
         });
       }
       continue;
-    }
-
-    // Otherwise, fetch default permissions for this role from database
-    // This assumes you've set up a table/model to store default role permissions
-    // If not, we'll apply some basic defaults
-    let defaultPermissions: string[] = [];
-
-    switch (role) {
-      case Role.MANAGER:
-        defaultPermissions = [
-          "content.create",
-          "content.edit",
-          "content.view",
-          "content.publish",
-          "analytics.view",
-          "team.manage",
-        ];
-        break;
-      case Role.SUPERVISOR:
-        defaultPermissions = ["content.create", "content.edit", "content.view"];
-        break;
-      case Role.CONTENT_CREATOR:
-        defaultPermissions = ["content.create", "content.edit", "content.view"];
-        break;
-      case Role.INTERNAL_REVIEWER:
-        defaultPermissions = ["content.view", "content.approve"];
-        break;
-      case Role.CLIENT_REVIEWER:
-        defaultPermissions = ["content.view", "content.comment"];
-        break;
-      case Role.ANALYST:
-        defaultPermissions = ["analytics.view"];
-        break;
-      case Role.INBOX_AGENT:
-        defaultPermissions = ["messages.view", "messages.reply"];
-        break;
-    }
-
-    // Apply default permissions
-    for (const permCode of defaultPermissions) {
-      const permission = allPermissions.find(
-        (p: { code: string; id: string }) => p.code === permCode
-      );
-      if (permission) {
-        await ctx.prisma.rolePermission.create({
-          data: {
-            role: role as Role,
-            permission: {
-              connect: { id: permission.id },
-            },
-          },
-        });
-      }
     }
   }
 }

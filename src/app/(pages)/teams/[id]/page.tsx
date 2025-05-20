@@ -29,6 +29,7 @@ import {
   ExternalLink,
   Ellipsis,
   Trash,
+  Loader2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -148,7 +149,7 @@ const Page = () => {
     Record<string, string[]>
   >({});
   const [isRolePermissionsSaving, setIsRolePermissionsSaving] = useState(false);
-  const [currentRole, setCurrentRole] = useState("CAMPAIGN_MANAGER");
+  const [currentRole, setCurrentRole] = useState("MANAGER");
   const [isCreateRoleOpen, setIsCreateRoleOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleDescription, setNewRoleDescription] = useState("");
@@ -229,6 +230,69 @@ const Page = () => {
     },
   });
 
+  // Get role permissions from API endpoints
+  const { data: ownerPermissions } =
+    trpc.team.getDefaultRolePermissions.useQuery(
+      { role: "OWNER" as Role },
+      { enabled: !!teamId && activeTab === "roles" }
+    );
+
+  const { data: managerPermissions } =
+    trpc.team.getDefaultRolePermissions.useQuery(
+      { role: "MANAGER" as Role },
+      { enabled: !!teamId && activeTab === "roles" }
+    );
+
+  const { data: supervisorPermissions } =
+    trpc.team.getDefaultRolePermissions.useQuery(
+      { role: "SUPERVISOR" as Role },
+      { enabled: !!teamId && activeTab === "roles" }
+    );
+
+  const { data: contentCreatorPermissions } =
+    trpc.team.getDefaultRolePermissions.useQuery(
+      { role: "CONTENT_CREATOR" as Role },
+      { enabled: !!teamId && activeTab === "roles" }
+    );
+
+  const { data: internalReviewerPermissions } =
+    trpc.team.getDefaultRolePermissions.useQuery(
+      { role: "INTERNAL_REVIEWER" as Role },
+      { enabled: !!teamId && activeTab === "roles" }
+    );
+
+  const { data: clientReviewerPermissions } =
+    trpc.team.getDefaultRolePermissions.useQuery(
+      { role: "CLIENT_REVIEWER" as Role },
+      { enabled: !!teamId && activeTab === "roles" }
+    );
+
+  const { data: analystPermissions } =
+    trpc.team.getDefaultRolePermissions.useQuery(
+      { role: "ANALYST" as Role },
+      { enabled: !!teamId && activeTab === "roles" }
+    );
+
+  const { data: inboxAgentPermissions } =
+    trpc.team.getDefaultRolePermissions.useQuery(
+      { role: "INBOX_AGENT" as Role },
+      { enabled: !!teamId && activeTab === "roles" }
+    );
+
+  // Set default role permissions mutation
+  const setDefaultRolePermissionsMutation =
+    trpc.team.setDefaultRolePermissions.useMutation({
+      onSuccess: () => {
+        toast.success("Default role permissions updated successfully");
+        utils.team.getDefaultRolePermissions.invalidate();
+      },
+      onError: (error: TRPCClientErrorLike<any>) => {
+        toast.error(
+          error.message || "Failed to update default role permissions"
+        );
+      },
+    });
+
   const updateRoleMutation = trpc.team.updateMemberRole.useMutation({
     onSuccess: () => {
       toast.success("Team member role has been updated successfully");
@@ -287,7 +351,7 @@ const Page = () => {
     );
 
   // Get available permissions from API
-  const { data: availablePermissionsData } =
+  const { data: availablePermissionsData, isLoading: isLoadingPermissions } =
     trpc.team.getAvailablePermissions.useQuery(undefined, {
       enabled: !!teamId,
       retry: false,
@@ -330,99 +394,44 @@ const Page = () => {
     },
   });
 
-  // Available permissions fallback
-  const availablePermissions = [
-    {
-      id: "content.create",
-      name: "Create Content",
-      description: "Can create new content and drafts",
-    },
-    {
-      id: "content.edit",
-      name: "Edit Content",
-      description: "Can edit existing content",
-    },
-    {
-      id: "content.view",
-      name: "View Content",
-      description: "Can view content in all stages",
-    },
-    {
-      id: "content.delete",
-      name: "Delete Content",
-      description: "Can delete content",
-    },
-    {
-      id: "content.approve",
-      name: "Approve Content",
-      description: "Can approve content for publishing",
-    },
-    {
-      id: "content.publish",
-      name: "Publish Content",
-      description: "Can publish approved content",
-    },
-    {
-      id: "content.comment",
-      name: "Comment on Content",
-      description: "Can add comments to content",
-    },
-    {
-      id: "analytics.view",
-      name: "View Analytics",
-      description: "Can view analytics and reports",
-    },
-    {
-      id: "analytics.export",
-      name: "Export Analytics",
-      description: "Can export analytics data",
-    },
-    {
-      id: "team.invite",
-      name: "Invite Members",
-      description: "Can invite new team members",
-    },
-    {
-      id: "messages.view",
-      name: "View Messages",
-      description: "Can view incoming messages",
-    },
-    {
-      id: "messages.reply",
-      name: "Reply to Messages",
-      description: "Can reply to incoming messages",
-    },
-  ];
-
-  // Role descriptions
-  const roleDescriptions: Record<string, string> = {
-    CAMPAIGN_MANAGER: "Manages campaigns and has broad permissions",
-    CONTENT_PRODUCER: "Creates and edits content",
-    CONTENT_REVIEWER: "Reviews and approves content",
-    CLIENT_REVIEWER: "Views and provides feedback on content",
-    ANALYTICS_OBSERVER: "Views analytics and performance data",
-    INBOX_AGENT: "Manages incoming messages and comments",
-  };
-
   // Format permissions data from the API
   const formattedPermissions = React.useMemo(() => {
     if (!availablePermissionsData) return [];
 
-    return availablePermissionsData.map((p: { code: string }) => ({
-      id: p.code,
-      name: p.code
-        .split(".")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" "),
-      description: `Can ${p.code.split(".")[1] || ""} ${p.code.split(".")[0] || ""}`,
-    }));
+    return availablePermissionsData.map(
+      (p: { code: string; description: string }) => ({
+        id: p.code,
+        name: p.code
+          .split(".")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" "),
+        description:
+          p.description ||
+          `Can ${p.code.split(".")[1] || ""} ${p.code.split(".")[0] || ""}`,
+      })
+    );
   }, [availablePermissionsData]);
 
-  // Combined permissions and roles
-  const allPermissions =
-    formattedPermissions.length > 0
-      ? formattedPermissions
-      : availablePermissions;
+  // Use permissions from database only
+  const allPermissions = formattedPermissions;
+
+  // Role descriptions - should come from the database in future updates
+  const roleDescriptions: Record<string, string> = {
+    OWNER: "Team owner with all permissions",
+    MANAGER: "Manages team and has broad permissions",
+    SUPERVISOR: "Supervises team and content",
+    CONTENT_CREATOR: "Creates and edits content",
+    INTERNAL_REVIEWER: "Reviews content internally",
+    CLIENT_REVIEWER: "Views and provides feedback on content",
+    ANALYST: "Views analytics and performance data",
+    INBOX_AGENT: "Manages incoming messages and comments",
+    // Legacy roles for backwards compatibility
+    TEAM_OWNER: "Team owner with all permissions",
+    CAMPAIGN_MANAGER: "Manages campaigns and has broad permissions",
+    CONTENT_PRODUCER: "Creates and edits content",
+    CONTENT_REVIEWER: "Reviews and approves content",
+    ANALYTICS_OBSERVER: "Views analytics and performance data",
+  };
 
   // Combined role permissions data (built-in + custom)
   const combinedRolePermissions = React.useMemo(() => {
@@ -505,13 +514,7 @@ const Page = () => {
     );
   }, [teamFormData.notifications, originalFormData.notifications]);
 
-  // Initialize permissions
-  const { data: initializedPermissions } =
-    trpc.team.initializePermissions.useQuery(undefined, {
-      enabled: !!teamId,
-      staleTime: Infinity, // Only need to run once
-    });
-
+  // Legacy role permission queries - these will be removed in a future update
   const campaignManagerPermissions = trpc.team.getRolePermissions.useQuery(
     { role: "CAMPAIGN_MANAGER" as Role },
     { enabled: !!teamId }
@@ -527,86 +530,88 @@ const Page = () => {
     { enabled: !!teamId }
   );
 
-  const clientReviewerPermissions = trpc.team.getRolePermissions.useQuery(
-    { role: "CLIENT_REVIEWER" as Role },
-    { enabled: !!teamId }
-  );
-
   const analyticsObserverPermissions = trpc.team.getRolePermissions.useQuery(
     { role: "ANALYTICS_OBSERVER" as Role },
     { enabled: !!teamId }
   );
 
-  const inboxAgentPermissions = trpc.team.getRolePermissions.useQuery(
-    { role: "INBOX_AGENT" as Role },
-    { enabled: !!teamId }
-  );
-
-  // Update built-in role permissions mutation
-  const updateBuiltInRoleMutation = trpc.team.updateRolePermissions.useMutation(
-    {
-      onSuccess: () => {
-        toast.success("Role permissions updated successfully");
-        // Refresh the data
-        utils.team.getRolePermissions.invalidate();
-      },
-      onError: (error: TRPCClientErrorLike<any>) => {
-        toast.error(error.message || "Failed to update role permissions");
-      },
-    }
-  );
-
   // Update role permissions from queries
   useEffect(() => {
-    if (initializedPermissions) {
-      const updatedRolePermissions = { ...rolePermissions };
+    const updatedRolePermissions = { ...rolePermissions };
 
-      // Skip TEAM_OWNER permissions as it should not be editable
+    // Load permissions from the new API endpoints
+    if (ownerPermissions) {
+      updatedRolePermissions["OWNER"] = ownerPermissions;
+    }
 
-      if (campaignManagerPermissions.data) {
-        updatedRolePermissions["CAMPAIGN_MANAGER"] =
-          campaignManagerPermissions.data;
-      }
+    if (managerPermissions) {
+      updatedRolePermissions["MANAGER"] = managerPermissions;
+    }
 
-      if (contentProducerPermissions.data) {
-        updatedRolePermissions["CONTENT_PRODUCER"] =
-          contentProducerPermissions.data;
-      }
+    if (supervisorPermissions) {
+      updatedRolePermissions["SUPERVISOR"] = supervisorPermissions;
+    }
 
-      if (contentReviewerPermissions.data) {
-        updatedRolePermissions["CONTENT_REVIEWER"] =
-          contentReviewerPermissions.data;
-      }
+    if (contentCreatorPermissions) {
+      updatedRolePermissions["CONTENT_CREATOR"] = contentCreatorPermissions;
+    }
 
-      if (clientReviewerPermissions.data) {
-        updatedRolePermissions["CLIENT_REVIEWER"] =
-          clientReviewerPermissions.data;
-      }
+    if (internalReviewerPermissions) {
+      updatedRolePermissions["INTERNAL_REVIEWER"] = internalReviewerPermissions;
+    }
 
-      if (analyticsObserverPermissions.data) {
-        updatedRolePermissions["ANALYTICS_OBSERVER"] =
-          analyticsObserverPermissions.data;
-      }
+    if (clientReviewerPermissions) {
+      updatedRolePermissions["CLIENT_REVIEWER"] = clientReviewerPermissions;
+    }
 
-      if (inboxAgentPermissions.data) {
-        updatedRolePermissions["INBOX_AGENT"] = inboxAgentPermissions.data;
-      }
+    if (analystPermissions) {
+      updatedRolePermissions["ANALYST"] = analystPermissions;
+    }
 
-      if (Object.keys(updatedRolePermissions).length > 0) {
-        setRolePermissions(updatedRolePermissions);
-        setOriginalRolePermissions(updatedRolePermissions);
-      }
+    if (inboxAgentPermissions) {
+      updatedRolePermissions["INBOX_AGENT"] = inboxAgentPermissions;
+    }
+
+    // Handle legacy role names for backward compatibility
+    if (campaignManagerPermissions.data) {
+      updatedRolePermissions["CAMPAIGN_MANAGER"] =
+        campaignManagerPermissions.data;
+    }
+
+    if (contentProducerPermissions.data) {
+      updatedRolePermissions["CONTENT_PRODUCER"] =
+        contentProducerPermissions.data;
+    }
+
+    if (contentReviewerPermissions.data) {
+      updatedRolePermissions["CONTENT_REVIEWER"] =
+        contentReviewerPermissions.data;
+    }
+
+    if (analyticsObserverPermissions.data) {
+      updatedRolePermissions["ANALYTICS_OBSERVER"] =
+        analyticsObserverPermissions.data;
+    }
+
+    if (Object.keys(updatedRolePermissions).length > 0) {
+      setRolePermissions(updatedRolePermissions);
+      setOriginalRolePermissions(updatedRolePermissions);
     }
   }, [
-    team,
-    initializedPermissions,
-    // Skip teamOwnerPermissions.data from dependency array
+    // New dependencies
+    ownerPermissions,
+    managerPermissions,
+    supervisorPermissions,
+    contentCreatorPermissions,
+    internalReviewerPermissions,
+    clientReviewerPermissions,
+    analystPermissions,
+    inboxAgentPermissions,
+    // Legacy dependencies
     campaignManagerPermissions.data,
     contentProducerPermissions.data,
     contentReviewerPermissions.data,
-    clientReviewerPermissions.data,
     analyticsObserverPermissions.data,
-    inboxAgentPermissions.data,
   ]);
 
   // Define permission hierarchy
@@ -679,75 +684,10 @@ const Page = () => {
     return false;
   };
 
-  // Handlers
-  const handleAddMember = async (values: {
-    team: string;
-    teamId?: string;
-    role: string;
-    email: string;
-    message?: string;
-  }) => {
-    return new Promise<void>((resolve, reject) => {
-      inviteMutation.mutate(
-        {
-          email: values.email,
-          teamId: values.teamId || (teamId as string),
-          role: (values.role === "OWNER" ? "MANAGER" : values.role) as
-            | "MANAGER"
-            | "SUPERVISOR"
-            | "CONTENT_CREATOR"
-            | "INTERNAL_REVIEWER"
-            | "CLIENT_REVIEWER"
-            | "ANALYST"
-            | "INBOX_AGENT",
-          name: values.team || "",
-        },
-        {
-          onSuccess: () => resolve(),
-          onError: (error) => reject(error),
-        }
-      );
-    });
-  };
-
-  // Handlers for social accounts
-  const handleAddSocialAccount = (platform: SocialPlatform) => {
-    // This is a placeholder - in reality, you would redirect to OAuth flow
-    addSocialAccountMutation.mutate({
-      teamId: teamId as string,
-      platform,
-      accessToken: "placeholder-token", // This would come from OAuth
-      name: `${platform.toLowerCase()} account`, // This would come from OAuth
-    });
-  };
-
-  const handleRemoveSocialAccount = (accountId: string) => {
-    removeSocialAccountMutation.mutate({
-      teamId: teamId as string,
-      accountId,
-    });
-  };
-
-  const handleChangeRole = async (
-    memberId: string,
-    role:
-      | "MANAGER"
-      | "SUPERVISOR"
-      | "CONTENT_CREATOR"
-      | "INTERNAL_REVIEWER"
-      | "CLIENT_REVIEWER"
-      | "ANALYST"
-      | "INBOX_AGENT"
-  ) => {
-    try {
-      updateRoleMutation.mutate({
-        teamId: teamId as string,
-        memberId,
-        role,
-      });
-    } catch (error) {
-      console.error("Error updating member role:", error);
-    }
+  // Function to check if a role can be edited
+  const canEditRole = (role: string) => {
+    // Owner and legacy Team Owner roles cannot be edited
+    return role !== "OWNER" && role !== "TEAM_OWNER";
   };
 
   const handleRemoveMember = async (memberId: string) => {
@@ -796,13 +736,6 @@ const Page = () => {
     try {
       setIsRolePermissionsSaving(true);
 
-      // Jangan perbolehkan perubahan untuk TEAM_OWNER
-      if (currentRole === "TEAM_OWNER") {
-        toast.error("TEAM_OWNER permissions cannot be modified");
-        setIsRolePermissionsSaving(false);
-        return;
-      }
-
       // Check if this is a custom role or a built-in role
       const isCustomRole = customRoles?.some(
         (r: { name: string }) => r.name === currentRole
@@ -828,10 +761,10 @@ const Page = () => {
         // For built-in roles
         // Check if the role is a valid built-in role
         if (Object.values(Role).includes(currentRole as Role)) {
-          await updateBuiltInRoleMutation.mutateAsync({
-            teamId: teamId as string,
+          // Use the new setDefaultRolePermissions endpoint to update default role permissions
+          await setDefaultRolePermissionsMutation.mutateAsync({
             role: currentRole as Role,
-            permissions: combinedRolePermissions[currentRole] || [],
+            permissionCodes: combinedRolePermissions[currentRole] || [],
           });
         } else {
           toast.error("Invalid role");
@@ -954,7 +887,7 @@ const Page = () => {
       });
 
       // Set current role to a default one
-      setCurrentRole("CAMPAIGN_MANAGER");
+      setCurrentRole("MANAGER");
     } catch (error) {
       console.error("Error deleting custom role:", error);
     }
@@ -984,6 +917,60 @@ const Page = () => {
         member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         member.email.toLowerCase().includes(searchQuery.toLowerCase())
     ) ?? [];
+
+  // Handler for adding team members
+  const handleAddMember = async (values: {
+    team: string;
+    teamId?: string;
+    role: string;
+    email: string;
+    message?: string;
+  }) => {
+    return new Promise<void>((resolve, reject) => {
+      inviteMutation.mutate(
+        {
+          email: values.email,
+          teamId: values.teamId || (teamId as string),
+          role: (values.role === "OWNER" ? "MANAGER" : values.role) as
+            | "MANAGER"
+            | "SUPERVISOR"
+            | "CONTENT_CREATOR"
+            | "INTERNAL_REVIEWER"
+            | "CLIENT_REVIEWER"
+            | "ANALYST"
+            | "INBOX_AGENT",
+          name: values.team || "",
+        },
+        {
+          onSuccess: () => resolve(),
+          onError: (error) => reject(error),
+        }
+      );
+    });
+  };
+
+  // Handlers for social accounts
+  const handleAddSocialAccount = (platform: SocialPlatform) => {
+    // This is a placeholder - in reality, you would redirect to OAuth flow
+    addSocialAccountMutation.mutate({
+      teamId: teamId as string,
+      platform,
+      accessToken: "placeholder-token", // This would come from OAuth
+      name: `${platform.toLowerCase()} account`, // This would come from OAuth
+    });
+  };
+
+  const handleRemoveSocialAccount = (accountId: string) => {
+    removeSocialAccountMutation.mutate({
+      teamId: teamId as string,
+      accountId,
+    });
+  };
+
+  // Update the currentRole with useEffect to ensure the default is always MANAGER on mount
+  useEffect(() => {
+    setCurrentRole("MANAGER");
+  }, []);
 
   // Hanya tampilkan loading untuk seluruh halaman pada awal load
   if ((isLoadingTeam || isLoadingMembers) && !searchQuery) {
@@ -1062,6 +1049,29 @@ const Page = () => {
         return <Badge variant="secondary">Analyst</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
+    }
+  };
+
+  // Function to change a team member's role
+  const handleChangeRole = async (
+    memberId: string,
+    role:
+      | "MANAGER"
+      | "SUPERVISOR"
+      | "CONTENT_CREATOR"
+      | "INTERNAL_REVIEWER"
+      | "CLIENT_REVIEWER"
+      | "ANALYST"
+      | "INBOX_AGENT"
+  ) => {
+    try {
+      updateRoleMutation.mutate({
+        teamId: teamId as string,
+        memberId,
+        role,
+      });
+    } catch (error) {
+      console.error("Error updating member role:", error);
     }
   };
 
@@ -1546,15 +1556,28 @@ const Page = () => {
                     value={currentRole}
                   >
                     <TabsList className="w-full justify-start overflow-auto">
-                      {Object.keys(combinedRolePermissions).map((role) => (
-                        <TabsTrigger
-                          key={role}
-                          value={role}
-                          className="min-w-fit whitespace-nowrap"
-                        >
-                          {role.replace("_", " ").replace(/_/g, " ")}
-                        </TabsTrigger>
-                      ))}
+                      {Object.keys(combinedRolePermissions)
+                        .filter(
+                          (role) => role !== "OWNER" && role !== "TEAM_OWNER"
+                        )
+                        .map((role) => (
+                          <TabsTrigger
+                            key={role}
+                            value={role}
+                            className="min-w-fit whitespace-nowrap"
+                          >
+                            {role
+                              .replace("_", " ")
+                              .replace(/_/g, " ")
+                              .split(" ")
+                              .map(
+                                (word) =>
+                                  word.charAt(0).toUpperCase() +
+                                  word.slice(1).toLowerCase()
+                              )
+                              .join(" ")}
+                          </TabsTrigger>
+                        ))}
                     </TabsList>
 
                     {/* Permission tables for each role */}
@@ -1564,7 +1587,16 @@ const Page = () => {
                           <div className="flex justify-between items-start">
                             <div>
                               <h3 className="text-lg font-medium">
-                                {role.replace("_", " ").replace(/_/g, " ")}
+                                {role
+                                  .replace("_", " ")
+                                  .replace(/_/g, " ")
+                                  .split(" ")
+                                  .map(
+                                    (word) =>
+                                      word.charAt(0).toUpperCase() +
+                                      word.slice(1).toLowerCase()
+                                  )
+                                  .join(" ")}
                               </h3>
                               <p className="text-sm text-muted-foreground">
                                 {
@@ -1607,29 +1639,64 @@ const Page = () => {
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {allPermissions.map((permission) => (
-                                  <TableRow key={permission.id}>
-                                    <TableCell className="font-medium">
-                                      {permission.name}
-                                    </TableCell>
-                                    <TableCell>
-                                      {permission.description}
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                      <Switch
-                                        checked={combinedRolePermissions[
-                                          role
-                                        ].includes(permission.id)}
-                                        onCheckedChange={() =>
-                                          handleTogglePermission(
-                                            role,
-                                            permission.id
-                                          )
-                                        }
-                                      />
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
+                                {/* Show loading skeleton when permissions are being fetched */}
+                                {activeTab === "roles" &&
+                                ((currentRole === "OWNER" &&
+                                  !ownerPermissions) ||
+                                  (currentRole === "MANAGER" &&
+                                    !managerPermissions) ||
+                                  (currentRole === "SUPERVISOR" &&
+                                    !supervisorPermissions) ||
+                                  (currentRole === "CONTENT_CREATOR" &&
+                                    !contentCreatorPermissions) ||
+                                  (currentRole === "INTERNAL_REVIEWER" &&
+                                    !internalReviewerPermissions) ||
+                                  (currentRole === "CLIENT_REVIEWER" &&
+                                    !clientReviewerPermissions) ||
+                                  (currentRole === "ANALYST" &&
+                                    !analystPermissions) ||
+                                  (currentRole === "INBOX_AGENT" &&
+                                    !inboxAgentPermissions))
+                                  ? // Loading state
+                                    Array(5)
+                                      .fill(0)
+                                      .map((_, i) => (
+                                        <TableRow key={`loading-${i}`}>
+                                          <TableCell>
+                                            <Skeleton className="h-4 w-[150px]" />
+                                          </TableCell>
+                                          <TableCell>
+                                            <Skeleton className="h-4 w-[200px]" />
+                                          </TableCell>
+                                          <TableCell className="text-center">
+                                            <Skeleton className="h-5 w-10 mx-auto" />
+                                          </TableCell>
+                                        </TableRow>
+                                      ))
+                                  : // Actual permissions
+                                    allPermissions.map((permission) => (
+                                      <TableRow key={permission.id}>
+                                        <TableCell className="font-medium">
+                                          {permission.name}
+                                        </TableCell>
+                                        <TableCell>
+                                          {permission.description}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                          <Switch
+                                            checked={combinedRolePermissions[
+                                              role
+                                            ].includes(permission.id)}
+                                            onCheckedChange={() =>
+                                              handleTogglePermission(
+                                                role,
+                                                permission.id
+                                              )
+                                            }
+                                          />
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
                               </TableBody>
                             </Table>
                           </div>
@@ -1999,7 +2066,7 @@ const Page = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {availablePermissions.map((permission) => (
+                    {allPermissions.map((permission) => (
                       <TableRow key={permission.id}>
                         <TableCell className="font-medium">
                           {permission.name}
