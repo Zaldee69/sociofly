@@ -163,7 +163,7 @@ export function MemberPermissionEditor({
   if (isLoading || isLoadingOverrides) {
     return (
       <div className="p-4 flex justify-center items-center">
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     );
   }

@@ -1,0 +1,75 @@
+import React from "react";
+import { Team } from "../types";
+import { Skeleton } from "@/components/ui/skeleton";
+import AddMemberModal from "../../components/add-member";
+import { usePermissions } from "@/hooks/use-permissions";
+import { trpc } from "@/lib/trpc/client";
+import { toast } from "sonner";
+
+interface TeamHeaderProps {
+  team: Team;
+}
+
+export const TeamHeader = ({ team }: TeamHeaderProps) => {
+  const { hasPermission } = usePermissions(team.id);
+  const utils = trpc.useUtils();
+
+  // Handler for adding team members
+  const handleAddMember = async (values: {
+    team: string;
+    teamId?: string;
+    role: string;
+    email: string;
+    message?: string;
+  }) => {
+    return new Promise<void>((resolve, reject) => {
+      const inviteMutation = trpc.team.inviteMember.useMutation({
+        onSuccess: () => {
+          toast.success("Invitation sent successfully");
+          utils.team.getTeamInvites.invalidate({ teamId: team.id });
+          resolve();
+        },
+        onError: (error: any) => {
+          toast.error(error.message || "Failed to send invitation");
+          reject(error);
+        },
+      });
+
+      inviteMutation.mutate({
+        email: values.email,
+        teamId: values.teamId || team.id,
+        role: (values.role === "OWNER" ? "MANAGER" : values.role) as
+          | "MANAGER"
+          | "SUPERVISOR"
+          | "CONTENT_CREATOR"
+          | "INTERNAL_REVIEWER"
+          | "CLIENT_REVIEWER"
+          | "ANALYST"
+          | "INBOX_AGENT",
+        name: values.team || team.name,
+      });
+    });
+  };
+
+  return (
+    <div className="flex justify-between items-center">
+      <div>
+        <h1 className="text-3xl font-bold">{team.name}</h1>
+        <p className="text-muted-foreground">{team.description}</p>
+      </div>
+      {hasPermission("team.invite") && team && (
+        <AddMemberModal teams={team} onAddMember={handleAddMember} />
+      )}
+    </div>
+  );
+};
+
+// Skeleton loader for the TeamHeader component
+TeamHeader.Skeleton = function TeamHeaderSkeleton() {
+  return (
+    <div>
+      <Skeleton className="h-8 w-[200px] mb-2" />
+      <Skeleton className="h-4 w-[300px]" />
+    </div>
+  );
+};
