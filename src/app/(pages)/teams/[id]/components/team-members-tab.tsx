@@ -40,11 +40,6 @@ interface TeamMembersTabProps {
 
 export const TeamMembersTab = ({ teamId }: TeamMembersTabProps) => {
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [memberToRemove, setMemberToRemove] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
-  const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
 
   // Get team data
   const { data: team } = trpc.team.getTeamById.useQuery(
@@ -77,17 +72,23 @@ export const TeamMembersTab = ({ teamId }: TeamMembersTabProps) => {
   });
 
   // Handle removing a team member
-  const handleRemoveMember = async (memberId: string) => {
-    try {
-      removeMemberMutation.mutate({
-        teamId,
-        memberId,
-      });
-      setIsRemoveDialogOpen(false);
-      setMemberToRemove(null);
-    } catch (error) {
-      console.error("Error removing team member:", error);
-    }
+  const handleRemoveMember = async (memberId: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      removeMemberMutation.mutate(
+        {
+          teamId,
+          memberId,
+        },
+        {
+          onSuccess: () => {
+            resolve();
+          },
+          onError: (error) => {
+            reject(error);
+          },
+        }
+      );
+    });
   };
 
   // Filter members based on search query
@@ -113,154 +114,117 @@ export const TeamMembersTab = ({ teamId }: TeamMembersTabProps) => {
   };
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Search className="h-5 w-5" />
-            Team Members
-          </CardTitle>
-          <CardDescription>Manage the members of {team?.name}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex mb-6">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search members..."
-                className="pl-9"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Search className="h-5 w-5" />
+          Team Members
+        </CardTitle>
+        <CardDescription>Manage the members of {team?.name}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex mb-6">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search members..."
+              className="pl-9"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
+        </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Last Active</TableHead>
-                <TableHead>Status</TableHead>
-                {team?.role === Role.OWNER && (
-                  <TableHead className="text-right">Actions</TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoadingMembers && searchQuery
-                ? // Show skeleton loading only for table when searching
-                  Array(3)
-                    .fill(0)
-                    .map((_, i) => (
-                      <TableRow key={`skeleton-${i}`}>
-                        <TableCell>
-                          <div>
-                            <Skeleton className="h-4 w-[150px] mb-2" />
-                            <Skeleton className="h-3 w-[120px]" />
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-4 w-[80px]" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-4 w-[100px]" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-4 w-[60px]" />
-                        </TableCell>
-                        {team?.role === Role.OWNER && (
-                          <TableCell className="text-right">
-                            <Skeleton className="h-8 w-8 ml-auto" />
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))
-                : filteredMembers.map((member) => (
-                    <TableRow key={member.id}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Last Active</TableHead>
+              <TableHead>Status</TableHead>
+              {team?.role === Role.OWNER && (
+                <TableHead className="text-right">Actions</TableHead>
+              )}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoadingMembers && searchQuery
+              ? // Show skeleton loading only for table when searching
+                Array(3)
+                  .fill(0)
+                  .map((_, i) => (
+                    <TableRow key={`skeleton-${i}`}>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{member.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {member.email}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getRoleBadge(member.role)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-sm">
-                            {new Date(member.lastActive).toLocaleDateString()}
-                          </span>
+                          <Skeleton className="h-4 w-[150px] mb-2" />
+                          <Skeleton className="h-3 w-[120px]" />
                         </div>
                       </TableCell>
                       <TableCell>
-                        {getStatusBadge(
-                          member.status.toUpperCase() as
-                            | "ACTIVE"
-                            | "INACTIVE"
-                            | "SUSPENDED"
-                        )}
+                        <Skeleton className="h-4 w-[80px]" />
                       </TableCell>
-                      {team?.role === Role.OWNER &&
-                        member.role !== Role.OWNER && (
-                          <TableCell className="text-right">
-                            <EditMemberDropdown
-                              member={member}
-                              teamId={teamId}
-                              onRemoveMember={(memberId) => {
-                                setMemberToRemove({
-                                  id: memberId,
-                                  name: member.name,
-                                });
-                                setIsRemoveDialogOpen(true);
-                              }}
-                            />
-                          </TableCell>
-                        )}
+                      <TableCell>
+                        <Skeleton className="h-4 w-[100px]" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-[60px]" />
+                      </TableCell>
+                      {team?.role === Role.OWNER && (
+                        <TableCell className="text-right">
+                          <Skeleton className="h-8 w-8 ml-auto" />
+                        </TableCell>
+                      )}
                     </TableRow>
-                  ))}
-            </TableBody>
-          </Table>
+                  ))
+              : filteredMembers.map((member) => (
+                  <TableRow key={member.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{member.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {member.email}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>{getRoleBadge(member.role)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-sm">
+                          {new Date(member.lastActive).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {getStatusBadge(
+                        member.status.toUpperCase() as
+                          | "ACTIVE"
+                          | "INACTIVE"
+                          | "SUSPENDED"
+                      )}
+                    </TableCell>
+                    {team?.role === Role.OWNER &&
+                      member.role !== Role.OWNER && (
+                        <TableCell className="text-right">
+                          <EditMemberDropdown
+                            member={member}
+                            teamId={teamId}
+                            onRemoveMember={handleRemoveMember}
+                          />
+                        </TableCell>
+                      )}
+                  </TableRow>
+                ))}
+          </TableBody>
+        </Table>
 
-          {!isLoadingMembers && filteredMembers.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              No team members found matching your criteria
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Remove Member Confirmation Dialog */}
-      <Dialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Remove Team Member</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to remove {memberToRemove?.name} from the
-              team? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setIsRemoveDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() =>
-                memberToRemove && handleRemoveMember(memberToRemove.id)
-              }
-            >
-              Remove
-            </Button>
+        {!isLoadingMembers && filteredMembers.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">
+            No team members found matching your criteria
           </div>
-        </DialogContent>
-      </Dialog>
-    </>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

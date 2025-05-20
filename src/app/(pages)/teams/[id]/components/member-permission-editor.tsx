@@ -53,6 +53,8 @@ export function MemberPermissionEditor({
         organizationId,
         membershipId,
       });
+      // Also refresh the members list
+      void utils.team.getTeamMembers.invalidate({ teamId: organizationId });
       setIsSaving(false);
       onClose?.();
     },
@@ -70,6 +72,8 @@ export function MemberPermissionEditor({
         organizationId,
         membershipId,
       });
+      // Also refresh the members list
+      void utils.team.getTeamMembers.invalidate({ teamId: organizationId });
       setIsSaving(false);
       onClose?.();
     },
@@ -87,6 +91,8 @@ export function MemberPermissionEditor({
         organizationId,
         membershipId,
       });
+      // Also refresh the members list
+      void utils.team.getTeamMembers.invalidate({ teamId: organizationId });
       setIsSaving(false);
       onClose?.();
     },

@@ -30,11 +30,26 @@ export const TeamInvitesTab = ({ teamId, team }: TeamInvitesTabProps) => {
     }
   );
 
+  // Move invitation mutation to component level
+  const inviteMutation = trpc.team.inviteMember.useMutation({
+    onSuccess: () => {
+      toast.success("Invitation sent successfully");
+      utils.team.getTeamInvites.invalidate({ teamId });
+      // Also refresh the team members list
+      utils.team.getTeamMembers.invalidate({ teamId });
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
   //   // Cancel invitation mutation
   //   const cancelInviteMutation = trpc.team.cancelInvite.useMutation({
   //     onSuccess: () => {
   //       toast.success("Invitation cancelled successfully");
   //       utils.team.getTeamInvites.invalidate({ teamId });
+  //       // Also refresh the team members list
+  //       utils.team.getTeamMembers.invalidate({ teamId });
   //     },
   //     onError: (error) => {
   //       toast.error(error.message);
@@ -58,31 +73,29 @@ export const TeamInvitesTab = ({ teamId, team }: TeamInvitesTabProps) => {
     message?: string;
   }) => {
     return new Promise<void>((resolve, reject) => {
-      const inviteMutation = trpc.team.inviteMember.useMutation({
-        onSuccess: () => {
-          toast.success("Invitation sent successfully");
-          utils.team.getTeamInvites.invalidate({ teamId });
-          resolve();
-        },
-        onError: (error) => {
-          toast.error(error.message);
-          reject(error);
-        },
-      });
-
-      inviteMutation.mutate({
-        email: values.email,
-        teamId: values.teamId || teamId,
-        role: (values.role === "OWNER" ? "MANAGER" : values.role) as
-          | "MANAGER"
-          | "SUPERVISOR"
-          | "CONTENT_CREATOR"
-          | "INTERNAL_REVIEWER"
-          | "CLIENT_REVIEWER"
-          | "ANALYST"
-          | "INBOX_AGENT",
-        name: values.team || "",
-      });
+      try {
+        inviteMutation.mutate(
+          {
+            email: values.email,
+            teamId: values.teamId || teamId,
+            role: (values.role === "OWNER" ? "MANAGER" : values.role) as
+              | "MANAGER"
+              | "SUPERVISOR"
+              | "CONTENT_CREATOR"
+              | "INTERNAL_REVIEWER"
+              | "CLIENT_REVIEWER"
+              | "ANALYST"
+              | "INBOX_AGENT",
+            name: values.team || "",
+          },
+          {
+            onSuccess: () => resolve(),
+            onError: (error) => reject(error),
+          }
+        );
+      } catch (error) {
+        reject(error);
+      }
     });
   };
 

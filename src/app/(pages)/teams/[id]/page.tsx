@@ -35,7 +35,7 @@ const TeamPage = () => {
   );
 
   // Show loading skeleton
-  if ((isLoading || !isPermissionsLoaded) && !team) {
+  if (isLoading || !isPermissionsLoaded || !team) {
     return (
       <div className="container mx-auto py-6">
         <div className="mb-6">

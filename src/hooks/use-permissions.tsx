@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Role } from "@prisma/client";
 
@@ -64,12 +64,13 @@ export function usePermissions(teamId: string) {
     );
 
   // Get custom roles from API
-  const { data: customRoles } = trpc.team.getCustomRoles.useQuery(
-    { teamId },
-    {
-      enabled: !!teamId,
-    }
-  );
+  const { data: customRoles, isLoading: isLoadingCustomRoles } =
+    trpc.team.getCustomRoles.useQuery(
+      { teamId },
+      {
+        enabled: !!teamId,
+      }
+    );
 
   // Set up combined role permissions
   const [rolePermissions, setRolePermissions] = useState<
@@ -77,24 +78,42 @@ export function usePermissions(teamId: string) {
   >({});
 
   // Get user permission overrides
-  const { data: userPermissionOverrides } =
-    trpc.permission.getUserOverrides.useQuery(
-      {
-        organizationId: typeof teamId === "string" ? teamId : "",
-        membershipId: userMembership?.id || "",
-      },
-      {
-        enabled: !!teamId && !!userMembership?.id,
-      }
-    );
+  const {
+    data: userPermissionOverrides,
+    isLoading: isLoadingPermissionOverrides,
+  } = trpc.permission.getUserOverrides.useQuery(
+    {
+      organizationId: typeof teamId === "string" ? teamId : "",
+      membershipId: userMembership?.id || "",
+    },
+    {
+      enabled: !!teamId && !!userMembership?.id,
+    }
+  );
 
   // Load permissions
   const [isPermissionsLoaded, setIsPermissionsLoaded] = useState(false);
 
+  // Track if we've ever set permissions to loaded (to prevent flicker back to unloaded)
+  const wasEverLoaded = useRef(false);
+
+  // Keep track of loading states for different permission queries
+  const isLoadingBasePermissions = !ownerPermissions && !managerPermissions;
+  const isLoadingTeamData = !team;
+  const isLoadingUserMembership = !userMembership && !!teamId;
+
+  // Overall loading state that includes all permission-related data
+  const isPermissionsLoading =
+    isLoadingBasePermissions ||
+    isLoadingTeamData ||
+    isLoadingUserMembership ||
+    (!!userMembership?.id && isLoadingPermissionOverrides) ||
+    isLoadingCustomRoles;
+
   // Format and combine role permissions
   useEffect(() => {
     // Wait until we have at least some base permissions
-    if (!ownerPermissions && !managerPermissions) {
+    if (isLoadingBasePermissions) {
       return;
     }
 
@@ -154,9 +173,7 @@ export function usePermissions(teamId: string) {
 
     // Update permissions in state if we have any
     if (hasAnyPermissions) {
-      console.log("Setting rolePermissions in hook:", updatedRolePermissions);
       setRolePermissions(updatedRolePermissions);
-      setIsPermissionsLoaded(true);
     }
   }, [
     ownerPermissions,
@@ -168,18 +185,32 @@ export function usePermissions(teamId: string) {
     analystPermissions,
     inboxAgentPermissions,
     customRoles,
+    isLoadingBasePermissions,
   ]);
+
+  // Update loading state based on all permission data availability
+  useEffect(() => {
+    if (!isPermissionsLoading) {
+      setIsPermissionsLoaded(true);
+      wasEverLoaded.current = true;
+    } else if (!wasEverLoaded.current) {
+      // Only set to false if we've never loaded permissions before
+      // This prevents flickering back to loading state
+      setIsPermissionsLoaded(false);
+    }
+  }, [isPermissionsLoading]);
 
   // Helper function to check if the user has a specific permission
   const hasPermission = (permission: string) => {
-    // If role tidak tersedia (masih loading) - tampilkan UI sesuai kondisi loading
-    if (!team || !team.role) {
-      return false;
+    // Special case: if permissions were ever loaded and user is OWNER, grant all permissions
+    // This avoids showing/hiding UI elements during loading for owners
+    if (team?.role === Role.OWNER) {
+      return true;
     }
 
-    // OWNER always has all permissions
-    if (team.role === Role.OWNER) {
-      return true;
+    // If still loading or missing data, deny permission
+    if (!isPermissionsLoaded || !team || !team.role) {
+      return false;
     }
 
     // Check for explicit grant from MembershipGrant (overrides deny and role-based permissions)
@@ -193,11 +224,13 @@ export function usePermissions(teamId: string) {
     }
 
     // Check permissions in memory from the server
-    const userPermissions = team.role ? rolePermissions[team.role] || [] : [];
+    const userPermissions = rolePermissions[team.role] || [];
 
     // Direct permission check from database-sourced permissions
     return userPermissions.includes(permission);
   };
+
+  console.log(isPermissionsLoaded);
 
   return {
     hasPermission,

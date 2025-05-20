@@ -471,7 +471,7 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
                 onValueChange={(value) => setCurrentRole(value)}
                 value={currentRole}
               >
-                <TabsList className="w-full justify-start overflow-auto">
+                <TabsList className="justify-start overflow-auto">
                   {isLoadingCustomRoles
                     ? // Tabs loading state
                       Array(4)

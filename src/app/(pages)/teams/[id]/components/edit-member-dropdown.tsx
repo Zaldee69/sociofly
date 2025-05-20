@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Ellipsis, Trash, UserCog, Lock } from "lucide-react";
+import { Ellipsis, Trash, UserCog, Lock, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +45,7 @@ export function EditMemberDropdown({
   const [selectedPermission, setSelectedPermission] = useState("");
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
   const [isPermissionSaving, setIsPermissionSaving] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   const { data: availablePermissions } =
     trpc.permission.getAllPermissionCodes.useQuery();
@@ -70,9 +71,12 @@ export function EditMemberDropdown({
   }, [availablePermissions]);
 
   // Handle role change
+  const utils = trpc.useUtils();
   const updateRoleMutation = trpc.team.updateMemberRole.useMutation({
     onSuccess: () => {
       toast.success("Team member role has been updated successfully");
+      // Invalidate team members to refresh the list
+      utils.team.getTeamMembers.invalidate({ teamId });
     },
     onError: (error) => {
       toast.error(
@@ -103,6 +107,28 @@ export function EditMemberDropdown({
   const handlePermissionDialogChange = (open: boolean) => {
     if (!isPermissionSaving) {
       setIsPermissionDialogOpen(open);
+    }
+  };
+
+  // Handle remove dialog close - prevent if we're removing
+  const handleRemoveDialogChange = (open: boolean) => {
+    if (!isRemoving) {
+      setIsRemoveDialogOpen(open);
+    }
+  };
+
+  // Handle member removal with loading state
+  const handleRemoveMember = async () => {
+    if (!onRemoveMember || isRemoving) return;
+
+    setIsRemoving(true);
+    try {
+      await onRemoveMember(member.id);
+      // Dialog will be closed by the parent component after successful removal
+    } catch (error) {
+      console.error("Error removing member:", error);
+      toast.error("Failed to remove member. Please try again.");
+      setIsRemoving(false);
     }
   };
 
@@ -232,7 +258,7 @@ export function EditMemberDropdown({
       </Dialog>
 
       {/* Remove Member Confirmation Dialog */}
-      <Dialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
+      <Dialog open={isRemoveDialogOpen} onOpenChange={handleRemoveDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Remove Team Member</DialogTitle>
@@ -246,19 +272,23 @@ export function EditMemberDropdown({
             <Button
               variant="outline"
               onClick={() => setIsRemoveDialogOpen(false)}
+              disabled={isRemoving}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={() => {
-                if (onRemoveMember) {
-                  onRemoveMember(member.id);
-                  setIsRemoveDialogOpen(false);
-                }
-              }}
+              onClick={handleRemoveMember}
+              disabled={isRemoving}
             >
-              Remove
+              {isRemoving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Removing...
+                </>
+              ) : (
+                "Remove"
+              )}
             </Button>
           </div>
         </DialogContent>
