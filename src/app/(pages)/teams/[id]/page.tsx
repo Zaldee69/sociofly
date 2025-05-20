@@ -109,9 +109,6 @@ const Page = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [activeTab, setActiveTab] = useState<string>("members");
   const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
-  const [selectedSocialAccount, setSelectedSocialAccount] = useState<
-    string | null
-  >(null);
   const [memberToRemove, setMemberToRemove] = useState<{
     id: string;
     name: string;
@@ -155,7 +152,6 @@ const Page = () => {
   const [newRoleDescription, setNewRoleDescription] = useState("");
   const [newRolePermissions, setNewRolePermissions] = useState<string[]>([]);
   const [isCreatingRole, setIsCreatingRole] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
   // tRPC queries
@@ -437,9 +433,8 @@ const Page = () => {
   const combinedRolePermissions = React.useMemo(() => {
     const combined = { ...rolePermissions };
 
-    // Jangan hapus TEAM_OWNER - kita tetapkan semua izin meskipun tidak bisa diedit
+    // Pastikan TEAM_OWNER memiliki semua permission yang tersedia
     if (combined["TEAM_OWNER"]) {
-      // Pastikan TEAM_OWNER memiliki semua permission yang tersedia
       combined["TEAM_OWNER"] = allPermissions.map((p) => p.id);
     }
 
@@ -514,27 +509,6 @@ const Page = () => {
     );
   }, [teamFormData.notifications, originalFormData.notifications]);
 
-  // Legacy role permission queries - these will be removed in a future update
-  const campaignManagerPermissions = trpc.team.getRolePermissions.useQuery(
-    { role: "CAMPAIGN_MANAGER" as Role },
-    { enabled: !!teamId }
-  );
-
-  const contentProducerPermissions = trpc.team.getRolePermissions.useQuery(
-    { role: "CONTENT_PRODUCER" as Role },
-    { enabled: !!teamId }
-  );
-
-  const contentReviewerPermissions = trpc.team.getRolePermissions.useQuery(
-    { role: "CONTENT_REVIEWER" as Role },
-    { enabled: !!teamId }
-  );
-
-  const analyticsObserverPermissions = trpc.team.getRolePermissions.useQuery(
-    { role: "ANALYTICS_OBSERVER" as Role },
-    { enabled: !!teamId }
-  );
-
   // Update role permissions from queries
   useEffect(() => {
     const updatedRolePermissions = { ...rolePermissions };
@@ -572,27 +546,6 @@ const Page = () => {
       updatedRolePermissions["INBOX_AGENT"] = inboxAgentPermissions;
     }
 
-    // Handle legacy role names for backward compatibility
-    if (campaignManagerPermissions.data) {
-      updatedRolePermissions["CAMPAIGN_MANAGER"] =
-        campaignManagerPermissions.data;
-    }
-
-    if (contentProducerPermissions.data) {
-      updatedRolePermissions["CONTENT_PRODUCER"] =
-        contentProducerPermissions.data;
-    }
-
-    if (contentReviewerPermissions.data) {
-      updatedRolePermissions["CONTENT_REVIEWER"] =
-        contentReviewerPermissions.data;
-    }
-
-    if (analyticsObserverPermissions.data) {
-      updatedRolePermissions["ANALYTICS_OBSERVER"] =
-        analyticsObserverPermissions.data;
-    }
-
     if (Object.keys(updatedRolePermissions).length > 0) {
       setRolePermissions(updatedRolePermissions);
       setOriginalRolePermissions(updatedRolePermissions);
@@ -607,45 +560,7 @@ const Page = () => {
     clientReviewerPermissions,
     analystPermissions,
     inboxAgentPermissions,
-    // Legacy dependencies
-    campaignManagerPermissions.data,
-    contentProducerPermissions.data,
-    contentReviewerPermissions.data,
-    analyticsObserverPermissions.data,
   ]);
-
-  // Define permission hierarchy
-  const permissionHierarchy: Record<string, string[]> = {
-    // Team hierarchy
-    "team.manage": ["team.invite", "team.viewInvites", "team.view_members"],
-
-    // Content hierarchy
-    "content.edit": ["content.create", "content.view"],
-    "content.approve": ["content.view", "content.comment"],
-    "content.publish": ["content.view", "content.approve"],
-    "content.delete": ["content.view"],
-
-    // Media hierarchy
-    "media.edit": ["media.view"],
-    "media.delete": ["media.view"],
-    "media.copy": ["media.view"],
-    "media.upload": ["media.view"],
-
-    // Schedule hierarchy
-    "schedule.create": ["schedule.view"],
-    "schedule.reschedule": ["schedule.view"],
-    "schedule.unschedule": ["schedule.view"],
-
-    // Analytics hierarchy
-    "analytics.export": ["analytics.view"],
-
-    // Inbox hierarchy
-    "inbox.reply": ["inbox.view"],
-    "inbox.assign": ["inbox.view"],
-
-    // Messages hierarchy
-    "messages.reply": ["messages.view"],
-  };
 
   // Helper function to check if the user has a specific permission
   const hasPermission = (permission: string) => {
@@ -665,29 +580,7 @@ const Page = () => {
       : [];
 
     // Direct permission check
-    if (userPermissions.includes(permission)) {
-      return true;
-    }
-
-    // Check if user has a higher permission that includes this one
-    for (const [higherPerm, includedPerms] of Object.entries(
-      permissionHierarchy
-    )) {
-      if (
-        userPermissions.includes(higherPerm) &&
-        includedPerms.includes(permission)
-      ) {
-        return true;
-      }
-    }
-
-    return false;
-  };
-
-  // Function to check if a role can be edited
-  const canEditRole = (role: string) => {
-    // Owner and legacy Team Owner roles cannot be edited
-    return role !== "OWNER" && role !== "TEAM_OWNER";
+    return userPermissions.includes(permission);
   };
 
   const handleRemoveMember = async (memberId: string) => {
@@ -893,21 +786,18 @@ const Page = () => {
     }
   };
 
+  // Menyederhanakan fungsi renderPlatformIcon dengan object mapping
+  const platformIcons: Record<SocialPlatform, React.ReactNode> = {
+    INSTAGRAM: <Instagram className="h-5 w-5 text-white" />,
+    FACEBOOK: <Facebook className="h-5 w-5 text-white" />,
+    TWITTER: <Twitter className="h-5 w-5 text-white" />,
+    LINKEDIN: <Linkedin className="h-5 w-5 text-white" />,
+    YOUTUBE: <Youtube className="h-5 w-5 text-white" />,
+    TIKTOK: <ExternalLink className="h-5 w-5 text-white" />, // Menggunakan ExternalLink sebagai fallback untuk TikTok
+  };
+
   const renderPlatformIcon = (platform: SocialPlatform) => {
-    switch (platform) {
-      case "INSTAGRAM":
-        return <Instagram className="h-5 w-5 text-white" />;
-      case "FACEBOOK":
-        return <Facebook className="h-5 w-5 text-white" />;
-      case "TWITTER":
-        return <Twitter className="h-5 w-5 text-white" />;
-      case "LINKEDIN":
-        return <Linkedin className="h-5 w-5 text-white" />;
-      case "YOUTUBE":
-        return <Youtube className="h-5 w-5 text-white" />;
-      default:
-        return null;
-    }
+    return platformIcons[platform] || null;
   };
 
   // Filter members based on search query
@@ -951,12 +841,11 @@ const Page = () => {
 
   // Handlers for social accounts
   const handleAddSocialAccount = (platform: SocialPlatform) => {
-    // This is a placeholder - in reality, you would redirect to OAuth flow
     addSocialAccountMutation.mutate({
       teamId: teamId as string,
       platform,
-      accessToken: "placeholder-token", // This would come from OAuth
-      name: `${platform.toLowerCase()} account`, // This would come from OAuth
+      accessToken: "placeholder-token", // Akan diganti dengan OAuth
+      name: `${platform.toLowerCase()} account`,
     });
   };
 
@@ -1437,7 +1326,6 @@ const Page = () => {
                             variant="outline"
                             className="w-full justify-start"
                             onClick={() => {
-                              setSelectedSocialAccount(platform);
                               handleAddSocialAccount(platform);
                             }}
                           >
