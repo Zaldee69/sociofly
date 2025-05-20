@@ -16,7 +16,6 @@ import {
   Settings,
   ArrowLeft,
   Search,
-  Filter,
   Clock,
   CheckCircle,
   X,
@@ -58,20 +57,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuPortal,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { EditMemberDropdown } from "./components/edit-member-dropdown";
+import { getRoleBadge } from "../page";
 
 interface Member {
   id: string;
@@ -519,6 +506,11 @@ const Page = () => {
     }
 
     if (managerPermissions) {
+      console.log("Manager permissions loaded:", managerPermissions);
+      console.log(
+        "Includes team.manage?",
+        managerPermissions.includes("team.manage")
+      );
       updatedRolePermissions["MANAGER"] = managerPermissions;
     }
 
@@ -569,8 +561,13 @@ const Page = () => {
       return false;
     }
 
-    // TEAM_OWNER selalu memiliki semua permission
+    // OWNER selalu memiliki semua permission
     if (team.role === Role.OWNER) {
+      return true;
+    }
+
+    // We're specifically handling team.manage since that's what we need
+    if (permission === "team.manage" && team.role === "MANAGER") {
       return true;
     }
 
@@ -578,6 +575,9 @@ const Page = () => {
     const userPermissions = team.role
       ? combinedRolePermissions[team.role] || []
       : [];
+
+    console.log(`Checking permission: ${permission} for role: ${team.role}`);
+    console.log("Available permissions:", userPermissions);
 
     // Direct permission check
     return userPermissions.includes(permission);
@@ -870,7 +870,6 @@ const Page = () => {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Teams
           </Button>
-
           <div className="flex justify-between items-center">
             <div>
               <Skeleton className="h-8 w-[200px] mb-2" />
@@ -922,48 +921,6 @@ const Page = () => {
     }
   };
 
-  const getRoleBadge = (role: Role) => {
-    switch (role) {
-      case "OWNER":
-        return <Badge className="bg-purple-600">Team Owner</Badge>;
-      case "SUPERVISOR":
-        return <Badge className="bg-blue-600">Supervisor</Badge>;
-      case "CONTENT_CREATOR":
-        return <Badge variant="secondary">Content Creator</Badge>;
-      case "CLIENT_REVIEWER":
-        return <Badge variant="secondary">Client Reviewer</Badge>;
-      case "INTERNAL_REVIEWER":
-        return <Badge variant="secondary">Internal Reviewer</Badge>;
-      case "ANALYST":
-        return <Badge variant="secondary">Analyst</Badge>;
-      default:
-        return <Badge variant="outline">Unknown</Badge>;
-    }
-  };
-
-  // Function to change a team member's role
-  const handleChangeRole = async (
-    memberId: string,
-    role:
-      | "MANAGER"
-      | "SUPERVISOR"
-      | "CONTENT_CREATOR"
-      | "INTERNAL_REVIEWER"
-      | "CLIENT_REVIEWER"
-      | "ANALYST"
-      | "INBOX_AGENT"
-  ) => {
-    try {
-      updateRoleMutation.mutate({
-        teamId: teamId as string,
-        memberId,
-        role,
-      });
-    } catch (error) {
-      console.error("Error updating member role:", error);
-    }
-  };
-
   return (
     <div className="container mx-auto py-6">
       <div className="mb-6">
@@ -1003,12 +960,18 @@ const Page = () => {
               Pending Invites
             </TabsTrigger>
           )}
-          {hasPermission("team.manage") && (
-            <TabsTrigger value="roles">
-              <Settings className="h-4 w-4 mr-2" />
-              Manage Roles
-            </TabsTrigger>
-          )}
+          {(() => {
+            const canManageTeam = hasPermission("team.manage");
+            console.log("Can manage team?", canManageTeam);
+            return (
+              canManageTeam && (
+                <TabsTrigger value="roles">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Manage Roles
+                </TabsTrigger>
+              )
+            );
+          })()}
           {hasPermission("team.manage") && (
             <TabsTrigger value="settings">
               <Settings className="h-4 w-4 mr-2" />
@@ -1111,110 +1074,17 @@ const Page = () => {
                           {team.role === Role.OWNER &&
                             member.role !== Role.OWNER && (
                               <TableCell className="text-right">
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost">
-                                      <Ellipsis className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent
-                                    side="left"
-                                    className="w-56"
-                                  >
-                                    <DropdownMenuLabel>
-                                      Edit Member
-                                    </DropdownMenuLabel>
-
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuGroup>
-                                      <DropdownMenuSub>
-                                        <DropdownMenuSubTrigger>
-                                          Change Role
-                                        </DropdownMenuSubTrigger>
-                                        <DropdownMenuPortal>
-                                          <DropdownMenuSubContent
-                                            sideOffset={10}
-                                          >
-                                            <DropdownMenuItem
-                                              onClick={() =>
-                                                handleChangeRole(
-                                                  member.id,
-                                                  "MANAGER"
-                                                )
-                                              }
-                                            >
-                                              Manager
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                              onClick={() =>
-                                                handleChangeRole(
-                                                  member.id,
-                                                  "SUPERVISOR"
-                                                )
-                                              }
-                                            >
-                                              Supervisor
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                              onClick={() =>
-                                                handleChangeRole(
-                                                  member.id,
-                                                  "CONTENT_CREATOR"
-                                                )
-                                              }
-                                            >
-                                              Content Creator
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                              onClick={() =>
-                                                handleChangeRole(
-                                                  member.id,
-                                                  "CLIENT_REVIEWER"
-                                                )
-                                              }
-                                            >
-                                              Client Reviewer
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                              onClick={() =>
-                                                handleChangeRole(
-                                                  member.id,
-                                                  "ANALYST"
-                                                )
-                                              }
-                                            >
-                                              Analyst
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                              onClick={() =>
-                                                handleChangeRole(
-                                                  member.id,
-                                                  "INBOX_AGENT"
-                                                )
-                                              }
-                                            >
-                                              Inbox Agent
-                                            </DropdownMenuItem>
-                                          </DropdownMenuSubContent>
-                                        </DropdownMenuPortal>
-                                      </DropdownMenuSub>
-                                    </DropdownMenuGroup>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      className="text-destructive"
-                                      onClick={() => {
-                                        setMemberToRemove({
-                                          id: member.id,
-                                          name: member.name,
-                                        });
-                                        setIsRemoveDialogOpen(true);
-                                      }}
-                                    >
-                                      <Trash className="mr-2 h-4 w-4 text-destructive hover:text-destructive" />{" "}
-                                      Remove Member
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                                <EditMemberDropdown
+                                  member={member}
+                                  teamId={teamId as string}
+                                  onRemoveMember={(memberId) => {
+                                    setMemberToRemove({
+                                      id: memberId,
+                                      name: member.name,
+                                    });
+                                    setIsRemoveDialogOpen(true);
+                                  }}
+                                />
                               </TableCell>
                             )}
                         </TableRow>

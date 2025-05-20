@@ -173,34 +173,6 @@ const notifications = {
   ],
 };
 
-// Platform icons
-const getPlatformIcon = (platform: string) => {
-  switch (platform) {
-    case "twitter":
-      return <Twitter size={16} className="text-[#1DA1F2]" />;
-    case "instagram":
-      return <Instagram size={16} className="text-[#E1306C]" />;
-    case "facebook":
-      return <Facebook size={16} className="text-[#4267B2]" />;
-    default:
-      return <Twitter size={16} className="text-[#1DA1F2]" />;
-  }
-};
-
-// Role badge styling
-const getRoleBadge = (role: string) => {
-  switch (role) {
-    case "ADMIN":
-      return <Badge className="bg-purple-600">Admin</Badge>;
-    case "EDITOR":
-      return <Badge className="bg-blue-600">Editor</Badge>;
-    case "VIEWER":
-      return <Badge variant="outline">Viewer</Badge>;
-    default:
-      return <Badge variant="outline">Unknown</Badge>;
-  }
-};
-
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedRole, setSelectedRole] = useState("ADMIN"); // For demonstration, we'll show ADMIN view by default

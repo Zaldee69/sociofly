@@ -967,8 +967,7 @@ export const teamRouter = createTRPCRouter({
         },
       });
 
-      // Create new role permissions
-      const rolePermissions = await Promise.all(
+      await Promise.all(
         permissions.map((permission) =>
           ctx.prisma.rolePermission.create({
             data: {
@@ -1095,36 +1094,3 @@ export const teamRouter = createTRPCRouter({
       return rolePermissions.map((rp) => rp.permission.code);
     }),
 });
-
-// Helper function to initialize default role-permission relationships
-async function initializeRolePermissions(ctx: any) {
-  // Get all permissions and roles
-  const allPermissions = await ctx.prisma.permission.findMany();
-  const allRoles = Object.values(Role);
-
-  // For each role, check if it has permissions assigned
-  for (const role of allRoles) {
-    // Check if role already has any permissions
-    const existingRolePermissions = await ctx.prisma.rolePermission.findMany({
-      where: { role: role as Role },
-    });
-
-    // If role already has permissions, skip
-    if (existingRolePermissions.length > 0) continue;
-
-    // Special case for OWNER, they get all permissions
-    if (role === Role.OWNER) {
-      for (const perm of allPermissions) {
-        await ctx.prisma.rolePermission.create({
-          data: {
-            role: Role.OWNER,
-            permission: {
-              connect: { id: perm.id },
-            },
-          },
-        });
-      }
-      continue;
-    }
-  }
-}

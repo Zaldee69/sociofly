@@ -2,13 +2,34 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { UserPlus, Users, Plus, ChevronRight } from "lucide-react";
+import { Users, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import CreateTeamModal from "./components/create-team";
 import { trpc } from "@/lib/trpc/client";
 import { Role } from "@prisma/client";
+
+export const getRoleBadge = (role: Role) => {
+  switch (role) {
+    case "OWNER":
+      return <Badge className="bg-purple-600">Team Owner</Badge>;
+    case "SUPERVISOR":
+      return <Badge className="bg-blue-600">Supervisor</Badge>;
+    case "MANAGER":
+      return <Badge className="bg-green-600">Manager</Badge>;
+    case "CONTENT_CREATOR":
+      return <Badge variant="secondary">Content Creator</Badge>;
+    case "CLIENT_REVIEWER":
+      return <Badge variant="secondary">Client Reviewer</Badge>;
+    case "INTERNAL_REVIEWER":
+      return <Badge variant="secondary">Internal Reviewer</Badge>;
+    case "ANALYST":
+      return <Badge variant="secondary">Analyst</Badge>;
+    default:
+      return <Badge variant="outline">Unknown</Badge>;
+  }
+};
 
 const TeamManagement = () => {
   const router = useRouter();
@@ -40,26 +61,6 @@ const TeamManagement = () => {
   // Navigate to team management detail page
   const handleManageTeam = (teamId: string) => {
     router.push(`/teams/${teamId}`);
-  };
-
-  // Get role badge
-  const getRoleBadge = (role: Role) => {
-    switch (role) {
-      case "OWNER":
-        return <Badge className="bg-purple-600">Team Owner</Badge>;
-      case "SUPERVISOR":
-        return <Badge className="bg-blue-600">Supervisor</Badge>;
-      case "MANAGER":
-        return <Badge className="bg-green-600">Manager</Badge>;
-      case "CONTENT_CREATOR":
-        return <Badge variant="secondary">Content Creator</Badge>;
-      case "CLIENT_REVIEWER":
-        return <Badge variant="secondary">Client Reviewer</Badge>;
-      case "ANALYST":
-        return <Badge variant="secondary">Analyst</Badge>;
-      default:
-        return <Badge variant="outline">Unknown</Badge>;
-    }
   };
 
   if (isLoading) {

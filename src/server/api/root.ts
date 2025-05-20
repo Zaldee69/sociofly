@@ -12,6 +12,7 @@ import { teamRouter } from "./routers/team";
 import { hashtagRouter } from "./routers/hashtag";
 import { permissionsRouter } from "./routers/permissions";
 import { postRouter } from "./routers/post";
+import { permissionRouter } from "./routers/permission.router";
 
 /**
  * Mengekspor objek appRouter yang berisi semua router tRPC
@@ -25,6 +26,7 @@ export const appRouter = createTRPCRouter({
   hashtag: hashtagRouter,
   permissions: permissionsRouter,
   post: postRouter,
+  permission: permissionRouter,
 });
 
 // Tipe untuk seluruh API
