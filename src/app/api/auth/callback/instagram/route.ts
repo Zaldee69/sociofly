@@ -123,11 +123,19 @@ export async function GET(request: NextRequest) {
     },
   ];
 
-  const data = encodeURIComponent(JSON.stringify(datas));
+  const sessionId = crypto.randomUUID();
+
+  await prisma.temporaryData.create({
+    data: {
+      id: sessionId,
+      data: JSON.stringify(datas),
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000), // Expires in 30 minutes
+    },
+  });
 
   return NextResponse.redirect(
     new URL(
-      `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&pagesData=${data}`,
+      `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&sessionId=${sessionId}`,
       request.url
     )
   );

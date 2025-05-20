@@ -29,7 +29,6 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import AICaptionGenerator from "@/components/ai-caption-generator";
 import { useRouter } from "next/navigation";
 import { MultiSelect } from "@/components/multi-select";
 import { useScheduleForm } from "./hooks/use-schedule-form";
@@ -335,13 +334,7 @@ const SchedulePostContent = () => {
                                     <span className="text-xs">⌘</span>K
                                   </kbd>
                                 </div>
-                                <div className="p-3">
-                                  <AIContentProvider
-                                    initialPrompt={selectedText}
-                                  >
-                                    <AICaptionGenerator />
-                                  </AIContentProvider>
-                                </div>
+                                <div className="p-3"></div>
                               </div>
                             </PopoverContent>
                           </Popover>

@@ -35,13 +35,15 @@ const onboardingSchema = z.object({
       })
     )
     .optional(),
+  sessionId: z.string().optional(),
 });
 
 export const onboardingRouter = createTRPCRouter({
   completeOnboarding: protectedProcedure
     .input(onboardingSchema)
     .mutation(async ({ ctx, input }) => {
-      const { userType, organizationName, teamEmails, pagesData } = input;
+      const { userType, organizationName, teamEmails, pagesData, sessionId } =
+        input;
 
       if (!ctx.userId) {
         throw new TRPCError({
@@ -161,6 +163,12 @@ export const onboardingRouter = createTRPCRouter({
           }
         }
 
+        if (sessionId) {
+          await ctx.prisma.temporaryData.delete({
+            where: { id: sessionId },
+          });
+        }
+
         // Update user onboarding status
         await ctx.prisma.user.update({
           where: { id: userId },
@@ -256,5 +264,43 @@ export const onboardingRouter = createTRPCRouter({
       });
 
       return user;
+    }),
+
+  getTemporaryData: protectedProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const { sessionId } = input;
+      const temporaryData = await ctx.prisma.temporaryData.findUnique({
+        where: { id: sessionId },
+      });
+
+      return JSON.parse(temporaryData?.data || "[]");
+    }),
+
+  // Update or delete temporary data
+  deleteTemporaryData: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.string(),
+        data: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { sessionId, data } = input;
+
+      if (!ctx.userId) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "User not authenticated",
+        });
+      }
+
+      // Update data with filtered accounts (or empty array if all deleted)
+      await ctx.prisma.temporaryData.update({
+        where: { id: sessionId },
+        data: { data },
+      });
+
+      return { success: true };
     }),
 });

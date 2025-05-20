@@ -277,3 +277,12 @@ enum BillingPlan {
   PRO
   ENTERPRISE
 }
+
+model TemporaryData {
+  id        String   @id @default(cuid())
+  data      String   @db.Text // JSON stringified data
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([expiresAt]) // To help with cleanup of expired data
+}

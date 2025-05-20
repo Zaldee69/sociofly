@@ -23,11 +23,14 @@ const Onboarding: React.FC = () => {
     teamEmails,
     currentEmail,
     completeOnboarding,
+    pagesData,
+    isRemovingAccount,
     handleUserTypeSelect,
     handleLogoUpload,
     handleAddTeamEmail,
     removeEmail,
     handleSocialToggle,
+    handleSocialRemove,
     handleBack,
     handleNext,
     skipSocialConnect,
@@ -85,6 +88,8 @@ const Onboarding: React.FC = () => {
                 isAccountConnected(platform) ?? false
               }
               onSocialToggle={handleSocialToggle}
+              onSocialRemove={handleSocialRemove}
+              isRemoving={isRemovingAccount}
               userType={userType}
             />
           )}
@@ -94,7 +99,6 @@ const Onboarding: React.FC = () => {
   };
 
   const renderActionButtons = () => {
-    const pagesData = JSON.parse(searchParams.get("pagesData") ?? "[]");
     const accounts = pagesData?.map((account: any) => account.platform);
 
     return (

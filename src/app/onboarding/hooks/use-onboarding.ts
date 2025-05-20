@@ -12,10 +12,12 @@ export const useOnboarding = () => {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [teamEmails, setTeamEmails] = useState<string[]>([]);
   const [currentEmail, setCurrentEmail] = useState("");
+  const [isRemovingAccount, setIsRemovingAccount] = useState(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
   const authUser = useUser();
+  const utils = trpc.useUtils();
 
   const { data: onboardingStatus } =
     trpc.onboarding.getOnboardingStatus.useQuery();
@@ -48,13 +50,32 @@ export const useOnboarding = () => {
     },
   });
 
+  const sessionId = searchParams.get("sessionId") ?? "";
+
+  const { data: temporaryData } = trpc.onboarding.getTemporaryData.useQuery({
+    sessionId,
+  });
+
+  // Mutation untuk menghapus data akun sosial
+  const deleteTemporaryData = trpc.onboarding.deleteTemporaryData.useMutation({
+    onSuccess: () => {
+      toast.success("Akun berhasil dihapus");
+      utils.onboarding.getTemporaryData.invalidate({ sessionId });
+      setIsRemovingAccount(false);
+    },
+    onError: (error) => {
+      toast.error("Gagal menghapus akun");
+      console.error("Error deleting account:", error);
+      setIsRemovingAccount(false);
+    },
+  });
+
   useEffect(() => {
     const step = searchParams.get("step");
     const savedUserType = searchParams.get("userType") as
       | "solo"
       | "team"
       | null;
-    const refresh = searchParams.get("refresh");
 
     if (step === "add_social_accounts") {
       setStep(3);
@@ -124,6 +145,19 @@ export const useOnboarding = () => {
     }
   };
 
+  // Fungsi untuk menghapus akun sosial
+  const handleSocialRemove = (platform: "FACEBOOK" | "INSTAGRAM") => {
+    if (!sessionId) return;
+
+    setIsRemovingAccount(true);
+
+    // Delete all temporary data instead of just filtering out the specific platform
+    deleteTemporaryData.mutate({
+      sessionId,
+      data: JSON.stringify([]),
+    });
+  };
+
   const handleBack = () => {
     if (step === 3) {
       setStep(userType === "team" ? 2 : 1);
@@ -163,19 +197,19 @@ export const useOnboarding = () => {
         types === "team"
           ? orgName || (searchParams.get("orgName") as string)
           : undefined;
-      const pagesData = JSON.parse(searchParams.get("pagesData") ?? "[]");
 
       completeOnboarding.mutate({
         userType: types!,
         organizationName,
         teamEmails: types === "team" ? emails : undefined,
-        pagesData,
+        pagesData: temporaryData,
         socialAccounts: {
           facebook: true,
           instagram: false,
           twitter: false,
           youtube: false,
         },
+        sessionId,
       });
     }
   };
@@ -191,24 +225,24 @@ export const useOnboarding = () => {
       types === "team"
         ? orgName || (searchParams.get("orgName") as string)
         : undefined;
-    const pagesData = JSON.parse(searchParams.get("pagesData") ?? "[]");
 
     completeOnboarding.mutate({
       userType: types!,
       organizationName,
       teamEmails: types === "team" ? emails : undefined,
-      pagesData,
+      pagesData: [],
       socialAccounts: {
         facebook: false,
         instagram: false,
         twitter: false,
         youtube: false,
       },
+      sessionId,
     });
   };
 
   const isAccountConnected = (platform: string) => {
-    const pagesData = JSON.parse(searchParams.get("pagesData") ?? "[]");
+    const pagesData = temporaryData;
     return pagesData?.some((account: any) => account.platform === platform);
   };
 
@@ -221,11 +255,14 @@ export const useOnboarding = () => {
     teamEmails,
     currentEmail,
     completeOnboarding,
+    pagesData: temporaryData,
+    isRemovingAccount,
     handleUserTypeSelect,
     handleLogoUpload,
     handleAddTeamEmail,
     removeEmail,
     handleSocialToggle,
+    handleSocialRemove,
     handleBack,
     handleNext,
     skipSocialConnect,
