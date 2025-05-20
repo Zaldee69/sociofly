@@ -56,6 +56,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { usePermissions } from "@/hooks/use-permissions";
 
 import { EditMemberDropdown } from "./components/edit-member-dropdown";
 import { getRoleBadge } from "../page";
@@ -113,6 +114,12 @@ const Page = () => {
       contentReviewed: false,
     },
   });
+  const [rolePermissions, setRolePermissions] = useState<
+    Record<string, string[]>
+  >({});
+  const [originalRolePermissions, setOriginalRolePermissions] = useState<
+    Record<string, string[]>
+  >({});
   const [originalFormData, setOriginalFormData] = useState({
     name: "",
     description: "",
@@ -126,13 +133,6 @@ const Page = () => {
   });
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [rolePermissions, setRolePermissions] = useState<
-    Record<string, string[]>
-  >({});
-  const [originalRolePermissions, setOriginalRolePermissions] = useState<
-    Record<string, string[]>
-  >({});
-  const [isRolePermissionsSaving, setIsRolePermissionsSaving] = useState(false);
   const [currentRole, setCurrentRole] = useState("MANAGER");
   const [isCreateRoleOpen, setIsCreateRoleOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
@@ -140,6 +140,13 @@ const Page = () => {
   const [newRolePermissions, setNewRolePermissions] = useState<string[]>([]);
   const [isCreatingRole, setIsCreatingRole] = useState(false);
   const utils = trpc.useUtils();
+
+  // Menggunakan hook usePermissions untuk pengecekan hak akses dan loading state
+  const {
+    hasPermission,
+    isPermissionsLoaded,
+    rolePermissions: permissionsFromHook,
+  } = usePermissions(teamId as string);
 
   // tRPC queries
   const { data: team, isLoading: isLoadingTeam } =
@@ -212,55 +219,6 @@ const Page = () => {
       toast.error(error.message);
     },
   });
-
-  // Get role permissions from API endpoints
-  const { data: ownerPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "OWNER" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: managerPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "MANAGER" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: supervisorPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "SUPERVISOR" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: contentCreatorPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "CONTENT_CREATOR" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: internalReviewerPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "INTERNAL_REVIEWER" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: clientReviewerPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "CLIENT_REVIEWER" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: analystPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "ANALYST" as Role },
-      { enabled: !!teamId }
-    );
-
-  const { data: inboxAgentPermissions } =
-    trpc.team.getDefaultRolePermissions.useQuery(
-      { role: "INBOX_AGENT" as Role },
-      { enabled: !!teamId }
-    );
 
   // Set default role permissions mutation
   const setDefaultRolePermissionsMutation =
@@ -418,21 +376,8 @@ const Page = () => {
 
   // Combined role permissions data (built-in + custom)
   const combinedRolePermissions = React.useMemo(() => {
-    const combined = { ...rolePermissions };
-
-    // Pastikan TEAM_OWNER memiliki semua permission yang tersedia
-    if (combined["TEAM_OWNER"]) {
-      combined["TEAM_OWNER"] = allPermissions.map((p) => p.id);
-    }
-
-    if (customRoles) {
-      customRoles.forEach((role: { name: string; permissions: string[] }) => {
-        combined[role.name] = role.permissions;
-      });
-    }
-
-    return combined;
-  }, [rolePermissions, customRoles, allPermissions]);
+    return rolePermissions;
+  }, [rolePermissions]);
 
   // Combined role descriptions
   const combinedRoleDescriptions = React.useMemo(() => {
@@ -473,6 +418,15 @@ const Page = () => {
     }
   }, [team]);
 
+  // Sync permissionsFromHook to rolePermissions when available
+  useEffect(() => {
+    if (permissionsFromHook && Object.keys(permissionsFromHook).length > 0) {
+      console.log("Setting rolePermissions from hook:", permissionsFromHook);
+      setRolePermissions(permissionsFromHook);
+      setOriginalRolePermissions(permissionsFromHook);
+    }
+  }, [permissionsFromHook]);
+
   // Check if general settings have changed
   const hasGeneralSettingsChanged = React.useMemo(() => {
     return (
@@ -495,88 +449,6 @@ const Page = () => {
         originalFormData.notifications.contentReviewed
     );
   }, [teamFormData.notifications, originalFormData.notifications]);
-
-  // Update role permissions from queries
-  useEffect(() => {
-    const updatedRolePermissions = { ...rolePermissions };
-
-    // Load permissions from the new API endpoints
-    if (ownerPermissions) {
-      updatedRolePermissions["OWNER"] = ownerPermissions;
-    }
-
-    if (managerPermissions) {
-      updatedRolePermissions["MANAGER"] = managerPermissions;
-    }
-
-    if (supervisorPermissions) {
-      updatedRolePermissions["SUPERVISOR"] = supervisorPermissions;
-    }
-
-    if (contentCreatorPermissions) {
-      updatedRolePermissions["CONTENT_CREATOR"] = contentCreatorPermissions;
-    }
-
-    if (internalReviewerPermissions) {
-      updatedRolePermissions["INTERNAL_REVIEWER"] = internalReviewerPermissions;
-    }
-
-    if (clientReviewerPermissions) {
-      updatedRolePermissions["CLIENT_REVIEWER"] = clientReviewerPermissions;
-    }
-
-    if (analystPermissions) {
-      updatedRolePermissions["ANALYST"] = analystPermissions;
-    }
-
-    if (inboxAgentPermissions) {
-      updatedRolePermissions["INBOX_AGENT"] = inboxAgentPermissions;
-    }
-
-    // Update permissions in state if we have any
-    if (Object.keys(updatedRolePermissions).length > 0) {
-      setRolePermissions(updatedRolePermissions);
-      setOriginalRolePermissions(updatedRolePermissions);
-    }
-  }, [
-    // New dependencies
-    ownerPermissions,
-    managerPermissions,
-    supervisorPermissions,
-    contentCreatorPermissions,
-    internalReviewerPermissions,
-    clientReviewerPermissions,
-    analystPermissions,
-    inboxAgentPermissions,
-  ]);
-
-  // Helper function to check if the user has a specific permission
-  const hasPermission = (permission: string) => {
-    // Jika role tidak tersedia (masih loading) - tampilkan UI sesuai kondisi loading
-    if (!team || !team.role) {
-      return false;
-    }
-
-    // OWNER always has all permissions
-    if (team.role === Role.OWNER) {
-      console.log("Owner role has all permissions");
-      return true;
-    }
-
-    // Check permissions in memory from the server
-    const userPermissions = team.role
-      ? combinedRolePermissions[team.role] || []
-      : [];
-
-    // For MANAGER specifically, hardcode team.manage since that's a critical permission
-    if (permission === "team.manage" && team.role === Role.MANAGER) {
-      console.log("MANAGER role explicitly granted team.manage permission");
-      return true;
-    }
-
-    // Direct permission check from database-sourced permissions
-    return userPermissions.includes(permission);
-  };
 
   const handleRemoveMember = async (memberId: string) => {
     try {
@@ -622,7 +494,7 @@ const Page = () => {
 
   const handleSaveRolePermissions = async () => {
     try {
-      setIsRolePermissionsSaving(true);
+      setIsCreatingRole(true);
 
       // Check if this is a custom role or a built-in role
       const isCustomRole = customRoles?.some(
@@ -659,12 +531,13 @@ const Page = () => {
         }
       }
 
-      // Update original permissions after save
-      setOriginalRolePermissions({ ...combinedRolePermissions });
+      // Simpan state saat ini sebagai state original setelah sukses disimpan
+      setOriginalRolePermissions({ ...rolePermissions });
+      console.log("Permissions saved, updated originalRolePermissions");
     } catch (error) {
       console.error("Error updating role permissions:", error);
     } finally {
-      setIsRolePermissionsSaving(false);
+      setIsCreatingRole(false);
     }
   };
 
@@ -674,6 +547,13 @@ const Page = () => {
     const currentRolePermissions = rolePermissions[currentRole] || [];
     const originalCurrentRolePermissions =
       originalRolePermissions[currentRole] || [];
+
+    // Debugging
+    console.log("Checking if permissions changed:", {
+      currentRole,
+      current: currentRolePermissions,
+      original: originalCurrentRolePermissions,
+    });
 
     // Quick length check first
     if (
@@ -857,7 +737,10 @@ const Page = () => {
   }, []);
 
   // Hanya tampilkan loading untuk seluruh halaman pada awal load
-  if ((isLoadingTeam || isLoadingMembers) && !searchQuery) {
+  if (
+    (isLoadingTeam || isLoadingMembers || !isPermissionsLoaded) &&
+    !searchQuery
+  ) {
     return (
       <div className="container mx-auto py-6">
         <div className="mb-6">
@@ -1393,23 +1276,7 @@ const Page = () => {
                               </TableHeader>
                               <TableBody>
                                 {/* Show loading skeleton when permissions are being fetched */}
-                                {activeTab === "roles" &&
-                                ((currentRole === "OWNER" &&
-                                  !ownerPermissions) ||
-                                  (currentRole === "MANAGER" &&
-                                    !managerPermissions) ||
-                                  (currentRole === "SUPERVISOR" &&
-                                    !supervisorPermissions) ||
-                                  (currentRole === "CONTENT_CREATOR" &&
-                                    !contentCreatorPermissions) ||
-                                  (currentRole === "INTERNAL_REVIEWER" &&
-                                    !internalReviewerPermissions) ||
-                                  (currentRole === "CLIENT_REVIEWER" &&
-                                    !clientReviewerPermissions) ||
-                                  (currentRole === "ANALYST" &&
-                                    !analystPermissions) ||
-                                  (currentRole === "INBOX_AGENT" &&
-                                    !inboxAgentPermissions))
+                                {activeTab === "roles" && !isPermissionsLoaded
                                   ? // Loading state
                                     Array(5)
                                       .fill(0)
@@ -1458,11 +1325,10 @@ const Page = () => {
                             <Button
                               onClick={handleSaveRolePermissions}
                               disabled={
-                                isRolePermissionsSaving ||
-                                !hasRolePermissionsChanged
+                                isCreatingRole || !hasRolePermissionsChanged
                               }
                             >
-                              {isRolePermissionsSaving
+                              {isCreatingRole
                                 ? "Saving..."
                                 : "Save Role Permissions"}
                             </Button>

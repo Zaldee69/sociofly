@@ -4,12 +4,14 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 interface MemberPermissionEditorProps {
   membershipId: string;
   organizationId: string;
   permissionCode: string;
   onClose?: () => void;
+  onSavingStateChange?: (isSaving: boolean) => void;
 }
 
 type PermissionOverrideStatus = "inherit" | "grant" | "deny";
@@ -19,13 +21,20 @@ export function MemberPermissionEditor({
   organizationId,
   permissionCode,
   onClose,
+  onSavingStateChange,
 }: MemberPermissionEditorProps) {
   const [status, setStatus] = useState<PermissionOverrideStatus>("inherit");
   const [initialStatus, setInitialStatus] =
     useState<PermissionOverrideStatus>("inherit");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   const utils = trpc.useUtils();
+
+  // Notify parent component of saving state changes
+  useEffect(() => {
+    onSavingStateChange?.(isSaving);
+  }, [isSaving, onSavingStateChange]);
 
   // Get user's permission overrides
   const { data: userOverrides, isLoading: isLoadingOverrides } =
@@ -44,9 +53,11 @@ export function MemberPermissionEditor({
         organizationId,
         membershipId,
       });
+      setIsSaving(false);
       onClose?.();
     },
     onError: (error) => {
+      setIsSaving(false);
       toast.error(`Error granting permission: ${error.message}`);
       console.error("Grant permission error:", error);
     },
@@ -59,9 +70,11 @@ export function MemberPermissionEditor({
         organizationId,
         membershipId,
       });
+      setIsSaving(false);
       onClose?.();
     },
     onError: (error) => {
+      setIsSaving(false);
       toast.error(`Error denying permission: ${error.message}`);
       console.error("Deny permission error:", error);
     },
@@ -74,9 +87,11 @@ export function MemberPermissionEditor({
         organizationId,
         membershipId,
       });
+      setIsSaving(false);
       onClose?.();
     },
     onError: (error) => {
+      setIsSaving(false);
       toast.error(`Error resetting permission: ${error.message}`);
       console.error("Revoke permission error:", error);
     },
@@ -108,8 +123,20 @@ export function MemberPermissionEditor({
   // Check if permission has changed
   const hasChanged = status !== initialStatus;
 
+  // Handle safe dialog close
+  const handleClose = () => {
+    if (!isSaving) {
+      onClose?.();
+    }
+  };
+
   // Handle save
   const handleSave = () => {
+    // Prevent saving if already in progress
+    if (isSaving) return;
+
+    setIsSaving(true);
+
     // Send mutation based on selected value
     if (status === "grant") {
       grantMutation.mutate({
@@ -135,17 +162,17 @@ export function MemberPermissionEditor({
 
   if (isLoading || isLoadingOverrides) {
     return (
-      <div className="p-4 text-center">Loading permission settings...</div>
+      <div className="p-4 flex justify-center items-center">
+        <Loader2 className="h-4 w-4 animate-spin" />
+      </div>
     );
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <h4 className="font-medium text-sm">Manage Permission Override</h4>
-
+    <div className="space-y-4">
       <RadioGroup value={status} onValueChange={handlePermissionChange}>
         <div className="flex items-center space-x-2.5 rounded-md border p-2 hover:bg-muted/50">
-          <RadioGroupItem value="inherit" id="inherit" />
+          <RadioGroupItem value="inherit" id="inherit" disabled={isSaving} />
           <Label
             htmlFor="inherit"
             className="flex flex-col cursor-pointer text-sm items-start gap-0 w-full"
@@ -157,7 +184,7 @@ export function MemberPermissionEditor({
           </Label>
         </div>
         <div className="flex items-center space-x-2.5 rounded-md border p-2 hover:bg-muted/50">
-          <RadioGroupItem value="grant" id="grant" />
+          <RadioGroupItem value="grant" id="grant" disabled={isSaving} />
           <Label
             htmlFor="grant"
             className="flex flex-col cursor-pointer text-sm items-start gap-0 w-full"
@@ -169,7 +196,7 @@ export function MemberPermissionEditor({
           </Label>
         </div>
         <div className="flex items-center space-x-2.5 rounded-md border p-2 hover:bg-muted/50">
-          <RadioGroupItem value="deny" id="deny" />
+          <RadioGroupItem value="deny" id="deny" disabled={isSaving} />
           <Label
             htmlFor="deny"
             className="flex flex-col cursor-pointer text-sm items-start gap-0 w-full"
@@ -183,11 +210,21 @@ export function MemberPermissionEditor({
       </RadioGroup>
 
       <div className="flex justify-end space-x-2.5 pt-2">
-        <Button variant="outline" size="sm" onClick={onClose}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleClose}
+          disabled={isSaving}
+        >
           Cancel
         </Button>
-        <Button size="sm" onClick={handleSave} disabled={!hasChanged}>
-          Save
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={!hasChanged || isSaving}
+        >
+          {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isSaving ? "Saving..." : "Save"}
         </Button>
       </div>
     </div>

@@ -1093,4 +1093,32 @@ export const teamRouter = createTRPCRouter({
       // Return just the permission codes
       return rolePermissions.map((rp) => rp.permission.code);
     }),
+
+  // Get current user's membership for a team
+  getTeamMembership: protectedProcedure
+    .input(z.object({ teamId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Find user's membership for this team
+      const membership = await ctx.prisma.membership.findFirst({
+        where: {
+          userId: ctx.userId,
+          organizationId: input.teamId,
+        },
+        select: {
+          id: true,
+          role: true,
+        },
+      });
+
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Not a team member",
+        });
+      }
+
+      return membership;
+    }),
 });

@@ -44,6 +44,7 @@ export function EditMemberDropdown({
   const [isPermissionDialogOpen, setIsPermissionDialogOpen] = useState(false);
   const [selectedPermission, setSelectedPermission] = useState("");
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
+  const [isPermissionSaving, setIsPermissionSaving] = useState(false);
 
   const { data: availablePermissions } =
     trpc.permission.getAllPermissionCodes.useQuery();
@@ -96,6 +97,13 @@ export function EditMemberDropdown({
       memberId: member.id,
       role,
     });
+  };
+
+  // Handle permission dialog close - prevent if we're saving
+  const handlePermissionDialogChange = (open: boolean) => {
+    if (!isPermissionSaving) {
+      setIsPermissionDialogOpen(open);
+    }
   };
 
   return (
@@ -202,7 +210,7 @@ export function EditMemberDropdown({
       {/* Permission Edit Dialog */}
       <Dialog
         open={isPermissionDialogOpen}
-        onOpenChange={setIsPermissionDialogOpen}
+        onOpenChange={handlePermissionDialogChange}
       >
         <DialogContent>
           <DialogHeader>
@@ -218,6 +226,7 @@ export function EditMemberDropdown({
             organizationId={teamId}
             permissionCode={selectedPermission}
             onClose={() => setIsPermissionDialogOpen(false)}
+            onSavingStateChange={setIsPermissionSaving}
           />
         </DialogContent>
       </Dialog>
