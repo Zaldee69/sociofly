@@ -3,6 +3,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma/client"; // Note: default import
 import { MediaType, Role } from "@prisma/client";
 import { z } from "zod";
+import { can } from "@/server/permissions/helpers";
 
 const f = createUploadthing();
 
@@ -12,30 +13,8 @@ async function hasPermission(
   organizationId: string,
   permissionCode: string
 ): Promise<boolean> {
-  // Get user membership
-  const membership = await prisma.membership.findFirst({
-    where: {
-      userId,
-      organizationId,
-    },
-  });
-
-  if (!membership) return false;
-
-  // Special case: Team Owner has all permissions
-  if (membership.role === Role.TEAM_OWNER) {
-    return true;
-  }
-
-  // Check if the user's role has the required permission
-  const hasRequiredPermission = await prisma.rolePermission.findFirst({
-    where: {
-      role: membership.role,
-      permission: { code: permissionCode },
-    },
-  });
-
-  return !!hasRequiredPermission;
+  // Use the can helper from permissions module that checks grants/denies
+  return can(userId, organizationId, permissionCode);
 }
 
 export const ourFileRouter = {

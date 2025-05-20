@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma/client";
 import { type PrismaClient, Role } from "@prisma/client";
+import { getEffectivePermissions, can } from "../permissions/helpers";
 
 interface CreateContextOptions {
   prisma: PrismaClient;
@@ -79,26 +80,25 @@ export const requirePermission = (requiredPermission: string) =>
     }
 
     // Special Case: Team Owner has all permissions
-    if (membership.role === Role.TEAM_OWNER) {
+    if (membership.role === Role.OWNER) {
       return next();
     }
 
-    // Check if the user's role has the required permission
-    const hasPermission = await ctx.prisma.rolePermission.findFirst({
-      where: {
-        role: membership.role,
-        permission: { code: requiredPermission },
-      },
-    });
+    // Use the helper function to check permissions
+    const hasPermission = await can(
+      userId,
+      membership.organizationId,
+      requiredPermission
+    );
 
-    if (!hasPermission) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: `You don't have the required permission: ${requiredPermission}`,
-      });
+    if (hasPermission) {
+      return next();
     }
 
-    return next();
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `You don't have the required permission: ${requiredPermission}`,
+    });
   });
 
 /**
@@ -122,24 +122,25 @@ export const requireAnyPermission = (permissions: string[]) =>
     }
 
     // Special Case: Team Owner has all permissions
-    if (membership.role === Role.TEAM_OWNER) {
+    if (membership.role === Role.OWNER) {
       return next();
     }
 
-    // Check if the user's role has any of the required permissions
-    const hasPermission = await ctx.prisma.rolePermission.findFirst({
-      where: {
-        role: membership.role,
-        permission: { code: { in: permissions } },
-      },
-    });
+    // Get all permissions for this user
+    const userPermissions = await getEffectivePermissions(
+      userId,
+      membership.organizationId
+    );
 
-    if (!hasPermission) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: `You don't have any of the required permissions: ${permissions.join(", ")}`,
-      });
+    // Check if user has any of the required permissions
+    const hasAnyPermission = permissions.some((p) => userPermissions.has(p));
+
+    if (hasAnyPermission) {
+      return next();
     }
 
-    return next();
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `You don't have any of the required permissions: ${permissions.join(", ")}`,
+    });
   });

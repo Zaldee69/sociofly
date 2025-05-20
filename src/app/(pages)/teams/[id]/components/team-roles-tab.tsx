@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Permission, CustomRole } from "../types";
+import { motion } from "framer-motion";
 
 interface TeamRolesTabProps {
   teamId: string;
@@ -103,6 +104,8 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
         enabled: !!teamId && team?.role === Role.OWNER,
       }
     );
+
+  console.log(customRoles);
 
   // Get available permissions from API
   const { data: availablePermissionsData, isLoading: isLoadingPermissions } =
@@ -421,188 +424,331 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center w-full">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Manage Roles
-              </CardTitle>
-              <CardDescription>
-                Configure permissions for each role in your team
-              </CardDescription>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center w-full">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <motion.div
+                    initial={{ rotate: -90 }}
+                    animate={{ rotate: 0 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <Settings className="h-5 w-5" />
+                  </motion.div>
+                  Manage Roles
+                </CardTitle>
+                <CardDescription>
+                  Configure permissions for each role in your team
+                </CardDescription>
+              </div>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Button
+                  variant="outline"
+                  onClick={() => setIsCreateRoleOpen(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Custom Role
+                </Button>
+              </motion.div>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setIsCreateRoleOpen(true)}
-              className="flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Create Custom Role
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-8">
-            {/* Role selector tabs */}
-            <Tabs
-              defaultValue="MANAGER"
-              className="w-full"
-              onValueChange={(value) => setCurrentRole(value)}
-              value={currentRole}
-            >
-              <TabsList className="w-full justify-start overflow-auto">
-                {Object.keys(combinedRolePermissions)
-                  .filter((role) => role !== "OWNER" && role !== "TEAM_OWNER")
-                  .map((role) => (
-                    <TabsTrigger
-                      key={role}
-                      value={role}
-                      className="min-w-fit whitespace-nowrap"
-                    >
-                      {role
-                        .replace("_", " ")
-                        .replace(/_/g, " ")
-                        .split(" ")
-                        .map(
-                          (word) =>
-                            word.charAt(0).toUpperCase() +
-                            word.slice(1).toLowerCase()
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-8">
+              {/* Role selector tabs */}
+              <Tabs
+                defaultValue="MANAGER"
+                className="w-full"
+                onValueChange={(value) => setCurrentRole(value)}
+                value={currentRole}
+              >
+                <TabsList className="w-full justify-start overflow-auto">
+                  {isLoadingCustomRoles
+                    ? // Tabs loading state
+                      Array(4)
+                        .fill(0)
+                        .map((_, i) => (
+                          <motion.div
+                            key={`tab-loading-${i}`}
+                            className="px-4 py-2 mx-1"
+                            animate={{
+                              opacity: [0.5, 0.8, 0.5],
+                              width: ["80px", "100px", "80px"],
+                            }}
+                            transition={{
+                              repeat: Infinity,
+                              duration: 1.5,
+                              delay: i * 0.2,
+                            }}
+                          >
+                            <Skeleton className="h-5 w-full" />
+                          </motion.div>
+                        ))
+                    : // Actual tabs with animation
+                      Object.keys(combinedRolePermissions)
+                        .filter(
+                          (role) => role !== "OWNER" && role !== "TEAM_OWNER"
                         )
-                        .join(" ")}
-                    </TabsTrigger>
-                  ))}
-              </TabsList>
+                        .map((role) => (
+                          <motion.div
+                            key={role}
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
+                          >
+                            <TabsTrigger
+                              value={role}
+                              className="min-w-fit whitespace-nowrap"
+                            >
+                              {role
+                                .replace("_", " ")
+                                .replace(/_/g, " ")
+                                .split(" ")
+                                .map(
+                                  (word) =>
+                                    word.charAt(0).toUpperCase() +
+                                    word.slice(1).toLowerCase()
+                                )
+                                .join(" ")}
+                            </TabsTrigger>
+                          </motion.div>
+                        ))}
+                </TabsList>
 
-              {/* Permission tables for each role */}
-              {Object.keys(combinedRolePermissions).map((role) => (
-                <TabsContent key={role} value={role} className="mt-6">
-                  <div className="flex flex-col gap-6">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-lg font-medium">
-                          {role
-                            .replace("_", " ")
-                            .replace(/_/g, " ")
-                            .split(" ")
-                            .map(
-                              (word) =>
-                                word.charAt(0).toUpperCase() +
-                                word.slice(1).toLowerCase()
-                            )
-                            .join(" ")}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {
-                            combinedRoleDescriptions[
-                              role as keyof typeof combinedRoleDescriptions
-                            ]
-                          }
-                        </p>
+                {/* Permission tables for each role */}
+                {Object.keys(combinedRolePermissions).map((role) => (
+                  <TabsContent key={role} value={role} className="mt-6">
+                    <div className="flex flex-col gap-6">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="text-lg font-medium">
+                            {role
+                              .replace("_", " ")
+                              .replace(/_/g, " ")
+                              .split(" ")
+                              .map(
+                                (word) =>
+                                  word.charAt(0).toUpperCase() +
+                                  word.slice(1).toLowerCase()
+                              )
+                              .join(" ")}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            {
+                              combinedRoleDescriptions[
+                                role as keyof typeof combinedRoleDescriptions
+                              ]
+                            }
+                          </p>
+                        </div>
+
+                        {/* Delete button for custom roles */}
+                        {customRoles?.some(
+                          (r: { name: string }) => r.name === role
+                        ) && (
+                          <motion.div
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive"
+                              onClick={() => handleDeleteCustomRole(role)}
+                            >
+                              <Trash className="h-4 w-4 mr-2" />
+                              Delete Role
+                            </Button>
+                          </motion.div>
+                        )}
                       </div>
 
-                      {/* Delete button for custom roles */}
-                      {customRoles?.some(
-                        (r: { name: string }) => r.name === role
-                      ) && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive"
-                          onClick={() => handleDeleteCustomRole(role)}
-                        >
-                          <Trash className="h-4 w-4 mr-2" />
-                          Delete Role
-                        </Button>
-                      )}
-                    </div>
-
-                    <div className="border rounded-md">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-1/3">Permission</TableHead>
-                            <TableHead className="w-1/2">Description</TableHead>
-                            <TableHead className="w-1/6 text-center">
-                              Access
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {/* Show loading skeleton when permissions are being fetched */}
-                          {!isPermissionsLoaded
-                            ? // Loading state
-                              Array(5)
-                                .fill(0)
-                                .map((_, i) => (
-                                  <TableRow key={`loading-${i}`}>
-                                    <TableCell>
-                                      <Skeleton className="h-4 w-[150px]" />
+                      <div className="border rounded-md">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-1/3">
+                                Permission
+                              </TableHead>
+                              <TableHead className="w-1/2">
+                                Description
+                              </TableHead>
+                              <TableHead className="w-1/6 text-center">
+                                Access
+                              </TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {/* Show loading skeleton when permissions are being fetched */}
+                            {!isPermissionsLoaded
+                              ? // Loading state with staggered animation
+                                Array(5)
+                                  .fill(0)
+                                  .map((_, i) => (
+                                    <motion.tr
+                                      key={`loading-${i}`}
+                                      initial={{ opacity: 0, y: 10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      transition={{
+                                        duration: 0.3,
+                                        delay: i * 0.05, // Staggered delay for each row
+                                      }}
+                                      className="border-b"
+                                    >
+                                      <TableCell>
+                                        <motion.div
+                                          animate={{
+                                            opacity: [0.5, 0.8, 0.5],
+                                          }}
+                                          transition={{
+                                            repeat: Infinity,
+                                            duration: 1.5,
+                                          }}
+                                        >
+                                          <Skeleton className="h-4 w-[150px]" />
+                                        </motion.div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <motion.div
+                                          animate={{
+                                            opacity: [0.5, 0.8, 0.5],
+                                          }}
+                                          transition={{
+                                            repeat: Infinity,
+                                            duration: 1.5,
+                                            delay: 0.2,
+                                          }}
+                                        >
+                                          <Skeleton className="h-4 w-[200px]" />
+                                        </motion.div>
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        <motion.div
+                                          animate={{
+                                            opacity: [0.5, 0.8, 0.5],
+                                          }}
+                                          transition={{
+                                            repeat: Infinity,
+                                            duration: 1.5,
+                                            delay: 0.4,
+                                          }}
+                                        >
+                                          <Skeleton className="h-5 w-10 mx-auto" />
+                                        </motion.div>
+                                      </TableCell>
+                                    </motion.tr>
+                                  ))
+                              : // Actual permissions with staggered entrance animation
+                                allPermissions.map((permission, index) => (
+                                  <motion.tr
+                                    key={permission.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{
+                                      duration: 0.2,
+                                      delay: index * 0.03, // Subtle staggered animation
+                                    }}
+                                    className="border-b"
+                                  >
+                                    <TableCell className="font-medium">
+                                      {permission.name}
                                     </TableCell>
                                     <TableCell>
-                                      <Skeleton className="h-4 w-[200px]" />
+                                      {permission.description}
                                     </TableCell>
                                     <TableCell className="text-center">
-                                      <Skeleton className="h-5 w-10 mx-auto" />
+                                      <motion.div whileTap={{ scale: 0.95 }}>
+                                        <Switch
+                                          checked={
+                                            combinedRolePermissions[
+                                              role
+                                            ]?.includes(permission.id) || false
+                                          }
+                                          onCheckedChange={() =>
+                                            handleTogglePermission(
+                                              role,
+                                              permission.id
+                                            )
+                                          }
+                                        />
+                                      </motion.div>
                                     </TableCell>
-                                  </TableRow>
-                                ))
-                            : // Actual permissions
-                              allPermissions.map((permission) => (
-                                <TableRow key={permission.id}>
-                                  <TableCell className="font-medium">
-                                    {permission.name}
-                                  </TableCell>
-                                  <TableCell>
-                                    {permission.description}
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    <Switch
-                                      checked={
-                                        combinedRolePermissions[role]?.includes(
-                                          permission.id
-                                        ) || false
-                                      }
-                                      onCheckedChange={() =>
-                                        handleTogglePermission(
-                                          role,
-                                          permission.id
-                                        )
-                                      }
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                                  </motion.tr>
+                                ))}
+                          </TableBody>
+                        </Table>
+                      </div>
 
-                    <div className="flex justify-end mt-4">
-                      <Button
-                        onClick={handleSaveRolePermissions}
-                        disabled={isCreatingRole || !hasRolePermissionsChanged}
-                      >
-                        {isCreatingRole ? "Saving..." : "Save Role Permissions"}
-                      </Button>
+                      <div className="flex justify-end mt-4">
+                        <motion.div
+                          whileHover={
+                            !isCreatingRole && hasRolePermissionsChanged
+                              ? { scale: 1.02 }
+                              : {}
+                          }
+                          whileTap={
+                            !isCreatingRole && hasRolePermissionsChanged
+                              ? { scale: 0.98 }
+                              : {}
+                          }
+                        >
+                          <Button
+                            onClick={handleSaveRolePermissions}
+                            disabled={
+                              isCreatingRole || !hasRolePermissionsChanged
+                            }
+                          >
+                            {isCreatingRole ? (
+                              <div className="flex items-center">
+                                <motion.div
+                                  animate={{ rotate: 360 }}
+                                  transition={{
+                                    duration: 1,
+                                    repeat: Infinity,
+                                    ease: "linear",
+                                  }}
+                                  className="mr-2 h-4 w-4 border-2 border-current border-t-transparent rounded-full"
+                                />
+                                <span>Saving...</span>
+                              </div>
+                            ) : (
+                              "Save Role Permissions"
+                            )}
+                          </Button>
+                        </motion.div>
+                      </div>
                     </div>
-                  </div>
-                </TabsContent>
-              ))}
-            </Tabs>
-          </div>
-        </CardContent>
-      </Card>
+                  </TabsContent>
+                ))}
+              </Tabs>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Create Custom Role Dialog */}
       <Dialog open={isCreateRoleOpen} onOpenChange={setIsCreateRoleOpen}>
         <DialogContent className="max-w-3xl pr-0">
-          <DialogHeader>
-            <DialogTitle>Create Custom Role</DialogTitle>
-            <DialogDescription>
-              Create a new role with custom permissions for your team.
-            </DialogDescription>
-          </DialogHeader>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+          >
+            <DialogHeader>
+              <DialogTitle>Create Custom Role</DialogTitle>
+              <DialogDescription>
+                Create a new role with custom permissions for your team.
+              </DialogDescription>
+            </DialogHeader>
+          </motion.div>
 
           <div className="space-y-6 mt-4 max-h-[60vh] overflow-y-auto pr-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -692,80 +838,93 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
       {/* Delete Role Confirmation Dialog */}
       <Dialog open={isDeleteRoleOpen} onOpenChange={setIsDeleteRoleOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Delete Custom Role
-            </DialogTitle>
-            <DialogDescription>
-              {membersUsingRole > 0 ? (
-                <>
-                  There {membersUsingRole === 1 ? "is" : "are"} currently{" "}
-                  <strong>{membersUsingRole}</strong>{" "}
-                  {membersUsingRole === 1 ? "member" : "members"} assigned to
-                  the "{roleToDelete?.name}" role. Please select a fallback role
-                  to assign these members to.
-                </>
-              ) : (
-                <>
-                  Are you sure you want to delete this role? This action cannot
-                  be undone.
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-
-          {membersUsingRole > 0 && (
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Fallback Role</label>
-                <Select
-                  value={fallbackRole}
-                  onValueChange={(value) => setFallbackRole(value as Role)}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.2 }}
+          >
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <motion.div
+                  animate={{
+                    rotate: [0, 10, -10, 10, -10, 0],
+                    transition: { duration: 0.5 },
+                  }}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a fallback role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.values(Role)
-                      .filter((role) => role !== "OWNER")
-                      .map((role) => (
-                        <SelectItem key={role} value={role}>
-                          {role
-                            .replace(/_/g, " ")
-                            .split(" ")
-                            .map(
-                              (word) =>
-                                word.charAt(0).toUpperCase() +
-                                word.slice(1).toLowerCase()
-                            )
-                            .join(" ")}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  All members with this custom role will be assigned to this
-                  role
-                </p>
-              </div>
-            </div>
-          )}
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                </motion.div>
+                Delete Custom Role
+              </DialogTitle>
+              <DialogDescription>
+                {membersUsingRole > 0 ? (
+                  <>
+                    There {membersUsingRole === 1 ? "is" : "are"} currently{" "}
+                    <strong>{membersUsingRole}</strong>{" "}
+                    {membersUsingRole === 1 ? "member" : "members"} assigned to
+                    the "{roleToDelete?.name}" role. Please select a fallback
+                    role to assign these members to.
+                  </>
+                ) : (
+                  <>
+                    Are you sure you want to delete this role? This action
+                    cannot be undone.
+                  </>
+                )}
+              </DialogDescription>
+            </DialogHeader>
 
-          <DialogFooter className="gap-2 mt-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsDeleteRoleOpen(false);
-                setRoleToDelete(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={confirmDeleteRole}>
-              Delete Role
-            </Button>
-          </DialogFooter>
+            {membersUsingRole > 0 && (
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Fallback Role</label>
+                  <Select
+                    value={fallbackRole}
+                    onValueChange={(value) => setFallbackRole(value as Role)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a fallback role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.values(Role)
+                        .filter((role) => role !== "OWNER")
+                        .map((role) => (
+                          <SelectItem key={role} value={role}>
+                            {role
+                              .replace(/_/g, " ")
+                              .split(" ")
+                              .map(
+                                (word) =>
+                                  word.charAt(0).toUpperCase() +
+                                  word.slice(1).toLowerCase()
+                              )
+                              .join(" ")}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    All members with this custom role will be assigned to this
+                    role
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="gap-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDeleteRoleOpen(false);
+                  setRoleToDelete(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteRole}>
+                Delete Role
+              </Button>
+            </DialogFooter>
+          </motion.div>
         </DialogContent>
       </Dialog>
     </>

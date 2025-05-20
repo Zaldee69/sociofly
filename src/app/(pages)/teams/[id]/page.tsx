@@ -95,7 +95,7 @@ const TeamPage = () => {
             <Users className="h-4 w-4 mr-2" />
             Social Accounts
           </TabsTrigger>
-          {hasPermission("team.viewInvites") && (
+          {hasPermission("team.manage") && (
             <TabsTrigger value="invites">
               <Mail className="h-4 w-4 mr-2" />
               Pending Invites
