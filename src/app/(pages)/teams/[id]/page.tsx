@@ -217,49 +217,49 @@ const Page = () => {
   const { data: ownerPermissions } =
     trpc.team.getDefaultRolePermissions.useQuery(
       { role: "OWNER" as Role },
-      { enabled: !!teamId && activeTab === "roles" }
+      { enabled: !!teamId }
     );
 
   const { data: managerPermissions } =
     trpc.team.getDefaultRolePermissions.useQuery(
       { role: "MANAGER" as Role },
-      { enabled: !!teamId && activeTab === "roles" }
+      { enabled: !!teamId }
     );
 
   const { data: supervisorPermissions } =
     trpc.team.getDefaultRolePermissions.useQuery(
       { role: "SUPERVISOR" as Role },
-      { enabled: !!teamId && activeTab === "roles" }
+      { enabled: !!teamId }
     );
 
   const { data: contentCreatorPermissions } =
     trpc.team.getDefaultRolePermissions.useQuery(
       { role: "CONTENT_CREATOR" as Role },
-      { enabled: !!teamId && activeTab === "roles" }
+      { enabled: !!teamId }
     );
 
   const { data: internalReviewerPermissions } =
     trpc.team.getDefaultRolePermissions.useQuery(
       { role: "INTERNAL_REVIEWER" as Role },
-      { enabled: !!teamId && activeTab === "roles" }
+      { enabled: !!teamId }
     );
 
   const { data: clientReviewerPermissions } =
     trpc.team.getDefaultRolePermissions.useQuery(
       { role: "CLIENT_REVIEWER" as Role },
-      { enabled: !!teamId && activeTab === "roles" }
+      { enabled: !!teamId }
     );
 
   const { data: analystPermissions } =
     trpc.team.getDefaultRolePermissions.useQuery(
       { role: "ANALYST" as Role },
-      { enabled: !!teamId && activeTab === "roles" }
+      { enabled: !!teamId }
     );
 
   const { data: inboxAgentPermissions } =
     trpc.team.getDefaultRolePermissions.useQuery(
       { role: "INBOX_AGENT" as Role },
-      { enabled: !!teamId && activeTab === "roles" }
+      { enabled: !!teamId }
     );
 
   // Set default role permissions mutation
@@ -506,11 +506,6 @@ const Page = () => {
     }
 
     if (managerPermissions) {
-      console.log("Manager permissions loaded:", managerPermissions);
-      console.log(
-        "Includes team.manage?",
-        managerPermissions.includes("team.manage")
-      );
       updatedRolePermissions["MANAGER"] = managerPermissions;
     }
 
@@ -538,6 +533,7 @@ const Page = () => {
       updatedRolePermissions["INBOX_AGENT"] = inboxAgentPermissions;
     }
 
+    // Update permissions in state if we have any
     if (Object.keys(updatedRolePermissions).length > 0) {
       setRolePermissions(updatedRolePermissions);
       setOriginalRolePermissions(updatedRolePermissions);
@@ -561,25 +557,24 @@ const Page = () => {
       return false;
     }
 
-    // OWNER selalu memiliki semua permission
+    // OWNER always has all permissions
     if (team.role === Role.OWNER) {
+      console.log("Owner role has all permissions");
       return true;
     }
 
-    // We're specifically handling team.manage since that's what we need
-    if (permission === "team.manage" && team.role === "MANAGER") {
-      return true;
-    }
-
-    // Dapatkan permission untuk role user
+    // Check permissions in memory from the server
     const userPermissions = team.role
       ? combinedRolePermissions[team.role] || []
       : [];
 
-    console.log(`Checking permission: ${permission} for role: ${team.role}`);
-    console.log("Available permissions:", userPermissions);
+    // For MANAGER specifically, hardcode team.manage since that's a critical permission
+    if (permission === "team.manage" && team.role === Role.MANAGER) {
+      console.log("MANAGER role explicitly granted team.manage permission");
+      return true;
+    }
 
-    // Direct permission check
+    // Direct permission check from database-sourced permissions
     return userPermissions.includes(permission);
   };
 
