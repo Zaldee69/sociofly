@@ -1005,7 +1005,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Get all custom roles for a team
-  getCustomRoles: requirePermission("team.manage")
+  getCustomRoles: protectedProcedure
     .input(z.object({ teamId: z.string() }))
     .query(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });

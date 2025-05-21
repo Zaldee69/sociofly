@@ -78,7 +78,7 @@ export const TeamInvitesTab = ({ teamId, team }: TeamInvitesTabProps) => {
   const { data: allInvites, isLoading } = trpc.team.getTeamInvites.useQuery(
     { teamId, includeProcessed: true },
     {
-      enabled: !!teamId && team?.role === "OWNER",
+      enabled: !!teamId,
     }
   );
 
@@ -87,7 +87,7 @@ export const TeamInvitesTab = ({ teamId, team }: TeamInvitesTabProps) => {
     trpc.team.getTeamInvitesHistory.useQuery(
       { teamId },
       {
-        enabled: !!teamId && team?.role === "OWNER" && activeTab === "history",
+        enabled: !!teamId,
       }
     );
 

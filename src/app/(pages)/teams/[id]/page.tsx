@@ -209,7 +209,7 @@ const TeamPage = () => {
               </TabsContent>
             )}
 
-            {hasPermission("team.viewInvites") && activeTab === "invites" && (
+            {hasPermission("team.manage") && activeTab === "invites" && (
               <TabsContent value="invites" forceMount>
                 <TeamInvitesTab teamId={teamId as string} team={team} />
               </TabsContent>
