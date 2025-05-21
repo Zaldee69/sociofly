@@ -164,7 +164,7 @@ const TeamPage = () => {
               <motion.div variants={fadeInUp}>
                 <TabsTrigger value="invites">
                   <Mail className="h-4 w-4 mr-2" />
-                  Pending Invites
+                  Member Invites
                 </TabsTrigger>
               </motion.div>
             )}
