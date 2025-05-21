@@ -254,16 +254,40 @@ export const onboardingRouter = createTRPCRouter({
         });
       }
 
-      const user = await ctx.prisma.user.update({
-        where: {
-          id: ctx.userId,
-        },
-        data: {
-          onboardingStatus: input.status as OnboardingStatus,
-        },
-      });
+      try {
+        // Check if user exists before updating
+        const existingUser = await ctx.prisma.user.findUnique({
+          where: { id: ctx.userId },
+        });
 
-      return user;
+        if (!existingUser) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message:
+              "User record not found in database. This may happen if your account was just created.",
+          });
+        }
+
+        const user = await ctx.prisma.user.update({
+          where: {
+            id: ctx.userId,
+          },
+          data: {
+            onboardingStatus: input.status as OnboardingStatus,
+          },
+        });
+
+        return user;
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+
+        console.error("Error updating onboarding status:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            "Failed to update onboarding status. Please try again later.",
+        });
+      }
     }),
 
   getTemporaryData: protectedProcedure

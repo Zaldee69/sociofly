@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Mail, Clock, X } from "lucide-react";
-import { getRoleBadge } from "../../page";
+import { getRoleBadge } from "../../utils/team-utils";
 
 interface TeamInvitesTabProps {
   teamId: string;

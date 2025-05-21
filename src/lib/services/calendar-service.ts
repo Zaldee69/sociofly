@@ -1,6 +1,6 @@
 // TODO: Replace with real data fetching logic
 // import { createClient } from "@/lib/utils/supabase/client";
-import type { IEvent } from "@/calendar/interfaces";
+import type { IEvent } from "@/types/calendar";
 import type {
   RealtimeChannel,
   RealtimePostgresChangesPayload,
@@ -105,7 +105,14 @@ export class CalendarService {
 
     // if (error) throw error;
 
-    return this.mapScheduledPostToEvent(scheduledPost);
+    // Mock ID and created_at for the scheduled post
+    const mockPost: IScheduledPost = {
+      ...scheduledPost,
+      id: Math.random().toString(36).substring(2, 15),
+      created_at: new Date().toISOString(),
+    };
+
+    return this.mapScheduledPostToEvent(mockPost);
   }
 
   async updateScheduledPost(event: IEvent): Promise<IEvent> {
@@ -123,7 +130,19 @@ export class CalendarService {
 
     // if (error) throw error;
 
-    return this.mapScheduledPostToEvent(event);
+    // Create a mock scheduled post from the event for mapping
+    const mockPost: IScheduledPost = {
+      id: event.id,
+      user_id: event.user.id,
+      platform: "facebook",
+      content: event.description,
+      scheduled_time: event.startDate,
+      status: "scheduled",
+      external_id: null,
+      created_at: new Date().toISOString(),
+    };
+
+    return this.mapScheduledPostToEvent(mockPost);
   }
 
   async deleteScheduledPost(id: string): Promise<void> {

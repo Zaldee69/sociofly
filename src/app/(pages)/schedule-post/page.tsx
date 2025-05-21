@@ -35,65 +35,7 @@ import { useScheduleForm } from "./hooks/use-schedule-form";
 import { FileUploadArea } from "./components/file-upload-area";
 import { AIContentProvider, useAIContent } from "./contexts/ai-content-context";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
-
-export const socialAccounts = [
-  {
-    id: "acc_1",
-    platform: "twitter",
-    username: "twitter_user1",
-    platform_user_id: "tw_123",
-    accessToken: "tw_123456789abcdef",
-    refreshToken: "tw_refresh_123456789abcdef",
-    expiresAt: "2024-12-31T23:59:59Z",
-    userId: "user_1",
-    organizationId: "org_1",
-    createdAt: "2024-01-01T00:00:00Z",
-    updatedAt: "2024-01-01T00:00:00Z",
-    profile_picture_url: "https://picsum.photos/200",
-  },
-  {
-    id: "acc_2",
-    platform: "facebook",
-    username: "facebook_user1",
-    platform_user_id: "fb_123",
-    accessToken: "fb_123456789abcdef",
-    refreshToken: "fb_refresh_123456789abcdef",
-    expiresAt: "2024-12-31T23:59:59Z",
-    userId: "user_1",
-    organizationId: "org_1",
-    createdAt: "2024-01-01T00:00:00Z",
-    updatedAt: "2024-01-01T00:00:00Z",
-    profile_picture_url: "https://picsum.photos/200",
-  },
-  {
-    id: "acc_3",
-    platform: "instagram",
-    username: "instagram_user1",
-    platform_user_id: "ig_123",
-    accessToken: "ig_123456789abcdef",
-    refreshToken: "ig_refresh_123456789abcdef",
-    expiresAt: "2024-12-31T23:59:59Z",
-    userId: "user_1",
-    organizationId: "org_1",
-    createdAt: "2024-01-01T00:00:00Z",
-    updatedAt: "2024-01-01T00:00:00Z",
-    profile_picture_url: "https://picsum.photos/200",
-  },
-  {
-    id: "acc_4",
-    platform: "linkedin",
-    username: "linkedin_user1",
-    platform_user_id: "li_123",
-    accessToken: "li_123456789abcdef",
-    refreshToken: "li_refresh_123456789abcdef",
-    expiresAt: "2024-12-31T23:59:59Z",
-    userId: "user_1",
-    organizationId: "org_1",
-    createdAt: "2024-01-01T00:00:00Z",
-    updatedAt: "2024-01-01T00:00:00Z",
-    profile_picture_url: "https://picsum.photos/200",
-  },
-];
+import { socialAccounts } from "./data/mock-accounts";
 
 const SchedulePostContent = () => {
   const router = useRouter();

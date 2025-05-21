@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { getRoleBadge } from "../../page";
+import { getRoleBadge } from "../../utils/team-utils";
 import { EditMemberDropdown } from "./edit-member-dropdown";
 import { Member } from "../types";
 

@@ -10,7 +10,13 @@ export async function createContext(req: Request) {
     },
   });
 
-  return { userId: user?.id, prisma };
+  return {
+    userId: user?.id ?? null,
+    prisma,
+    auth: {
+      userId: user?.id ?? null,
+    },
+  };
 }
 
 export type Context = Awaited<ReturnType<typeof createContext>>;

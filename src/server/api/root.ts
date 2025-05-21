@@ -10,7 +10,6 @@ import { mediaRouter } from "./routers/media";
 import { organizationRouter } from "./routers/organization";
 import { teamRouter } from "./routers/team";
 import { hashtagRouter } from "./routers/hashtag";
-import { permissionsRouter } from "./routers/permissions";
 import { postRouter } from "./routers/post";
 import { permissionRouter } from "./routers/permission.router";
 
@@ -24,7 +23,6 @@ export const appRouter = createTRPCRouter({
   organization: organizationRouter,
   team: teamRouter,
   hashtag: hashtagRouter,
-  permissions: permissionsRouter,
   post: postRouter,
   permission: permissionRouter,
 });

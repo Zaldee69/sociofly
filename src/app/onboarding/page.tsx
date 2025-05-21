@@ -25,6 +25,7 @@ const Onboarding: React.FC = () => {
     completeOnboarding,
     pagesData,
     isRemovingAccount,
+    errorMessage,
     handleUserTypeSelect,
     handleLogoUpload,
     handleAddTeamEmail,
@@ -91,6 +92,7 @@ const Onboarding: React.FC = () => {
               onSocialRemove={handleSocialRemove}
               isRemoving={isRemovingAccount}
               userType={userType}
+              errorMessage={errorMessage}
             />
           )}
         </motion.div>

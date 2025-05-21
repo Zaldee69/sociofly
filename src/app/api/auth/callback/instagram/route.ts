@@ -82,33 +82,112 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Get Instagram Business Account
-  const instagramResponse = await fetch(
-    `https://graph.facebook.com/v21.0/${accountsData.data[0].id}?fields=instagram_business_account&access_token=${tokenData.access_token}`
-  );
+  if (!accountsData.data || accountsData.data.length === 0) {
+    console.error("No Facebook pages found");
 
-  const instagramData = await instagramResponse.json();
+    // Simpan error dalam temporary data
+    const sessionId = crypto.randomUUID();
+    await prisma.temporaryData.create({
+      data: {
+        id: sessionId,
+        data: JSON.stringify({
+          error: true,
+          message:
+            "No Facebook pages found. You must have at least one Facebook page.",
+        }),
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // Expires in 30 minutes
+      },
+    });
 
-  if (!instagramResponse.ok) {
-    console.error("Instagram business account error:", instagramData);
-    return NextResponse.json(
-      { error: "Failed to get Instagram business account" },
-      { status: 400 }
+    // Redirect ke onboarding dengan error
+    return NextResponse.redirect(
+      new URL(
+        `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&sessionId=${sessionId}&error=true`,
+        request.url
+      )
+    );
+  }
+
+  // Loop through all Facebook Pages to find one with Instagram account
+  let instagramBusinessAccount = null;
+  let pageId = null;
+
+  // First check all pages for Instagram business accounts
+  for (const page of accountsData.data) {
+    // Get Instagram Business Account for this page
+    const pageInstagramResponse = await fetch(
+      `https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account&access_token=${tokenData.access_token}`
+    );
+
+    const pageInstagramData = await pageInstagramResponse.json();
+
+    if (
+      pageInstagramResponse.ok &&
+      pageInstagramData.instagram_business_account
+    ) {
+      instagramBusinessAccount = pageInstagramData.instagram_business_account;
+      pageId = page.id;
+      break;
+    }
+  }
+
+  if (!instagramBusinessAccount) {
+    console.error(
+      "No Instagram business account found for any of your Facebook pages"
+    );
+
+    // Simpan error dalam temporary data
+    const sessionId = crypto.randomUUID();
+    await prisma.temporaryData.create({
+      data: {
+        id: sessionId,
+        data: JSON.stringify({
+          error: true,
+          message:
+            "None of your Facebook pages have an Instagram business account connected. Please connect an Instagram business account to one of your Facebook pages.",
+        }),
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // Expires in 30 minutes
+      },
+    });
+
+    // Redirect ke onboarding dengan error
+    return NextResponse.redirect(
+      new URL(
+        `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&sessionId=${sessionId}&error=true`,
+        request.url
+      )
     );
   }
 
   // Get Instagram Business Account details
   const instagramAccountResponse = await fetch(
-    `https://graph.facebook.com/v21.0/${instagramData.instagram_business_account.id}?fields=id,username,profile_picture_url&access_token=${tokenData.access_token}`
+    `https://graph.facebook.com/v21.0/${instagramBusinessAccount.id}?fields=id,username,profile_picture_url&access_token=${tokenData.access_token}`
   );
 
   const instagramAccountData = await instagramAccountResponse.json();
 
   if (!instagramAccountResponse.ok) {
     console.error("Instagram account details error:", instagramAccountData);
-    return NextResponse.json(
-      { error: "Failed to get Instagram account details" },
-      { status: 400 }
+
+    // Simpan error dalam temporary data
+    const sessionId = crypto.randomUUID();
+    await prisma.temporaryData.create({
+      data: {
+        id: sessionId,
+        data: JSON.stringify({
+          error: true,
+          message: "Failed to get Instagram account details. Please try again.",
+        }),
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // Expires in 30 minutes
+      },
+    });
+
+    // Redirect ke onboarding dengan error
+    return NextResponse.redirect(
+      new URL(
+        `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&sessionId=${sessionId}&error=true`,
+        request.url
+      )
     );
   }
 
@@ -116,7 +195,7 @@ export async function GET(request: NextRequest) {
     {
       platform: SocialPlatform.INSTAGRAM,
       accessToken: tokenData.access_token,
-      pagesId: instagramData.instagram_business_account.id,
+      pagesId: instagramBusinessAccount.id,
       userId: existingUser.id,
       name: instagramAccountData.username,
       profilePicture: instagramAccountData.profile_picture_url,

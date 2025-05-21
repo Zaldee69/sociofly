@@ -180,20 +180,13 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     }
   };
 
-  const openFacebookPopup = () => {
-    window
-      .open(
-        `http://localhost:3000/teams/cmawtn38k000fvxtpccdia4g9`,
-        "facebookPopup",
-        "width=500,height=600"
-      )
-      ?.postMessage("Hello from the popup!");
-  };
-
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleDialogChange}>
       <DialogTrigger asChild>
-        <Button className="flex items-center gap-2" onClick={openFacebookPopup}>
+        <Button
+          className="flex items-center gap-2"
+          onClick={() => handleDialogChange(true)}
+        >
           <UserPlus className="h-4 w-4" />
           Invite Member
         </Button>

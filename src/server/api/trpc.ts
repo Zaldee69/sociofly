@@ -11,16 +11,43 @@ interface CreateContextOptions {
   userId: string | null;
   auth: {
     userId: string | null;
+    clerkId: string | null;
   };
 }
 
 export const createTRPCContext = async (): Promise<CreateContextOptions> => {
-  const { userId } = await auth();
+  const { userId: clerkUserId } = await auth();
+
+  // If no Clerk user ID, return context with null userId
+  if (!clerkUserId) {
+    return {
+      prisma,
+      userId: null,
+      auth: {
+        userId: null,
+        clerkId: null,
+      },
+    };
+  }
+
+  // Try to find the user in our database
+  const user = await prisma.user.findUnique({
+    where: { clerkId: clerkUserId },
+  });
+
+  // If no user found in our DB but Clerk authenticated, create a new user
+  if (!user && clerkUserId) {
+    console.log(
+      `User with Clerk ID ${clerkUserId} not found in database. This may cause errors in some procedures.`
+    );
+  }
+
   return {
     prisma,
-    userId: userId ?? null,
+    userId: user?.id ?? null,
     auth: {
-      userId: userId ?? null,
+      userId: user?.id ?? null,
+      clerkId: clerkUserId,
     },
   };
 };

@@ -5,7 +5,7 @@ import { FacebookPublisher } from "./facebook-publisher";
 // import { LinkedInPublisher } from "./linkedin-publisher";
 // import { TiktokPublisher } from "./tiktok-publisher";
 import type { Platform } from "./types";
-// import { SocialPublisher } from "./base-publisher";
+import { SocialPublisher } from "./base-publisher";
 
 export class SocialPublishingService {
   private publishers: Record<string, SocialPublisher>;

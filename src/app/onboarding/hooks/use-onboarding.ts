@@ -13,6 +13,9 @@ export const useOnboarding = () => {
   const [teamEmails, setTeamEmails] = useState<string[]>([]);
   const [currentEmail, setCurrentEmail] = useState("");
   const [isRemovingAccount, setIsRemovingAccount] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>(
+    undefined
+  );
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -55,6 +58,18 @@ export const useOnboarding = () => {
   const { data: temporaryData } = trpc.onboarding.getTemporaryData.useQuery({
     sessionId,
   });
+
+  // Cek apakah ada error di temporary data
+  useEffect(() => {
+    if (temporaryData && typeof temporaryData === "object") {
+      // Jika temporaryData adalah object dengan property error dan message, ini adalah error
+      if ("error" in temporaryData && "message" in temporaryData) {
+        setErrorMessage(temporaryData.message as string);
+      } else {
+        setErrorMessage(undefined);
+      }
+    }
+  }, [temporaryData]);
 
   // Mutation untuk menghapus data akun sosial
   const deleteTemporaryData = trpc.onboarding.deleteTemporaryData.useMutation({
@@ -146,7 +161,7 @@ export const useOnboarding = () => {
   };
 
   // Fungsi untuk menghapus akun sosial
-  const handleSocialRemove = (platform: "FACEBOOK" | "INSTAGRAM") => {
+  const handleSocialRemove = () => {
     if (!sessionId) return;
 
     setIsRemovingAccount(true);
@@ -219,7 +234,7 @@ export const useOnboarding = () => {
     const emails =
       teamEmails.length > 0
         ? teamEmails
-        : teams?.split(",").map((email) => email.trim());
+        : teams?.split(",").map((email) => email.trim()) || [];
     const types = userType || (searchParams.get("userType") as "solo" | "team");
     const organizationName =
       types === "team"
@@ -243,7 +258,9 @@ export const useOnboarding = () => {
 
   const isAccountConnected = (platform: string) => {
     const pagesData = temporaryData;
-    return pagesData?.some((account: any) => account.platform === platform);
+    return pagesData?.some(
+      (account: { platform: string }) => account.platform === platform
+    );
   };
 
   return {
@@ -257,6 +274,7 @@ export const useOnboarding = () => {
     completeOnboarding,
     pagesData: temporaryData,
     isRemovingAccount,
+    errorMessage,
     handleUserTypeSelect,
     handleLogoUpload,
     handleAddTeamEmail,

@@ -22,7 +22,7 @@ export function DroppableCell({
   className,
   onClick,
 }: DroppableCellProps) {
-  const { activeEvent } = useCalendarDnd();
+  // const { activeEvent, currentTime } = useCalendarDnd();
 
   const { setNodeRef, isOver } = useDroppable({
     id,
@@ -49,7 +49,7 @@ export function DroppableCell({
         className
       )}
       title={formattedTime ? `${formattedTime}` : undefined}
-      data-dragging={isOver && activeEvent ? true : undefined}
+      // data-dragging={isOver && activeEvent ? true : undefined}
     >
       {children}
     </div>

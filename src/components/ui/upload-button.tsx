@@ -79,8 +79,13 @@ export function UploadButton({
                 typeof file.serverData === "object" &&
                 "error" in file.serverData
             );
-            const errorMessage = errorFile?.serverData?.error || "Upload gagal";
-            toast.error(errorMessage as string);
+            const serverData = errorFile?.serverData as
+              | Record<string, unknown>
+              | undefined;
+            const errorMessage = serverData?.error
+              ? String(serverData.error)
+              : "Upload gagal";
+            toast.error(errorMessage);
             return;
           }
 

@@ -14,9 +14,10 @@ import {
 interface SocialAccountsStepProps {
   isAccountConnected: (platform: string) => boolean;
   onSocialToggle: (platform: "FACEBOOK" | "INSTAGRAM") => void;
-  onSocialRemove?: (platform: "FACEBOOK" | "INSTAGRAM") => void;
+  onSocialRemove?: () => void;
   userType?: "solo" | "team" | null;
   isRemoving?: boolean;
+  errorMessage?: string;
 }
 
 export const SocialAccountsStep: React.FC<SocialAccountsStepProps> = ({
@@ -25,6 +26,7 @@ export const SocialAccountsStep: React.FC<SocialAccountsStepProps> = ({
   onSocialRemove,
   userType,
   isRemoving = false,
+  errorMessage,
 }) => {
   const stepNumber = userType === "team" ? 3 : 2;
 
@@ -42,6 +44,18 @@ export const SocialAccountsStep: React.FC<SocialAccountsStepProps> = ({
           Hubungkan akun sosial media Anda untuk mulai mengelola konten
         </p>
       </div>
+
+      {errorMessage && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTitle className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            Gagal terhubung
+          </AlertTitle>
+          <AlertDescription className="text-sm">
+            {errorMessage}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Alert variant="default" className="mb-4 border-amber-200 bg-amber-50">
         <AlertTitle className="text-amber-800 flex items-center gap-2">
@@ -131,7 +145,7 @@ export const SocialAccountsStep: React.FC<SocialAccountsStepProps> = ({
             {isAccountConnected("INSTAGRAM") && onSocialRemove && (
               <motion.button
                 className="absolute right-3 top-1/2 -translate-y-1/2 z-10 bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-full"
-                onClick={() => onSocialRemove("INSTAGRAM")}
+                onClick={() => onSocialRemove()}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 disabled={isRemoving}
@@ -191,7 +205,7 @@ export const SocialAccountsStep: React.FC<SocialAccountsStepProps> = ({
             {isAccountConnected("FACEBOOK") && onSocialRemove && (
               <motion.button
                 className="absolute right-3 top-1/2 -translate-y-1/2 z-10 bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-full"
-                onClick={() => onSocialRemove("FACEBOOK")}
+                onClick={() => onSocialRemove()}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 disabled={isRemoving}
