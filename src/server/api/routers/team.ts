@@ -255,6 +255,38 @@ export const teamRouter = createTRPCRouter({
       });
     }),
 
+  // Cancel an invitation
+  cancelInvite: requirePermission("team.manage")
+    .input(
+      z.object({
+        teamId: z.string(),
+        inviteId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      const invite = await ctx.prisma.invitation.findFirst({
+        where: {
+          id: input.inviteId,
+          organizationId: input.teamId,
+        },
+      });
+
+      if (!invite) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Invitation not found",
+        });
+      }
+
+      return ctx.prisma.invitation.delete({
+        where: {
+          id: input.inviteId,
+        },
+      });
+    }),
+
   // Get team's social accounts
   getSocialAccounts: protectedProcedure
     .input(

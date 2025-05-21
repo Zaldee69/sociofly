@@ -35,8 +35,6 @@ export function OrganizationSwitcher() {
   const { selectedOrganization, organizations, switchOrganization, isLoading } =
     useOrganization();
 
-  if (organizations.length <= 1) return null;
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

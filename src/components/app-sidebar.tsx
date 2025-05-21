@@ -69,7 +69,6 @@ export function AppSidebar({ children }: { children: React.ReactNode }) {
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupLabel>Menu</SidebarGroupLabel>
             <SidebarMenu>
               {data.map((item) => {
                 const isActive = pathname === item.href;
