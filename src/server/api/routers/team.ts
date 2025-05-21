@@ -7,6 +7,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { Role, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
+import { can } from "@/server/permissions/helpers";
 
 export const teamRouter = createTRPCRouter({
   // Get all teams user is a member of
@@ -154,7 +155,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Invite member
-  inviteMember: requirePermission("team.manage")
+  inviteMember: protectedProcedure
     .input(
       z.object({
         email: z.string().email(),
@@ -173,6 +174,16 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to invite team members",
+        });
+      }
 
       // Cek apakah ada undangan yang masih pending (belum diaccept/reject)
       const pendingInvitation = await ctx.prisma.invitation.findFirst({
@@ -291,7 +302,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Get pending invites for a team
-  getTeamInvites: requirePermission("team.manage")
+  getTeamInvites: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -300,6 +311,19 @@ export const teamRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      console.log("getTeamInvites called with input:", input);
+      console.log("teamId from input:", input.teamId);
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to view team invites",
+        });
+      }
 
       // Create a base query
       const baseQuery = {
@@ -548,7 +572,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Cancel an invitation
-  cancelInvite: requirePermission("team.manage")
+  cancelInvite: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -557,6 +581,16 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to cancel invitations",
+        });
+      }
 
       const invite = await ctx.prisma.invitation.findFirst({
         where: {
@@ -617,7 +651,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Get available social platforms for connecting
-  getAvailableSocialAccounts: requirePermission("social.connect")
+  getAvailableSocialAccounts: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -626,12 +660,22 @@ export const teamRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
 
+      // Check if user has permission to connect social accounts
+      const hasPermission = requirePermission("social.connect", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to connect social accounts",
+        });
+      }
+
       // Return platforms that aren't connected yet
       return Object.values(SocialPlatform);
     }),
 
   // Add a social account
-  addSocialAccount: requirePermission("social.connect")
+  addSocialAccount: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -646,6 +690,16 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to connect social accounts
+      const hasPermission = requirePermission("social.connect", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to connect social accounts",
+        });
+      }
 
       // Cek apakah akun dengan profileId yang sama sudah terhubung
       if (input.profileId) {
@@ -688,7 +742,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Remove a social account
-  removeSocialAccount: requirePermission("social.connect")
+  removeSocialAccount: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -697,6 +751,16 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to connect social accounts
+      const hasPermission = requirePermission("social.connect", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to remove social accounts",
+        });
+      }
 
       const account = await ctx.prisma.socialAccount.findFirst({
         where: {
@@ -720,7 +784,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Update a team member's role
-  updateMemberRole: requirePermission("team.manage")
+  updateMemberRole: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -738,6 +802,16 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to update member roles",
+        });
+      }
 
       // Find the target membership record
       const targetMembership = await ctx.prisma.membership.findFirst({
@@ -780,7 +854,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Remove a team member
-  removeMember: requirePermission("team.manage")
+  removeMember: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -789,6 +863,16 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to remove team members",
+        });
+      }
 
       // Find the target membership
       const targetMembership = await ctx.prisma.membership.findFirst({
@@ -822,7 +906,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Update team settings
-  updateTeam: requirePermission("team.manage")
+  updateTeam: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -841,6 +925,16 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to update team settings",
+        });
+      }
 
       const organization = await ctx.prisma.organization.findUnique({
         where: {
@@ -870,7 +964,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Delete a team
-  deleteTeam: requirePermission("team.manage")
+  deleteTeam: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -878,6 +972,16 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to delete this team",
+        });
+      }
 
       // Verify current user is a team owner
       const currentUserMembership = await ctx.prisma.membership.findFirst({
@@ -1067,7 +1171,7 @@ export const teamRouter = createTRPCRouter({
   }),
 
   // Create a new custom role
-  createCustomRole: requirePermission("team.manage")
+  createCustomRole: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -1079,6 +1183,16 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to create custom roles",
+        });
+      }
 
       // Check if role with the same name already exists for this team
       const existingRole = await ctx.prisma.customRole.findFirst({
@@ -1142,7 +1256,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Update an existing custom role
-  updateCustomRole: requirePermission("team.manage")
+  updateCustomRole: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -1154,6 +1268,16 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to update custom roles",
+        });
+      }
 
       // Check if role exists
       const existingRole = await ctx.prisma.customRole.findFirst({
@@ -1221,7 +1345,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Delete a custom role
-  deleteCustomRole: requirePermission("team.manage")
+  deleteCustomRole: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -1231,6 +1355,16 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to delete custom roles",
+        });
+      }
 
       // Check if role exists
       const existingRole = await ctx.prisma.customRole.findFirst({
@@ -1304,7 +1438,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Assign custom role to member
-  assignCustomRole: requirePermission("team.manage")
+  assignCustomRole: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -1314,6 +1448,16 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to assign custom roles",
+        });
+      }
 
       // Check if target membership exists
       const targetMembership = await ctx.prisma.membership.findFirst({
@@ -1363,7 +1507,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Update permissions for a built-in role
-  updateRolePermissions: requirePermission("team.manage")
+  updateRolePermissions: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -1373,6 +1517,16 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to update role permissions",
+        });
+      }
 
       // Get permission IDs for the provided permission codes
       const permissions = await ctx.prisma.permission.findMany({
@@ -1410,10 +1564,25 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Get role permissions
-  getRolePermissions: requirePermission("team.manage")
-    .input(z.object({ role: z.nativeEnum(Role) }))
+  getRolePermissions: protectedProcedure
+    .input(
+      z.object({
+        role: z.nativeEnum(Role),
+        teamId: z.string(),
+      })
+    )
     .query(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to view role permissions",
+        });
+      }
 
       const rolePermissions = await ctx.prisma.rolePermission.findMany({
         where: {
@@ -1428,15 +1597,26 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Set default permissions for a role
-  setDefaultRolePermissions: requirePermission("team.manage")
+  setDefaultRolePermissions: protectedProcedure
     .input(
       z.object({
         role: z.nativeEnum(Role),
         permissionCodes: z.array(z.string()),
+        teamId: z.string(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to set default role permissions",
+        });
+      }
 
       // Verify user has admin privileges (is an owner of at least one organization)
       const userOwnedOrganizations = await ctx.prisma.organization.findMany({
@@ -1569,7 +1749,7 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Count members using a custom role
-  countMembersWithCustomRole: requirePermission("team.manage")
+  countMembersWithCustomRole: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
@@ -1578,6 +1758,16 @@ export const teamRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to view role member counts",
+        });
+      }
 
       // Check if role exists
       const existingRole = await ctx.prisma.customRole.findFirst({
@@ -1605,10 +1795,20 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Get invitation history for a team
-  getTeamInvitesHistory: requirePermission("team.manage")
+  getTeamInvitesHistory: protectedProcedure
     .input(z.object({ teamId: z.string() }))
     .query(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user has permission to manage this team
+      const hasPermission = requirePermission("team.manage", input.teamId);
+
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to view team invite history",
+        });
+      }
 
       // Get historical invitation data
       const historyRecords = await ctx.prisma.temporaryData.findMany({

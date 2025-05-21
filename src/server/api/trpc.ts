@@ -90,8 +90,11 @@ export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
  * Middleware untuk memeriksa apakah user memiliki permission yang diperlukan
  * @param requiredPermission Kode permission yang diperlukan (contoh: "content.create")
  */
-export const requirePermission = (requiredPermission: string) =>
-  protectedProcedure.use(async ({ ctx, next }) => {
+export const requirePermission = (
+  requiredPermission: string,
+  fallbackTeamId?: string
+) =>
+  protectedProcedure.use(async ({ ctx, next, input }) => {
     const { userId } = ctx.auth;
 
     const membership = await ctx.prisma.membership.findFirst({
@@ -111,12 +114,38 @@ export const requirePermission = (requiredPermission: string) =>
       return next();
     }
 
+    // Try to get teamId from input if it exists, otherwise use the fallback
+    let dynamicTeamId: string | undefined = fallbackTeamId;
+
+    try {
+      // The input might be a custom marker object from tRPC
+      // We need to handle it carefully
+      if (input && typeof input === "object") {
+        // Use Object.prototype.hasOwnProperty to safely check for property
+        if (Object.prototype.hasOwnProperty.call(input, "teamId")) {
+          const potentialTeamId = (input as any).teamId;
+          if (typeof potentialTeamId === "string") {
+            dynamicTeamId = potentialTeamId;
+            console.log("Found teamId in input:", dynamicTeamId);
+          }
+        } else {
+          console.log("input object does not have teamId property");
+        }
+      } else {
+        console.log("input is not an object:", typeof input);
+      }
+    } catch (error) {
+      console.error("Error extracting teamId from input:", error);
+    }
+
+    // If no teamId is available, use the user's primary organization
+    const team = dynamicTeamId ? dynamicTeamId : membership.organizationId;
+
+    console.log("Using team ID for permission check:", team);
+    console.log("User's primary organization:", membership.organizationId);
+
     // Use the helper function to check permissions
-    const hasPermission = await can(
-      userId,
-      membership.organizationId,
-      requiredPermission
-    );
+    const hasPermission = await can(userId, team, requiredPermission);
 
     if (hasPermission) {
       return next();
