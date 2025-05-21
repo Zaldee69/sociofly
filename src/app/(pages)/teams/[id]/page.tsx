@@ -1,6 +1,6 @@
 "use client";
-import React from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { useEffect } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Settings, Users, Mail } from "lucide-react";
@@ -59,6 +59,8 @@ const fadeInUp = {
 const TeamPage = () => {
   const { id: teamId } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const sessionId = searchParams.get("sessionId");
   const [activeTab, setActiveTab] = React.useState<string>("members");
 
   // Use custom hook for loading team data
@@ -68,6 +70,13 @@ const TeamPage = () => {
   const { hasPermission, isPermissionsLoaded } = usePermissions(
     teamId as string
   );
+
+  // Set active tab to social-accounts if sessionId is present
+  useEffect(() => {
+    if (sessionId) {
+      setActiveTab("social-accounts");
+    }
+  }, [sessionId]);
 
   // Show loading skeleton
   if (isLoading || !isPermissionsLoaded || !team) {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
 import { SocialPlatform, Role } from "@prisma/client";
@@ -29,8 +29,13 @@ import {
   Linkedin,
   Youtube,
   ExternalLink,
+  AlertCircle,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useUser } from "@clerk/nextjs";
+import { AccountSelectionDialog } from "@/app/onboarding/components/account-selection-dialog";
 
 interface SocialAccountsTabProps {
   teamId: string;
@@ -38,7 +43,29 @@ interface SocialAccountsTabProps {
 
 export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
   const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
+  const [isAccountSelectionOpen, setIsAccountSelectionOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<any>(null);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>(
+    undefined
+  );
+  const [isRemovingAccount, setIsRemovingAccount] = useState(false);
   const { hasPermission } = usePermissions(teamId);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const authUser = useUser();
+  const sessionId = searchParams.get("sessionId") ?? "";
+
+  // Function to remove sessionId from URL
+  const removeSessionIdFromUrl = useCallback(() => {
+    if (sessionId) {
+      // Create new URL without sessionId param
+      const url = new URL(window.location.href);
+      url.searchParams.delete("sessionId");
+
+      // Replace current URL without refresh
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [sessionId]);
 
   // Social Account queries and mutations
   const { data: socialAccounts, isLoading: isLoadingSocialAccounts } =
@@ -59,13 +86,36 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
       }
     );
 
+  // Get temporary data from onboarding endpoint
+  const { data: temporaryData } = trpc.onboarding.getTemporaryData.useQuery(
+    {
+      sessionId,
+    },
+    {
+      enabled: !!sessionId,
+    }
+  );
+
+  // Check if there's an error in temporary data
+  useEffect(() => {
+    if (temporaryData && typeof temporaryData === "object") {
+      if ("error" in temporaryData && "message" in temporaryData) {
+        setErrorMessage(temporaryData.message as string);
+      } else {
+        setErrorMessage(undefined);
+      }
+    }
+  }, [temporaryData]);
+
   const utils = trpc.useUtils();
 
+  // Existing mutations
   const addSocialAccountMutation = trpc.team.addSocialAccount.useMutation({
     onSuccess: () => {
       toast.success("Social account added successfully");
       setIsAddAccountOpen(false);
       utils.team.getSocialAccounts.invalidate({ teamId });
+      removeSessionIdFromUrl(); // Remove sessionId from URL on success
     },
     onError: (error: any) => {
       toast.error(error.message);
@@ -84,13 +134,227 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
     }
   );
 
+  // New mutations for temporary data handling
+  const deleteTemporaryData = trpc.onboarding.deleteTemporaryData.useMutation({
+    onSuccess: () => {
+      toast.success("Account connection canceled");
+      utils.onboarding.getTemporaryData.invalidate({ sessionId });
+      setIsRemovingAccount(false);
+      removeSessionIdFromUrl(); // Remove sessionId from URL after cancel
+    },
+    onError: (error) => {
+      toast.error("Failed to cancel connection");
+      console.error("Error deleting account:", error);
+      setIsRemovingAccount(false);
+    },
+  });
+
+  const updateTemporaryData = trpc.onboarding.deleteTemporaryData.useMutation({
+    onSuccess: () => {
+      utils.onboarding.getTemporaryData.invalidate({ sessionId });
+    },
+    onError: (error) => {
+      toast.error("Failed to select account");
+      console.error("Error selecting account:", error);
+    },
+  });
+
+  // Mutation to save selected account
+  const saveSelectedAccountMutation = trpc.team.addSocialAccount.useMutation({
+    onSuccess: () => {
+      toast.success("Social account added successfully");
+      setIsAccountSelectionOpen(false);
+      setSelectedAccount(null);
+      utils.team.getSocialAccounts.invalidate({ teamId });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to add account");
+    },
+  });
+
+  // Function to filter data to only selected account
+  const filterAccountData = (selectedAccount: any) => {
+    if (!sessionId || !selectedAccount) return;
+
+    const filteredData = [selectedAccount];
+    updateTemporaryData.mutate({
+      sessionId,
+      data: JSON.stringify(filteredData),
+    });
+  };
+
+  // Update selectedAccount when pagesData changes to a single account
+  useEffect(() => {
+    if (
+      Array.isArray(temporaryData) &&
+      temporaryData.length === 1 &&
+      !selectedAccount
+    ) {
+      setSelectedAccount(temporaryData[0]);
+    }
+  }, [temporaryData, selectedAccount]);
+
+  // Save the selected account
+  const handleSaveSelectedAccount = useCallback(
+    (account: any) => {
+      if (!account) return;
+
+      // Check if this account is already being processed
+      const processingKey = `processing-${account.profileId || account.id}`;
+      if (sessionStorage.getItem(processingKey)) {
+        console.log("Already processing this account");
+        return;
+      }
+
+      // Mark this account as being processed
+      sessionStorage.setItem(processingKey, "true");
+
+      saveSelectedAccountMutation.mutate(
+        {
+          teamId,
+          platform: account.platform as SocialPlatform,
+          accessToken: account.accessToken || "placeholder-token",
+          name: account.name || `${account.platform.toLowerCase()} account`,
+          refreshToken: account.refreshToken,
+          expiresAt: account.expiresAt
+            ? new Date(account.expiresAt)
+            : undefined,
+          profileId: account.profileId,
+          profilePicture: account.profilePicture,
+        },
+        {
+          onSuccess: () => {
+            // Clear processing state on success
+            sessionStorage.removeItem(processingKey);
+            removeSessionIdFromUrl(); // Remove sessionId from URL after success
+          },
+          onError: () => {
+            // Clear processing state on error too
+            sessionStorage.removeItem(processingKey);
+          },
+        }
+      );
+    },
+    [saveSelectedAccountMutation, teamId, removeSessionIdFromUrl]
+  );
+
+  // Clean up all processing flags when component unmounts
+  useEffect(() => {
+    return () => {
+      // Remove all sessionStorage items that start with "processing-"
+      Object.keys(sessionStorage).forEach((key) => {
+        if (key.startsWith("processing-")) {
+          sessionStorage.removeItem(key);
+        }
+      });
+    };
+  }, []);
+
+  // Handle account selection
+  const handleAccountSelect = (account: any) => {
+    setSelectedAccount(account);
+    setIsAccountSelectionOpen(false);
+    filterAccountData(account);
+
+    // Add to sessionStorage to remember we've handled selection for this session
+    sessionStorage.setItem(`processed-${sessionId}`, "true");
+
+    // Save the selected account
+    handleSaveSelectedAccount(account);
+  };
+
+  // Check if temporary data exists and user has permission
+  useEffect(() => {
+    if (
+      sessionId &&
+      Array.isArray(temporaryData) &&
+      temporaryData.length > 0 &&
+      hasPermission("social.connect")
+    ) {
+      // Keep track of whether account has been processed
+      const alreadyProcessed = sessionStorage.getItem(`processed-${sessionId}`);
+
+      if (alreadyProcessed) {
+        // Already processed this session, don't do it again
+        // But still remove the sessionId from the URL
+        removeSessionIdFromUrl();
+        return;
+      }
+
+      // If multiple accounts, show selection dialog but don't process automatically
+      if (temporaryData.length > 1) {
+        setIsAccountSelectionOpen(true);
+        // Don't mark as processed yet - we'll do that when user makes a selection
+      } else if (temporaryData.length === 1) {
+        // If single account, handle directly
+        handleSaveSelectedAccount(temporaryData[0]);
+        // Mark as processed to avoid duplicate processing
+        sessionStorage.setItem(`processed-${sessionId}`, "true");
+      }
+    }
+  }, [
+    temporaryData,
+    sessionId,
+    hasPermission,
+    handleSaveSelectedAccount,
+    removeSessionIdFromUrl,
+  ]);
+
+  // Clean up sessionStorage when component unmounts
+  useEffect(() => {
+    return () => {
+      if (sessionId) {
+        sessionStorage.removeItem(`processed-${sessionId}`);
+      }
+    };
+  }, [sessionId]);
+
+  // Method to handle OAuth connection for a platform
+  const handleSocialConnect = (platform: SocialPlatform) => {
+    // Create a state object with all the parameters we want to pass
+    const stateData = {
+      userId: authUser.user?.id,
+      teamId: teamId,
+      origin: `/teams/${teamId}`, // For redirect back to teams page
+    };
+
+    // Encode the state data using encodeURIComponent
+    const encodedState = encodeURIComponent(JSON.stringify(stateData));
+
+    if (platform === SocialPlatform.FACEBOOK) {
+      window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${
+        process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID
+      }&state=${encodedState}&redirect_uri=${encodeURIComponent(
+        `${window.location.origin}/api/auth/callback/facebook`
+      )}&scope=email,business_management,pages_show_list,pages_read_engagement,pages_read_user_content,pages_manage_posts,pages_manage_cta,pages_manage_engagement,pages_manage_metadata,pages_manage_posts,pages_read_engagement,pages_read_user_content,pages_manage_posts,pages_manage_cta,pages_manage_engagement,pages_manage_metadata`;
+    } else if (platform === SocialPlatform.INSTAGRAM) {
+      window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${
+        process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID
+      }&state=${encodedState}&redirect_uri=${encodeURIComponent(
+        `${window.location.origin}/api/auth/callback/instagram`
+      )}&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,instagram_manage_insights,business_management`;
+    }
+  };
+
   // Handlers for social accounts
   const handleAddSocialAccount = (platform: SocialPlatform) => {
+    // For FACEBOOK and INSTAGRAM, use OAuth flow
+    if (
+      platform === SocialPlatform.FACEBOOK ||
+      platform === SocialPlatform.INSTAGRAM
+    ) {
+      handleSocialConnect(platform);
+      setIsAddAccountOpen(false);
+      return;
+    }
+
+    // For other platforms, use placeholder (will be updated later)
     addSocialAccountMutation.mutate({
       teamId,
       platform,
       accessToken: "placeholder-token", // Will be replaced with OAuth
       name: `${platform.toLowerCase()} account`,
+      profileId: `manual-${platform.toLowerCase()}-${Date.now()}`, // Add unique profileId for manual accounts
     });
   };
 
@@ -127,6 +391,18 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {errorMessage && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTitle className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Failed to connect
+            </AlertTitle>
+            <AlertDescription className="text-sm">
+              {errorMessage}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {isLoadingSocialAccounts ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
@@ -212,9 +488,9 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
                       className="w-full justify-start"
                       disabled={
                         platform === SocialPlatform.TIKTOK ||
-                        platform === SocialPlatform.TWITTER ||
                         platform === SocialPlatform.YOUTUBE ||
-                        platform === SocialPlatform.LINKEDIN
+                        platform === SocialPlatform.LINKEDIN ||
+                        platform === SocialPlatform.TWITTER
                       }
                       onClick={() => {
                         handleAddSocialAccount(platform);
@@ -231,6 +507,14 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
             </Dialog>
           </div>
         )}
+
+        {/* Account selection dialog */}
+        <AccountSelectionDialog
+          isOpen={isAccountSelectionOpen}
+          onClose={() => setIsAccountSelectionOpen(false)}
+          accounts={temporaryData || []}
+          onSelectAccount={handleAccountSelect}
+        />
       </CardContent>
     </Card>
   );

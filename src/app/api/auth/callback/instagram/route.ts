@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
 
   const decodedState = JSON.parse(decodeURIComponent(state!));
-  const { userId, userType, orgName, teamEmails } = decodedState;
+  const { userId, userType, orgName, teamEmails, origin } = decodedState;
 
   if (!state || !code) {
     return NextResponse.json(
@@ -99,13 +99,22 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Redirect ke onboarding dengan error
-    return NextResponse.redirect(
-      new URL(
-        `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&sessionId=${sessionId}&error=true`,
-        request.url
-      )
+    // Create URL with conditional parameters
+    const redirectUrl = new URL(
+      origin ? origin : `/onboarding?step=add_social_accounts`,
+      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     );
+
+    // Only add params if they exist
+    if (userType) redirectUrl.searchParams.append("userType", userType);
+    if (orgName) redirectUrl.searchParams.append("orgName", orgName);
+    if (teamEmails) redirectUrl.searchParams.append("teamEmails", teamEmails);
+    redirectUrl.searchParams.append("refresh", "true");
+    redirectUrl.searchParams.append("sessionId", sessionId);
+    redirectUrl.searchParams.append("error", "true");
+
+    // Redirect with constructed URL
+    return NextResponse.redirect(redirectUrl.toString());
   }
 
   // Loop through all Facebook Pages to find one with Instagram account
@@ -150,13 +159,22 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Redirect ke onboarding dengan error
-    return NextResponse.redirect(
-      new URL(
-        `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&sessionId=${sessionId}&error=true`,
-        request.url
-      )
+    // Create URL with conditional parameters
+    const redirectUrl = new URL(
+      origin ? origin : `/onboarding?step=add_social_accounts`,
+      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     );
+
+    // Only add params if they exist
+    if (userType) redirectUrl.searchParams.append("userType", userType);
+    if (orgName) redirectUrl.searchParams.append("orgName", orgName);
+    if (teamEmails) redirectUrl.searchParams.append("teamEmails", teamEmails);
+    redirectUrl.searchParams.append("refresh", "true");
+    redirectUrl.searchParams.append("sessionId", sessionId);
+    redirectUrl.searchParams.append("error", "true");
+
+    // Redirect with constructed URL
+    return NextResponse.redirect(redirectUrl.toString());
   }
 
   // Get Instagram Business Account details
@@ -182,13 +200,22 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Redirect ke onboarding dengan error
-    return NextResponse.redirect(
-      new URL(
-        `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&sessionId=${sessionId}&error=true`,
-        request.url
-      )
+    // Create URL with conditional parameters
+    const redirectUrl = new URL(
+      origin ? origin : `/onboarding?step=add_social_accounts`,
+      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     );
+
+    // Only add params if they exist
+    if (userType) redirectUrl.searchParams.append("userType", userType);
+    if (orgName) redirectUrl.searchParams.append("orgName", orgName);
+    if (teamEmails) redirectUrl.searchParams.append("teamEmails", teamEmails);
+    redirectUrl.searchParams.append("refresh", "true");
+    redirectUrl.searchParams.append("sessionId", sessionId);
+    redirectUrl.searchParams.append("error", "true");
+
+    // Redirect with constructed URL
+    return NextResponse.redirect(redirectUrl.toString());
   }
 
   const datas = [
@@ -212,10 +239,19 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  return NextResponse.redirect(
-    new URL(
-      `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&sessionId=${sessionId}`,
-      request.url
-    )
+  // Create URL with conditional parameters for successful redirect
+  const successRedirectUrl = new URL(
+    origin ? origin : `/onboarding?step=add_social_accounts`,
+    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
   );
+
+  // Only add params if they exist
+  if (userType) successRedirectUrl.searchParams.append("userType", userType);
+  if (orgName) successRedirectUrl.searchParams.append("orgName", orgName);
+  if (teamEmails)
+    successRedirectUrl.searchParams.append("teamEmails", teamEmails);
+  successRedirectUrl.searchParams.append("refresh", "true");
+  successRedirectUrl.searchParams.append("sessionId", sessionId);
+
+  return NextResponse.redirect(successRedirectUrl.toString());
 }

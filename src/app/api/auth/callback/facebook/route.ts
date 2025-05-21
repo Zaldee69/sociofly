@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma/client";
 import { SocialPlatform } from "@prisma/client";
-import { pages } from "next/dist/build/templates/app-page";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -9,7 +8,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
 
   const decodedState = JSON.parse(decodeURIComponent(state!));
-  const { userId, userType, orgName, teamEmails } = decodedState;
+  const { userId, userType, orgName, teamEmails, origin } = decodedState;
 
   if (!state || !code) {
     return NextResponse.json(
@@ -42,7 +41,33 @@ export async function GET(request: NextRequest) {
   const tokenData = await tokenResponse.json();
 
   if (tokenData.error) {
-    return NextResponse.json({ tokenData }, { status: 200 });
+    const sessionId = crypto.randomUUID();
+    await prisma.temporaryData.create({
+      data: {
+        id: sessionId,
+        data: JSON.stringify({
+          error: true,
+          message: "Failed to get Facebook access token. Please try again.",
+        }),
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // Expires in 30 minutes
+      },
+    });
+
+    // Create URL with conditional parameters
+    const redirectUrl = new URL(
+      origin ? origin : `/onboarding?step=add_social_accounts`,
+      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    );
+
+    // Only add params if they exist
+    if (userType) redirectUrl.searchParams.append("userType", userType);
+    if (orgName) redirectUrl.searchParams.append("orgName", orgName);
+    if (teamEmails) redirectUrl.searchParams.append("teamEmails", teamEmails);
+    redirectUrl.searchParams.append("refresh", "true");
+    redirectUrl.searchParams.append("sessionId", sessionId);
+    redirectUrl.searchParams.append("error", "true");
+
+    return NextResponse.redirect(redirectUrl.toString());
   }
 
   const accessToken = tokenData.access_token;
@@ -53,6 +78,37 @@ export async function GET(request: NextRequest) {
   );
 
   const pagesData = await pagesResponse.json();
+
+  if (!pagesResponse.ok || !pagesData.data || pagesData.data.length === 0) {
+    const sessionId = crypto.randomUUID();
+    await prisma.temporaryData.create({
+      data: {
+        id: sessionId,
+        data: JSON.stringify({
+          error: true,
+          message:
+            "No Facebook pages found. You must have at least one Facebook page with admin access.",
+        }),
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // Expires in 30 minutes
+      },
+    });
+
+    // Create URL with conditional parameters
+    const redirectUrl = new URL(
+      origin ? origin : `/onboarding?step=add_social_accounts`,
+      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    );
+
+    // Only add params if they exist
+    if (userType) redirectUrl.searchParams.append("userType", userType);
+    if (orgName) redirectUrl.searchParams.append("orgName", orgName);
+    if (teamEmails) redirectUrl.searchParams.append("teamEmails", teamEmails);
+    redirectUrl.searchParams.append("refresh", "true");
+    redirectUrl.searchParams.append("sessionId", sessionId);
+    redirectUrl.searchParams.append("error", "true");
+
+    return NextResponse.redirect(redirectUrl.toString());
+  }
 
   const datas = [];
 
@@ -83,10 +139,19 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  return NextResponse.redirect(
-    new URL(
-      `/onboarding?step=add_social_accounts&userType=${userType}&orgName=${orgName}&teamEmails=${teamEmails}&refresh=true&sessionId=${sessionId}`,
-      request.url
-    )
+  // Create URL with conditional parameters for successful redirect
+  const successRedirectUrl = new URL(
+    origin ? origin : `/onboarding?step=add_social_accounts`,
+    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
   );
+
+  // Only add params if they exist
+  if (userType) successRedirectUrl.searchParams.append("userType", userType);
+  if (orgName) successRedirectUrl.searchParams.append("orgName", orgName);
+  if (teamEmails)
+    successRedirectUrl.searchParams.append("teamEmails", teamEmails);
+  successRedirectUrl.searchParams.append("refresh", "true");
+  successRedirectUrl.searchParams.append("sessionId", sessionId);
+
+  return NextResponse.redirect(successRedirectUrl.toString());
 }

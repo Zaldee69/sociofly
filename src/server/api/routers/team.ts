@@ -302,23 +302,8 @@ export const teamRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
 
-      // Get currently connected platforms
-      const connectedPlatforms = await ctx.prisma.socialAccount
-        .findMany({
-          where: {
-            organizationId: input.teamId,
-          },
-          select: {
-            platform: true,
-          },
-        })
-        .then((accounts) => accounts.map((a) => a.platform));
-
       // Return platforms that aren't connected yet
-      const allPlatforms = Object.values(SocialPlatform);
-      return allPlatforms.filter(
-        (platform) => !connectedPlatforms.includes(platform)
-      );
+      return Object.values(SocialPlatform);
     }),
 
   // Add a social account
@@ -331,24 +316,28 @@ export const teamRouter = createTRPCRouter({
         name: z.string().optional(),
         refreshToken: z.string().optional(),
         expiresAt: z.date().optional(),
+        profileId: z.string().optional(),
+        profilePicture: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
 
-      // Check if platform is already connected
-      const existingAccount = await ctx.prisma.socialAccount.findFirst({
-        where: {
-          organizationId: input.teamId,
-          platform: input.platform,
-        },
-      });
-
-      if (existingAccount) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "This platform is already connected",
+      // Cek apakah akun dengan profileId yang sama sudah terhubung
+      if (input.profileId) {
+        const existingAccount = await ctx.prisma.socialAccount.findFirst({
+          where: {
+            organizationId: input.teamId,
+            profileId: input.profileId,
+          },
         });
+
+        if (existingAccount) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "This account is already connected to this team",
+          });
+        }
       }
 
       return ctx.prisma.socialAccount.create({
@@ -358,6 +347,8 @@ export const teamRouter = createTRPCRouter({
           refreshToken: input.refreshToken || null,
           expiresAt: input.expiresAt || null,
           name: input.name || null,
+          profileId: input.profileId || null,
+          profilePicture: input.profilePicture || null,
           organization: {
             connect: {
               id: input.teamId,
