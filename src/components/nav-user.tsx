@@ -9,6 +9,7 @@ import {
   Settings,
   UserCircleIcon,
   Users,
+  Mail,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -24,6 +25,7 @@ import {
 import { useSignOut } from "@/lib/auth-utils";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
+import { InvitationIndicator } from "@/components/ui/invitation-indicator";
 
 export function NavUser() {
   const { user } = useUser();
@@ -37,12 +39,18 @@ export function NavUser() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <div className="flex w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md px-2 py-1.5 hover:bg-accent hover:text-accent-foreground">
-          <Avatar className="h-8 w-8 rounded-lg">
-            <AvatarImage src={user.imageUrl} alt={user.firstName!} />
-            <AvatarFallback className="rounded-lg">
-              {user.firstName?.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
+          <div className="relative">
+            <Avatar className="h-8 w-8 rounded-lg">
+              <AvatarImage src={user.imageUrl} alt={user.firstName!} />
+              <AvatarFallback className="rounded-lg">
+                {user.firstName?.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            <InvitationIndicator
+              variant="dot"
+              className="absolute -right-0.5 -top-0.5"
+            />
+          </div>
           <div className="grid flex-1 text-left text-sm leading-tight">
             <span className="truncate font-medium">
               {user.firstName + " " + user.lastName}
@@ -80,31 +88,32 @@ export function NavUser() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>
+          <DropdownMenuItem className="hover:cursor-pointer">
             <UserCircleIcon className="mr-2 h-4 w-4" />
             Account
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem className="hover:cursor-pointer">
             <CreditCardIcon className="mr-2 h-4 w-4" />
             Billing
           </DropdownMenuItem>
-          <DropdownMenuItem>
-            <BellIcon className="mr-2 h-4 w-4" />
-            Notifications
-          </DropdownMenuItem>
-
-          <DropdownMenuItem>
-            <Link href="/teams" className="flex items-center gap-2">
+          <Link href="/teams" className="flex items-center gap-2">
+            <DropdownMenuItem className="w-full hover:cursor-pointer">
               <Users className="mr-2 h-4 w-4" />
               Teams
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <Link href="/social-accounts" className="flex items-center gap-2">
-              <LinkIcon className="mr-2 h-4 w-4" />
-              Social Accounts
-            </Link>
-          </DropdownMenuItem>
+            </DropdownMenuItem>
+          </Link>
+          <Link
+            href="/invites"
+            className="flex w-full items-center justify-between"
+          >
+            <DropdownMenuItem className="w-full hover:cursor-pointer">
+              <div className="flex items-center gap-2">
+                <Mail className="mr-2 h-4 w-4" />
+                Invitations
+              </div>
+              <InvitationIndicator />
+            </DropdownMenuItem>
+          </Link>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem

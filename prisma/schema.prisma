@@ -114,6 +114,7 @@ model Invitation {
   organizationId String
   createdAt      DateTime     @default(now())
   acceptedAt     DateTime?
+  rejectedAt     DateTime?
   organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([email, organizationId])

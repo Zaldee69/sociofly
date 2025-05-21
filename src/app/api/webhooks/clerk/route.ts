@@ -44,6 +44,7 @@ export async function POST(req: Request) {
         where: {
           email,
           acceptedAt: null,
+          rejectedAt: null,
         },
         include: {
           organization: true,

@@ -174,20 +174,24 @@ export const teamRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
 
-      const invitationAlreadExist = await ctx.prisma.invitation.findFirst({
+      // Cek apakah ada undangan yang masih pending (belum diaccept/reject)
+      const pendingInvitation = await ctx.prisma.invitation.findFirst({
         where: {
           email: input.email,
           organizationId: input.teamId,
+          acceptedAt: null,
+          rejectedAt: null,
         },
       });
 
-      if (invitationAlreadExist) {
+      if (pendingInvitation) {
         throw new TRPCError({
           code: "CONFLICT",
           message: "Invitation already exists",
         });
       }
 
+      // Cek apakah user sudah menjadi anggota tim
       const user = await ctx.prisma.user.findFirst({
         where: {
           email: input.email,
@@ -216,43 +220,331 @@ export const teamRouter = createTRPCRouter({
         role: input.role,
       });
 
-      if (user) {
-        return ctx.prisma.membership.create({
-          data: {
-            userId: user.id,
-            organizationId: input.teamId,
-            role: input.role,
-          },
-        });
-      } else {
-        return ctx.prisma.invitation.create({
-          data: {
-            email: input.email,
-            role: input.role,
-            organizationId: input.teamId,
-          },
-          include: {
-            organization: true,
-          },
+      // Check if there's any previous invitation (accepted or rejected)
+      const existingInvitation = await ctx.prisma.invitation.findFirst({
+        where: {
+          email: input.email,
+          organizationId: input.teamId,
+        },
+      });
+
+      // If there's an existing invitation, update it while preserving its history
+      if (existingInvitation) {
+        // If the invitation was previously accepted or rejected, store the history in metadata
+        // before resetting it for a new invitation cycle
+        const historyUpdate =
+          existingInvitation.acceptedAt || existingInvitation.rejectedAt
+            ? {
+                // We'll use database transactions to implement history tracking instead
+              }
+            : {};
+
+        // Create a new invitation record with a transaction
+        return ctx.prisma.$transaction(async (tx) => {
+          // First create an invitation history entry for the existing invitation if needed
+          if (existingInvitation.acceptedAt || existingInvitation.rejectedAt) {
+            await tx.temporaryData.create({
+              data: {
+                data: JSON.stringify({
+                  type: "invitation_history",
+                  email: existingInvitation.email,
+                  role: existingInvitation.role,
+                  organizationId: existingInvitation.organizationId,
+                  createdAt: existingInvitation.createdAt,
+                  acceptedAt: existingInvitation.acceptedAt,
+                  rejectedAt: existingInvitation.rejectedAt,
+                }),
+                expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365), // 1 year expiry
+              },
+            });
+          }
+
+          // Then update the invitation
+          return tx.invitation.update({
+            where: {
+              id: existingInvitation.id,
+            },
+            data: {
+              role: input.role,
+              acceptedAt: null,
+              rejectedAt: null,
+              createdAt: new Date(), // Refresh creation date
+            },
+            include: {
+              organization: true,
+            },
+          });
         });
       }
-    }),
 
-  // Get pending invites for a team
-  getTeamInvites: requirePermission("team.manage")
-    .input(z.object({ teamId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
-
-      return ctx.prisma.invitation.findMany({
-        where: {
+      // If no previous invitation exists, create a new one
+      return ctx.prisma.invitation.create({
+        data: {
+          email: input.email,
+          role: input.role,
           organizationId: input.teamId,
-          acceptedAt: null,
         },
         include: {
           organization: true,
         },
       });
+    }),
+
+  // Get pending invites for a team
+  getTeamInvites: requirePermission("team.manage")
+    .input(
+      z.object({
+        teamId: z.string(),
+        includeProcessed: z.boolean().optional().default(false),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Create a base query
+      const baseQuery = {
+        organizationId: input.teamId,
+      };
+
+      // If we don't want processed invites, add the filter for only pending ones
+      const query = input.includeProcessed
+        ? baseQuery
+        : {
+            ...baseQuery,
+            acceptedAt: null,
+            rejectedAt: null,
+          };
+
+      return ctx.prisma.invitation.findMany({
+        where: query,
+        include: {
+          organization: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+    }),
+
+  // Get pending invites for current user
+  getMyInvites: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+    // Get user with email
+    const user = await ctx.prisma.user.findUnique({
+      where: {
+        id: ctx.userId,
+      },
+    });
+
+    if (!user || !user.email) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "User not found or email not available",
+      });
+    }
+
+    // Get all pending invitations (not accepted, not rejected)
+    return ctx.prisma.invitation.findMany({
+      where: {
+        email: user.email,
+        acceptedAt: null,
+        rejectedAt: null,
+      },
+      include: {
+        organization: true,
+      },
+    });
+  }),
+
+  // Accept an invitation
+  acceptInvite: protectedProcedure
+    .input(
+      z.object({
+        inviteId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Get user
+      const user = await ctx.prisma.user.findUnique({
+        where: {
+          id: ctx.userId,
+        },
+        select: {
+          id: true,
+          email: true,
+        },
+      });
+
+      if (!user || !user.email) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
+        });
+      }
+
+      // Find the invitation
+      const invitation = await ctx.prisma.invitation.findUnique({
+        where: {
+          id: input.inviteId,
+        },
+      });
+
+      if (!invitation) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Invitation not found",
+        });
+      }
+
+      // Check if this invitation is for this user
+      if (invitation.email.toLowerCase() !== user.email.toLowerCase()) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "This invitation is not for you",
+        });
+      }
+
+      // Check if invitation was already accepted or rejected
+      if (invitation.acceptedAt || invitation.rejectedAt) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This invitation has already been processed",
+        });
+      }
+
+      // Check if user is already a member of this team
+      const existingMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          userId: ctx.userId,
+          organizationId: invitation.organizationId,
+        },
+      });
+
+      if (existingMembership) {
+        // If already a member, just mark invitation as accepted
+        await ctx.prisma.invitation.update({
+          where: {
+            id: input.inviteId,
+          },
+          data: {
+            acceptedAt: new Date(),
+          },
+        });
+
+        return {
+          success: true,
+          message: "You are already a member of this team",
+        };
+      }
+
+      // Transaction to ensure all operations succeed or fail together
+      return ctx.prisma.$transaction(async (tx) => {
+        // Mark invitation as accepted
+        await tx.invitation.update({
+          where: {
+            id: input.inviteId,
+          },
+          data: {
+            acceptedAt: new Date(),
+          },
+        });
+
+        if (!ctx.userId) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "User not found",
+          });
+        }
+        // Create membership
+        const membership = await tx.membership.create({
+          data: {
+            userId: ctx.userId,
+            organizationId: invitation.organizationId,
+            role: invitation.role,
+          },
+        });
+
+        return {
+          success: true,
+          membership,
+        };
+      });
+    }),
+
+  // Reject an invitation
+  rejectInvite: protectedProcedure
+    .input(
+      z.object({
+        inviteId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Get user
+      const user = await ctx.prisma.user.findUnique({
+        where: {
+          id: ctx.userId,
+        },
+        select: {
+          id: true,
+          email: true,
+        },
+      });
+
+      if (!user || !user.email) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
+        });
+      }
+
+      // Find the invitation
+      const invitation = await ctx.prisma.invitation.findUnique({
+        where: {
+          id: input.inviteId,
+        },
+      });
+
+      if (!invitation) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Invitation not found",
+        });
+      }
+
+      // Check if this invitation is for this user
+      if (invitation.email.toLowerCase() !== user.email.toLowerCase()) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "This invitation is not for you",
+        });
+      }
+
+      // Check if invitation was already accepted or rejected
+      if (invitation.acceptedAt || invitation.rejectedAt) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This invitation has already been processed",
+        });
+      }
+
+      // Mark invitation as rejected
+      await ctx.prisma.invitation.update({
+        where: {
+          id: input.inviteId,
+        },
+        data: {
+          rejectedAt: new Date(),
+        },
+      });
+
+      return {
+        success: true,
+      };
     }),
 
   // Cancel an invitation
@@ -380,7 +672,7 @@ export const teamRouter = createTRPCRouter({
           expiresAt: input.expiresAt || null,
           name: input.name || null,
           profileId: input.profileId || null,
-          profilePicture: input.profilePicture || null,
+          profilePicture: input.profilePicture || undefined,
           organization: {
             connect: {
               id: input.teamId,
@@ -1310,5 +1602,55 @@ export const teamRouter = createTRPCRouter({
       });
 
       return { count };
+    }),
+
+  // Get invitation history for a team
+  getTeamInvitesHistory: requirePermission("team.manage")
+    .input(z.object({ teamId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Get historical invitation data
+      const historyRecords = await ctx.prisma.temporaryData.findMany({
+        where: {
+          data: {
+            contains: "invitation_history",
+          },
+          // Only include records that haven't expired
+          expiresAt: {
+            gt: new Date(),
+          },
+        },
+      });
+
+      // Filter and parse records for this team
+      const teamInviteHistory = historyRecords
+        .map((record) => {
+          try {
+            const data = JSON.parse(record.data);
+            // Only return records for this team
+            if (
+              data.type === "invitation_history" &&
+              data.organizationId === input.teamId
+            ) {
+              return {
+                id: record.id, // Use TemporaryData id
+                email: data.email,
+                role: data.role,
+                organizationId: data.organizationId,
+                createdAt: new Date(data.createdAt),
+                acceptedAt: data.acceptedAt ? new Date(data.acceptedAt) : null,
+                rejectedAt: data.rejectedAt ? new Date(data.rejectedAt) : null,
+              };
+            }
+            return null;
+          } catch (e) {
+            console.error("Failed to parse history record:", e);
+            return null;
+          }
+        })
+        .filter(Boolean); // Remove nulls
+
+      return teamInviteHistory;
     }),
 });

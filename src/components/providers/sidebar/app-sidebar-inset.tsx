@@ -13,6 +13,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
+import { BellIcon } from "lucide-react";
 
 export function AppSidebarInset({ children }: { children: React.ReactNode }) {
   return (
@@ -28,7 +30,11 @@ export function AppSidebarInset({ children }: { children: React.ReactNode }) {
             </TooltipContent>
           </Tooltip>
         </div>
-        <div className="mr-2 sm:mr-4">{/* <Socials /> */}</div>
+        <div className="mr-2 sm:mr-4">
+          <Button variant="ghost" size="icon">
+            <BellIcon className="size-4" />
+          </Button>
+        </div>
       </header>
       {children}
     </SidebarInset>
