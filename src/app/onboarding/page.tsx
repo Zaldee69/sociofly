@@ -1,18 +1,22 @@
 "use client";
-import React, { useEffect, useCallback, use } from "react";
+import React, { useEffect, useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, ArrowLeft, Instagram, Facebook } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserTypeStep } from "./components/user-type-step";
 import { OrganizationStep } from "./components/organization-step";
 import { SocialAccountsStep } from "./components/social-account-step";
+import { AccountSelectionDialog } from "./components/account-selection-dialog";
 import { useOnboarding } from "./hooks/use-onboarding";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
 const Onboarding: React.FC = () => {
   const searchParams = useSearchParams();
   const refresh = searchParams.get("refresh");
+  const [isAccountSelectionOpen, setIsAccountSelectionOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<any>(null);
 
   const {
     step,
@@ -38,6 +42,7 @@ const Onboarding: React.FC = () => {
     isAccountConnected,
     setOrgName,
     setCurrentEmail,
+    filterAccountData,
   } = useOnboarding();
 
   const handleRefresh = useCallback(() => {
@@ -51,6 +56,42 @@ const Onboarding: React.FC = () => {
   useEffect(() => {
     handleRefresh();
   }, [handleRefresh]);
+
+  // Update selectedAccount when pagesData changes to a single account
+  useEffect(() => {
+    if (
+      Array.isArray(pagesData) &&
+      pagesData.length === 1 &&
+      !selectedAccount
+    ) {
+      setSelectedAccount(pagesData[0]);
+    }
+  }, [pagesData, selectedAccount]);
+
+  const handleCompleteOnboarding = () => {
+    // Check if user has multiple pages connected and hasn't selected one yet
+    // If we've already filtered down to a single account, we can proceed
+    const hasMultipleAccounts =
+      Array.isArray(pagesData) && pagesData.length > 1;
+    const needsSelection = hasMultipleAccounts && !selectedAccount;
+
+    if (needsSelection) {
+      setIsAccountSelectionOpen(true);
+      return;
+    }
+
+    // If only one account (either originally or after filtering), proceed with onboarding completion
+    handleNext(selectedAccount);
+  };
+
+  const handleAccountSelect = (account: any) => {
+    setSelectedAccount(account);
+    setIsAccountSelectionOpen(false);
+    // Filter data to keep only the selected account
+    filterAccountData(account);
+    // Update UI state
+    toast.success(`Akun ${account.name} berhasil dipilih`);
+  };
 
   const renderStep = () => {
     return (
@@ -102,6 +143,29 @@ const Onboarding: React.FC = () => {
 
   const renderActionButtons = () => {
     const accounts = pagesData?.map((account: any) => account.platform);
+    const hasMultipleAccounts =
+      Array.isArray(pagesData) && pagesData.length > 1;
+    const hasSelectedAccount = !!selectedAccount;
+
+    // Check if we've filtered down to a single account
+    const isSingleAccount = Array.isArray(pagesData) && pagesData.length === 1;
+
+    // Determine button text
+    const getButtonText = () => {
+      if (completeOnboarding.isPending) return "Memproses...";
+
+      if (hasMultipleAccounts && !hasSelectedAccount && !isSingleAccount) {
+        return "Pilih Akun";
+      }
+
+      if (selectedAccount || isSingleAccount) {
+        const accountName =
+          selectedAccount?.name || (pagesData && pagesData[0]?.name);
+        return `Lanjutkan dengan ${accountName || "akun terpilih"}`;
+      }
+
+      return "Masuk ke Dashboard";
+    };
 
     return (
       <motion.div
@@ -122,12 +186,11 @@ const Onboarding: React.FC = () => {
             )}
             {accounts && accounts.length > 0 && (
               <Button
-                onClick={handleNext}
+                onClick={handleCompleteOnboarding}
                 disabled={completeOnboarding.isPending}
+                className="min-w-[200px]"
               >
-                {completeOnboarding.isPending
-                  ? "Memproses..."
-                  : "Masuk ke Dashboard"}
+                {getButtonText()}
                 <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             )}
@@ -238,6 +301,15 @@ const Onboarding: React.FC = () => {
         {renderStepIndicator()}
       </div>
 
+      {/* Account selection dialog */}
+      <AccountSelectionDialog
+        isOpen={isAccountSelectionOpen}
+        onClose={() => setIsAccountSelectionOpen(false)}
+        accounts={pagesData || []}
+        onSelectAccount={handleAccountSelect}
+      />
+
+      {/* Testimonial section */}
       <motion.div
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}

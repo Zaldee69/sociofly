@@ -195,7 +195,7 @@ export async function GET(request: NextRequest) {
     {
       platform: SocialPlatform.INSTAGRAM,
       accessToken: tokenData.access_token,
-      pagesId: instagramBusinessAccount.id,
+      profileId: instagramBusinessAccount.id,
       userId: existingUser.id,
       name: instagramAccountData.username,
       profilePicture: instagramAccountData.profile_picture_url,

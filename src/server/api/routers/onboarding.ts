@@ -32,6 +32,7 @@ const onboardingSchema = z.object({
         accessToken: z.string(),
         name: z.string(),
         profilePicture: z.string().optional().nullable(),
+        profileId: z.string().optional(),
       })
     )
     .optional(),
@@ -147,6 +148,7 @@ export const onboardingRouter = createTRPCRouter({
                 data: {
                   platform: page.platform,
                   accessToken: page.accessToken,
+                  profileId: page.profileId,
                   name: page.name,
                   userId,
                   organizationId: organization.id,

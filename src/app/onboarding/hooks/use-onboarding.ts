@@ -85,6 +85,28 @@ export const useOnboarding = () => {
     },
   });
 
+  // Mutation untuk mengupdate data akun terpilih
+  const updateTemporaryData = trpc.onboarding.deleteTemporaryData.useMutation({
+    onSuccess: () => {
+      utils.onboarding.getTemporaryData.invalidate({ sessionId });
+    },
+    onError: (error) => {
+      toast.error("Gagal memilih akun");
+      console.error("Error selecting account:", error);
+    },
+  });
+
+  // Fungsi untuk memfilter data sementara menjadi hanya akun yang dipilih
+  const filterAccountData = (selectedAccount: any) => {
+    if (!sessionId || !selectedAccount) return;
+
+    const filteredData = [selectedAccount];
+    updateTemporaryData.mutate({
+      sessionId,
+      data: JSON.stringify(filteredData),
+    });
+  };
+
   useEffect(() => {
     const step = searchParams.get("step");
     const savedUserType = searchParams.get("userType") as
@@ -181,7 +203,7 @@ export const useOnboarding = () => {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = (selectedAccount?: any) => {
     if (step === 1) {
       if (!userType) {
         toast.error("Pilih salah satu opsi");
@@ -192,7 +214,7 @@ export const useOnboarding = () => {
       setStep(userType === "team" ? 2 : 3);
     } else if (step === 2) {
       if (!orgName.trim()) {
-        toast.error("Nama organisasi diperlukan");
+        toast.error("Nama tim diperlukan");
         return;
       }
 
@@ -213,11 +235,16 @@ export const useOnboarding = () => {
           ? orgName || (searchParams.get("orgName") as string)
           : undefined;
 
+      // If selectedAccount is provided, use only that account for pagesData
+      const finalPagesData = selectedAccount
+        ? [selectedAccount]
+        : temporaryData;
+
       completeOnboarding.mutate({
         userType: types!,
         organizationName,
         teamEmails: types === "team" ? emails : undefined,
-        pagesData: temporaryData,
+        pagesData: finalPagesData,
         socialAccounts: {
           facebook: true,
           instagram: false,
@@ -287,5 +314,6 @@ export const useOnboarding = () => {
     isAccountConnected,
     setOrgName,
     setCurrentEmail,
+    filterAccountData,
   };
 };

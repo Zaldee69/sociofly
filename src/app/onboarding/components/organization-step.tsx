@@ -30,10 +30,8 @@ export const OrganizationStep: React.FC<OrganizationStepProps> = ({
 }) => {
   return (
     <>
-      <h1 className="text-2xl font-bold mb-2">
-        🧾 Langkah 2: Detail Organisasi
-      </h1>
-      <p className="text-gray-600 mb-8">Buat organisasi kamu</p>
+      <h1 className="text-2xl font-bold mb-2">🧾 Langkah 2: Detail Team</h1>
+      <p className="text-gray-600 mb-8">Buat tim kamu</p>
 
       <div className="space-y-6 mb-8">
         <div>
@@ -41,7 +39,7 @@ export const OrganizationStep: React.FC<OrganizationStepProps> = ({
             htmlFor="orgName"
             className="block text-sm font-medium text-gray-700 mb-1"
           >
-            Nama organisasi
+            Nama tim
           </label>
           <Input
             id="orgName"

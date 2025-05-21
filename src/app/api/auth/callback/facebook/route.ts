@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
     datas.push({
       platform: SocialPlatform.FACEBOOK,
       accessToken: page.access_token,
-      pagesId: page.id,
+      profileId: page.id,
       userId: existingUser.id,
       name: page.name,
       profilePicture: profileData.data.url,
