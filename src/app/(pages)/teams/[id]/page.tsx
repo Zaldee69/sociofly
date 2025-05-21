@@ -3,7 +3,7 @@ import React, { useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Settings, Users, Mail } from "lucide-react";
+import { ArrowLeft, Settings, Users, Mail, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,6 +21,7 @@ import {
 // Hooks
 import { useTeamPageData } from "./hooks";
 import { usePermissions } from "@/hooks/use-permissions";
+import ApprovalWorkflowTab from "./components/approval-workflow-tab";
 
 // Animation variants
 const pageTransition = {
@@ -180,6 +181,15 @@ const TeamPage = () => {
 
             {hasPermission("team.manage") && (
               <motion.div variants={fadeInUp}>
+                <TabsTrigger value="approval-workflow">
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Approval Workflow
+                </TabsTrigger>
+              </motion.div>
+            )}
+
+            {hasPermission("team.manage") && (
+              <motion.div variants={fadeInUp}>
                 <TabsTrigger value="settings">
                   <Settings className="h-4 w-4 mr-2" />
                   Team Settings
@@ -226,6 +236,13 @@ const TeamPage = () => {
                 <TeamSettingsTab teamId={teamId as string} team={team} />
               </TabsContent>
             )}
+
+            {hasPermission("team.manage") &&
+              activeTab === "approval-workflow" && (
+                <TabsContent value="approval-workflow" forceMount>
+                  <ApprovalWorkflowTab />
+                </TabsContent>
+              )}
           </motion.div>
         </AnimatePresence>
       </Tabs>

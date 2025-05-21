@@ -6,3 +6,4 @@ export * from "./team-roles-tab";
 export * from "./team-settings-tab";
 export * from "./edit-member-dropdown";
 export * from "./member-permission-editor";
+export * from "./approval-workflow-tab";
