@@ -25,7 +25,7 @@ import { PostStatus } from "@prisma/client";
 
 import { useTeamContext } from "@/lib/contexts/team-context";
 import { trpc } from "@/lib/trpc/client";
-
+import { useUploadThing } from "@/lib/utils/uploadthing";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { MultiSelect } from "@/components/multi-select";
 import { DateTimePicker24hForm } from "@/components/ui/date-time-picker";
@@ -76,9 +76,11 @@ import {
 import { MediaUploader } from "./components/media-uploader";
 import { PostPreview } from "./components/post-preview";
 import { PostToolbar } from "./components/post-toolbar";
+import { PostApprovalIntegration } from "./components/post-approval-integration";
+import { submitPostWithApproval } from "./components/approval-workflow-integration";
 import type { AddPostDialogProps, SocialAccount } from "./types";
+import type { CalendarPost } from "../types";
 import { cn } from "@/lib/utils";
-
 
 import {
   Popover,
@@ -199,11 +201,25 @@ export function AddPostDialog({
   const [selectedFiles, setSelectedFiles] = useState<FileWithStablePreview[]>(
     []
   );
+  const [isUploading, setIsUploading] = useState(false);
 
   const [accountPostPreview, setAccountPostPreview] = useState<
     SocialAccount | undefined
   >(undefined);
   const [reviewer, setReviewer] = useState<string>("");
+
+  // Setup UploadThing hook
+  const { startUpload } = useUploadThing("mediaUploader", {
+    onClientUploadComplete: (res) => {
+      if (!res) return;
+      console.log("Upload completed:", res);
+      setIsUploading(false);
+    },
+    onUploadError: (error) => {
+      console.error("Error uploading:", error);
+      setIsUploading(false);
+    },
+  });
 
   // @ts-ignore
   const form = useForm({
@@ -215,6 +231,8 @@ export function AddPostDialog({
       status: "DRAFT" as PostStatus,
       postAction: PostAction.PUBLISH_NOW,
       socialAccounts: [],
+      needsApproval: false,
+      approvalWorkflowId: undefined,
     },
   });
 
@@ -231,12 +249,6 @@ export function AddPostDialog({
       enabled: !!currentTeamId,
       refetchOnWindowFocus: false,
     }
-  );
-
-  // Update to use the correct TRPC method
-  const { data: teamMembers } = trpc.team.getTeamMembers.useQuery(
-    { teamId: currentTeamId! },
-    { enabled: !!currentTeamId }
   );
 
   const groupedAccounts = socialAccounts?.reduce(
@@ -429,18 +441,113 @@ export function AddPostDialog({
     }
   }, [mediaUrls, selectedFiles.length]);
 
-  // @ts-ignore
-  const onSubmit = (values: any) => {
-    // Include reviewer in the submission when action is request_review
-    const submissionData = {
-      ...values,
-      // mediaUrls is already updated in the form, no need to set it here
-      ...(values.postAction === PostAction.REQUEST_REVIEW && { reviewer }),
-    };
+  const onSubmit = async (values: PostFormValues) => {
+    console.log(values);
+    try {
+      if (!currentTeamId) {
+        throw new Error("No team selected");
+      }
 
-    console.log(submissionData);
+      // First, upload any media that's still in blob URL format
+      const mediaToUpload = values.mediaUrls.filter(
+        (media) => media.preview.startsWith("blob:") && !media.uploadedUrl
+      );
 
-    // form.reset();
+      // If we have files to upload
+      if (mediaToUpload.length > 0) {
+        // Show loading state or notification
+        console.log("Uploading media files...");
+        setIsUploading(true);
+
+        // Extract the actual File objects from selectedFiles that need uploading
+        const filesToUpload = mediaToUpload
+          .map((media) => {
+            return selectedFiles.find((file) => file.stableId === media.fileId);
+          })
+          .filter(Boolean) as FileWithStablePreview[];
+
+        if (filesToUpload.length > 0) {
+          try {
+            // Upload files to UploadThing
+            const uploadResult = await startUpload(
+              filesToUpload.map((f) => f as unknown as File),
+              { teamId: currentTeamId }
+            );
+
+            if (uploadResult) {
+              // Update the media URLs with the uploaded URLs
+              const updatedMediaUrls = [...values.mediaUrls];
+
+              // Match the uploaded files with their original entries in mediaUrls
+              uploadResult.forEach((result, index) => {
+                if (result) {
+                  const fileId = filesToUpload[index].stableId;
+                  const mediaIndex = updatedMediaUrls.findIndex(
+                    (m) => m.fileId === fileId
+                  );
+
+                  if (mediaIndex !== -1) {
+                    updatedMediaUrls[mediaIndex] = {
+                      ...updatedMediaUrls[mediaIndex],
+                      uploadedUrl: result.url,
+                    };
+                  }
+                }
+              });
+
+              // Update the form values with the uploaded media URLs
+              values.mediaUrls = updatedMediaUrls;
+            }
+          } catch (error) {
+            console.error("Error uploading media:", error);
+            throw new Error("Failed to upload media");
+          } finally {
+            setIsUploading(false);
+          }
+        }
+      }
+
+      if (values.postAction === PostAction.REQUEST_REVIEW) {
+        const account = values.socialAccounts.map((account) => {
+          const [platform, id] = account.split("_");
+          return {
+            platform,
+            id,
+          };
+        });
+
+        values.socialAccounts = account.map((account) => {
+          return `${account.id}`;
+        });
+
+        values.needsApproval = true;
+        values.approvalWorkflowId = "cmazrs8yb0020vx9edn5yibnt";
+
+        const result = await submitPostWithApproval(values, currentTeamId);
+        if (result) {
+          onSave?.(result);
+          form.reset();
+          onClose();
+        }
+      } else {
+        // Create a CalendarPost from the form values
+        const calendarPost: CalendarPost = {
+          id: post?.id || `temp-${Date.now()}`, // Use existing ID or temp ID
+          title:
+            values.content.substring(0, 30) +
+            (values.content.length > 30 ? "..." : ""),
+          description: values.content,
+          start: values.scheduledAt,
+          end: values.scheduledAt,
+        };
+
+        onSave?.(calendarPost);
+        form.reset();
+        onClose();
+      }
+    } catch (error) {
+      console.error("Error submitting post:", error);
+    }
   };
 
   // Reset reviewer when action changes
@@ -512,6 +619,7 @@ export function AddPostDialog({
                       acc.platform === platform && acc.id === id
                   );
                   if (account) {
+                    const a = account;
                     setAccountPostPreview(account);
                   }
                 }
@@ -528,10 +636,7 @@ export function AddPostDialog({
             <Form {...form}>
               <form
                 id="event-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  console.log(form.getValues());
-                }}
+                onSubmit={form.handleSubmit(onSubmit)}
                 className="contents"
               >
                 <div className="mt-4 border border-input rounded-md p-2 min-h-80 flex flex-col">
@@ -612,24 +717,6 @@ export function AddPostDialog({
                   <div className="flex gap-2">
                     <DateTimePicker24hForm />
 
-                    {postAction === PostAction.REQUEST_REVIEW && (
-                      <Select value={reviewer} onValueChange={setReviewer}>
-                        <SelectTrigger className="w-[200px]">
-                          <SelectValue placeholder="Select reviewer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {teamMembers?.map((member: any) => (
-                            <SelectItem
-                              key={member.id}
-                              value={member.email || ""}
-                            >
-                              {member.name || member.email}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-
                     <div
                       className={buttonVariants({
                         className: "pr-0",
@@ -639,11 +726,11 @@ export function AddPostDialog({
                         form="event-form"
                         type="submit"
                         className="cursor-pointer"
-                        disabled={
-                          postAction === PostAction.REQUEST_REVIEW && !reviewer
-                        }
+                        disabled={isUploading}
                       >
-                        {actions.find((a) => a.value === postAction)?.title}
+                        {isUploading
+                          ? "Uploading Media..."
+                          : actions.find((a) => a.value === postAction)?.title}
                       </button>
                       <Popover
                         open={isOpenPopover}

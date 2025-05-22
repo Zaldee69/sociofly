@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, X, Calendar, Users } from "lucide-react";
-import { getRoleBadge } from "@/utils/@/app/(pages)/teams";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { getRoleBadge } from "../../teams/utils/team-utils";
 
 export default function MyInvitesSection() {
   const router = useRouter();
@@ -136,9 +136,7 @@ export default function MyInvitesSection() {
                 className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg gap-4"
               >
                 <div className="space-y-2">
-                  <h3 className="font-medium text-lg">
-                    {invite.organization.name}
-                  </h3>
+                  <h3 className="font-medium text-lg">{invite.team.name}</h3>
                   <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
                     <div className="flex items-center text-sm text-muted-foreground">
                       <Users className="h-4 w-4 mr-1" />

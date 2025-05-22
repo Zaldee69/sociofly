@@ -75,6 +75,8 @@ export const ourFileRouter = {
           },
         });
 
+        console.log(media);
+
         return { ...file, mediaId: media.id };
       } catch (error) {
         console.error("Error creating media:", error);

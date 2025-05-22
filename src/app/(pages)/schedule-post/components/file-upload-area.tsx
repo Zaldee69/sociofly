@@ -53,41 +53,6 @@ export const FileUploadArea = ({
     onClientUploadComplete: async (res) => {
       if (!res) return;
 
-      // Check for error in the server response data
-      const hasError = res.some(
-        (file) =>
-          "serverData" in file &&
-          file.serverData &&
-          typeof file.serverData === "object"
-      );
-      if (hasError) {
-        const errorFile = res.find(
-          (file) =>
-            "serverData" in file &&
-            file.serverData &&
-            typeof file.serverData === "object"
-        );
-        const serverData = errorFile?.serverData as
-          | Record<string, unknown>
-          | undefined;
-        const errorMessage = serverData?.error
-          ? String(serverData.error)
-          : "Upload gagal";
-
-        setFiles((prevFiles) =>
-          prevFiles.map((file) => ({
-            ...file,
-            isUploading: false,
-          }))
-        );
-        setIsUploading(false);
-        setUploadingFiles(new Set());
-
-        toast.error(errorMessage);
-        onUploadError?.();
-        return;
-      }
-
       // Update files with upload status
       setFiles((prevFiles) =>
         prevFiles.map((file) => ({

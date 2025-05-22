@@ -27,8 +27,6 @@ export default function ApprovalWorkflowTab() {
   const { steps, setSteps, isLoading, isError, error, saveWorkflow, isSaving } =
     useApprovalWorkflow(teamId);
 
-  console.log("steps", steps);
-
   if (isLoading) {
     return (
       <Card>

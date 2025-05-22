@@ -69,42 +69,16 @@ export function ApprovalFlowViewer({
   const params = useParams();
   const teamId = params.id as string;
 
-  const [steps, setSteps] = useState<Step[]>(initialSteps);
+  const [steps, setSteps] = useState<Step[]>([]);
   const [draggedStep, setDraggedStep] = useState<Step | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
 
-  // Sync local state with props when initialSteps changes
+  // Initialize steps from props
   useEffect(() => {
     if (initialSteps && initialSteps.length > 0) {
-      setSteps(initialSteps);
-      setHasChanges(false); // Reset changes when initialSteps are updated
+      setSteps(JSON.parse(JSON.stringify(initialSteps)));
     }
   }, [initialSteps]);
-
-  // Check if there are changes whenever steps are updated
-  useEffect(() => {
-    if (initialSteps.length !== steps.length) {
-      setHasChanges(true);
-      return;
-    }
-
-    // Compare each step with its corresponding initialStep
-    const hasChanges = steps.some((step, index) => {
-      const initialStep = initialSteps[index];
-      if (!initialStep) return true;
-
-      return (
-        step.name !== initialStep.name ||
-        step.role !== initialStep.role ||
-        step.order !== initialStep.order ||
-        step.assignedUserId !== initialStep.assignedUserId ||
-        step.requireAllUsersInRole !== initialStep.requireAllUsersInRole
-      );
-    });
-
-    setHasChanges(hasChanges);
-  }, [steps, initialSteps]);
 
   // Get organization users from the hook
   const { organizationUsers, getUsersByRole } = useApprovalWorkflow(teamId);
@@ -152,7 +126,10 @@ export function ApprovalFlowViewer({
 
   // Handle saving the flow
   const handleSave = () => {
-    if (onSave) onSave(steps);
+    if (onSave) {
+      onSave(steps);
+    }
+    toast.success("Workflow saved successfully");
   };
 
   // Drag and drop handlers
@@ -185,9 +162,6 @@ export function ApprovalFlowViewer({
   const findUserById = (userId: string): OrganizationUser | undefined => {
     return organizationUsers.find((user) => user.id === userId);
   };
-
-  console.log(steps);
-  console.log(initialSteps);
 
   return (
     <div className="divide-y divide-gray-100 px-4">
@@ -454,7 +428,7 @@ export function ApprovalFlowViewer({
               onClick={handleSave}
               variant="default"
               className="bg-indigo-600 hover:bg-indigo-700"
-              disabled={isLoading || !hasChanges}
+              disabled={isLoading}
             >
               {isLoading ? (
                 <>

@@ -56,7 +56,7 @@ export async function POST(req: Request) {
         pendingInvitations.length > 0 ? "COMPLETED" : "NOT_STARTED";
 
       // Create the user in our database
-      const createdUser = await prisma.user.create({
+      await prisma.user.create({
         data: {
           clerkId: user.id,
           email,
@@ -68,23 +68,6 @@ export async function POST(req: Request) {
           onboardingStatus, // Set based on invitations
         },
       });
-
-      // Create memberships for all pending invitations
-      for (const invitation of pendingInvitations) {
-        await prisma.membership.create({
-          data: {
-            userId: createdUser.id,
-            teamId: invitation.teamId,
-            role: invitation.role,
-          },
-        });
-
-        // Mark invitation as accepted
-        await prisma.invitation.update({
-          where: { id: invitation.id },
-          data: { acceptedAt: new Date() },
-        });
-      }
 
       console.log(
         `✅ User created with status ${onboardingStatus} and invitations processed:`,

@@ -10,7 +10,7 @@ import CreateTeamModal from "./components/create-team";
 import { trpc } from "@/lib/trpc/client";
 import { Role } from "@prisma/client";
 import { motion } from "framer-motion";
-import { getRoleBadge } from "@/utils/.";
+import { getRoleBadge } from "./utils/team-utils";
 
 // Variants untuk animasi container
 const containerVariants = {
