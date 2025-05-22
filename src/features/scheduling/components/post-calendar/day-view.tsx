@@ -13,20 +13,15 @@ import {
   startOfDay,
 } from "date-fns";
 
-import {
-  StartHour,
-  EndHour,
-  WeekCellsHeight,
-} from "@/config/constants";
+import { StartHour, EndHour, WeekCellsHeight } from "./constants";
 import { cn } from "@/lib/utils";
 
-
 import { isMultiDayPost } from "./utils";
-import { useCurrentTimeIndicator } from "@/features/scheduling/components/post-calendar/hooks/use-current-time-indicator";
 import { PostItem } from "./post-item";
 import { DraggablePost } from "./draggable-post";
 import { DroppableCell } from "./droppable-cell";
 import { CalendarPost } from "./types";
+import { useCurrentTimeIndicator } from "../hooks/use-current-time-indicator";
 
 interface DayViewProps {
   currentDate: Date;

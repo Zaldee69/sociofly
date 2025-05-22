@@ -1,5 +1,5 @@
+import { CalendarProvider } from "@/features/scheduling/components/post-calendar/calendar-context";
 import { FileProvider } from "../schedule-post/contexts/file-context";
-import { CalendarProvider } from "@/components/post-calendar/calendar-context";
 
 export default async function Layout({
   children,

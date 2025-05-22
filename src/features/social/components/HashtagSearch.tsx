@@ -9,8 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Hash, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "./ui/scroll-area";
-
+import { ScrollArea } from "@/components/ui/scroll-area";
 interface HashtagSearchProps {
   category?: string;
   limit?: number;

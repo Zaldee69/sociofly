@@ -17,8 +17,7 @@ export * from "@/config/constants";
 export * from "./utils";
 
 // Hook exports
-export * from "@/features/scheduling/components/post-calendar/hooks/use-current-time-indicator";
-export * from "@/features/scheduling/components/post-calendar/hooks/use-event-visibility";
+export * from "./hooks/use-event-visibility";
 
 // Type exports
 export type { CalendarPost, CalendarView, PostColor } from "./types";

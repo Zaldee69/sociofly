@@ -12,6 +12,7 @@ import { hashtagRouter } from "./routers/hashtag";
 import { postRouter } from "./routers/post";
 import { permissionRouter } from "./routers/permission";
 import { approvalWorkflowRouter } from "./routers/approval-workflow";
+import { approvalRequestRouter } from "./routers/approval-request";
 
 /**
  * Mengekspor objek appRouter yang berisi semua router tRPC
@@ -25,6 +26,7 @@ export const appRouter = createTRPCRouter({
   post: postRouter,
   permission: permissionRouter,
   approvalWorkflow: approvalWorkflowRouter,
+  approvalRequest: approvalRequestRouter,
 });
 
 /**

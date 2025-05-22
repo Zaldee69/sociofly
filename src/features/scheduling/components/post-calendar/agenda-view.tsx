@@ -2,11 +2,11 @@
 
 import { useMemo } from "react";
 import { addDays, format, isToday } from "date-fns";
-import { AgendaDaysToShow } from "@/config/constants";
 import { CalendarPost } from "./types";
 import { getAgendaPostsForDay } from "./utils";
 import { Calendar } from "lucide-react";
 import { PostItem } from "./post-item";
+import { AgendaDaysToShow } from "./constants";
 
 interface AgendaViewProps {
   currentDate: Date;

@@ -29,6 +29,9 @@ export const postSchema = z.object({
   teamId: z.string().optional(),
   socialAccounts: z.array(z.string()).min(1, "Pilih minimal satu akun sosial"),
   postAction: z.nativeEnum(PostAction).default(PostAction.PUBLISH_NOW),
+  // New fields for approval workflow
+  needsApproval: z.boolean().default(false),
+  approvalWorkflowId: z.string().optional(),
 });
 
 export type PostFormValues = z.infer<typeof postSchema>;

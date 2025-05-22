@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { endOfWeek, isSameDay, isWithinInterval, startOfWeek } from "date-fns";
-import { StartHour, EndHour } from "@/config/constants";
+import { StartHour, EndHour } from "../constants";
 
 export function useCurrentTimeIndicator(
   currentDate: Date,

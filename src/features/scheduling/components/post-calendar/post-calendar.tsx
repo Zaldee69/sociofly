@@ -40,14 +40,15 @@ import {
   MonthView,
   WeekView,
 } from ".";
-import {
-  AgendaDaysToShow,
-  EventGap,
-  EventHeight,
-  WeekCellsHeight,
-} from "@/config/constants";
+
 import { CalendarPost } from "./types";
 import { AddPostDialog } from "./post-dialog";
+import {
+  AgendaDaysToShow,
+  WeekCellsHeight,
+  EventGap,
+  EventHeight,
+} from "./constants";
 
 export interface PostCalendarProps {
   posts?: CalendarPost[];

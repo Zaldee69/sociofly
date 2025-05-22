@@ -20,11 +20,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-import {
-  DefaultStartHour,
-  EventGap,
-  EventHeight,
-} from "@/config/constants";
+import { DefaultStartHour, EventGap, EventHeight } from "./constants";
 import { CalendarPost } from "./types";
 import { useEventVisibility } from "@/features/scheduling/components/post-calendar/hooks/use-event-visibility";
 import {

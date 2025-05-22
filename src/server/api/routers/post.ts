@@ -530,4 +530,65 @@ export const postRouter = createTRPCRouter({
 
       return retriedPost;
     }),
+
+  // Get approval instances for a post
+  getApprovalInstances: protectedProcedure
+    .input(z.object({ postId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const { postId } = input;
+
+      // Get the post to check access
+      const post = await ctx.prisma.post.findUnique({
+        where: { id: postId },
+      });
+
+      if (!post) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Post not found",
+        });
+      }
+
+      // Check if user has access to the post
+      const membership = await ctx.prisma.membership.findUnique({
+        where: {
+          userId_teamId: {
+            userId: ctx.auth.userId,
+            teamId: post.teamId,
+          },
+        },
+      });
+
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have access to this post",
+        });
+      }
+
+      // Get all approval instances for this post
+      return ctx.prisma.approvalInstance.findMany({
+        where: { postId },
+        include: {
+          workflow: true,
+          assignments: {
+            include: {
+              step: true,
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+            orderBy: {
+              step: {
+                order: "asc",
+              },
+            },
+          },
+        },
+      });
+    }),
 });

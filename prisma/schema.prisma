@@ -252,36 +252,6 @@ enum SocialPlatform {
   YOUTUBE
 }
 
-enum Role {
-  OWNER
-  MANAGER
-  SUPERVISOR
-  CONTENT_CREATOR
-  INTERNAL_REVIEWER
-  CLIENT_REVIEWER
-  ANALYST
-  INBOX_AGENT
-}
-
-enum PostStatus {
-  DRAFT
-  SCHEDULED
-  PUBLISHED
-  FAILED
-}
-
-enum MemberStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
-}
-
-enum BillingPlan {
-  FREE
-  PRO
-  ENTERPRISE
-}
-
 model TemporaryData {
   id        String   @id @default(cuid())
   data      String   @db.Text // JSON stringified data
@@ -358,4 +328,34 @@ enum ApprovalStatus {
   REJECTED
   IN_PROGRESS
   COMPLETED
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  SUPERVISOR
+  CONTENT_CREATOR
+  INTERNAL_REVIEWER
+  CLIENT_REVIEWER
+  ANALYST
+  INBOX_AGENT
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum BillingPlan {
+  FREE
+  PRO
+  ENTERPRISE
 }
