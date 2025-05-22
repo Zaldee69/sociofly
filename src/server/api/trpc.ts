@@ -99,13 +99,13 @@ export const requirePermission = (
 
     const membership = await ctx.prisma.membership.findFirst({
       where: { userId },
-      include: { organization: true },
+      include: { team: true },
     });
 
     if (!membership) {
       throw new TRPCError({
         code: "UNAUTHORIZED",
-        message: "You don't have access to any organization",
+        message: "You don't have access to any team",
       });
     }
 
@@ -138,11 +138,11 @@ export const requirePermission = (
       console.error("Error extracting teamId from input:", error);
     }
 
-    // If no teamId is available, use the user's primary organization
-    const team = dynamicTeamId ? dynamicTeamId : membership.organizationId;
+    // If no teamId is available, use the user's primary team
+    const team = dynamicTeamId ? dynamicTeamId : membership.teamId;
 
     console.log("Using team ID for permission check:", team);
-    console.log("User's primary organization:", membership.organizationId);
+    console.log("User's primary team:", membership.teamId);
 
     // Use the helper function to check permissions
     const hasPermission = await can(userId, team, requiredPermission);
@@ -167,13 +167,13 @@ export const requireAnyPermission = (permissions: string[]) =>
 
     const membership = await ctx.prisma.membership.findFirst({
       where: { userId },
-      include: { organization: true },
+      include: { team: true },
     });
 
     if (!membership) {
       throw new TRPCError({
         code: "UNAUTHORIZED",
-        message: "You don't have access to any organization",
+        message: "You don't have access to any team",
       });
     }
 
@@ -185,7 +185,7 @@ export const requireAnyPermission = (permissions: string[]) =>
     // Get all permissions for this user
     const userPermissions = await getEffectivePermissions(
       userId,
-      membership.organizationId
+      membership.teamId
     );
 
     // Check if user has any of the required permissions

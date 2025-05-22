@@ -9,33 +9,33 @@ export const mediaRouter = createTRPCRouter({
       z.object({
         filter: z.enum(["all", "images", "videos"]).default("all"),
         search: z.string().optional(),
-        organizationId: z.string(),
+        teamId: z.string(),
         page: z.number().min(1).default(1),
         limit: z.number().min(1).default(5),
       })
     )
     .query(async ({ ctx, input }) => {
-      const { filter, search, organizationId, page, limit } = input;
+      const { filter, search, teamId, page, limit } = input;
       const skip = (page - 1) * limit;
 
-      // Validate organization access
+      // Validate team access
       const userId = ctx.userId as string;
       const membership = await ctx.prisma.membership.findFirst({
         where: {
           userId,
-          organizationId,
+          teamId,
         },
       });
 
       if (!membership) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "You don't have access to this organization",
+          message: "You don't have access to this team",
         });
       }
 
       const where: Prisma.MediaWhereInput = {
-        organizationId,
+        teamId,
         ...(filter === "images" && { type: MediaType.IMAGE }),
         ...(filter === "videos" && { type: MediaType.VIDEO }),
         ...(search && {
@@ -78,7 +78,7 @@ export const mediaRouter = createTRPCRouter({
         ctx.prisma.post.groupBy({
           by: ["mediaUrls"],
           where: {
-            organizationId,
+            teamId,
             mediaUrls: {
               hasSome: [], // Will be filled after media query
             },
@@ -117,30 +117,30 @@ export const mediaRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string(),
-        organizationId: z.string(),
+        teamId: z.string(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Validate organization access
+      // Validate team access
       const userId = ctx.userId as string;
       const membership = await ctx.prisma.membership.findFirst({
         where: {
           userId,
-          organizationId: input.organizationId,
+          teamId: input.teamId,
         },
       });
 
       if (!membership) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "You don't have access to this organization",
+          message: "You don't have access to this team",
         });
       }
 
       const media = await ctx.prisma.media.delete({
         where: {
           id: input.id,
-          organizationId: input.organizationId,
+          teamId: input.teamId,
         },
       });
       return media;
@@ -151,30 +151,30 @@ export const mediaRouter = createTRPCRouter({
       z.object({
         id: z.string(),
         tags: z.array(z.string()),
-        organizationId: z.string(),
+        teamId: z.string(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Validate organization access
+      // Validate team access
       const userId = ctx.userId as string;
       const membership = await ctx.prisma.membership.findFirst({
         where: {
           userId,
-          organizationId: input.organizationId,
+          teamId: input.teamId,
         },
       });
 
       if (!membership) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "You don't have access to this organization",
+          message: "You don't have access to this team",
         });
       }
 
       const media = await ctx.prisma.media.update({
         where: {
           id: input.id,
-          organizationId: input.organizationId,
+          teamId: input.teamId,
         },
         data: {
           tags: input.tags,
@@ -183,36 +183,36 @@ export const mediaRouter = createTRPCRouter({
       return media;
     }),
 
-  // New procedure to copy media to another organization
-  copyToOrganization: requirePermission("media.copy")
+  // New procedure to copy media to another team
+  copyToTeam: requirePermission("media.copy")
     .input(
       z.object({
         mediaId: z.string(),
-        sourceOrgId: z.string(),
-        targetOrgId: z.string(),
+        sourceTeamId: z.string(),
+        targetTeamId: z.string(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Check if user has permission in both organizations
+      // Check if user has permission in both teams
       const userId = ctx.userId as string;
       const sourceMembership = await ctx.prisma.membership.findFirst({
         where: {
           userId,
-          organizationId: input.sourceOrgId,
+          teamId: input.sourceTeamId,
         },
       });
 
       const targetMembership = await ctx.prisma.membership.findFirst({
         where: {
           userId,
-          organizationId: input.targetOrgId,
+          teamId: input.targetTeamId,
         },
       });
 
       if (!sourceMembership || !targetMembership) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "You don't have access to one or both organizations",
+          message: "You don't have access to one or both teams",
         });
       }
 
@@ -220,7 +220,7 @@ export const mediaRouter = createTRPCRouter({
       const sourceMedia = await ctx.prisma.media.findUnique({
         where: {
           id: input.mediaId,
-          organizationId: input.sourceOrgId,
+          teamId: input.sourceTeamId,
         },
       });
 
@@ -231,7 +231,7 @@ export const mediaRouter = createTRPCRouter({
         });
       }
 
-      // Create new media in target organization
+      // Create new media in target team
       const newMedia = await ctx.prisma.media.create({
         data: {
           url: sourceMedia.url,
@@ -240,7 +240,7 @@ export const mediaRouter = createTRPCRouter({
           tags: sourceMedia.tags,
           name: sourceMedia.name,
           userId,
-          organizationId: input.targetOrgId,
+          teamId: input.targetTeamId,
           usageCount: 0,
         },
       });
@@ -256,23 +256,23 @@ export const mediaRouter = createTRPCRouter({
         type: z.nativeEnum(MediaType),
         size: z.number(),
         tags: z.array(z.string()).default([]),
-        organizationId: z.string(),
+        teamId: z.string(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Validate organization access
+      // Validate team access
       const userId = ctx.userId as string;
       const membership = await ctx.prisma.membership.findFirst({
         where: {
           userId,
-          organizationId: input.organizationId,
+          teamId: input.teamId,
         },
       });
 
       if (!membership) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "You don't have access to this organization",
+          message: "You don't have access to this team",
         });
       }
 
@@ -284,7 +284,7 @@ export const mediaRouter = createTRPCRouter({
           size: input.size,
           tags: input.tags,
           userId,
-          organizationId: input.organizationId,
+          teamId: input.teamId,
         },
       });
 

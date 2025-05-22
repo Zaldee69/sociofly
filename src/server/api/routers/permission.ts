@@ -16,7 +16,7 @@ export const permissionRouter = createTRPCRouter({
   grant: protectedProcedure
     .input(
       z.object({
-        organizationId: z.string(),
+        teamId: z.string(),
         membershipId: z.string(),
         permissionCode: z.string(),
       })
@@ -34,9 +34,9 @@ export const permissionRouter = createTRPCRouter({
       // First check if current user has permission to manage permissions
       const userMembership = await prisma.membership.findUnique({
         where: {
-          userId_organizationId: {
+          userId_teamId: {
             userId,
-            organizationId: input.organizationId,
+            teamId: input.teamId,
           },
         },
       });
@@ -44,24 +44,21 @@ export const permissionRouter = createTRPCRouter({
       if (!userMembership) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "You are not a member of this organization",
+          message: "You are not a member of this team",
         });
       }
 
-      // Check if the membership belongs to the specified organization
+      // Check if the membership belongs to the specified team
       const targetMembership = await prisma.membership.findUnique({
         where: {
           id: input.membershipId,
         },
       });
 
-      if (
-        !targetMembership ||
-        targetMembership.organizationId !== input.organizationId
-      ) {
+      if (!targetMembership || targetMembership.teamId !== input.teamId) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Membership not found in this organization",
+          message: "Membership not found in this team",
         });
       }
 
@@ -88,7 +85,7 @@ export const permissionRouter = createTRPCRouter({
   deny: protectedProcedure
     .input(
       z.object({
-        organizationId: z.string(),
+        teamId: z.string(),
         membershipId: z.string(),
         permissionCode: z.string(),
       })
@@ -106,9 +103,9 @@ export const permissionRouter = createTRPCRouter({
       // First check if current user has permission to manage permissions
       const userMembership = await prisma.membership.findUnique({
         where: {
-          userId_organizationId: {
+          userId_teamId: {
             userId,
-            organizationId: input.organizationId,
+            teamId: input.teamId,
           },
         },
       });
@@ -116,24 +113,21 @@ export const permissionRouter = createTRPCRouter({
       if (!userMembership) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "You are not a member of this organization",
+          message: "You are not a member of this team",
         });
       }
 
-      // Check if the membership belongs to the specified organization
+      // Check if the membership belongs to the specified team
       const targetMembership = await prisma.membership.findUnique({
         where: {
           id: input.membershipId,
         },
       });
 
-      if (
-        !targetMembership ||
-        targetMembership.organizationId !== input.organizationId
-      ) {
+      if (!targetMembership || targetMembership.teamId !== input.teamId) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Membership not found in this organization",
+          message: "Membership not found in this team",
         });
       }
 
@@ -160,7 +154,7 @@ export const permissionRouter = createTRPCRouter({
   revoke: protectedProcedure
     .input(
       z.object({
-        organizationId: z.string(),
+        teamId: z.string(),
         membershipId: z.string(),
         permissionCode: z.string(),
       })
@@ -178,9 +172,9 @@ export const permissionRouter = createTRPCRouter({
       // First check if current user has permission to manage permissions
       const userMembership = await prisma.membership.findUnique({
         where: {
-          userId_organizationId: {
+          userId_teamId: {
             userId,
-            organizationId: input.organizationId,
+            teamId: input.teamId,
           },
         },
       });
@@ -188,24 +182,21 @@ export const permissionRouter = createTRPCRouter({
       if (!userMembership) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "You are not a member of this organization",
+          message: "You are not a member of this team",
         });
       }
 
-      // Check if the membership belongs to the specified organization
+      // Check if the membership belongs to the specified team
       const targetMembership = await prisma.membership.findUnique({
         where: {
           id: input.membershipId,
         },
       });
 
-      if (
-        !targetMembership ||
-        targetMembership.organizationId !== input.organizationId
-      ) {
+      if (!targetMembership || targetMembership.teamId !== input.teamId) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Membership not found in this organization",
+          message: "Membership not found in this team",
         });
       }
 
@@ -232,12 +223,12 @@ export const permissionRouter = createTRPCRouter({
   getUserOverrides: protectedProcedure
     .input(
       z.object({
-        organizationId: z.string(),
+        teamId: z.string(),
         membershipId: z.string(),
       })
     )
     .query(async ({ ctx, input }) => {
-      const { prisma, userId } = ctx;
+      const { userId } = ctx;
 
       if (!userId) {
         throw new TRPCError({
@@ -246,47 +237,23 @@ export const permissionRouter = createTRPCRouter({
         });
       }
 
-      // Check if the current user is a member of this organization
-      const userMembership = await prisma.membership.findUnique({
-        where: {
-          userId_organizationId: {
-            userId,
-            organizationId: input.organizationId,
-          },
-        },
-      });
-
-      if (!userMembership) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You are not a member of this organization",
-        });
+      try {
+        return getUserPermissionOverrides(input.membershipId);
+      } catch (error) {
+        if (error instanceof Error) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: error.message,
+          });
+        }
+        throw error;
       }
-
-      // Check if the membership belongs to the specified organization
-      const targetMembership = await prisma.membership.findUnique({
-        where: {
-          id: input.membershipId,
-        },
-      });
-
-      if (
-        !targetMembership ||
-        targetMembership.organizationId !== input.organizationId
-      ) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Membership not found in this organization",
-        });
-      }
-
-      return getUserPermissionOverrides(input.membershipId);
     }),
 
   /**
-   * Get all available permission codes
+   * Get all available permissions
    */
-  getAllPermissionCodes: protectedProcedure.query(() => {
-    return Object.values(PERMISSIONS);
+  getAllPermissions: protectedProcedure.query(() => {
+    return PERMISSIONS;
   }),
 });

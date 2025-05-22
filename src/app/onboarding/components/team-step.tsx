@@ -3,9 +3,9 @@ import { Input } from "@/components/ui/input";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
 
-interface OrganizationStepProps {
-  orgName: string;
-  onOrgNameChange: (name: string) => void;
+interface TeamStepProps {
+  teamName: string;
+  onTeamNameChange: (name: string) => void;
   logo: File | null;
   logoPreview: string | null;
   onLogoUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -16,9 +16,9 @@ interface OrganizationStepProps {
   onRemoveEmail: (email: string) => void;
 }
 
-export const OrganizationStep: React.FC<OrganizationStepProps> = ({
-  orgName,
-  onOrgNameChange,
+export const TeamStep: React.FC<TeamStepProps> = ({
+  teamName,
+  onTeamNameChange,
   logo,
   logoPreview,
   onLogoUpload,
@@ -36,16 +36,16 @@ export const OrganizationStep: React.FC<OrganizationStepProps> = ({
       <div className="space-y-6 mb-8">
         <div>
           <label
-            htmlFor="orgName"
+            htmlFor="teamName"
             className="block text-sm font-medium text-gray-700 mb-1"
           >
             Nama tim
           </label>
           <Input
-            id="orgName"
+            id="teamName"
             placeholder="Contoh: PT Digital Kreatif"
-            value={orgName}
-            onChange={(e) => onOrgNameChange(e.target.value)}
+            value={teamName}
+            onChange={(e) => onTeamNameChange(e.target.value)}
             className="w-full"
           />
         </div>
@@ -113,3 +113,6 @@ export const OrganizationStep: React.FC<OrganizationStepProps> = ({
     </>
   );
 };
+
+// Export OrganizationStep as an alias for TeamStep for backward compatibility
+export const OrganizationStep = TeamStep;

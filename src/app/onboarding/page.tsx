@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronRight, ArrowLeft, Instagram, Facebook } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserTypeStep } from "./components/user-type-step";
-import { OrganizationStep } from "./components/organization-step";
+import { TeamStep } from "./components/team-step";
 import { SocialAccountsStep } from "./components/social-account-step";
 import { AccountSelectionDialog } from "./components/account-selection-dialog";
 import { useOnboarding } from "./hooks/use-onboarding";
@@ -111,9 +111,9 @@ const Onboarding: React.FC = () => {
             />
           )}
           {step === 2 && (
-            <OrganizationStep
-              orgName={orgName}
-              onOrgNameChange={setOrgName}
+            <TeamStep
+              teamName={orgName}
+              onTeamNameChange={setOrgName}
               logo={logo}
               logoPreview={logoPreview}
               onLogoUpload={handleLogoUpload}

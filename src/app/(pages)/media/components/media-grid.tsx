@@ -1,4 +1,4 @@
-import { useOrganization } from "@/contexts/organization-context";
+import { useTeamContext } from "@/lib/contexts/team-context";
 import { MediaThumbnail } from "./media-thumbnail";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
@@ -20,7 +20,7 @@ export function MediaGrid({
   currentPage,
   itemsPerPage,
 }: MediaGridProps) {
-  const { selectedOrganization, isLoading: isOrgLoading } = useOrganization();
+  const { currentTeamId, isLoading: isLoadingTeam } = useTeamContext();
 
   const {
     data: mediaData,
@@ -30,17 +30,17 @@ export function MediaGrid({
     {
       filter,
       search: searchTerm,
-      organizationId: selectedOrganization?.id || "",
+      teamId: currentTeamId || "",
       page: currentPage,
       limit: itemsPerPage,
     },
     {
-      enabled: !!selectedOrganization?.id,
+      enabled: !!currentTeamId,
     }
   );
 
   const media = mediaData?.items || [];
-  const isLoadingState = isLoading || isOrgLoading;
+  const isLoadingState = isLoading || isLoadingTeam;
 
   if (isError) {
     return (
@@ -58,10 +58,10 @@ export function MediaGrid({
     );
   }
 
-  if (!selectedOrganization) {
+  if (!currentTeamId) {
     return (
       <div className="flex items-center justify-center h-[400px] text-muted-foreground">
-        Please select an organization to view media.
+        Please select a team to view media.
       </div>
     );
   }
@@ -77,7 +77,7 @@ export function MediaGrid({
   return (
     <AnimatePresence mode="wait">
       <motion.div
-        key={`${selectedOrganization.id}-${viewMode}-${currentPage}`}
+        key={`${currentTeamId}-${viewMode}-${currentPage}`}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}

@@ -8,27 +8,27 @@ import { Button } from "./button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./dialog";
 import { Input } from "./input";
 import { toast } from "sonner";
-import { useOrganization } from "@/contexts/organization-context";
+import { useTeamContext } from "@/lib/contexts/team-context";
 
 interface UploadButtonProps {
   onUploadComplete?: (urls: string[]) => void;
   endpoint: keyof OurFileRouter;
   maxFiles?: number;
-  organizationId?: string;
+  teamId?: string;
 }
 
 export function UploadButton({
   onUploadComplete,
   endpoint,
   maxFiles = 5,
-  organizationId,
+  teamId,
 }: UploadButtonProps) {
-  const { selectedOrganization } = useOrganization();
+  const { currentTeamId } = useTeamContext();
   const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
 
-  const currentOrgId = organizationId || selectedOrganization?.id;
+  const currentTeam = teamId || currentTeamId;
 
   const handleUrlSubmit = () => {
     if (urlInput && onUploadComplete) {
@@ -47,10 +47,10 @@ export function UploadButton({
     }
   };
 
-  if (!currentOrgId) {
+  if (!currentTeam) {
     return (
       <div className="p-4 bg-yellow-50 text-yellow-800 rounded-md">
-        Silakan pilih organisasi terlebih dahulu untuk mengupload file.
+        Silakan pilih team terlebih dahulu untuk mengupload file.
       </div>
     );
   }
@@ -59,7 +59,7 @@ export function UploadButton({
     <div className="w-full space-y-4">
       <UploadDropzone<OurFileRouter, keyof OurFileRouter>
         endpoint={endpoint}
-        input={{ organizationId: currentOrgId }}
+        input={{ teamId: currentTeam }}
         onClientUploadComplete={(res) => {
           if (!res) return;
 

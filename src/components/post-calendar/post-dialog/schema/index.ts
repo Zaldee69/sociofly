@@ -26,7 +26,7 @@ export const postSchema = z.object({
   scheduledAt: z.date(),
   status: z.nativeEnum(PostStatus).default("DRAFT"),
   userId: z.string().optional(),
-  organizationId: z.string().optional(),
+  teamId: z.string().optional(),
   socialAccounts: z.array(z.string()).min(1, "Pilih minimal satu akun sosial"),
   postAction: z.nativeEnum(PostAction).default(PostAction.PUBLISH_NOW),
 });

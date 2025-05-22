@@ -47,7 +47,7 @@ export async function POST(req: Request) {
           rejectedAt: null,
         },
         include: {
-          organization: true,
+          team: true,
         },
       });
 
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
         await prisma.membership.create({
           data: {
             userId: createdUser.id,
-            organizationId: invitation.organizationId,
+            teamId: invitation.teamId,
             role: invitation.role,
           },
         });

@@ -1,6 +1,7 @@
 "use client";
 
-import { useOrganization } from "@/contexts/organization-context";
+import * as React from "react";
+import { useTeamContext } from "@/lib/contexts/team-context";
 import {
   Select,
   SelectContent,
@@ -15,9 +16,31 @@ import {
   Plus,
   ChevronsUpDown,
   AudioWaveform,
+  Check,
+  PlusCircle,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+import { Role } from "@prisma/client";
+import { trpc } from "@/lib/trpc/client";
 
 import {
   DropdownMenu,
@@ -31,9 +54,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "./ui/sidebar";
 
-export function OrganizationSwitcher() {
-  const { selectedOrganization, organizations, switchOrganization, isLoading } =
-    useOrganization();
+export function TeamSwitcher() {
+  const { currentTeamId, setCurrentTeamId, isLoading } = useTeamContext();
+  const { data: teams } = trpc.team.getAllTeams.useQuery();
+  const currentTeam = teams?.find((team) => team.id === currentTeamId);
 
   return (
     <DropdownMenu>
@@ -47,11 +71,9 @@ export function OrganizationSwitcher() {
           </div>
           <div className="grid flex-1 text-left text-sm leading-tight">
             <span className="truncate font-semibold">
-              {selectedOrganization?.name}
+              {isLoading ? "Loading..." : currentTeam?.name || "Select Team"}
             </span>
-            <span className="truncate text-xs">
-              {selectedOrganization?.role}
-            </span>
+            <span className="truncate text-xs">{currentTeam?.role || ""}</span>
           </div>
           <ChevronsUpDown className="ml-auto" />
         </SidebarMenuButton>
@@ -65,19 +87,26 @@ export function OrganizationSwitcher() {
         <DropdownMenuLabel className="text-xs text-muted-foreground">
           Teams
         </DropdownMenuLabel>
-        {organizations.map((org, index) => (
-          <DropdownMenuItem
-            key={org.id}
-            onClick={() => switchOrganization(org.id)}
-            className="gap-2 p-2"
-          >
-            <div className="flex size-6 items-center justify-center rounded-sm border">
-              <AudioWaveform className="size-4 shrink-0" />
-            </div>
-            {org.name}
-            <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
+        {isLoading ? (
+          <DropdownMenuItem disabled>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Loading teams...
           </DropdownMenuItem>
-        ))}
+        ) : (
+          teams?.map((team, index) => (
+            <DropdownMenuItem
+              key={team.id}
+              onClick={() => setCurrentTeamId(team.id)}
+              className="gap-2 p-2"
+            >
+              <div className="flex size-6 items-center justify-center rounded-sm border">
+                <AudioWaveform className="size-4 shrink-0" />
+              </div>
+              {team.name}
+              <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          ))
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem className="gap-2 p-2">
           <div className="flex size-6 items-center justify-center rounded-md border bg-background">
@@ -89,3 +118,6 @@ export function OrganizationSwitcher() {
     </DropdownMenu>
   );
 }
+
+// Export OrganizationSwitcher as an alias for TeamSwitcher for backward compatibility
+export const OrganizationSwitcher = TeamSwitcher;

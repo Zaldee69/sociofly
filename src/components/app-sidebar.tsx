@@ -22,7 +22,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { NavUser } from "./nav-user";
-import { OrganizationSwitcher } from "./organization-switcher";
+import { TeamSwitcher } from "./team-switcher";
 
 // This is sample data.
 const data = [
@@ -63,7 +63,7 @@ export function AppSidebar({ children }: { children: React.ReactNode }) {
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
-              <OrganizationSwitcher />
+              <TeamSwitcher />
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>

@@ -48,7 +48,8 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
-import { useOrganization } from "@/contexts/organization-context";
+import { useTeam } from "@/lib/hooks/use-teams";
+import { useTeamContext } from "@/lib/contexts/team-context";
 
 const Media = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -61,7 +62,8 @@ const Media = () => {
 
   const isMobile = useIsMobile();
 
-  const { selectedOrganization, isLoading: isLoadingOrg } = useOrganization();
+  const { currentTeamId, isLoading: isLoadingTeam } = useTeamContext();
+  const { team } = useTeam(currentTeamId || "");
 
   const { setFiles } = useFiles();
   const utils = trpc.useUtils();
@@ -71,12 +73,12 @@ const Media = () => {
       {
         filter,
         search: searchTerm,
-        organizationId: selectedOrganization?.id!,
+        teamId: currentTeamId!,
         page: currentPage,
         limit: itemsPerPage,
       },
       {
-        enabled: !!selectedOrganization?.id,
+        enabled: !!currentTeamId,
         refetchOnWindowFocus: false,
         staleTime: 1000 * 30, // Cache for 30 seconds
       }
@@ -85,7 +87,7 @@ const Media = () => {
   const media = mediaData?.items || [];
   const totalPages = mediaData?.totalPages || 1;
 
-  const isLoading = isLoadingOrg || isLoadingMedia;
+  const isLoading = isLoadingTeam || isLoadingMedia;
 
   // Mutations
   const { mutate: deleteMedia } = trpc.media.delete.useMutation({
@@ -108,39 +110,38 @@ const Media = () => {
     },
   });
 
-  const { mutate: copyToOrganization } =
-    trpc.media.copyToOrganization.useMutation({
-      onSuccess: () => {
-        toast.success("Media copied successfully");
-        utils.media.getAll.invalidate();
-      },
-      onError: (error) => {
-        toast.error(error.message);
-      },
-    });
+  const { mutate: copyToTeam } = trpc.media.copyToTeam.useMutation({
+    onSuccess: () => {
+      toast.success("Media copied successfully");
+      utils.media.getAll.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   // Handlers
   const handleDelete = useCallback(
     (id: string) => {
-      if (!selectedOrganization?.id) return;
-      deleteMedia({ id, organizationId: selectedOrganization.id });
+      if (!currentTeamId) return;
+      deleteMedia({ id, teamId: currentTeamId });
     },
-    [deleteMedia, selectedOrganization?.id]
+    [deleteMedia, currentTeamId]
   );
 
   const handleAddTag = useCallback(
     (mediaId: string, currentTags: string[]) => {
-      if (!selectedOrganization?.id) return;
+      if (!currentTeamId) return;
       const tag = prompt("Enter new tag:");
       if (tag && !currentTags.includes(tag)) {
         updateTags({
           id: mediaId,
           tags: [...currentTags, tag],
-          organizationId: selectedOrganization.id,
+          teamId: currentTeamId,
         });
       }
     },
-    [updateTags, selectedOrganization?.id]
+    [updateTags, currentTeamId]
   );
 
   return (
@@ -155,7 +156,7 @@ const Media = () => {
               </span>
             </CardTitle>
 
-            {/* Organization Selector and Upload Button */}
+            {/* Team Selector and Upload Button */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
               <Dialog
                 open={isDialogOpen}
@@ -173,7 +174,7 @@ const Media = () => {
               >
                 <DialogTrigger className="w-fit" asChild>
                   <Button
-                    disabled={!selectedOrganization?.id}
+                    disabled={!currentTeamId}
                     onClick={() => setIsDialogOpen(true)}
                   >
                     <UploadCloud className="w-4 h-4 mr-2" />
@@ -197,7 +198,7 @@ const Media = () => {
                       </div>
                     </DialogDescription>
                   </DialogHeader>
-                  {selectedOrganization?.id ? (
+                  {currentTeamId ? (
                     <FileUploadArea
                       onUploadStart={() => setIsUploading(true)}
                       onUploadComplete={() => {
@@ -210,7 +211,7 @@ const Media = () => {
                     <div className="flex items-center justify-center h-[300px] border-2 border-dashed rounded-lg">
                       <div className="text-center text-muted-foreground">
                         <UploadCloud className="w-12 h-12 mx-auto mb-2" />
-                        <div>Select an organization to upload media</div>
+                        <div>Select a team to upload media</div>
                       </div>
                     </div>
                   )}

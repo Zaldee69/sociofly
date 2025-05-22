@@ -48,7 +48,7 @@ interface TeamInvitesTabProps {
 
 // Extended interface to bridge the gap between database invite and our app's Invite type
 interface InviteWithStatus extends Omit<Invite, "status"> {
-  organization: {
+  team: {
     name: string;
     id: string;
     slug: string;
@@ -59,7 +59,7 @@ interface InviteWithStatus extends Omit<Invite, "status"> {
   };
   acceptedAt: Date | null;
   rejectedAt: Date | null;
-  organizationId: string;
+  teamId: string;
 }
 
 // Extended interface for history invites

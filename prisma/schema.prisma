@@ -21,11 +21,11 @@ model User {
   posts               Post[]
   socialAccounts      SocialAccount[]
   media               Media[]
-  Organization        Organization[]
+  teams               Team[]
   approvalAssignments ApprovalAssignment[]
 }
 
-model Organization {
+model Team {
   id                String             @id @default(cuid())
   name              String
   slug              String             @unique
@@ -51,15 +51,15 @@ model Membership {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   userId           String
-  organizationId   String
-  organization     Organization      @relation(fields: [organizationId], references: [id])
+  teamId           String
+  team             Team              @relation(fields: [teamId], references: [id])
   user             User              @relation(fields: [userId], references: [id])
   customRoleId     String?
   customRole       CustomRole?       @relation(fields: [customRoleId], references: [id])
   grantsPermission MembershipGrant[]
   deniesPermission MembershipDeny[]
 
-  @@unique([userId, organizationId])
+  @@unique([userId, teamId])
 }
 
 model SocialAccount {
@@ -70,13 +70,13 @@ model SocialAccount {
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   userId         String
-  organizationId String
+  teamId         String
   profilePicture String?
   name           String?
   platform       SocialPlatform
   profileId      String? // Added to store platform-specific profile IDs like Instagram user ID
   posts          PostSocialAccount[]
-  organization   Organization        @relation(fields: [organizationId], references: [id])
+  team           Team                @relation(fields: [teamId], references: [id])
   user           User                @relation(fields: [userId], references: [id])
 }
 
@@ -91,9 +91,9 @@ model Post {
   updatedAt         DateTime            @updatedAt
   publishedAt       DateTime?
   userId            String
-  organizationId    String
+  teamId            String
   socialAccounts    PostSocialAccount[]
-  organization      Organization        @relation(fields: [organizationId], references: [id])
+  team              Team                @relation(fields: [teamId], references: [id])
   user              User                @relation(fields: [userId], references: [id])
   approvalInstances ApprovalInstance[]
 }
@@ -111,35 +111,35 @@ model PostSocialAccount {
 }
 
 model Invitation {
-  id             String       @id @default(cuid())
-  email          String
-  role           Role         @default(CONTENT_CREATOR)
-  organizationId String
-  createdAt      DateTime     @default(now())
-  acceptedAt     DateTime?
-  rejectedAt     DateTime?
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  id         String    @id @default(cuid())
+  email      String
+  role       Role      @default(CONTENT_CREATOR)
+  teamId     String
+  createdAt  DateTime  @default(now())
+  acceptedAt DateTime?
+  rejectedAt DateTime?
+  team       Team      @relation(fields: [teamId], references: [id])
 
-  @@unique([email, organizationId])
+  @@unique([email, teamId])
 }
 
 model Media {
-  id             String       @id @default(cuid())
-  name           String // Original filename
-  url            String
-  type           MediaType
-  size           Int
-  createdAt      DateTime     @default(now())
-  tags           String[]
-  updatedAt      DateTime     @updatedAt
-  userId         String
-  organizationId String
-  user           User         @relation(fields: [userId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  usageCount     Int          @default(0)
-  lastUsedAt     DateTime?
+  id         String    @id @default(cuid())
+  name       String // Original filename
+  url        String
+  type       MediaType
+  size       Int
+  createdAt  DateTime  @default(now())
+  tags       String[]
+  updatedAt  DateTime  @updatedAt
+  userId     String
+  teamId     String
+  user       User      @relation(fields: [userId], references: [id])
+  team       Team      @relation(fields: [teamId], references: [id])
+  usageCount Int       @default(0)
+  lastUsedAt DateTime?
 
-  @@index([organizationId])
+  @@index([teamId])
   @@index([userId])
 }
 
@@ -186,18 +186,18 @@ model RolePermission {
 }
 
 model CustomRole {
-  id             String                 @id @default(cuid())
-  name           String
-  displayName    String
-  description    String?
-  organizationId String
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  organization   Organization           @relation(fields: [organizationId], references: [id])
-  permissions    CustomRolePermission[]
-  memberships    Membership[]
+  id          String                 @id @default(cuid())
+  name        String
+  displayName String
+  description String?
+  teamId      String
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  team        Team                   @relation(fields: [teamId], references: [id])
+  permissions CustomRolePermission[]
+  memberships Membership[]
 
-  @@unique([name, organizationId])
+  @@unique([name, teamId])
 }
 
 model CustomRolePermission {
@@ -292,18 +292,18 @@ model TemporaryData {
 }
 
 model ApprovalWorkflow {
-  id             String             @id @default(cuid())
-  name           String
-  description    String?
-  isActive       Boolean            @default(true)
-  organizationId String
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  organization   Organization       @relation(fields: [organizationId], references: [id])
-  steps          ApprovalStep[]
-  instances      ApprovalInstance[]
+  id          String             @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean            @default(true)
+  teamId      String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  team        Team               @relation(fields: [teamId], references: [id])
+  steps       ApprovalStep[]
+  instances   ApprovalInstance[]
 
-  @@unique([name, organizationId])
+  @@unique([name, teamId])
 }
 
 model ApprovalStep {

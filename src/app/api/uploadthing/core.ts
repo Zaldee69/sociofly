@@ -10,11 +10,11 @@ const f = createUploadthing();
 // Helper function to check if user has permission
 async function hasPermission(
   userId: string,
-  organizationId: string,
+  teamId: string,
   permissionCode: string
 ): Promise<boolean> {
   // Use the can helper from permissions module that checks grants/denies
-  return can(userId, organizationId, permissionCode);
+  return can(userId, teamId, permissionCode);
 }
 
 export const ourFileRouter = {
@@ -24,7 +24,7 @@ export const ourFileRouter = {
   })
     .input(
       z.object({
-        organizationId: z.string(),
+        teamId: z.string(),
       })
     )
     .middleware(async ({ input }) => {
@@ -44,17 +44,15 @@ export const ourFileRouter = {
         // Check for media.upload permission
         const canUpload = await hasPermission(
           user.id,
-          input.organizationId,
+          input.teamId,
           "media.upload"
         );
 
         if (!canUpload) {
-          throw new Error(
-            "Not authorized to upload media in this organization"
-          );
+          throw new Error("Not authorized to upload media in this team");
         }
 
-        return { userId: user.id, organizationId: input.organizationId };
+        return { userId: user.id, teamId: input.teamId };
       } catch (error) {
         console.error("Error finding user:", error);
         throw error;
@@ -72,7 +70,7 @@ export const ourFileRouter = {
             size: file.size,
             tags: [],
             userId: metadata.userId,
-            organizationId: metadata.organizationId,
+            teamId: metadata.teamId,
             usageCount: 0,
           },
         });

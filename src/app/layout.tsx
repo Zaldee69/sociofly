@@ -4,7 +4,7 @@ import "./globals.css";
 import { Toaster } from "sonner";
 import { TRPCProvider } from "@/components/providers/trpc-provider";
 import { ClerkProvider } from "@clerk/nextjs";
-import { OrganizationProvider } from "@/contexts/organization-context";
+import { TeamProvider } from "@/lib/contexts/team-context";
 import { Inter } from "next/font/google";
 
 const dmSans = DM_Sans({
@@ -34,9 +34,9 @@ export default function RootLayout({
         <body className={dmSans.className}>
           <Toaster />
           <TRPCProvider>
-            <OrganizationProvider>
+            <TeamProvider>
               <main className="flex-1">{children}</main>
-            </OrganizationProvider>
+            </TeamProvider>
           </TRPCProvider>
         </body>
       </html>

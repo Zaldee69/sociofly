@@ -51,7 +51,7 @@ const DEFAULT_STEPS: Step[] = [
   },
 ];
 
-export function useApprovalWorkflow(organizationId: string) {
+export function useApprovalWorkflow(teamId: string) {
   const [steps, setSteps] = useState<Step[]>([]);
 
   // Query workflows with improved caching options
@@ -62,7 +62,7 @@ export function useApprovalWorkflow(organizationId: string) {
     error: workflowError,
     refetch: refetchWorkflows,
   } = trpc.approvalWorkflow.getWorkflows.useQuery(
-    { organizationId },
+    { teamId: teamId },
     {
       staleTime: Infinity, // Keep data fresh indefinitely
       gcTime: 1000 * 60 * 60, // Cache for 1 hour (formerly cacheTime)
@@ -87,7 +87,7 @@ export function useApprovalWorkflow(organizationId: string) {
     isError: isUsersError,
     error: usersError,
   } = trpc.approvalWorkflow.getUsersByRole.useQuery(
-    { organizationId },
+    { teamId },
     {
       staleTime: 1000 * 60 * 15, // 15 minutes
       refetchOnWindowFocus: false,
@@ -166,7 +166,7 @@ export function useApprovalWorkflow(organizationId: string) {
           description:
             workflows[0].description ||
             "Organization's content approval workflow",
-          organizationId,
+          teamId,
           steps: savedSteps.map((step) => ({
             name: step.name,
             order: step.order,
@@ -180,7 +180,7 @@ export function useApprovalWorkflow(organizationId: string) {
         createWorkflowMutation.mutate({
           name: "Default Approval Workflow",
           description: "Organization's default content approval workflow",
-          organizationId,
+          teamId,
           steps: savedSteps.map((step) => ({
             name: step.name,
             order: step.order,

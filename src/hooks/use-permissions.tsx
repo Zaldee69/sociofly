@@ -38,7 +38,7 @@ export function usePermissions(teamId: string) {
     isLoading: isLoadingPermissionOverrides,
   } = trpc.permission.getUserOverrides.useQuery(
     {
-      organizationId: typeof teamId === "string" ? teamId : "",
+      teamId: typeof teamId === "string" ? teamId : "",
       membershipId: userMembership?.id || "",
     },
     {

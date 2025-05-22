@@ -23,7 +23,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { PostStatus } from "@prisma/client";
 
-import { useOrganization } from "@/contexts/organization-context";
+import { useTeamContext } from "@/lib/contexts/team-context";
 import { trpc } from "@/lib/trpc/client";
 
 import { Button } from "@/components/ui/button";
@@ -193,7 +193,7 @@ export function AddPostDialog({
   onDelete,
   post,
 }: AddPostDialogProps) {
-  const { selectedOrganization } = useOrganization();
+  const { currentTeamId } = useTeamContext();
   const [isOpenPopover, setIsOpenPopover] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<FileWithStablePreview[]>(
@@ -225,18 +225,18 @@ export function AddPostDialog({
 
   const { data: socialAccounts } = trpc.onboarding.getSocialAccounts.useQuery(
     {
-      organizationId: selectedOrganization?.id!,
+      teamId: currentTeamId!,
     },
     {
-      enabled: !!selectedOrganization?.id,
+      enabled: !!currentTeamId,
       refetchOnWindowFocus: false,
     }
   );
 
   // Update to use the correct TRPC method
   const { data: teamMembers } = trpc.team.getTeamMembers.useQuery(
-    { teamId: selectedOrganization?.id! },
-    { enabled: !!selectedOrganization?.id }
+    { teamId: currentTeamId! },
+    { enabled: !!currentTeamId }
   );
 
   const groupedAccounts = socialAccounts?.reduce(
@@ -288,12 +288,12 @@ export function AddPostDialog({
     {
       filter: "all",
       search: "",
-      organizationId: selectedOrganization?.id!,
+      teamId: currentTeamId!,
       page: 1,
       limit: 10,
     },
     {
-      enabled: !!selectedOrganization?.id,
+      enabled: !!currentTeamId,
       refetchOnWindowFocus: false,
       staleTime: 1000 * 30,
     }

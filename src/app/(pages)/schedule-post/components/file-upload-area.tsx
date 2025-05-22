@@ -19,7 +19,7 @@ import { useFiles } from "../contexts/file-context";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { FileWithPreview } from "../types";
-import { useOrganization } from "@/contexts/organization-context";
+import { useTeamContext } from "@/lib/contexts/team-context";
 
 interface FileUploadAreaProps {
   onUploadStart?: () => void;
@@ -32,7 +32,7 @@ export const FileUploadArea = ({
   onUploadComplete,
   onUploadError,
 }: FileUploadAreaProps) => {
-  const { selectedOrganization } = useOrganization();
+  const { currentTeamId } = useTeamContext();
   const {
     files,
     setFiles,
@@ -102,7 +102,7 @@ export const FileUploadArea = ({
 
       toast.success("File berhasil diupload");
       utils.media.getAll.invalidate({
-        organizationId: selectedOrganization?.id,
+        teamId: currentTeamId || "",
       });
       onUploadComplete?.();
     },
@@ -121,7 +121,7 @@ export const FileUploadArea = ({
       // Tampilkan pesan error yang lebih spesifik
       if (error.message?.includes("Not authorized")) {
         toast.error(
-          "Anda tidak memiliki izin untuk mengupload media di organisasi ini"
+          "Anda tidak memiliki izin untuk mengupload media di team ini"
         );
       } else if (error.message?.includes("Failed to run middleware")) {
         toast.error(
@@ -195,8 +195,8 @@ export const FileUploadArea = ({
   );
 
   const handleUpload = useCallback(async () => {
-    if (!selectedOrganization) {
-      toast.error("Silakan pilih organisasi terlebih dahulu");
+    if (!currentTeamId) {
+      toast.error("Silakan pilih team terlebih dahulu");
       return;
     }
 
@@ -206,7 +206,7 @@ export const FileUploadArea = ({
     try {
       await startUpload(
         filesToUpload.map((f) => f.file!),
-        { organizationId: selectedOrganization.id }
+        { teamId: currentTeamId! }
       );
     } catch (error: any) {
       console.error("Upload failed:", error);
@@ -214,7 +214,7 @@ export const FileUploadArea = ({
       // Tampilkan pesan error yang lebih spesifik
       if (error.message?.includes("Not authorized")) {
         toast.error(
-          "Anda tidak memiliki izin untuk mengupload media di organisasi ini"
+          "Anda tidak memiliki izin untuk mengupload media di team ini"
         );
       } else if (error.message?.includes("Failed to run middleware")) {
         toast.error(
@@ -228,7 +228,7 @@ export const FileUploadArea = ({
 
       onUploadError?.();
     }
-  }, [files, startUpload, selectedOrganization, onUploadError]);
+  }, [files, startUpload, currentTeamId, onUploadError]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: handleFileSelect,

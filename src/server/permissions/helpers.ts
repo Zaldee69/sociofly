@@ -21,18 +21,18 @@ type MembershipWithRelations = {
 };
 
 /**
- * Calculates the effective permissions for a user in a specific organization
+ * Calculates the effective permissions for a user in a specific team
  *
  * @param userId The user ID
- * @param organizationId The organization ID
+ * @param teamId The team ID
  * @returns A Promise resolving to a Set of permission codes the user has
  */
 export async function getEffectivePermissions(
   userId: string,
-  organizationId: string
+  teamId: string
 ): Promise<Set<string>> {
   console.log(
-    `Getting effective permissions for user ${userId} in org ${organizationId}`
+    `Getting effective permissions for user ${userId} in team ${teamId}`
   );
 
   try {
@@ -54,14 +54,12 @@ export async function getEffectivePermissions(
       LEFT JOIN "Permission" g ON mg."permissionId" = g.id
       LEFT JOIN "MembershipDeny" md ON m.id = md."membershipId"
       LEFT JOIN "Permission" d ON md."permissionId" = d.id
-      WHERE m."userId" = ${userId} AND m."organizationId" = ${organizationId}
+      WHERE m."userId" = ${userId} AND m."teamId" = ${teamId}
       GROUP BY m.id, m.role, m."customRoleId"
     `) as unknown as MembershipWithRelations[];
 
     if (!membership || membership.length === 0) {
-      console.log(
-        `No membership found for user ${userId} in org ${organizationId}`
-      );
+      console.log(`No membership found for user ${userId} in team ${teamId}`);
       return new Set<string>();
     }
 
@@ -141,44 +139,42 @@ export async function getEffectivePermissions(
 }
 
 /**
- * Checks if a user has a specific permission in an organization
+ * Checks if a user has a specific permission in a team
  *
  * @param userId The user ID
- * @param organizationId The organization ID
+ * @param teamId The team ID
  * @param permission The permission code to check
  * @returns A Promise resolving to a boolean indicating if the user has the permission
  */
 export async function can(
   userId: string,
-  organizationId: string,
+  teamId: string,
   permission: string
 ): Promise<boolean> {
   try {
-    if (!userId || !organizationId) {
-      console.warn("Missing userId or organizationId in can check", {
+    if (!userId || !teamId) {
+      console.warn("Missing userId or teamId in can check", {
         userId,
-        organizationId,
+        teamId,
       });
       return false;
     }
 
     console.log(
-      `Checking permission ${permission} for user ${userId} in org ${organizationId}`
+      `Checking permission ${permission} for user ${userId} in team ${teamId}`
     );
 
     // Get membership to check if owner (which always has all permissions)
     const membership = await prisma.membership.findFirst({
       where: {
         userId,
-        organizationId,
+        teamId,
       },
       select: { role: true },
     });
 
     if (!membership) {
-      console.log(
-        `No membership found for user ${userId} in org ${organizationId}`
-      );
+      console.log(`No membership found for user ${userId} in team ${teamId}`);
       return false;
     }
 
@@ -188,7 +184,7 @@ export async function can(
       return true;
     }
 
-    const permissions = await getEffectivePermissions(userId, organizationId);
+    const permissions = await getEffectivePermissions(userId, teamId);
     const hasPermission = permissions.has(permission);
     console.log(
       `Permission check result for ${permission}: ${hasPermission ? "GRANTED" : "DENIED"}`

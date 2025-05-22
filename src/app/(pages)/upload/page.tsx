@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { UploadButton } from "@/components/ui/upload-button";
-import { useOrganization } from "@/contexts/organization-context";
+import { useTeamContext } from "@/lib/contexts/team-context";
 import { toast } from "sonner";
 
 export default function UploadPage() {
   const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
-  const { selectedOrganization } = useOrganization();
+  const { currentTeamId } = useTeamContext();
 
   return (
     <div className="container py-10">
@@ -22,7 +22,7 @@ export default function UploadPage() {
 
         <UploadButton
           endpoint="mediaUploader"
-          organizationId={selectedOrganization?.id}
+          teamId={currentTeamId!}
           onUploadComplete={(urls) => {
             setUploadedUrls(urls);
             toast.success(`${urls.length} file(s) berhasil diupload`);

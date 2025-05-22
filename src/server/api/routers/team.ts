@@ -17,7 +17,7 @@ export const teamRouter = createTRPCRouter({
     const memberships = await ctx.prisma.membership.findMany({
       where: { userId: ctx.userId },
       include: {
-        organization: {
+        team: {
           include: {
             _count: {
               select: { memberships: true },
@@ -28,11 +28,11 @@ export const teamRouter = createTRPCRouter({
     });
 
     return memberships.map((m) => ({
-      id: m.organization.id,
-      name: m.organization.name,
-      description: m.organization.slug,
+      id: m.team.id,
+      name: m.team.name,
+      description: m.team.slug,
       role: m.role,
-      memberCount: m.organization._count.memberships,
+      memberCount: m.team._count.memberships,
     }));
   }),
 
@@ -46,9 +46,9 @@ export const teamRouter = createTRPCRouter({
       const membership = await ctx.prisma.membership.findFirst({
         where: {
           userId: ctx.userId,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
-        include: { organization: true },
+        include: { team: true },
       });
 
       if (!membership) {
@@ -59,9 +59,9 @@ export const teamRouter = createTRPCRouter({
       }
 
       return {
-        id: membership.organization.id,
-        name: membership.organization.name,
-        description: membership.organization.slug,
+        id: membership.team.id,
+        name: membership.team.name,
+        description: membership.team.slug,
         role: membership.role,
       };
     }),
@@ -81,7 +81,7 @@ export const teamRouter = createTRPCRouter({
       const userMembership = await ctx.prisma.membership.findFirst({
         where: {
           userId: ctx.userId,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
       });
 
@@ -94,7 +94,7 @@ export const teamRouter = createTRPCRouter({
 
       const members = await ctx.prisma.membership.findMany({
         where: {
-          organizationId: input.teamId,
+          teamId: input.teamId,
           userId: { not: ctx.userId }, // Exclude the current user
           user: input.searchQuery
             ? {
@@ -111,7 +111,7 @@ export const teamRouter = createTRPCRouter({
         },
         include: {
           user: true,
-          organization: true,
+          team: true,
         },
       });
 
@@ -137,21 +137,77 @@ export const teamRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
 
-      const organization = await ctx.prisma.organization.create({
-        data: {
-          name: input.name,
-          slug: input.description,
-          ownerId: ctx.userId,
-          memberships: {
-            create: {
-              userId: ctx.userId,
-              role: Role.OWNER,
+      const userId = ctx.userId; // Store userId to avoid null issues
+
+      // Use a transaction to ensure both team and workflow are created together
+      return ctx.prisma.$transaction(async (tx) => {
+        // Create the team
+        const team = await tx.team.create({
+          data: {
+            name: input.name,
+            slug: input.description,
+            ownerId: userId,
+            memberships: {
+              create: {
+                userId: userId,
+                role: Role.OWNER,
+              },
             },
           },
-        },
-      });
+        });
 
-      return organization;
+        // Create a default approval workflow for this team
+        const workflowRecord = await tx.approvalWorkflow.create({
+          data: {
+            name: "Default Approval Workflow",
+            description: "Team's default content approval workflow",
+            teamId: team.id,
+          },
+        });
+
+        // Create default workflow steps
+        await tx.approvalStep.create({
+          data: {
+            name: "Manager Review",
+            order: 1,
+            role: Role.MANAGER,
+            requireAllUsersInRole: false,
+            workflowId: workflowRecord.id,
+          },
+        });
+
+        await tx.approvalStep.create({
+          data: {
+            name: "Supervisor Approval",
+            order: 2,
+            role: Role.SUPERVISOR,
+            requireAllUsersInRole: false,
+            workflowId: workflowRecord.id,
+          },
+        });
+
+        await tx.approvalStep.create({
+          data: {
+            name: "Internal Review",
+            order: 3,
+            role: Role.INTERNAL_REVIEWER,
+            requireAllUsersInRole: true,
+            workflowId: workflowRecord.id,
+          },
+        });
+
+        await tx.approvalStep.create({
+          data: {
+            name: "Client Approval",
+            order: 4,
+            role: Role.CLIENT_REVIEWER,
+            requireAllUsersInRole: false,
+            workflowId: workflowRecord.id,
+          },
+        });
+
+        return team;
+      });
     }),
 
   // Invite member
@@ -189,7 +245,7 @@ export const teamRouter = createTRPCRouter({
       const pendingInvitation = await ctx.prisma.invitation.findFirst({
         where: {
           email: input.email,
-          organizationId: input.teamId,
+          teamId: input.teamId,
           acceptedAt: null,
           rejectedAt: null,
         },
@@ -213,7 +269,7 @@ export const teamRouter = createTRPCRouter({
         const userAlreadyMember = await ctx.prisma.membership.findFirst({
           where: {
             userId: user.id,
-            organizationId: input.teamId,
+            teamId: input.teamId,
           },
         });
 
@@ -227,7 +283,7 @@ export const teamRouter = createTRPCRouter({
 
       await sendInviteEmail({
         email: input.email,
-        organizationName: input.name,
+        teamName: input.name,
         role: input.role,
       });
 
@@ -235,7 +291,7 @@ export const teamRouter = createTRPCRouter({
       const existingInvitation = await ctx.prisma.invitation.findFirst({
         where: {
           email: input.email,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
       });
 
@@ -260,7 +316,7 @@ export const teamRouter = createTRPCRouter({
                   type: "invitation_history",
                   email: existingInvitation.email,
                   role: existingInvitation.role,
-                  organizationId: existingInvitation.organizationId,
+                  teamId: existingInvitation.teamId,
                   createdAt: existingInvitation.createdAt,
                   acceptedAt: existingInvitation.acceptedAt,
                   rejectedAt: existingInvitation.rejectedAt,
@@ -282,7 +338,7 @@ export const teamRouter = createTRPCRouter({
               createdAt: new Date(), // Refresh creation date
             },
             include: {
-              organization: true,
+              team: true,
             },
           });
         });
@@ -293,10 +349,10 @@ export const teamRouter = createTRPCRouter({
         data: {
           email: input.email,
           role: input.role,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
         include: {
-          organization: true,
+          team: true,
         },
       });
     }),
@@ -327,7 +383,7 @@ export const teamRouter = createTRPCRouter({
 
       // Create a base query
       const baseQuery = {
-        organizationId: input.teamId,
+        teamId: input.teamId,
       };
 
       // If we don't want processed invites, add the filter for only pending ones
@@ -342,7 +398,7 @@ export const teamRouter = createTRPCRouter({
       return ctx.prisma.invitation.findMany({
         where: query,
         include: {
-          organization: true,
+          team: true,
         },
         orderBy: {
           createdAt: "desc",
@@ -376,7 +432,7 @@ export const teamRouter = createTRPCRouter({
         rejectedAt: null,
       },
       include: {
-        organization: true,
+        team: true,
       },
     });
   }),
@@ -443,7 +499,7 @@ export const teamRouter = createTRPCRouter({
       const existingMembership = await ctx.prisma.membership.findFirst({
         where: {
           userId: ctx.userId,
-          organizationId: invitation.organizationId,
+          teamId: invitation.teamId,
         },
       });
 
@@ -486,7 +542,7 @@ export const teamRouter = createTRPCRouter({
         const membership = await tx.membership.create({
           data: {
             userId: ctx.userId,
-            organizationId: invitation.organizationId,
+            teamId: invitation.teamId,
             role: invitation.role,
           },
         });
@@ -595,7 +651,7 @@ export const teamRouter = createTRPCRouter({
       const invite = await ctx.prisma.invitation.findFirst({
         where: {
           id: input.inviteId,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
       });
 
@@ -625,7 +681,7 @@ export const teamRouter = createTRPCRouter({
 
       const membership = await ctx.prisma.membership.findFirst({
         where: {
-          organizationId: input.teamId,
+          teamId: input.teamId,
           userId: ctx.userId,
         },
         select: {
@@ -642,7 +698,7 @@ export const teamRouter = createTRPCRouter({
 
       return ctx.prisma.socialAccount.findMany({
         where: {
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
         orderBy: {
           createdAt: "desc",
@@ -705,7 +761,7 @@ export const teamRouter = createTRPCRouter({
       if (input.profileId) {
         const existingAccount = await ctx.prisma.socialAccount.findFirst({
           where: {
-            organizationId: input.teamId,
+            teamId: input.teamId,
             profileId: input.profileId,
           },
         });
@@ -727,7 +783,7 @@ export const teamRouter = createTRPCRouter({
           name: input.name || null,
           profileId: input.profileId || null,
           profilePicture: input.profilePicture || undefined,
-          organization: {
+          team: {
             connect: {
               id: input.teamId,
             },
@@ -765,7 +821,7 @@ export const teamRouter = createTRPCRouter({
       const account = await ctx.prisma.socialAccount.findFirst({
         where: {
           id: input.accountId,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
       });
 
@@ -817,7 +873,7 @@ export const teamRouter = createTRPCRouter({
       const targetMembership = await ctx.prisma.membership.findFirst({
         where: {
           id: input.memberId,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
         include: {
           user: true,
@@ -878,7 +934,7 @@ export const teamRouter = createTRPCRouter({
       const targetMembership = await ctx.prisma.membership.findFirst({
         where: {
           id: input.memberId,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
       });
 
@@ -936,21 +992,21 @@ export const teamRouter = createTRPCRouter({
         });
       }
 
-      const organization = await ctx.prisma.organization.findUnique({
+      const team = await ctx.prisma.team.findUnique({
         where: {
           id: input.teamId,
         },
       });
 
-      if (!organization) {
+      if (!team) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Team not found",
         });
       }
 
-      // Update the organization
-      return ctx.prisma.organization.update({
+      // Update the team
+      return ctx.prisma.team.update({
         where: {
           id: input.teamId,
         },
@@ -986,7 +1042,7 @@ export const teamRouter = createTRPCRouter({
       // Verify current user is a team owner
       const currentUserMembership = await ctx.prisma.membership.findFirst({
         where: {
-          organizationId: input.teamId,
+          teamId: input.teamId,
           userId: ctx.userId,
           role: { in: [Role.OWNER] },
         },
@@ -999,20 +1055,20 @@ export const teamRouter = createTRPCRouter({
         });
       }
 
-      const organization = await ctx.prisma.organization.findUnique({
+      const team = await ctx.prisma.team.findUnique({
         where: {
           id: input.teamId,
         },
       });
 
-      if (!organization) {
+      if (!team) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Team not found",
         });
       }
 
-      if (organization.ownerId !== ctx.userId) {
+      if (team.ownerId !== ctx.userId) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Only the team creator can delete a team",
@@ -1025,7 +1081,7 @@ export const teamRouter = createTRPCRouter({
         await tx.membershipGrant.deleteMany({
           where: {
             membership: {
-              organizationId: input.teamId,
+              teamId: input.teamId,
             },
           },
         });
@@ -1033,7 +1089,7 @@ export const teamRouter = createTRPCRouter({
         await tx.membershipDeny.deleteMany({
           where: {
             membership: {
-              organizationId: input.teamId,
+              teamId: input.teamId,
             },
           },
         });
@@ -1043,7 +1099,7 @@ export const teamRouter = createTRPCRouter({
         await tx.postSocialAccount.deleteMany({
           where: {
             socialAccount: {
-              organizationId: input.teamId,
+              teamId: input.teamId,
             },
           },
         });
@@ -1051,21 +1107,21 @@ export const teamRouter = createTRPCRouter({
         // 3. Delete all social accounts
         await tx.socialAccount.deleteMany({
           where: {
-            organizationId: input.teamId,
+            teamId: input.teamId,
           },
         });
 
         // 4. Delete all posts
         await tx.post.deleteMany({
           where: {
-            organizationId: input.teamId,
+            teamId: input.teamId,
           },
         });
 
         // 5. Delete all media
         await tx.media.deleteMany({
           where: {
-            organizationId: input.teamId,
+            teamId: input.teamId,
           },
         });
 
@@ -1073,7 +1129,7 @@ export const teamRouter = createTRPCRouter({
         await tx.customRolePermission.deleteMany({
           where: {
             customRole: {
-              organizationId: input.teamId,
+              teamId: input.teamId,
             },
           },
         });
@@ -1081,26 +1137,26 @@ export const teamRouter = createTRPCRouter({
         // 7. Delete all custom roles
         await tx.customRole.deleteMany({
           where: {
-            organizationId: input.teamId,
+            teamId: input.teamId,
           },
         });
 
         // 8. Delete all invitations
         await tx.invitation.deleteMany({
           where: {
-            organizationId: input.teamId,
+            teamId: input.teamId,
           },
         });
 
         // 9. Delete all memberships
         await tx.membership.deleteMany({
           where: {
-            organizationId: input.teamId,
+            teamId: input.teamId,
           },
         });
 
-        // 10. Finally, delete the organization itself
-        return tx.organization.delete({
+        // 10. Finally, delete the team itself
+        return tx.team.delete({
           where: {
             id: input.teamId,
           },
@@ -1118,7 +1174,7 @@ export const teamRouter = createTRPCRouter({
       const membership = await ctx.prisma.membership.findFirst({
         where: {
           userId: ctx.userId,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
       });
 
@@ -1132,7 +1188,7 @@ export const teamRouter = createTRPCRouter({
       // Get all custom roles for this team
       const customRoles = await ctx.prisma.customRole.findMany({
         where: {
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
         include: {
           permissions: {
@@ -1198,7 +1254,7 @@ export const teamRouter = createTRPCRouter({
       const existingRole = await ctx.prisma.customRole.findFirst({
         where: {
           name: input.name,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
       });
 
@@ -1222,7 +1278,7 @@ export const teamRouter = createTRPCRouter({
           name: input.name,
           displayName: input.displayName,
           description: input.description,
-          organization: {
+          team: {
             connect: {
               id: input.teamId,
             },
@@ -1283,7 +1339,7 @@ export const teamRouter = createTRPCRouter({
       const existingRole = await ctx.prisma.customRole.findFirst({
         where: {
           id: input.roleId,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
       });
 
@@ -1370,7 +1426,7 @@ export const teamRouter = createTRPCRouter({
       const existingRole = await ctx.prisma.customRole.findFirst({
         where: {
           id: input.roleId,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
       });
 
@@ -1389,7 +1445,7 @@ export const teamRouter = createTRPCRouter({
         select: {
           id: true,
           userId: true,
-          organizationId: true,
+          teamId: true,
         },
       });
 
@@ -1463,7 +1519,7 @@ export const teamRouter = createTRPCRouter({
       const targetMembership = await ctx.prisma.membership.findFirst({
         where: {
           id: input.memberId,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
       });
 
@@ -1478,7 +1534,7 @@ export const teamRouter = createTRPCRouter({
       const customRole = await ctx.prisma.customRole.findFirst({
         where: {
           id: input.customRoleId,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
       });
 
@@ -1619,14 +1675,14 @@ export const teamRouter = createTRPCRouter({
       }
 
       // Verify user has admin privileges (is an owner of at least one organization)
-      const userOwnedOrganizations = await ctx.prisma.organization.findMany({
+      const userOwnedTeams = await ctx.prisma.team.findMany({
         where: { ownerId: ctx.userId },
       });
 
-      if (userOwnedOrganizations.length === 0) {
+      if (userOwnedTeams.length === 0) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Only organization owners can set default role permissions",
+          message: "Only team owners can set default role permissions",
         });
       }
 
@@ -1730,7 +1786,7 @@ export const teamRouter = createTRPCRouter({
       const membership = await ctx.prisma.membership.findFirst({
         where: {
           userId: ctx.userId,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
         select: {
           id: true,
@@ -1773,7 +1829,7 @@ export const teamRouter = createTRPCRouter({
       const existingRole = await ctx.prisma.customRole.findFirst({
         where: {
           id: input.roleId,
-          organizationId: input.teamId,
+          teamId: input.teamId,
         },
       });
 
@@ -1831,13 +1887,13 @@ export const teamRouter = createTRPCRouter({
             // Only return records for this team
             if (
               data.type === "invitation_history" &&
-              data.organizationId === input.teamId
+              data.teamId === input.teamId
             ) {
               return {
                 id: record.id, // Use TemporaryData id
                 email: data.email,
                 role: data.role,
-                organizationId: data.organizationId,
+                teamId: data.teamId,
                 createdAt: new Date(data.createdAt),
                 acceptedAt: data.acceptedAt ? new Date(data.acceptedAt) : null,
                 rejectedAt: data.rejectedAt ? new Date(data.rejectedAt) : null,

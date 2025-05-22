@@ -6,7 +6,7 @@ import { sendInviteEmail } from "@/lib/email/send-invite-email";
 
 const onboardingSchema = z.object({
   userType: z.enum(["solo", "team"]),
-  organizationName: z.string().optional(),
+  teamName: z.string().optional(),
   teamEmails: z
     .array(
       z
@@ -43,8 +43,7 @@ export const onboardingRouter = createTRPCRouter({
   completeOnboarding: protectedProcedure
     .input(onboardingSchema)
     .mutation(async ({ ctx, input }) => {
-      const { userType, organizationName, teamEmails, pagesData, sessionId } =
-        input;
+      const { userType, teamName, teamEmails, pagesData, sessionId } = input;
 
       if (!ctx.userId) {
         throw new TRPCError({
@@ -73,39 +72,129 @@ export const onboardingRouter = createTRPCRouter({
           });
         }
 
-        // Create or get organization
-        let organization;
-        if (userType === "team" && organizationName) {
-          // For team type, create new organization with provided name
-          organization = await ctx.prisma.organization.create({
-            data: {
-              name: organizationName,
-              slug: organizationName.toLowerCase().replace(/\s+/g, "-"),
-              ownerId: userId,
-              memberships: {
-                create: {
-                  userId,
-                  role: Role.OWNER,
+        // Create or get team
+        let team;
+        if (userType === "team" && teamName) {
+          // For team type, create new team with provided name
+          team = await ctx.prisma.$transaction(async (tx) => {
+            // Create the team
+            const newTeam = await tx.team.create({
+              data: {
+                name: teamName,
+                slug: teamName.toLowerCase().replace(/\s+/g, "-"),
+                ownerId: userId,
+                memberships: {
+                  create: {
+                    userId,
+                    role: Role.OWNER,
+                  },
                 },
               },
-            },
+            });
+
+            // Create a default approval workflow
+            const workflowRecord = await tx.approvalWorkflow.create({
+              data: {
+                name: "Default Approval Workflow",
+                description: "Team's default content approval workflow",
+                teamId: newTeam.id,
+              },
+            });
+
+            // Create default workflow steps
+            await tx.approvalStep.create({
+              data: {
+                name: "Manager Review",
+                order: 1,
+                role: Role.MANAGER,
+                requireAllUsersInRole: false,
+                workflowId: workflowRecord.id,
+              },
+            });
+
+            await tx.approvalStep.create({
+              data: {
+                name: "Supervisor Approval",
+                order: 2,
+                role: Role.SUPERVISOR,
+                requireAllUsersInRole: false,
+                workflowId: workflowRecord.id,
+              },
+            });
+
+            await tx.approvalStep.create({
+              data: {
+                name: "Internal Review",
+                order: 3,
+                role: Role.INTERNAL_REVIEWER,
+                requireAllUsersInRole: true,
+                workflowId: workflowRecord.id,
+              },
+            });
+
+            await tx.approvalStep.create({
+              data: {
+                name: "Client Approval",
+                order: 4,
+                role: Role.CLIENT_REVIEWER,
+                requireAllUsersInRole: false,
+                workflowId: workflowRecord.id,
+              },
+            });
+
+            return newTeam;
           });
         } else {
-          const defaultOrgName =
-            existingUser.name || existingUser.email || "My Organization";
-          // For solo type or if no org name provided, create default organization
-          organization = await ctx.prisma.organization.create({
-            data: {
-              name: defaultOrgName,
-              slug: `${existingUser.email.split("@")[0]}-org`,
-              ownerId: userId,
-              memberships: {
-                create: {
-                  userId,
-                  role: Role.OWNER,
+          const defaultTeamName =
+            existingUser.name || existingUser.email || "My Team";
+          // For solo type or if no team name provided, create default team with transaction
+          team = await ctx.prisma.$transaction(async (tx) => {
+            // Create the team
+            const newTeam = await tx.team.create({
+              data: {
+                name: defaultTeamName,
+                slug: `${existingUser.email.split("@")[0]}-team`,
+                ownerId: userId,
+                memberships: {
+                  create: {
+                    userId,
+                    role: Role.OWNER,
+                  },
                 },
               },
-            },
+            });
+
+            // Create a default approval workflow
+            const workflowRecord = await tx.approvalWorkflow.create({
+              data: {
+                name: "Default Approval Workflow",
+                description: "Team's default content approval workflow",
+                teamId: newTeam.id,
+              },
+            });
+
+            // Create default workflow steps
+            await tx.approvalStep.create({
+              data: {
+                name: "Manager Review",
+                order: 1,
+                role: Role.MANAGER,
+                requireAllUsersInRole: false,
+                workflowId: workflowRecord.id,
+              },
+            });
+
+            await tx.approvalStep.create({
+              data: {
+                name: "Supervisor Approval",
+                order: 2,
+                role: Role.SUPERVISOR,
+                requireAllUsersInRole: false,
+                workflowId: workflowRecord.id,
+              },
+            });
+
+            return newTeam;
           });
         }
 
@@ -121,7 +210,7 @@ export const onboardingRouter = createTRPCRouter({
               await ctx.prisma.invitation.create({
                 data: {
                   email,
-                  organizationId: organization.id,
+                  teamId: team.id,
                   role: Role.CONTENT_CREATOR,
                 },
               });
@@ -129,7 +218,7 @@ export const onboardingRouter = createTRPCRouter({
               // Send invitation email
               await sendInviteEmail({
                 email,
-                organizationName: organization.name,
+                teamName: team.name,
                 role: Role.CONTENT_CREATOR,
               });
             } catch (error) {
@@ -151,7 +240,7 @@ export const onboardingRouter = createTRPCRouter({
                   profileId: page.profileId,
                   name: page.name,
                   userId,
-                  organizationId: organization.id,
+                  teamId: team.id,
                   profilePicture: page.profilePicture || null,
                 },
               });
@@ -181,7 +270,7 @@ export const onboardingRouter = createTRPCRouter({
         return {
           success: true,
           message: "Onboarding completed successfully",
-          organization,
+          team,
         };
       } catch (error) {
         console.error("Error in onboarding process:", error);
@@ -214,7 +303,7 @@ export const onboardingRouter = createTRPCRouter({
   }),
 
   getSocialAccounts: protectedProcedure
-    .input(z.object({ organizationId: z.string().optional() }))
+    .input(z.object({ teamId: z.string().optional() }))
     .query(async ({ ctx, input }) => {
       if (!ctx.userId) {
         throw new TRPCError({
@@ -223,13 +312,11 @@ export const onboardingRouter = createTRPCRouter({
         });
       }
 
-      console.log("input.organizationId", input.organizationId);
+      console.log("input.teamId", input.teamId);
 
       const socialAccounts = await ctx.prisma.socialAccount.findMany({
         where: {
-          ...(input.organizationId
-            ? { organizationId: input.organizationId }
-            : {}),
+          ...(input.teamId ? { teamId: input.teamId } : {}),
         },
         select: {
           id: true,

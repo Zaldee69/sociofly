@@ -24,33 +24,33 @@ export const approvalWorkflowRouter = createTRPCRouter({
   getWorkflows: protectedProcedure
     .input(
       z.object({
-        organizationId: z.string(),
+        teamId: z.string(),
       })
     )
     .query(async ({ ctx, input }) => {
-      const { organizationId } = input;
+      const { teamId } = input;
       // Use the prisma client from context, or fallback to the imported client
       const db = ctx.prisma || prisma;
 
       try {
-        // Check if user has access to this organization
+        // Check if user has access to this team
         const membership = await db.membership.findUnique({
           where: {
-            userId_organizationId: {
+            userId_teamId: {
               userId: ctx.auth.userId,
-              organizationId,
+              teamId,
             },
           },
         });
 
         if (!membership) {
-          throw new Error("Not a member of this organization");
+          throw new Error("Not a member of this team");
         }
 
-        // Get all workflows for this organization
+        // Get all workflows for this team
         return db.approvalWorkflow.findMany({
           where: {
-            organizationId,
+            teamId,
           },
           include: {
             steps: {
@@ -69,34 +69,34 @@ export const approvalWorkflowRouter = createTRPCRouter({
   getUsersByRole: protectedProcedure
     .input(
       z.object({
-        organizationId: z.string(),
+        teamId: z.string(),
         role: z.string().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
-      const { organizationId, role } = input;
+      const { teamId, role } = input;
       // Use the prisma client from context, or fallback to the imported client
       const db = ctx.prisma || prisma;
 
       try {
-        // Check if user has access to this organization
+        // Check if user has access to this team
         const membership = await db.membership.findUnique({
           where: {
-            userId_organizationId: {
+            userId_teamId: {
               userId: ctx.auth.userId,
-              organizationId,
+              teamId,
             },
           },
         });
 
         if (!membership) {
-          throw new Error("Not a member of this organization");
+          throw new Error("Not a member of this team");
         }
 
         // Get users with specific role or all users if no role specified
         const memberships = await db.membership.findMany({
           where: {
-            organizationId,
+            teamId,
             ...(role ? { role: role as Role } : {}),
             status: "ACTIVE",
           },
@@ -127,21 +127,21 @@ export const approvalWorkflowRouter = createTRPCRouter({
   createWorkflow: protectedProcedure
     .input(
       workflowCreateSchema.extend({
-        organizationId: z.string(),
+        teamId: z.string(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       // Use the prisma client from context, or fallback to the imported client
       const db = ctx.prisma || prisma;
-      const { organizationId, ...workflowData } = input;
+      const { teamId, ...workflowData } = input;
 
       try {
-        // Check if user has permission to create workflow in this organization
+        // Check if user has permission to create workflow in this team
         const membership = await db.membership.findUnique({
           where: {
-            userId_organizationId: {
+            userId_teamId: {
               userId: ctx.auth.userId,
-              organizationId,
+              teamId,
             },
           },
           include: {
@@ -154,7 +154,7 @@ export const approvalWorkflowRouter = createTRPCRouter({
         });
 
         if (!membership) {
-          throw new Error("Not a member of this organization");
+          throw new Error("Not a member of this team");
         }
 
         // Check if user has permission to create approval workflows
@@ -176,7 +176,7 @@ export const approvalWorkflowRouter = createTRPCRouter({
             data: {
               name: workflowData.name,
               description: workflowData.description,
-              organizationId,
+              teamId,
             },
           });
 
