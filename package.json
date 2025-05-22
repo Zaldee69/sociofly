@@ -9,22 +9,8 @@
     "lint": "next lint",
     "test": "vitest",
     "seed:hashtags": "npx tsx src/features/social/scripts/seed-hashtags.ts",
-    "seed:permissions": "npx tsx src/server/permissions/seed/seed-role-permissions.ts",
-    "restructure": "bash scripts/restructure.sh",
-    "update-imports": "node scripts/update-imports.js",
-    "fix-cn-imports": "node scripts/fix-cn-imports.js",
-    "fix-imports": "bash scripts/fix-ui-imports.sh",
-    "fix-ui-paths": "bash scripts/fix-ui-paths.sh",
-    "fix-lib-paths": "bash scripts/fix-lib-paths.sh",
-    "fix-hooks-paths": "bash scripts/fix-hooks-paths.sh",
-    "fix-server-imports": "bash scripts/fix-server-imports.sh",
-    "fix-contexts-paths": "bash scripts/fix-contexts-paths.sh",
-    "fix-prisma-paths": "bash scripts/fix-prisma-paths.sh",
-    "fix-components-paths": "bash scripts/fix-components-paths.sh",
-    "fix-case-sensitive": "bash scripts/fix-case-sensitive-imports.sh",
-    "cleanup-duplicates": "bash scripts/cleanup-duplicates.sh",
-    "fix-all": "bash scripts/fix-all-imports.sh",
-    "fix-services-paths": "bash scripts/fix-services-paths.sh"
+    "seed:permissions": "npx tsx src/server/permissions/seed/seed-role-permissions.ts"
+ 
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
