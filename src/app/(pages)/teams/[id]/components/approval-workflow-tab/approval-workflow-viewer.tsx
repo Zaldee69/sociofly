@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
   ArrowDown,
@@ -11,6 +11,7 @@ import {
   Shield,
   FileCheck,
   UserCog,
+  Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,6 +24,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Step } from ".";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  useApprovalWorkflow,
+  type OrganizationUser,
+} from "../../hooks/use-approval-workflow";
+import { useParams } from "next/navigation";
 
 type ApprovalFlowViewerProps = {
   steps: Step[];
@@ -30,6 +38,7 @@ type ApprovalFlowViewerProps = {
   className?: string;
   onChange?: (steps: Step[]) => void;
   onSave?: (steps: Step[]) => void;
+  isLoading?: boolean;
 };
 
 const ROLE_OPTIONS = [
@@ -52,15 +61,55 @@ const ROLE_ICONS: Record<string, React.ReactNode> = {
 };
 
 export function ApprovalFlowViewer({
-  steps: initialSteps,
+  steps: initialSteps = [],
   currentStepId,
   className,
   onChange,
   onSave,
+  isLoading,
 }: ApprovalFlowViewerProps) {
+  const params = useParams();
+  const teamId = params.id as string;
+
   const [steps, setSteps] = useState<Step[]>(initialSteps);
   const [draggedStep, setDraggedStep] = useState<Step | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Sync local state with props when initialSteps changes
+  useEffect(() => {
+    if (initialSteps && initialSteps.length > 0) {
+      setSteps(initialSteps);
+      setHasChanges(false); // Reset changes when initialSteps are updated
+    }
+  }, [initialSteps]);
+
+  // Check if there are changes whenever steps are updated
+  useEffect(() => {
+    if (initialSteps.length !== steps.length) {
+      setHasChanges(true);
+      return;
+    }
+
+    // Compare each step with its corresponding initialStep
+    const hasChanges = steps.some((step, index) => {
+      const initialStep = initialSteps[index];
+      if (!initialStep) return true;
+
+      return (
+        step.name !== initialStep.name ||
+        step.role !== initialStep.role ||
+        step.order !== initialStep.order ||
+        step.assignedUserId !== initialStep.assignedUserId ||
+        step.requireAllUsersInRole !== initialStep.requireAllUsersInRole
+      );
+    });
+
+    setHasChanges(hasChanges);
+  }, [steps, initialSteps]);
+
+  // Get organization users from the hook
+  const { organizationUsers, getUsersByRole } = useApprovalWorkflow(teamId);
 
   // Handle step changes
   const updateSteps = (newSteps: Step[]) => {
@@ -95,6 +144,8 @@ export function ApprovalFlowViewer({
       id: newId,
       order: newOrder,
       role: "CONTENT_CREATOR",
+      name: `Step ${newOrder}`,
+      requireAllUsersInRole: false,
     };
 
     updateSteps([...steps, newStep]);
@@ -104,11 +155,10 @@ export function ApprovalFlowViewer({
   // Handle saving the flow
   const handleSave = () => {
     if (onSave) onSave(steps);
-    toast.success("Approval flow saved successfully!");
   };
 
   // Drag and drop handlers
-  const handleDragStart = (step: Step) => {
+  const handleStepStart = (step: Step) => {
     setDraggedStep(step);
     setIsDragging(true);
   };
@@ -132,6 +182,14 @@ export function ApprovalFlowViewer({
     setIsDragging(false);
     toast.info("Workflow order updated");
   };
+
+  // Find user by ID
+  const findUserById = (userId: string): OrganizationUser | undefined => {
+    return organizationUsers.find((user) => user.id === userId);
+  };
+
+  console.log(steps);
+  console.log(initialSteps);
 
   return (
     <div className="divide-y divide-gray-100 px-4">
@@ -167,7 +225,7 @@ export function ApprovalFlowViewer({
                   isDragging && draggedStep?.id === step.id && "opacity-60"
                 )}
                 draggable
-                onDragStart={() => handleDragStart(step)}
+                onDragStart={() => handleStepStart(step)}
                 onDragEnter={() => handleDragEnter(step)}
                 onDragEnd={handleDragEnd}
                 onDragOver={(e) => e.preventDefault()}
@@ -199,6 +257,25 @@ export function ApprovalFlowViewer({
                   >
                     <div className="flex justify-between items-start">
                       <div className="space-y-4 flex-1">
+                        {/* Step name input */}
+                        <div className="mb-3">
+                          <Label
+                            htmlFor={`step-name-${step.id}`}
+                            className="text-xs text-gray-500 mb-1"
+                          >
+                            Step Name
+                          </Label>
+                          <Input
+                            id={`step-name-${step.id}`}
+                            value={step.name}
+                            onChange={(e) =>
+                              handleStepChange(step.id, "name", e.target.value)
+                            }
+                            className="h-8 text-sm"
+                            placeholder="Enter step name"
+                          />
+                        </div>
+
                         {/* Role selection */}
                         <div className="flex items-center gap-2">
                           <div
@@ -248,6 +325,104 @@ export function ApprovalFlowViewer({
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
+
+                        {/* User assignment */}
+                        <div className="flex flex-col mt-3">
+                          <Label className="text-xs text-gray-500 mb-1">
+                            User Assignment
+                          </Label>
+                          <div className="flex items-center gap-2">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className="h-8 text-sm w-full justify-start"
+                                  disabled={step.requireAllUsersInRole}
+                                >
+                                  {step.assignedUserId
+                                    ? findUserById(step.assignedUserId)?.name ||
+                                      "Unknown user"
+                                    : "Any user with role"}
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent
+                                align="start"
+                                className="w-56"
+                              >
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleStepChange(
+                                      step.id,
+                                      "assignedUserId",
+                                      undefined
+                                    )
+                                  }
+                                  className="gap-2"
+                                >
+                                  <Users size={16} />
+                                  <span>Any user with this role</span>
+                                </DropdownMenuItem>
+
+                                {getUsersByRole(step.role).length > 0 ? (
+                                  getUsersByRole(step.role).map((user) => (
+                                    <DropdownMenuItem
+                                      key={user.id}
+                                      onClick={() =>
+                                        handleStepChange(
+                                          step.id,
+                                          "assignedUserId",
+                                          user.id
+                                        )
+                                      }
+                                      className="gap-2"
+                                    >
+                                      <User size={16} />
+                                      {user.name}
+                                    </DropdownMenuItem>
+                                  ))
+                                ) : (
+                                  <DropdownMenuItem
+                                    disabled
+                                    className="gap-2 text-muted-foreground"
+                                  >
+                                    <User size={16} />
+                                    No users with this role
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+
+                        {/* Require all users checkbox */}
+                        <div className="flex items-center space-x-2 mt-3">
+                          <Checkbox
+                            id={`require-all-${step.id}`}
+                            checked={step.requireAllUsersInRole}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                // When requiring all users, clear any specific assigned user
+                                handleStepChange(
+                                  step.id,
+                                  "assignedUserId",
+                                  undefined
+                                );
+                              }
+                              handleStepChange(
+                                step.id,
+                                "requireAllUsersInRole",
+                                !!checked
+                              );
+                            }}
+                            disabled={!!step.assignedUserId}
+                          />
+                          <Label
+                            htmlFor={`require-all-${step.id}`}
+                            className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          >
+                            Require approval from all users with this role
+                          </Label>
+                        </div>
                       </div>
 
                       {/* Delete button */}
@@ -266,14 +441,31 @@ export function ApprovalFlowViewer({
             ))}
           </div>
 
-          {/* Add step button */}
-          <div className="mt-8 ml-12">
+          {/* Add step and save buttons */}
+          <div className="mt-8 ml-12 flex justify-between">
             <Button
               onClick={handleAddStep}
               variant="outline"
               className="border-dashed border-gray-300 hover:border-indigo-300 hover:bg-indigo-50 text-gray-600 hover:text-indigo-600"
+              disabled={isLoading}
             >
               <Plus size={16} className="mr-1" /> Add Step
+            </Button>
+
+            <Button
+              onClick={handleSave}
+              variant="default"
+              className="bg-indigo-600 hover:bg-indigo-700"
+              disabled={isLoading || !hasChanges}
+            >
+              {isLoading ? (
+                <>
+                  <span className="animate-spin mr-2">◌</span>
+                  Saving...
+                </>
+              ) : (
+                "Save Workflow"
+              )}
             </Button>
           </div>
         </div>

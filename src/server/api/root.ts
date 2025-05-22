@@ -11,7 +11,8 @@ import { organizationRouter } from "./routers/organization";
 import { teamRouter } from "./routers/team";
 import { hashtagRouter } from "./routers/hashtag";
 import { postRouter } from "./routers/post";
-import { permissionRouter } from "./routers/permission.router";
+import { permissionRouter } from "./routers/permission";
+import { approvalWorkflowRouter } from "./routers/approval-workflow";
 
 /**
  * Mengekspor objek appRouter yang berisi semua router tRPC
@@ -25,7 +26,11 @@ export const appRouter = createTRPCRouter({
   hashtag: hashtagRouter,
   post: postRouter,
   permission: permissionRouter,
+  approvalWorkflow: approvalWorkflowRouter,
 });
 
-// Tipe untuk seluruh API
+/**
+ * Tipe untuk router aplikasi secara keseluruhan
+ * Digunakan untuk membuat klien tRPC yang tepat
+ */
 export type AppRouter = typeof appRouter;

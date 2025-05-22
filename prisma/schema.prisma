@@ -9,36 +9,38 @@ datasource db {
 }
 
 model User {
-  id               String           @id @default(cuid())
-  clerkId          String           @unique
-  email            String           @unique
-  name             String?
-  subscriptionPlan BillingPlan      @default(FREE) // Tambahkan di User
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  onboardingStatus OnboardingStatus @default(NOT_STARTED)
-  memberships      Membership[]
-  posts            Post[]
-  socialAccounts   SocialAccount[]
-  media            Media[]
-  Organization     Organization[]
+  id                  String               @id @default(cuid())
+  clerkId             String               @unique
+  email               String               @unique
+  name                String?
+  subscriptionPlan    BillingPlan          @default(FREE) // Tambahkan di User
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  onboardingStatus    OnboardingStatus     @default(NOT_STARTED)
+  memberships         Membership[]
+  posts               Post[]
+  socialAccounts      SocialAccount[]
+  media               Media[]
+  Organization        Organization[]
+  approvalAssignments ApprovalAssignment[]
 }
 
 model Organization {
-  id             String          @id @default(cuid())
-  name           String
-  slug           String          @unique
-  logo           String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  memberships    Membership[]
-  posts          Post[]
-  socialAccounts SocialAccount[]
-  invitations    Invitation[]
-  Media          Media[]
-  ownerId        String
-  owner          User            @relation(fields: [ownerId], references: [id])
-  customRoles    CustomRole[]
+  id                String             @id @default(cuid())
+  name              String
+  slug              String             @unique
+  logo              String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  memberships       Membership[]
+  posts             Post[]
+  socialAccounts    SocialAccount[]
+  invitations       Invitation[]
+  Media             Media[]
+  ownerId           String
+  owner             User               @relation(fields: [ownerId], references: [id])
+  customRoles       CustomRole[]
+  approvalWorkflows ApprovalWorkflow[]
 }
 
 model Membership {
@@ -79,20 +81,21 @@ model SocialAccount {
 }
 
 model Post {
-  id             String              @id @default(cuid())
-  content        String
-  mediaUrls      String[]
-  scheduledAt    DateTime
-  platform       String
-  status         PostStatus          @default(DRAFT)
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  publishedAt    DateTime?
-  userId         String
-  organizationId String
-  socialAccounts PostSocialAccount[]
-  organization   Organization        @relation(fields: [organizationId], references: [id])
-  user           User                @relation(fields: [userId], references: [id])
+  id                String              @id @default(cuid())
+  content           String
+  mediaUrls         String[]
+  scheduledAt       DateTime
+  platform          String
+  status            PostStatus          @default(DRAFT)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  publishedAt       DateTime?
+  userId            String
+  organizationId    String
+  socialAccounts    PostSocialAccount[]
+  organization      Organization        @relation(fields: [organizationId], references: [id])
+  user              User                @relation(fields: [userId], references: [id])
+  approvalInstances ApprovalInstance[]
 }
 
 model PostSocialAccount {
@@ -286,4 +289,73 @@ model TemporaryData {
   expiresAt DateTime
 
   @@index([expiresAt]) // To help with cleanup of expired data
+}
+
+model ApprovalWorkflow {
+  id             String             @id @default(cuid())
+  name           String
+  description    String?
+  isActive       Boolean            @default(true)
+  organizationId String
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  steps          ApprovalStep[]
+  instances      ApprovalInstance[]
+
+  @@unique([name, organizationId])
+}
+
+model ApprovalStep {
+  id                    String               @id @default(cuid())
+  name                  String
+  order                 Int
+  role                  Role
+  assignedUserId        String?
+  requireAllUsersInRole Boolean              @default(false)
+  workflowId            String
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  workflow              ApprovalWorkflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  assignments           ApprovalAssignment[]
+
+  @@unique([workflowId, order])
+}
+
+model ApprovalInstance {
+  id               String               @id @default(cuid())
+  postId           String?
+  workflowId       String
+  status           ApprovalStatus       @default(IN_PROGRESS)
+  currentStepOrder Int?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  workflow         ApprovalWorkflow     @relation(fields: [workflowId], references: [id])
+  post             Post?                @relation(fields: [postId], references: [id], onDelete: SetNull)
+  assignments      ApprovalAssignment[]
+}
+
+model ApprovalAssignment {
+  id             String           @id @default(cuid())
+  stepId         String
+  instanceId     String
+  assignedUserId String?
+  status         ApprovalStatus   @default(PENDING)
+  feedback       String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  completedAt    DateTime?
+  step           ApprovalStep     @relation(fields: [stepId], references: [id])
+  instance       ApprovalInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  user           User?            @relation(fields: [assignedUserId], references: [id])
+
+  @@unique([stepId, instanceId, assignedUserId])
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  IN_PROGRESS
+  COMPLETED
 }
