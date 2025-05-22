@@ -31,11 +31,11 @@ import {
   ExternalLink,
   AlertCircle,
 } from "lucide-react";
-import { usePermissions } from "@/hooks/use-permissions";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useUser } from "@clerk/nextjs";
 import { AccountSelectionDialog } from "@/app/onboarding/components/account-selection-dialog";
+import { usePermissions } from "@/lib/hooks";
 
 interface SocialAccountsTabProps {
   teamId: string;

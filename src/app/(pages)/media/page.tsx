@@ -37,7 +37,6 @@ import { useFiles } from "../schedule-post/contexts/file-context";
 import { MediaThumbnail } from "./components/media-thumbnail";
 import Link from "next/link";
 import { MediaTable } from "./components/media-table";
-import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Pagination,
   PaginationContent,
@@ -48,8 +47,10 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
+
 import { useTeam } from "@/lib/hooks/use-teams";
 import { useTeamContext } from "@/lib/contexts/team-context";
+import { useIsMobile } from "@/lib/hooks";
 
 const Media = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");

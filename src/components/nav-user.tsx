@@ -22,10 +22,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useSignOut } from "@/lib/auth-utils";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { InvitationIndicator } from "@/components/ui/invitation-indicator";
+import { useSignOut } from "@/lib/auth-utils";
 
 export function NavUser() {
   const { user } = useUser();

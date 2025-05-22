@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { DraggableMedia } from "./draggable-media";
 import { CheckCircle2 } from "lucide-react";
-import { useUploadThing } from "@/lib/utils/uploadthing";
 import { useDropzone } from "@uploadthing/react";
 import { toast } from "sonner";
 import {
@@ -17,9 +16,11 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFiles } from "../contexts/file-context";
 import { cn } from "@/lib/utils";
+
 import { trpc } from "@/lib/trpc/client";
 import { FileWithPreview } from "../types";
 import { useTeamContext } from "@/lib/contexts/team-context";
+import { useUploadThing } from "@/utils/uploadthing";
 
 interface FileUploadAreaProps {
   onUploadStart?: () => void;

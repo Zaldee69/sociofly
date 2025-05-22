@@ -7,7 +7,6 @@ import {
 import { TRPCError } from "@trpc/server";
 import { Role, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
-import { can } from "@/server/permissions/helpers";
 
 export const teamRouter = createTRPCRouter({
   // Get all teams user is a member of

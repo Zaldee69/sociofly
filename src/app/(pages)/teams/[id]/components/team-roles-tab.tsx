@@ -38,8 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { usePermissions } from "@/hooks/use-permissions";
-import { Permission, CustomRole } from "../types";
+import { usePermissions } from "@/lib/hooks";
 import { motion } from "framer-motion";
 
 interface TeamRolesTabProps {
@@ -336,6 +335,7 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
         if (Object.values(Role).includes(currentRole as Role)) {
           // Use the new setDefaultRolePermissions endpoint to update default role permissions
           await setDefaultRolePermissionsMutation.mutateAsync({
+            teamId,
             role: currentRole as Role,
             permissionCodes: combinedRolePermissions[currentRole] || [],
           });

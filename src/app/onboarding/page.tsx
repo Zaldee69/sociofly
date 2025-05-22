@@ -3,12 +3,13 @@ import React, { useEffect, useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, ArrowLeft, Instagram, Facebook } from "lucide-react";
 import { cn } from "@/lib/utils";
+
 import { UserTypeStep } from "./components/user-type-step";
 import { TeamStep } from "./components/team-step";
 import { SocialAccountsStep } from "./components/social-account-step";
 import { AccountSelectionDialog } from "./components/account-selection-dialog";
 import { useOnboarding } from "./hooks/use-onboarding";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 

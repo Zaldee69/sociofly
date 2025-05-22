@@ -17,7 +17,7 @@ const createPostSchema = z.object({
   mediaUrls: z.array(z.string().url()).optional().default([]),
   scheduledAt: z.coerce.date(),
   platform: z.string(),
-  organizationId: z.string(),
+  teamId: z.string(),
   socialAccountIds: z.array(z.string()),
 });
 
@@ -163,16 +163,16 @@ export const postRouter = createTRPCRouter({
         mediaUrls,
         scheduledAt,
         platform,
-        organizationId,
+        teamId,
         socialAccountIds,
       } = input;
 
       // Periksa apakah pengguna memiliki akses ke organisasi
       const membership = await ctx.prisma.membership.findUnique({
         where: {
-          userId_organizationId: {
+          userId_teamId: {
             userId: ctx.auth.userId,
-            organizationId,
+            teamId,
           },
         },
       });
@@ -188,7 +188,7 @@ export const postRouter = createTRPCRouter({
       const socialAccounts = await ctx.prisma.socialAccount.findMany({
         where: {
           id: { in: socialAccountIds },
-          organizationId,
+          teamId,
         },
       });
 
@@ -210,7 +210,7 @@ export const postRouter = createTRPCRouter({
             platform,
             status: PostStatus.SCHEDULED,
             userId: ctx.auth.userId,
-            organizationId,
+            teamId,
           },
         });
 
@@ -255,9 +255,9 @@ export const postRouter = createTRPCRouter({
       // Periksa apakah pengguna memiliki akses ke post
       const membership = await ctx.prisma.membership.findUnique({
         where: {
-          userId_organizationId: {
+          userId_teamId: {
             userId: ctx.auth.userId,
-            organizationId: post.organizationId,
+            teamId: post.teamId,
           },
         },
       });
@@ -314,9 +314,9 @@ export const postRouter = createTRPCRouter({
       // Periksa apakah pengguna memiliki akses ke post
       const membership = await ctx.prisma.membership.findUnique({
         where: {
-          userId_organizationId: {
+          userId_teamId: {
             userId: ctx.auth.userId,
-            organizationId: post.organizationId,
+            teamId: post.teamId,
           },
         },
       });
@@ -360,9 +360,9 @@ export const postRouter = createTRPCRouter({
       // Periksa apakah pengguna memiliki akses ke post
       const membership = await ctx.prisma.membership.findUnique({
         where: {
-          userId_organizationId: {
+          userId_teamId: {
             userId: ctx.auth.userId,
-            organizationId: post.organizationId,
+            teamId: post.teamId,
           },
         },
       });
@@ -486,9 +486,9 @@ export const postRouter = createTRPCRouter({
       // Periksa izin akses pengguna
       const membership = await ctx.prisma.membership.findUnique({
         where: {
-          userId_organizationId: {
+          userId_teamId: {
             userId: ctx.auth.userId,
-            organizationId: post.organizationId,
+            teamId: post.teamId,
           },
         },
       });

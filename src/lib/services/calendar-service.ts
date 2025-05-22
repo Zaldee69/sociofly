@@ -1,5 +1,5 @@
 // TODO: Replace with real data fetching logic
-// import { createClient } from "@/lib/utils/supabase/client";
+// Commented import removed during restructuring
 import type { IEvent } from "@/types/calendar";
 import type {
   RealtimeChannel,

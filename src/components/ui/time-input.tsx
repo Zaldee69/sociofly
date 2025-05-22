@@ -3,12 +3,16 @@ import { DateInput, DateSegment, TimeField } from "react-aria-components";
 
 import { cn } from "@/lib/utils";
 
+
 import type { TimeFieldProps, TimeValue } from "react-aria-components";
 
 // ================================== //
 
 type TTimeInputRef = HTMLDivElement;
-type TTimeInputProps = Omit<TimeFieldProps<TimeValue>, "isDisabled" | "isInvalid"> & {
+type TTimeInputProps = Omit<
+  TimeFieldProps<TimeValue>,
+  "isDisabled" | "isInvalid"
+> & {
   readonly dateInputClassName?: string;
   readonly segmentClassName?: string;
   readonly disabled?: boolean;
@@ -16,7 +20,17 @@ type TTimeInputProps = Omit<TimeFieldProps<TimeValue>, "isDisabled" | "isInvalid
 };
 
 const TimeInput = forwardRef<TTimeInputRef, TTimeInputProps>(
-  ({ className, dateInputClassName, segmentClassName, disabled, "data-invalid": dataInvalid, ...props }, ref) => {
+  (
+    {
+      className,
+      dateInputClassName,
+      segmentClassName,
+      disabled,
+      "data-invalid": dataInvalid,
+      ...props
+    },
+    ref
+  ) => {
     return (
       <TimeField
         ref={ref}
@@ -35,7 +49,7 @@ const TimeInput = forwardRef<TTimeInputRef, TTimeInputProps>(
             dateInputClassName
           )}
         >
-          {segment => (
+          {(segment) => (
             <DateSegment
               segment={segment}
               className={cn(

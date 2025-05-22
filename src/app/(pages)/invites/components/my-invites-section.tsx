@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, X, Calendar, Users } from "lucide-react";
-import { getRoleBadge } from "@/app/(pages)/teams/utils/team-utils";
+import { getRoleBadge } from "@/utils/@/app/(pages)/teams";
 import {
   Dialog,
   DialogContent,

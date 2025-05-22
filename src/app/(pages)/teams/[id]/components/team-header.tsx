@@ -2,7 +2,7 @@ import React from "react";
 import { Team } from "../types";
 import { Skeleton } from "@/components/ui/skeleton";
 import AddMemberModal from "../../components/add-member";
-import { usePermissions } from "@/hooks/use-permissions";
+import { usePermissions } from "@/lib/hooks";
 import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
 

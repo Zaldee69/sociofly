@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SocialPublishingService } from "@/lib/social-publisher";
+import { SocialPublishingService } from "@/server/social-publisher";
 
 export async function GET() {
   const service = new SocialPublishingService();

@@ -30,7 +30,7 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider>
-      <html lang="en">
+      <html lang="en" className="light" style={{ colorScheme: "light" }}>
         <body className={dmSans.className}>
           <Toaster />
           <TRPCProvider>

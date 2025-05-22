@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
+
 interface MediaGridProps {
   filter: "all" | "images" | "videos";
   searchTerm: string;

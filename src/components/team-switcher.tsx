@@ -2,50 +2,14 @@
 
 import * as React from "react";
 import { useTeamContext } from "@/lib/contexts/team-context";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Building2,
-  Loader2,
-  Users,
-  Plus,
-  ChevronsUpDown,
-  AudioWaveform,
-  Check,
-  PlusCircle,
-} from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { Role } from "@prisma/client";
+
+import { Loader2, Plus, ChevronsUpDown, AudioWaveform } from "lucide-react";
+
 import { trpc } from "@/lib/trpc/client";
 
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -54,10 +18,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "./ui/sidebar";
 
+interface Team {
+  id: string;
+  name: string;
+  role: string;
+}
+
 export function TeamSwitcher() {
   const { currentTeamId, setCurrentTeamId, isLoading } = useTeamContext();
   const { data: teams } = trpc.team.getAllTeams.useQuery();
-  const currentTeam = teams?.find((team) => team.id === currentTeamId);
+  const currentTeam = teams?.find((team: Team) => team.id === currentTeamId);
 
   return (
     <DropdownMenu>
@@ -93,7 +63,7 @@ export function TeamSwitcher() {
             Loading teams...
           </DropdownMenuItem>
         ) : (
-          teams?.map((team, index) => (
+          teams?.map((team: Team, index: number) => (
             <DropdownMenuItem
               key={team.id}
               onClick={() => setCurrentTeamId(team.id)}

@@ -3,6 +3,7 @@ import { Video, Image as ImageIcon } from "lucide-react";
 import ReactPlayer from "react-player/lazy";
 import { cn } from "@/lib/utils";
 
+
 interface MediaThumbnailProps {
   item: {
     id: string;

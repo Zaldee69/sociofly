@@ -20,7 +20,7 @@ import {
 
 // Hooks
 import { useTeamPageData } from "./hooks";
-import { usePermissions } from "@/hooks/use-permissions";
+import { usePermissions } from "@/lib/hooks";
 import ApprovalWorkflowTab from "./components/approval-workflow-tab";
 
 // Animation variants

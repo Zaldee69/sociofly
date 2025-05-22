@@ -20,7 +20,6 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
-import { getRoleBadge } from "../../utils/team-utils";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +39,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { getRoleBadge } from "../../utils/team-utils";
 
 interface TeamInvitesTabProps {
   teamId: string;
