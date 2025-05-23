@@ -3,25 +3,46 @@
 import { useMemo } from "react";
 import type { DraggableAttributes } from "@dnd-kit/core";
 import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
-import { differenceInMinutes, format, getMinutes, isPast } from "date-fns";
+import {
+  differenceInMinutes,
+  format,
+  getMinutes,
+  isPast,
+  addMinutes,
+  isValid,
+} from "date-fns";
 
 import { cn } from "@/lib/utils";
 
 import { CalendarPost } from "./types";
-import { getBorderRadiusClasses, getPostColorClasses } from "./utils";
+import { getPostColorClasses } from "./utils";
+import {
+  FacebookIcon,
+  InstagramIcon,
+} from "@/components/icons/social-media-icons";
 
-// Using date-fns format with custom formatting:
-// 'h' - hours (1-12)
-// 'a' - am/pm
-// ':mm' - minutes with leading zero (only if the token 'mm' is present)
+// Default duration for posts in minutes
+const DEFAULT_POST_DURATION = 30;
+
+// Using date-fns format with custom formatting for 24-hour format:
+// 'HH' - hours (00-23)
+// ':mm' - minutes with leading zero
 const formatTimeWithOptionalMinutes = (date: Date) => {
-  return format(date, getMinutes(date) === 0 ? "ha" : "h:mma").toLowerCase();
+  // Safety check to ensure date is valid
+  if (!date || !isValid(date)) {
+    return "--:--";
+  }
+
+  try {
+    return format(date, getMinutes(date) === 0 ? "HH:00" : "HH:mm");
+  } catch (error) {
+    console.error("Error formatting time:", error);
+    return "--:--";
+  }
 };
 
 interface PostWrapperProps {
   post: CalendarPost;
-  isFirstDay?: boolean;
-  isLastDay?: boolean;
   isDragging?: boolean;
   onClick?: (e: React.MouseEvent) => void;
   className?: string;
@@ -36,8 +57,6 @@ interface PostWrapperProps {
 // Shared wrapper component for event styling
 function PostWrapper({
   post,
-  isFirstDay = true,
-  isLastDay = true,
   isDragging,
   onClick,
   className,
@@ -49,21 +68,15 @@ function PostWrapper({
   onTouchStart,
 }: PostWrapperProps) {
   // Always use the currentTime (if provided) to determine if the event is in the past
-  const displayEnd = currentTime
-    ? new Date(
-        new Date(currentTime).getTime() +
-          (new Date(post.end).getTime() - new Date(post.start).getTime())
-      )
-    : new Date(post.end);
+  const displayEnd = currentTime ? currentTime : new Date(post.scheduledAt);
 
   const isEventInPast = isPast(displayEnd);
 
   return (
     <button
       className={cn(
-        "focus-visible:border-ring focus-visible:ring-ring/50 flex h-full w-full overflow-hidden px-1 text-left font-medium backdrop-blur-md transition outline-none select-none focus-visible:ring-[3px] data-dragging:cursor-grabbing data-dragging:shadow-lg data-past-event:line-through sm:px-2",
-        getPostColorClasses(post.color),
-        getBorderRadiusClasses(isFirstDay, isLastDay),
+        "focus-visible:border-ring focus-visible:ring-ring/50 flex h-full w-full overflow-hidden px-1 text-left font-medium backdrop-blur-md transition outline-none select-none focus-visible:ring-[3px] data-dragging:cursor-grabbing data-dragging:shadow-lg data-past-event:line-through sm:px-2 rounded",
+        getPostColorClasses("blue"),
         className
       )}
       data-dragging={isDragging || undefined}
@@ -86,8 +99,6 @@ interface PostItemProps {
   onClick?: (e: React.MouseEvent) => void;
   showTime?: boolean;
   currentTime?: Date; // For updating time during drag
-  isFirstDay?: boolean;
-  isLastDay?: boolean;
   children?: React.ReactNode;
   className?: string;
   dndListeners?: SyntheticListenerMap;
@@ -103,8 +114,6 @@ export function PostItem({
   onClick,
   showTime,
   currentTime,
-  isFirstDay = true,
-  isLastDay = true,
   children,
   className,
   dndListeners,
@@ -112,21 +121,24 @@ export function PostItem({
   onMouseDown,
   onTouchStart,
 }: PostItemProps) {
-  const postColor = post.color;
-
   // Use the provided currentTime (for dragging) or the event's actual time
   const displayStart = useMemo(() => {
-    return currentTime || new Date(post.start);
-  }, [currentTime, post.start]);
+    if (!post || !post.scheduledAt) return new Date();
+    return currentTime || new Date(post.scheduledAt);
+  }, [currentTime, post?.scheduledAt]);
 
   const displayEnd = useMemo(() => {
-    return currentTime
-      ? new Date(
-          new Date(currentTime).getTime() +
-            (new Date(post.end).getTime() - new Date(post.start).getTime())
-        )
-      : new Date(post.end);
-  }, [currentTime, post.start, post.end]);
+    if (!post || !post.scheduledAt) return new Date();
+
+    if (currentTime) {
+      // If dragging, maintain the duration from the original post
+      const originalStart = new Date(post.scheduledAt);
+      const originalEnd = addMinutes(originalStart, DEFAULT_POST_DURATION);
+      const durationMinutes = differenceInMinutes(originalEnd, originalStart);
+      return addMinutes(currentTime, durationMinutes);
+    }
+    return addMinutes(new Date(post.scheduledAt), DEFAULT_POST_DURATION);
+  }, [currentTime, post?.scheduledAt]);
 
   // Calculate event duration in minutes
   const durationMinutes = useMemo(() => {
@@ -134,14 +146,9 @@ export function PostItem({
   }, [displayStart, displayEnd]);
 
   const getEventTime = () => {
-    if (post.allDay) return "All day";
-
-    // For short events (less than 45 minutes), only show start time
-    if (durationMinutes < 45) {
+    if (view !== "agenda") {
       return formatTimeWithOptionalMinutes(displayStart);
     }
-
-    // For longer events, show both start and end time
     return `${formatTimeWithOptionalMinutes(displayStart)} - ${formatTimeWithOptionalMinutes(displayEnd)}`;
   };
 
@@ -149,8 +156,6 @@ export function PostItem({
     return (
       <PostWrapper
         post={post}
-        isFirstDay={isFirstDay}
-        isLastDay={isLastDay}
         isDragging={isDragging}
         onClick={onClick}
         className={cn(
@@ -164,14 +169,32 @@ export function PostItem({
         onTouchStart={onTouchStart}
       >
         {children || (
-          <span className="truncate">
-            {!post.allDay && (
+          <div className="flex items-center justify-between w-full">
+            <div className="truncate">
               <span className="truncate sm:text-xs font-normal opacity-70 uppercase">
                 {formatTimeWithOptionalMinutes(displayStart)}{" "}
               </span>
-            )}
-            {post.title}
-          </span>
+              {post.content}
+            </div>
+            {post.socialAccounts.map((account) => {
+              switch (account.platform) {
+                case "INSTAGRAM":
+                  return (
+                    <div key={account.id} className="ml-1 flex-shrink-0">
+                      <InstagramIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                    </div>
+                  );
+                case "FACEBOOK":
+                  return (
+                    <div key={account.id} className="ml-1 flex-shrink-0">
+                      <FacebookIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                    </div>
+                  );
+                default:
+                  return null;
+              }
+            })}
+          </div>
         )}
       </PostWrapper>
     );
@@ -181,8 +204,6 @@ export function PostItem({
     return (
       <PostWrapper
         post={post}
-        isFirstDay={isFirstDay}
-        isLastDay={isLastDay}
         isDragging={isDragging}
         onClick={onClick}
         className={cn(
@@ -198,17 +219,61 @@ export function PostItem({
         onTouchStart={onTouchStart}
       >
         {durationMinutes < 45 ? (
-          <div className="truncate">
-            {post.title}{" "}
-            {showTime && (
-              <span className="opacity-70">
-                {formatTimeWithOptionalMinutes(displayStart)}
-              </span>
-            )}
+          <div className="truncate flex items-center justify-between w-full">
+            <div className="truncate">
+              {post.content}{" "}
+              {showTime && (
+                <span className="opacity-70">
+                  {formatTimeWithOptionalMinutes(displayStart)}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center ml-1">
+              {post.socialAccounts.map((account) => {
+                switch (account.platform) {
+                  case "INSTAGRAM":
+                    return (
+                      <div key={account.id} className="ml-1 flex-shrink-0">
+                        <InstagramIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                      </div>
+                    );
+                  case "FACEBOOK":
+                    return (
+                      <div key={account.id} className="ml-1 flex-shrink-0">
+                        <FacebookIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                      </div>
+                    );
+                  default:
+                    return null;
+                }
+              })}
+            </div>
           </div>
         ) : (
           <>
-            <div className="truncate font-medium">{post.title}</div>
+            <div className="flex items-center justify-between w-full">
+              <div className="truncate font-medium">{post.content}</div>
+              <div className="flex items-center ml-1">
+                {post.socialAccounts.map((account) => {
+                  switch (account.platform) {
+                    case "INSTAGRAM":
+                      return (
+                        <div key={account.id} className="ml-1 flex-shrink-0">
+                          <InstagramIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                        </div>
+                      );
+                    case "FACEBOOK":
+                      return (
+                        <div key={account.id} className="ml-1 flex-shrink-0">
+                          <FacebookIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                        </div>
+                      );
+                    default:
+                      return null;
+                  }
+                })}
+              </div>
+            </div>
             {showTime && (
               <div className="truncate font-normal opacity-70 sm:text-xs uppercase">
                 {getEventTime()}
@@ -225,36 +290,42 @@ export function PostItem({
     <button
       className={cn(
         "focus-visible:border-ring focus-visible:ring-ring/50 flex w-full flex-col gap-1 rounded p-2 text-left transition outline-none focus-visible:ring-[3px] data-past-event:line-through data-past-event:opacity-90",
-        getPostColorClasses(postColor),
+        getPostColorClasses("blue"),
         className
       )}
-      data-past-event={isPast(new Date(post.end)) || undefined}
+      data-past-event={isPast(new Date(post.scheduledAt)) || undefined}
       onClick={onClick}
       onMouseDown={onMouseDown}
       onTouchStart={onTouchStart}
       {...dndListeners}
       {...dndAttributes}
     >
-      <div className="text-sm font-medium">{post.title}</div>
-      <div className="text-xs opacity-70">
-        {post.allDay ? (
-          <span>All day</span>
-        ) : (
-          <span className="uppercase">
-            {formatTimeWithOptionalMinutes(displayStart)} -{" "}
-            {formatTimeWithOptionalMinutes(displayEnd)}
-          </span>
-        )}
-        {post.location && (
-          <>
-            <span className="px-1 opacity-35"> · </span>
-            <span>{post.location}</span>
-          </>
-        )}
+      <div className="flex items-center justify-between w-full">
+        <div className="text-sm font-medium truncate">{post.content}</div>
+        <div className="flex items-center ml-1">
+          {post.socialAccounts.map((account) => {
+            switch (account.platform) {
+              case "INSTAGRAM":
+                return (
+                  <div key={account.id} className="ml-1 flex-shrink-0">
+                    <InstagramIcon className="w-4 h-4" />
+                  </div>
+                );
+              case "FACEBOOK":
+                return (
+                  <div key={account.id} className="ml-1 flex-shrink-0">
+                    <FacebookIcon className="w-4 h-4" />
+                  </div>
+                );
+              default:
+                return null;
+            }
+          })}
+        </div>
       </div>
-      {post.description && (
-        <div className="my-1 text-xs opacity-90">{post.description}</div>
-      )}
+      <div className="text-xs opacity-70">
+        <span className="uppercase">{getEventTime()}</span>
+      </div>
     </button>
   );
 }

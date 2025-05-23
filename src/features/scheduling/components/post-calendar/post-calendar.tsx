@@ -164,23 +164,22 @@ export function PostCalendar({
       startTime.setMilliseconds(0);
     }
 
-    const newPost: CalendarPost = {
-      id: "",
-      title: "",
-      start: startTime,
-      end: addHoursToDate(startTime, 1),
-      allDay: false,
-    };
-    setSelectedPost(newPost);
-    setIsPostDialogOpen(true);
+    // const newPost: CalendarPost = {
+    //   id: "",
+    //   start: startTime,
+    //   end: addHoursToDate(startTime, 1),
+    //   allDay: false,
+    // };
+    // setSelectedPost(newPost);
+    // setIsPostDialogOpen(true);
   };
 
   const handlePostSave = (post: CalendarPost) => {
     if (post.id) {
       onPostUpdate?.(post);
       // Show toast notification when an event is updated
-      toast(`Event "${post.title}" updated`, {
-        description: format(new Date(post.start), "MMM d, yyyy"),
+      toast(`Event "${post.content}" updated`, {
+        description: format(new Date(post.scheduledAt), "MMM d, yyyy"),
         position: "bottom-left",
       });
     } else {
@@ -189,8 +188,8 @@ export function PostCalendar({
         id: Math.random().toString(36).substring(2, 11),
       });
       // Show toast notification when an event is added
-      toast(`Event "${post.title}" added`, {
-        description: format(new Date(post.start), "MMM d, yyyy"),
+      toast(`Event "${post.content}" added`, {
+        description: format(new Date(post.scheduledAt), "MMM d, yyyy"),
         position: "bottom-left",
       });
     }
@@ -206,8 +205,8 @@ export function PostCalendar({
 
     // Show toast notification when an event is deleted
     if (deletedPost) {
-      toast(`Event "${deletedPost.title}" deleted`, {
-        description: format(new Date(deletedPost.start), "MMM d, yyyy"),
+      toast(`Event "${deletedPost.content}" deleted`, {
+        description: format(new Date(deletedPost.scheduledAt), "MMM d, yyyy"),
         position: "bottom-left",
       });
     }
@@ -217,8 +216,8 @@ export function PostCalendar({
     onPostUpdate?.(updatedPost);
 
     // Show toast notification when an event is updated via drag and drop
-    toast(`Event "${updatedPost.title}" moved`, {
-      description: format(new Date(updatedPost.start), "MMM d, yyyy"),
+    toast(`Event "${updatedPost.content}" moved`, {
+      description: format(new Date(updatedPost.scheduledAt), "MMM d, yyyy"),
       position: "bottom-left",
     });
   };

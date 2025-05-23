@@ -23,12 +23,7 @@ import {
 import { DefaultStartHour, EventGap, EventHeight } from "./constants";
 import { CalendarPost } from "./types";
 import { useEventVisibility } from "@/features/scheduling/components/post-calendar/hooks/use-event-visibility";
-import {
-  getAllPostsForDay,
-  getPostsForDay,
-  getSpanningPostsForDay,
-  sortPosts,
-} from "./utils";
+import { getAllPostsForDay, getPostsForDay } from "./utils";
 import { DroppableCell } from "./droppable-cell";
 import { PostItem } from "./post-item";
 import { DraggablePost } from "./draggable-post";
@@ -114,20 +109,18 @@ export function MonthView({
               if (!day) return null; // Skip if day is undefined
 
               const dayPosts = getPostsForDay(posts, day);
-              const spanningPosts = getSpanningPostsForDay(posts, day);
               const isCurrentMonth = isSameMonth(day, currentDate);
               const cellId = `month-cell-${day.toISOString()}`;
-              const allDayPosts = [...spanningPosts, ...dayPosts];
               const allPosts = getAllPostsForDay(posts, day);
 
               const isReferenceCell = weekIndex === 0 && dayIndex === 0;
               const visibleCount = isMounted
-                ? getVisibleEventCount(allDayPosts.length)
+                ? getVisibleEventCount(dayPosts.length)
                 : undefined;
               const hasMore =
-                visibleCount !== undefined && allDayPosts.length > visibleCount;
+                visibleCount !== undefined && dayPosts.length > visibleCount;
               const remainingCount = hasMore
-                ? allDayPosts.length - visibleCount
+                ? dayPosts.length - visibleCount
                 : 0;
 
               return (
@@ -153,46 +146,11 @@ export function MonthView({
                       ref={isReferenceCell ? contentRef : null}
                       className="min-h-[calc((var(--event-height)+var(--event-gap))*2)] sm:min-h-[calc((var(--event-height)+var(--event-gap))*3)] lg:min-h-[calc((var(--event-height)+var(--event-gap))*4)]"
                     >
-                      {sortPosts(allDayPosts).map((post, index) => {
-                        const postStart = new Date(post.start);
-                        const postEnd = new Date(post.end);
-                        const isFirstDay = isSameDay(day, postStart);
-                        const isLastDay = isSameDay(day, postEnd);
-
+                      {dayPosts.map((post, index) => {
                         const isHidden =
                           isMounted && visibleCount && index >= visibleCount;
 
                         if (!visibleCount) return null;
-
-                        if (!isFirstDay) {
-                          return (
-                            <div
-                              key={`spanning-${post.id}-${day.toISOString().slice(0, 10)}`}
-                              className="aria-hidden:hidden"
-                              aria-hidden={isHidden ? "true" : undefined}
-                            >
-                              <PostItem
-                                onClick={(e) => handlePostClick(post, e)}
-                                post={post}
-                                view="month"
-                                isFirstDay={isFirstDay}
-                                isLastDay={isLastDay}
-                              >
-                                <div className="invisible" aria-hidden={true}>
-                                  {!post.allDay && (
-                                    <span>
-                                      {format(
-                                        new Date(post.start),
-                                        "h:mm"
-                                      )}{" "}
-                                    </span>
-                                  )}
-                                  {post.title}
-                                </div>
-                              </PostItem>
-                            </div>
-                          );
-                        }
 
                         return (
                           <div
@@ -204,8 +162,6 @@ export function MonthView({
                               post={post}
                               view="month"
                               onClick={(e) => handlePostClick(post, e)}
-                              isFirstDay={isFirstDay}
-                              isLastDay={isLastDay}
                             />
                           </div>
                         );
@@ -238,23 +194,14 @@ export function MonthView({
                                 {format(day, "EEE d")}
                               </div>
                               <div className="space-y-1">
-                                {sortPosts(allPosts).map((post) => {
-                                  const postStart = new Date(post.start);
-                                  const postEnd = new Date(post.end);
-                                  const isFirstDay = isSameDay(day, postStart);
-                                  const isLastDay = isSameDay(day, postEnd);
-
-                                  return (
-                                    <PostItem
-                                      key={post.id}
-                                      onClick={(e) => handlePostClick(post, e)}
-                                      post={post}
-                                      view="month"
-                                      isFirstDay={isFirstDay}
-                                      isLastDay={isLastDay}
-                                    />
-                                  );
-                                })}
+                                {allPosts.map((post) => (
+                                  <PostItem
+                                    key={post.id}
+                                    onClick={(e) => handlePostClick(post, e)}
+                                    post={post}
+                                    view="month"
+                                  />
+                                ))}
                               </div>
                             </div>
                           </PopoverContent>

@@ -42,15 +42,6 @@ export function getBorderRadiusClasses(
 }
 
 /**
- * Check if an event is a multi-day event
- */
-export function isMultiDayPost(post: CalendarPost): boolean {
-  const postStart = new Date(post.start);
-  const postEnd = new Date(post.end);
-  return post.allDay || postStart.getDate() !== postEnd.getDate();
-}
-
-/**
  * Filter events for a specific day
  */
 export function getPostsForDay(
@@ -59,63 +50,25 @@ export function getPostsForDay(
 ): CalendarPost[] {
   return posts
     .filter((post) => {
-      const postStart = new Date(post.start);
+      const postStart = new Date(post.scheduledAt);
       return isSameDay(day, postStart);
     })
-    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-}
-
-/**
- * Sort events with multi-day events first, then by start time
- */
-export function sortPosts(posts: CalendarPost[]): CalendarPost[] {
-  return [...posts].sort((a, b) => {
-    const aIsMultiDay = isMultiDayPost(a);
-    const bIsMultiDay = isMultiDayPost(b);
-
-    if (aIsMultiDay && !bIsMultiDay) return -1;
-    if (!aIsMultiDay && bIsMultiDay) return 1;
-
-    return new Date(a.start).getTime() - new Date(b.start).getTime();
-  });
-}
-
-/**
- * Get multi-day events that span across a specific day (but don't start on that day)
- */
-export function getSpanningPostsForDay(
-  posts: CalendarPost[],
-  day: Date
-): CalendarPost[] {
-  return posts.filter((post) => {
-    if (!isMultiDayPost(post)) return false;
-
-    const postStart = new Date(post.start);
-    const postEnd = new Date(post.end);
-
-    // Only include if it's not the start day but is either the end day or a middle day
-    return (
-      !isSameDay(day, postStart) &&
-      (isSameDay(day, postEnd) || (day > postStart && day < postEnd))
+    .sort(
+      (a, b) =>
+        new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
     );
-  });
 }
 
 /**
- * Get all events visible on a specific day (starting, ending, or spanning)
+ * Get all events visible on a specific day
  */
 export function getAllPostsForDay(
   posts: CalendarPost[],
   day: Date
 ): CalendarPost[] {
   return posts.filter((post) => {
-    const postStart = new Date(post.start);
-    const postEnd = new Date(post.end);
-    return (
-      isSameDay(day, postStart) ||
-      isSameDay(day, postEnd) ||
-      (day > postStart && day < postEnd)
-    );
+    const postStart = new Date(post.scheduledAt);
+    return isSameDay(day, postStart);
   });
 }
 
@@ -128,15 +81,13 @@ export function getAgendaPostsForDay(
 ): CalendarPost[] {
   return posts
     .filter((post) => {
-      const postStart = new Date(post.start);
-      const postEnd = new Date(post.end);
-      return (
-        isSameDay(day, postStart) ||
-        isSameDay(day, postEnd) ||
-        (day > postStart && day < postEnd)
-      );
+      const postStart = new Date(post.scheduledAt);
+      return isSameDay(day, postStart);
     })
-    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    .sort(
+      (a, b) =>
+        new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+    );
 }
 
 /**

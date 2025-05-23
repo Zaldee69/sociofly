@@ -19,6 +19,7 @@ const createPostSchema = z.object({
   platform: z.string(),
   teamId: z.string(),
   socialAccountIds: z.array(z.string()),
+  postStatus: z.nativeEnum(PostStatus).optional(),
 });
 
 // Validasi untuk update post
@@ -36,12 +37,11 @@ const updatePostSchema = z.object({
 
 // Validasi untuk filter post
 const getPostsSchema = z.object({
-  organizationId: z.string(),
-  page: z.number().min(1).default(1),
-  limit: z.number().min(1).max(100).default(10),
+  teamId: z.string(),
   status: z.nativeEnum(PostStatus).optional(),
   platform: z.nativeEnum(SocialPlatform).optional(),
   fromDate: z.coerce.date().optional(),
+  postStatus: z.nativeEnum(PostStatus).optional(),
   toDate: z.coerce.date().optional(),
 });
 
@@ -50,19 +50,10 @@ export const postRouter = createTRPCRouter({
   getAll: protectedProcedure
     .input(getPostsSchema)
     .query(async ({ ctx, input }) => {
-      const {
-        organizationId,
-        page,
-        limit,
-        status,
-        platform,
-        fromDate,
-        toDate,
-      } = input;
-      const skip = (page - 1) * limit;
+      const { teamId, status, platform, fromDate, toDate } = input;
 
       // Bangun filter berdasarkan input
-      const where: any = { organizationId };
+      const where: any = { teamId };
 
       if (status) {
         where.status = status;
@@ -88,8 +79,6 @@ export const postRouter = createTRPCRouter({
       const [posts, totalCount] = await Promise.all([
         ctx.prisma.post.findMany({
           where,
-          skip,
-          take: limit,
           orderBy: { scheduledAt: "asc" },
           include: {
             socialAccounts: {
@@ -113,9 +102,6 @@ export const postRouter = createTRPCRouter({
         posts,
         pagination: {
           total: totalCount,
-          pages: Math.ceil(totalCount / limit),
-          page,
-          limit,
         },
       };
     }),
@@ -165,6 +151,7 @@ export const postRouter = createTRPCRouter({
         platform,
         teamId,
         socialAccountIds,
+        postStatus,
       } = input;
 
       // Periksa apakah pengguna memiliki akses ke organisasi
@@ -208,7 +195,7 @@ export const postRouter = createTRPCRouter({
             mediaUrls,
             scheduledAt,
             platform,
-            status: PostStatus.SCHEDULED,
+            status: postStatus,
             userId: ctx.auth.userId,
             teamId,
           },
@@ -221,7 +208,7 @@ export const postRouter = createTRPCRouter({
               data: {
                 postId: post.id,
                 socialAccountId,
-                status: PostStatus.SCHEDULED,
+                status: postStatus,
               },
             })
           )
@@ -229,6 +216,19 @@ export const postRouter = createTRPCRouter({
 
         return post;
       });
+    }),
+
+  createPostWithApproval: protectedProcedure
+    .input(createPostSchema)
+    .mutation(async ({ ctx, input }) => {
+      const {
+        content,
+        mediaUrls,
+        scheduledAt,
+        platform,
+        teamId,
+        socialAccountIds,
+      } = input;
     }),
 
   // Update post yang sudah ada
@@ -406,17 +406,17 @@ export const postRouter = createTRPCRouter({
   getFailed: protectedProcedure
     .input(
       z.object({
-        organizationId: z.string(),
+        teamId: z.string(),
         page: z.number().min(1).default(1),
         limit: z.number().min(1).max(100).default(10),
       })
     )
     .query(async ({ ctx, input }) => {
-      const { organizationId, page, limit } = input;
+      const { teamId, page, limit } = input;
       const skip = (page - 1) * limit;
 
       const where = {
-        organizationId,
+        teamId,
         status: PostStatus.FAILED,
       };
 

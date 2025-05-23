@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { endOfWeek, isSameDay, isWithinInterval, startOfWeek } from "date-fns";
-import { StartHour, EndHour } from "../constants";
+import { StartHour, EndHour } from "../post-calendar/constants";
 
 export function useCurrentTimeIndicator(
   currentDate: Date,
@@ -17,8 +17,8 @@ export function useCurrentTimeIndicator(
       const hours = now.getHours();
       const minutes = now.getMinutes();
       const totalMinutes = (hours - StartHour) * 60 + minutes;
-      const dayStartMinutes = 0; // 12am
-      const dayEndMinutes = (EndHour - StartHour) * 60; // 12am next day
+      const dayStartMinutes = 0; // Starts at midnight (00:00)
+      const dayEndMinutes = (EndHour - StartHour) * 60; // Ends at midnight next day (24:00)
 
       // Calculate position as percentage of day
       const position =
@@ -39,7 +39,9 @@ export function useCurrentTimeIndicator(
         });
       }
 
-      setCurrentTimePosition(position);
+      // Ensure position is within bounds (0-100%)
+      const clampedPosition = Math.max(0, Math.min(100, position));
+      setCurrentTimePosition(clampedPosition);
       setCurrentTimeVisible(isCurrentTimeVisible);
     };
 
