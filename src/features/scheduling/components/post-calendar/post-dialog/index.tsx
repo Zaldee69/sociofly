@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect, memo, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Instagram, Twitter, Facebook, ChevronDown, Check } from "lucide-react";
@@ -27,7 +27,6 @@ import { useTeamContext } from "@/lib/contexts/team-context";
 import { trpc } from "@/lib/trpc/client";
 import { useUploadThing } from "@/lib/utils/uploadthing";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { MultiSelect } from "@/components/multi-select";
 import { DateTimePicker24hForm } from "@/components/ui/date-time-picker";
 import { FacebookIcon } from "@/components/icons/social-media-icons";
 import { InstagramIcon } from "@/components/icons/social-media-icons";
@@ -88,6 +87,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { PostAction, PostFormValues, postSchema, MediaItem } from "./schema";
+import {
+  SocialAccountSelect,
+  SocialAccountOption,
+} from "../../../../../components/social-account-select";
+import { Badge } from "@/components/ui/badge";
 
 interface FileWithStablePreview extends File {
   preview: string;
@@ -181,6 +185,15 @@ const SortableImage = memo(
         </button>
       </div>
     );
+  },
+  (prevProps, nextProps) => {
+    // Return true jika props sama (tidak perlu re-render)
+    // Return false jika props berbeda (perlu re-render)
+    return (
+      prevProps.file.stableId === nextProps.file.stableId &&
+      prevProps.file.preview === nextProps.file.preview &&
+      prevProps.index === nextProps.index
+    );
   }
 );
 
@@ -203,10 +216,28 @@ export function AddPostDialog({
   );
   const [isUploading, setIsUploading] = useState(false);
 
+  // Perbarui initialState untuk menggunakan ID langsung dari struktur data baru
+  const [localSelectedAccounts, setLocalSelectedAccounts] = useState<string[]>(
+    post?.postSocialAccounts.map((acc) => acc.id)!
+  );
+
+  // Set default account preview jika post memiliki social accounts
   const [accountPostPreview, setAccountPostPreview] = useState<
     SocialAccount | undefined
   >(undefined);
+
   const [reviewer, setReviewer] = useState<string>("");
+
+  // Get social accounts data
+  const { data: socialAccounts } = trpc.onboarding.getSocialAccounts.useQuery(
+    {
+      teamId: currentTeamId!,
+    },
+    {
+      enabled: !!currentTeamId,
+      refetchOnWindowFocus: false,
+    }
+  );
 
   // Setup UploadThing hook
   const { startUpload } = useUploadThing("mediaUploader", {
@@ -221,16 +252,30 @@ export function AddPostDialog({
     },
   });
 
-  // @ts-ignore
+  console.log("postes", post);
+
+  // Perbarui struktur form default values
   const form = useForm({
     resolver: zodResolver(postSchema),
     defaultValues: {
-      content: "",
+      content: post?.content || "",
       mediaUrls: [],
-      scheduledAt: startDate || new Date(),
-      status: "DRAFT" as PostStatus,
-      postAction: PostAction.PUBLISH_NOW,
-      socialAccounts: [],
+      scheduledAt: post?.scheduledAt
+        ? new Date(post.scheduledAt)
+        : startDate || new Date(),
+      status: post?.status || ("DRAFT" as PostStatus),
+      postAction: post
+        ? post.status === "SCHEDULED"
+          ? PostAction.SCHEDULE
+          : post.status === "DRAFT"
+            ? PostAction.SAVE_AS_DRAFT
+            : PostAction.PUBLISH_NOW
+        : PostAction.PUBLISH_NOW,
+      socialAccounts: post?.postSocialAccounts
+        ? post.postSocialAccounts
+            .map((acc) => acc.socialAccount?.id)
+            .filter(Boolean)
+        : [],
       needsApproval: false,
       approvalWorkflowId: undefined,
     },
@@ -241,18 +286,59 @@ export function AddPostDialog({
   const postAction = form.watch("postAction");
   const mediaUrls = form.watch("mediaUrls");
 
-  const { data: socialAccounts } = trpc.onboarding.getSocialAccounts.useQuery(
-    {
-      teamId: currentTeamId!,
-    },
-    {
-      enabled: !!currentTeamId,
-      refetchOnWindowFocus: false,
+  // Perbarui useEffect untuk mengupdate localSelectedAccounts
+  useEffect(() => {
+    if (post?.postSocialAccounts) {
+      const updateAccount = post.postSocialAccounts.map((acc) => acc)!;
+      const updateAccountIds = post.postSocialAccounts.map((acc) => acc.id);
+
+      setLocalSelectedAccounts(updateAccountIds);
+
+      setAccountPostPreview(updateAccount[0] as unknown as SocialAccount);
+
+      // Also update the form value directly
+      form.setValue("socialAccounts", updateAccountIds, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      form.setValue("content", post.content);
+      if (post.mediaUrls && post.mediaUrls.length > 0) {
+        const mediaItems = post.mediaUrls.map((url) => ({
+          name: url.split("/").pop() || "file",
+          preview: url,
+          size: 0,
+          type: url.match(/\.(jpg|jpeg|png|gif)$/i)
+            ? `image/${url.match(/\.([^.]+)$/)?.[1] || "jpeg"}`
+            : "image/jpeg",
+          fileId: crypto.randomUUID(),
+          uploadedUrl: url,
+        }));
+        form.setValue("mediaUrls", mediaItems, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        form.setValue("scheduledAt", post.scheduledAt, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        form.setValue("status", post.status, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        // Map PostStatus to PostAction
+        if (post.status === "SCHEDULED") {
+          form.setValue("postAction", PostAction.SCHEDULE);
+        } else if (post.status === "PUBLISHED") {
+          form.setValue("postAction", PostAction.PUBLISH_NOW);
+        } else {
+          form.setValue("postAction", PostAction.SAVE_AS_DRAFT);
+        }
+      }
     }
-  );
+  }, [post?.postSocialAccounts, form]);
 
   const groupedAccounts = socialAccounts?.reduce(
-    (acc: Record<string, typeof socialAccounts>, account: SocialAccount) => {
+    (acc: Record<string, typeof socialAccounts>, account) => {
       const platform = account.platform;
       if (!acc[platform]) {
         acc[platform] = [];
@@ -263,19 +349,22 @@ export function AddPostDialog({
     {} as Record<string, typeof socialAccounts>
   );
 
-  const accounts = Object.entries(groupedAccounts || {}).map(
-    ([platform, accounts]) => {
+  const accounts = useMemo(() => {
+    if (!socialAccounts) return [];
+
+    return Object.entries(groupedAccounts || {}).map(([platform, accounts]) => {
       const IconComponent =
-        platform === "instagram"
+        platform === "INSTAGRAM"
           ? Instagram
-          : platform === "twitter"
+          : platform === "TWITTER"
             ? Twitter
-            : platform === "facebook"
+            : platform === "FACEBOOK"
               ? Facebook
               : undefined;
 
       return {
-        label: platform.charAt(0) + platform.slice(1).toLocaleLowerCase(),
+        label:
+          platform.charAt(0).toUpperCase() + platform.slice(1).toLowerCase(),
         value: platform,
         icon: IconComponent,
         group: true,
@@ -286,15 +375,17 @@ export function AddPostDialog({
             id: string;
             profilePicture: string;
           }>
-        ).map((account) => ({
-          label: account.name,
-          value: `${account.platform}_${account.id}`,
-          icon: IconComponent,
-          profile_picture_url: account.profilePicture,
-        })),
+        ).map((account) => {
+          return {
+            label: account.name,
+            value: account.id,
+            icon: IconComponent,
+            profile_picture_url: account.profilePicture,
+          };
+        }),
       };
-    }
-  );
+    });
+  }, [socialAccounts, groupedAccounts]);
 
   const { data: mediaData } = trpc.media.getAll.useQuery(
     {
@@ -531,17 +622,17 @@ export function AddPostDialog({
         }
       } else {
         // Create a CalendarPost from the form values
-        const calendarPost: CalendarPost = {
-          id: post?.id || `temp-${Date.now()}`, // Use existing ID or temp ID
-          title:
-            values.content.substring(0, 30) +
-            (values.content.length > 30 ? "..." : ""),
-          description: values.content,
-          start: values.scheduledAt,
-          end: values.scheduledAt,
-        };
+        // const calendarPost: CalendarPost = {
+        //   id: post?.id || `temp-${Date.now()}`, // Use existing ID or temp ID
+        //   title:
+        //     values.content.substring(0, 30) +
+        //     (values.content.length > 30 ? "..." : ""),
+        //   description: values.content,
+        //   start: values.scheduledAt,
+        //   end: values.scheduledAt,
+        // };
 
-        onSave?.(calendarPost);
+        // onSave?.(calendarPost);
         form.reset();
         onClose();
       }
@@ -591,40 +682,45 @@ export function AddPostDialog({
             <h1 className="text-2xl font-bold mb-4">
               {post?.id ? "Edit Post" : "Buat Post"}
             </h1>
-            <MultiSelect
-              className="w-fit"
+            <SocialAccountSelect
               placeholder="Pilih Akun"
-              variant="secondary"
-              animation={2}
-              maxCount={5}
               options={accounts}
-              value={selectedAccounts}
-              onValueChange={(values) => {
+              defaultValue={localSelectedAccounts}
+              onChange={(values: string[]) => {
+                console.log("SocialAccountSelect values changed:", values);
+
+                // Update state lokal
+                setLocalSelectedAccounts(values);
+
                 // Update form value
                 form.setValue("socialAccounts", values, {
                   shouldDirty: true,
                   shouldValidate: true,
                 });
 
+                console.log("Form values after onChange:", form.getValues());
+
                 // Set preview account if it's the first selection or current preview is no longer selected
                 if (
                   values.length === 1 ||
-                  !values.includes(
-                    `${accountPostPreview?.platform}_${accountPostPreview?.id}`
-                  )
+                  (accountPostPreview &&
+                    !values.includes(accountPostPreview.id))
                 ) {
-                  const [platform, id] = values[0]?.split("_") || [];
-                  const account = socialAccounts?.find(
-                    (acc: SocialAccount) =>
-                      acc.platform === platform && acc.id === id
-                  );
-                  if (account) {
-                    const a = account;
-                    setAccountPostPreview(account);
+                  if (values[0]) {
+                    const accountId = values[0];
+                    console.log(`Setting preview for account ID: ${accountId}`);
+
+                    const account = socialAccounts?.find(
+                      (acc: SocialAccount) => acc.id === accountId
+                    );
+
+                    if (account) {
+                      console.log("Setting account preview:", account);
+                      setAccountPostPreview(account);
+                    }
                   }
                 }
               }}
-              grouped
             />
 
             <MediaUploader
@@ -815,14 +911,25 @@ export function AddPostDialog({
 
           <div className="w-5/12 bg-[#f7fafc] rounded-r-lg relative hidden xl:block h-full overflow-hidden">
             <div className="w-full p-4 sticky top-0 z-10 bg-[#f7fafc]">
-              {selectedAccounts.map((accountValue) => {
-                const [platform, id] = accountValue.split("_");
+              {(selectedAccounts || []).map((accountId) => {
+                console.log(`Looking for account with ID: ${accountId}`);
+
+                if (!accountId) return null;
+
+                // Cari account dengan ID
                 const account = socialAccounts?.find(
-                  (acc: SocialAccount) =>
-                    acc.platform === platform && acc.id === id
+                  (acc: SocialAccount) => acc.id === accountId
                 );
 
-                if (!account) return null;
+                if (!account) {
+                  console.warn(`Account not found for ID: ${accountId}`);
+                  return null;
+                }
+
+                console.log("Found matching account:", account);
+
+                // Tentukan icon berdasarkan platform
+                const platform = account.platform.toUpperCase();
 
                 return (
                   <TooltipProvider key={account.id}>
@@ -842,11 +949,11 @@ export function AddPostDialog({
                           ),
                         })}
                       >
-                        {account.platform === "FACEBOOK" ? (
+                        {platform === "FACEBOOK" ? (
                           <FacebookIcon className="fill-white" />
-                        ) : account.platform === "INSTAGRAM" ? (
+                        ) : platform === "INSTAGRAM" ? (
                           <InstagramIcon className="w-5 h-5 text-white" />
-                        ) : account.platform === "TWITTER" ? (
+                        ) : platform === "TWITTER" ? (
                           <Twitter />
                         ) : null}
                       </TooltipTrigger>

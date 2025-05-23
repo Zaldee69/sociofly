@@ -19,6 +19,7 @@ import {
   ChevronRightIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PostStatus } from "@prisma/client";
 
 import { cn } from "@/lib/utils";
 
@@ -147,31 +148,7 @@ export function PostCalendar({
   };
 
   const handlePostCreate = (startTime: Date) => {
-    console.log("Creating new post at:", startTime); // Debug log
-
-    // Snap to 15-minute intervals
-    const minutes = startTime.getMinutes();
-    const remainder = minutes % 15;
-    if (remainder !== 0) {
-      if (remainder < 7.5) {
-        // Round down to nearest 15 min
-        startTime.setMinutes(minutes - remainder);
-      } else {
-        // Round up to nearest 15 min
-        startTime.setMinutes(minutes + (15 - remainder));
-      }
-      startTime.setSeconds(0);
-      startTime.setMilliseconds(0);
-    }
-
-    // const newPost: CalendarPost = {
-    //   id: "",
-    //   start: startTime,
-    //   end: addHoursToDate(startTime, 1),
-    //   allDay: false,
-    // };
-    // setSelectedPost(newPost);
-    // setIsPostDialogOpen(true);
+    setIsPostDialogOpen(true);
   };
 
   const handlePostSave = (post: CalendarPost) => {
@@ -322,7 +299,16 @@ export function PostCalendar({
                 variant="outline"
                 className="max-sm:h-8 max-sm:px-2.5!"
                 onClick={() => {
-                  setSelectedPost(null); // Ensure we're creating a new post
+                  // Create a new post with proper structure
+                  const newPost: CalendarPost = {
+                    id: `temp-${Date.now()}`,
+                    content: "",
+                    scheduledAt: new Date(),
+                    status: "DRAFT" as PostStatus,
+                    postSocialAccounts: [],
+                    mediaUrls: [],
+                  };
+                  setSelectedPost(newPost);
                   setIsPostDialogOpen(true);
                 }}
               >

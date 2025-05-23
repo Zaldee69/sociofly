@@ -81,7 +81,7 @@ export const postRouter = createTRPCRouter({
           where,
           orderBy: { scheduledAt: "asc" },
           include: {
-            socialAccounts: {
+            postSocialAccounts: {
               include: {
                 socialAccount: true,
               },
@@ -115,7 +115,7 @@ export const postRouter = createTRPCRouter({
       const post = await ctx.prisma.post.findUnique({
         where: { id },
         include: {
-          socialAccounts: {
+          postSocialAccounts: {
             include: {
               socialAccount: true,
             },
@@ -241,7 +241,7 @@ export const postRouter = createTRPCRouter({
       const post = await ctx.prisma.post.findUnique({
         where: { id },
         include: {
-          socialAccounts: true,
+          postSocialAccounts: true,
         },
       });
 
@@ -274,7 +274,7 @@ export const postRouter = createTRPCRouter({
         where: { id },
         data: updateData,
         include: {
-          socialAccounts: {
+          postSocialAccounts: {
             include: {
               socialAccount: true,
             },
@@ -346,7 +346,7 @@ export const postRouter = createTRPCRouter({
       const post = await ctx.prisma.post.findUnique({
         where: { id },
         include: {
-          socialAccounts: true,
+          postSocialAccounts: true,
         },
       });
 
@@ -381,7 +381,7 @@ export const postRouter = createTRPCRouter({
       const updatedPost = await ctx.prisma.post.findUnique({
         where: { id },
         include: {
-          socialAccounts: {
+          postSocialAccounts: {
             include: {
               socialAccount: true,
             },
@@ -427,7 +427,7 @@ export const postRouter = createTRPCRouter({
           take: limit,
           orderBy: { updatedAt: "desc" },
           include: {
-            socialAccounts: {
+            postSocialAccounts: {
               include: {
                 socialAccount: true,
               },
@@ -468,7 +468,7 @@ export const postRouter = createTRPCRouter({
           status: PostStatus.FAILED,
         },
         include: {
-          socialAccounts: {
+          postSocialAccounts: {
             include: {
               socialAccount: true,
             },
@@ -511,7 +511,7 @@ export const postRouter = createTRPCRouter({
           scheduledAt: new Date(Date.now() + 5 * 60 * 1000), // Jadwalkan 5 menit dari sekarang
         },
         include: {
-          socialAccounts: {
+          postSocialAccounts: {
             include: {
               socialAccount: true,
             },

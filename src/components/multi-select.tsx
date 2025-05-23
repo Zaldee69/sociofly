@@ -88,6 +88,9 @@ interface MultiSelectProps
   /** The default selected values when the component mounts. */
   defaultValue?: string[];
 
+  /** The controlled value for the component */
+  value?: string[];
+
   /**
    * Placeholder text to be displayed when no values are selected.
    * Optional, defaults to "Select options".
@@ -138,6 +141,7 @@ export const MultiSelect = React.forwardRef<
       onValueChange,
       variant,
       defaultValue = [],
+      value,
       placeholder = "Select options",
       animation = 0,
       maxCount = 3,
@@ -149,8 +153,19 @@ export const MultiSelect = React.forwardRef<
     },
     ref
   ) => {
+    // If value is provided, use it as a controlled component
     const [selectedValues, setSelectedValues] =
       React.useState<string[]>(defaultValue);
+
+    console.log(options);
+
+    // Effect to sync component state with external value prop
+    React.useEffect(() => {
+      if (value !== undefined) {
+        setSelectedValues(value);
+      }
+    }, [value]);
+
     const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
     const [isAnimating, setIsAnimating] = React.useState(false);
 
@@ -162,21 +177,39 @@ export const MultiSelect = React.forwardRef<
       } else if (event.key === "Backspace" && !event.currentTarget.value) {
         const newSelectedValues = [...selectedValues];
         newSelectedValues.pop();
-        setSelectedValues(newSelectedValues);
+
+        if (value === undefined) {
+          // Uncontrolled mode
+          setSelectedValues(newSelectedValues);
+        }
+        // Always trigger the callback
         onValueChange(newSelectedValues);
       }
     };
 
     const toggleOption = (option: string) => {
-      const newSelectedValues = selectedValues.includes(option)
-        ? selectedValues.filter((value) => value !== option)
-        : [...selectedValues, option];
-      setSelectedValues(newSelectedValues);
-      onValueChange(newSelectedValues);
+      if (value === undefined) {
+        // Uncontrolled mode
+        const newSelectedValues = selectedValues.includes(option)
+          ? selectedValues.filter((value) => value !== option)
+          : [...selectedValues, option];
+        setSelectedValues(newSelectedValues);
+        onValueChange(newSelectedValues);
+      } else {
+        // Controlled mode - just call the onValueChange callback
+        const newValues = selectedValues.includes(option)
+          ? selectedValues.filter((val) => val !== option)
+          : [...selectedValues, option];
+        onValueChange(newValues);
+      }
     };
 
     const handleClear = () => {
-      setSelectedValues([]);
+      if (value === undefined) {
+        // Uncontrolled mode
+        setSelectedValues([]);
+      }
+      // Always trigger the callback
       onValueChange([]);
     };
 
@@ -186,20 +219,32 @@ export const MultiSelect = React.forwardRef<
 
     const clearExtraOptions = () => {
       const newSelectedValues = selectedValues.slice(0, maxCount);
-      setSelectedValues(newSelectedValues);
+
+      if (value === undefined) {
+        // Uncontrolled mode
+        setSelectedValues(newSelectedValues);
+      }
+      // Always trigger the callback
       onValueChange(newSelectedValues);
     };
 
     const toggleAll = () => {
       if (selectedValues.length === options?.length) {
+        // Clear all
         handleClear();
       } else {
+        // Select all
         const allValues = options?.flatMap((option) =>
           option.group
             ? option.children?.map((child) => child.value) || []
             : [option.value]
         );
-        setSelectedValues(allValues);
+
+        if (value === undefined) {
+          // Uncontrolled mode
+          setSelectedValues(allValues);
+        }
+        // Always trigger the callback
         onValueChange(allValues);
       }
     };

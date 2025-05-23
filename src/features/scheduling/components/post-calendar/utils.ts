@@ -48,15 +48,24 @@ export function getPostsForDay(
   posts: CalendarPost[],
   day: Date
 ): CalendarPost[] {
-  return posts
-    .filter((post) => {
-      const postStart = new Date(post.scheduledAt);
-      return isSameDay(day, postStart);
-    })
-    .sort(
-      (a, b) =>
-        new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+  if (!posts) return [];
+
+  return posts.filter((post) => {
+    // Pastikan post memiliki scheduledAt dan valid
+    if (!post || !post.scheduledAt) return false;
+
+    // Normalisasi struktur data jika perlu
+    if (!post.postSocialAccounts) {
+      post.postSocialAccounts = [];
+    }
+
+    const postDate = new Date(post.scheduledAt);
+    return (
+      postDate.getDate() === day.getDate() &&
+      postDate.getMonth() === day.getMonth() &&
+      postDate.getFullYear() === day.getFullYear()
     );
+  });
 }
 
 /**
@@ -66,10 +75,30 @@ export function getAllPostsForDay(
   posts: CalendarPost[],
   day: Date
 ): CalendarPost[] {
-  return posts.filter((post) => {
-    const postStart = new Date(post.scheduledAt);
-    return isSameDay(day, postStart);
-  });
+  if (!posts) return [];
+
+  return posts
+    .filter((post) => {
+      // Pastikan post memiliki scheduledAt dan valid
+      if (!post || !post.scheduledAt) return false;
+
+      // Normalisasi struktur data jika perlu
+      if (!post.postSocialAccounts) {
+        post.postSocialAccounts = [];
+      }
+
+      const postDate = new Date(post.scheduledAt);
+      return (
+        postDate.getDate() === day.getDate() &&
+        postDate.getMonth() === day.getMonth() &&
+        postDate.getFullYear() === day.getFullYear()
+      );
+    })
+    .sort((a, b) => {
+      return (
+        new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+      );
+    });
 }
 
 /**

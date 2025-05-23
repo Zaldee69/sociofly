@@ -81,21 +81,21 @@ model SocialAccount {
 }
 
 model Post {
-  id                String              @id @default(cuid())
-  content           String
-  mediaUrls         String[]
-  scheduledAt       DateTime
-  platform          String
-  status            PostStatus          @default(DRAFT)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  publishedAt       DateTime?
-  userId            String
-  teamId            String
-  socialAccounts    PostSocialAccount[]
-  team              Team                @relation(fields: [teamId], references: [id])
-  user              User                @relation(fields: [userId], references: [id])
-  approvalInstances ApprovalInstance[]
+  id                 String              @id @default(cuid())
+  content            String
+  mediaUrls          String[]
+  scheduledAt        DateTime
+  platform           String
+  status             PostStatus          @default(DRAFT)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  publishedAt        DateTime?
+  userId             String
+  teamId             String
+  postSocialAccounts PostSocialAccount[]
+  team               Team                @relation(fields: [teamId], references: [id])
+  user               User                @relation(fields: [userId], references: [id])
+  approvalInstances  ApprovalInstance[]
 }
 
 model PostSocialAccount {

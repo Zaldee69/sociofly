@@ -152,6 +152,8 @@ export function PostItem({
     return `${formatTimeWithOptionalMinutes(displayStart)} - ${formatTimeWithOptionalMinutes(displayEnd)}`;
   };
 
+  console.log(post.postSocialAccounts);
+
   if (view === "month") {
     return (
       <PostWrapper
@@ -176,8 +178,9 @@ export function PostItem({
               </span>
               {post.content}
             </div>
-            {post.socialAccounts.map((account) => {
-              switch (account.platform) {
+            {(post.postSocialAccounts || []).map((account) => {
+              if (!account || !account.socialAccount) return null;
+              switch (account.socialAccount.platform) {
                 case "INSTAGRAM":
                   return (
                     <div key={account.id} className="ml-1 flex-shrink-0">
@@ -229,8 +232,9 @@ export function PostItem({
               )}
             </div>
             <div className="flex items-center ml-1">
-              {post.socialAccounts.map((account) => {
-                switch (account.platform) {
+              {(post.postSocialAccounts || []).map((account) => {
+                if (!account || !account.socialAccount) return null;
+                switch (account.socialAccount.platform) {
                   case "INSTAGRAM":
                     return (
                       <div key={account.id} className="ml-1 flex-shrink-0">
@@ -254,8 +258,9 @@ export function PostItem({
             <div className="flex items-center justify-between w-full">
               <div className="truncate font-medium">{post.content}</div>
               <div className="flex items-center ml-1">
-                {post.socialAccounts.map((account) => {
-                  switch (account.platform) {
+                {(post.postSocialAccounts || []).map((account) => {
+                  if (!account || !account.socialAccount) return null;
+                  switch (account.socialAccount.platform) {
                     case "INSTAGRAM":
                       return (
                         <div key={account.id} className="ml-1 flex-shrink-0">
@@ -303,8 +308,9 @@ export function PostItem({
       <div className="flex items-center justify-between w-full">
         <div className="text-sm font-medium truncate">{post.content}</div>
         <div className="flex items-center ml-1">
-          {post.socialAccounts.map((account) => {
-            switch (account.platform) {
+          {(post.postSocialAccounts || []).map((account) => {
+            if (!account || !account.socialAccount) return null;
+            switch (account.socialAccount.platform) {
               case "INSTAGRAM":
                 return (
                   <div key={account.id} className="ml-1 flex-shrink-0">
