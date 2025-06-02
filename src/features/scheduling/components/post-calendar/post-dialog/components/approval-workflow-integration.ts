@@ -40,10 +40,9 @@ export async function submitPostWithApproval(
   });
 
   // If approval is needed, submit for approval
-  if (post.needsApproval && post.approvalWorkflowId && createdPost.id) {
+  if (post.needsApproval && createdPost.id) {
     await standaloneClient.approvalRequest.submitForApproval.mutate({
       postId: createdPost.id,
-      workflowId: post.approvalWorkflowId,
     });
 
     // The post status would be updated by the approval request process

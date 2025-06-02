@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   Card,
   CardContent,
@@ -13,74 +13,32 @@ import {
   XCircle,
   AlertTriangle,
   LoaderCircle,
+  User,
 } from "lucide-react";
-import { ApprovalStatus } from "@prisma/client";
 import { trpc } from "@/lib/trpc/client";
 
 interface ApprovalStatusProps {
   postId: string;
 }
 
-type ApprovalData = {
-  inApproval: boolean;
-  status: string;
-  currentStep?: string;
-  approvers?: string[];
-};
-
 export function ApprovalStatusDisplay({ postId }: ApprovalStatusProps) {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [approvalData, setApprovalData] = useState<ApprovalData | null>(null);
-
-  const { data: approvalInstances, isLoading } =
-    trpc.post.getApprovalInstances.useQuery(
-      { postId },
-      {
-        enabled: !!postId,
-      }
-    );
-
-  // Process the data when it's loaded
-  useEffect(() => {
-    if (!isLoading && approvalInstances) {
-      if (approvalInstances.length === 0) {
-        setApprovalData({ inApproval: false, status: "NOT_IN_APPROVAL" });
-      } else {
-        const instance = approvalInstances[0];
-        setApprovalData({
-          inApproval: true,
-          status: instance.status,
-          currentStep: instance.currentStepOrder
-            ? `Step ${instance.currentStepOrder}`
-            : "Completed",
-          approvers: instance.assignments?.map(
-            (assignment) =>
-              assignment.user?.name || assignment.user?.email || "Unknown"
-          ),
-        });
-      }
-      setLoading(false);
+  const {
+    data: approvalInstances,
+    isLoading,
+    error,
+  } = trpc.post.getApprovalInstances.useQuery(
+    { postId },
+    {
+      enabled: !!postId,
     }
-  }, [approvalInstances, isLoading]);
+  );
 
-  // Handle error state
-  useEffect(() => {
-    if (!isLoading && !approvalInstances) {
-      setError("Failed to load approval status");
-      setLoading(false);
-    }
-  }, [approvalInstances, isLoading]);
-
-  if (loading || isLoading) {
+  if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Approval Status</CardTitle>
-          <CardDescription>Loading approval information...</CardDescription>
-        </CardHeader>
-        <CardContent className="flex justify-center py-4">
-          <LoaderCircle className="h-8 w-8 animate-spin text-muted-foreground" />
+      <Card className="border-l-4 py-2 border-l-blue-500">
+        <CardContent className="flex items-center gap-3 py-3">
+          <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" />
+          <span className="text-sm">Loading approval status...</span>
         </CardContent>
       </Card>
     );
@@ -88,111 +46,165 @@ export function ApprovalStatusDisplay({ postId }: ApprovalStatusProps) {
 
   if (error) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Approval Status</CardTitle>
-          <CardDescription>Something went wrong</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-5 w-5" />
-            <span>{error}</span>
-          </div>
+      <Card className="border-l-4 py-2 border-l-red-500">
+        <CardContent className="flex items-center gap-3 py-3">
+          <AlertTriangle className="h-5 w-5 text-red-500" />
+          <span className="text-sm text-red-600">
+            Failed to load approval status
+          </span>
         </CardContent>
       </Card>
     );
   }
 
-  if (!approvalData?.inApproval) {
+  if (!approvalInstances || approvalInstances.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Approval Status</CardTitle>
-          <CardDescription>This post does not require approval</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-500" />
-            <span>Ready to publish</span>
-          </div>
+      <Card className="border-l-4 py-2 border-l-green-500">
+        <CardContent className="flex items-center gap-3 py-3">
+          <CheckCircle className="h-5 w-5 text-green-500" />
+          <span className="text-sm">
+            No approval required - Ready to publish
+          </span>
         </CardContent>
       </Card>
     );
   }
 
-  // Render appropriate status icon based on approval status
-  const renderStatusIcon = () => {
-    switch (approvalData.status) {
+  const instance = approvalInstances[0];
+  const workflow = instance.workflow;
+  const assignments = instance.assignments || [];
+
+  // Get current step assignments
+  const getCurrentStepAssignments = () => {
+    const currentStepOrder = instance.currentStepOrder;
+    const currentStep = workflow.steps.find(
+      (step) => step.order === currentStepOrder
+    );
+    if (!currentStep) return [];
+
+    return assignments.filter(
+      (assignment) => assignment.stepId === currentStep.id
+    );
+  };
+
+  // Get rejection feedback
+  const getRejectionFeedback = () => {
+    const rejectedAssignments = assignments.filter(
+      (assignment) => assignment.status === "REJECTED" && assignment.feedback
+    );
+    return rejectedAssignments.map((assignment) => ({
+      feedback: assignment.feedback,
+      reviewer: assignment.user?.name || assignment.user?.email || "Unknown",
+    }));
+  };
+
+  // Render status based on approval status
+  const renderStatus = () => {
+    const currentStepAssignments = getCurrentStepAssignments();
+    const rejectionFeedback = getRejectionFeedback();
+
+    switch (instance.status) {
       case "APPROVED":
-        return <CheckCircle className="h-6 w-6 text-green-500" />;
+        return {
+          icon: <CheckCircle className="h-5 w-5 text-green-500" />,
+          badge: (
+            <Badge className="bg-green-100 text-green-800 border-green-200">
+              Approved
+            </Badge>
+          ),
+          message: "This post has been approved and is ready to publish",
+          borderColor: "border-l-green-500",
+          additionalInfo: null,
+        };
       case "REJECTED":
-        return <XCircle className="h-6 w-6 text-red-500" />;
-      case "PENDING":
+        return {
+          icon: <XCircle className="h-5 w-5 text-red-500" />,
+          badge: <Badge variant="destructive">Rejected</Badge>,
+          message: "This post has been rejected and needs revision",
+          borderColor: "border-l-red-500",
+          additionalInfo:
+            rejectionFeedback.length > 0 ? (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                <div className="text-sm font-medium text-red-800 mb-2">
+                  Rejection Feedback:
+                </div>
+                {rejectionFeedback.map((feedback, index) => (
+                  <div key={index} className="text-sm text-red-700">
+                    <div className="font-medium">From: {feedback.reviewer}</div>
+                    <div className="mt-1">{feedback.feedback}</div>
+                    {index < rejectionFeedback.length - 1 && (
+                      <hr className="my-2 border-red-200" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : null,
+        };
       case "IN_PROGRESS":
-        return <Clock className="h-6 w-6 text-yellow-500" />;
+        const currentStep = instance.currentStepOrder;
+        const totalSteps = workflow.steps.length;
+        return {
+          icon: <Clock className="h-5 w-5 text-yellow-500" />,
+          badge: <Badge variant="secondary">In Progress</Badge>,
+          message: `Under review - Step ${currentStep} of ${totalSteps}`,
+          borderColor: "border-l-yellow-500",
+          additionalInfo:
+            currentStepAssignments.length > 0 ? (
+              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <div className="text-sm font-medium text-yellow-800 mb-2">
+                  Currently reviewing:
+                </div>
+                <div className="space-y-1">
+                  {currentStepAssignments.map((assignment) => (
+                    <div
+                      key={assignment.id}
+                      className="flex items-center gap-2 text-sm text-yellow-700"
+                    >
+                      <User className="w-4 h-4" />
+                      <span>
+                        {assignment.user?.name ||
+                          assignment.user?.email ||
+                          "Unassigned"}
+                      </span>
+                      <Badge variant="outline" className="text-xs">
+                        {assignment.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null,
+        };
       default:
-        return <AlertTriangle className="h-6 w-6 text-muted-foreground" />;
+        return {
+          icon: <Clock className="h-5 w-5 text-gray-500" />,
+          badge: <Badge variant="outline">Pending</Badge>,
+          message: "Waiting for review",
+          borderColor: "border-l-gray-500",
+          additionalInfo: null,
+        };
     }
   };
 
-  // Render appropriate status badge
-  const renderStatusBadge = () => {
-    switch (approvalData.status) {
-      case "APPROVED":
-        // Using 'outline' with custom color classes instead of 'success' variant
-        return (
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-200 border-green-200">
-            Approved
-          </Badge>
-        );
-      case "REJECTED":
-        return <Badge variant="destructive">Rejected</Badge>;
-      case "PENDING":
-        return <Badge variant="outline">Pending</Badge>;
-      case "IN_PROGRESS":
-        return <Badge variant="secondary">In Progress</Badge>;
-      default:
-        return <Badge variant="outline">{approvalData.status}</Badge>;
-    }
-  };
+  const status = renderStatus();
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium">Approval Status</CardTitle>
-          {renderStatusBadge()}
-        </div>
-        <CardDescription>
-          {approvalData.currentStep
-            ? `Currently at: ${approvalData.currentStep}`
-            : "Approval process complete"}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-2 mb-4">
-          {renderStatusIcon()}
-          <span className="font-medium">
-            {approvalData.status === "APPROVED"
-              ? "This post has been approved"
-              : approvalData.status === "REJECTED"
-                ? "This post has been rejected"
-                : "Awaiting approval from reviewers"}
-          </span>
-        </div>
-
-        {approvalData.approvers && approvalData.approvers.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-semibold">Reviewers:</h4>
-            <ul className="text-sm space-y-1">
-              {approvalData.approvers.map((approver, index) => (
-                <li key={index} className="flex items-center gap-2">
-                  <span>• {approver}</span>
-                </li>
-              ))}
-            </ul>
+    <Card className={`border-l-4 py-2 ${status.borderColor}`}>
+      <CardContent className="py-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            {status.icon}
+            <div>
+              <div className="font-medium text-sm">Approval Status</div>
+              <div className="text-xs text-muted-foreground">
+                {workflow.name}
+              </div>
+            </div>
           </div>
-        )}
+          {status.badge}
+        </div>
+        <div className="text-sm text-muted-foreground">{status.message}</div>
+        {status.additionalInfo}
       </CardContent>
     </Card>
   );

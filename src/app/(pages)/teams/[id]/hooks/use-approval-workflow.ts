@@ -120,6 +120,19 @@ export function useApprovalWorkflow(teamId: string) {
       },
     });
 
+  // Mutation for updating workflows
+  const updateWorkflowMutation =
+    trpc.approvalWorkflow.updateWorkflow.useMutation({
+      onSuccess: () => {
+        toast.success("Approval workflow updated successfully!");
+        refetchWorkflows(); // Only refetch after a successful mutation
+      },
+      onError: (error) => {
+        toast.error(`Failed to update workflow: ${error.message}`);
+        console.error("Error updating workflow:", error);
+      },
+    });
+
   // Set steps when workflows data changes
   useEffect(() => {
     if (isWorkflowError) {
@@ -158,13 +171,13 @@ export function useApprovalWorkflow(teamId: string) {
     try {
       // Check if a workflow already exists for this organization
       if (workflows && workflows.length > 0) {
-        // We need to update an existing workflow
-        // Since there's no updateWorkflow endpoint yet, we'll need to create a unique name
-        // to avoid the unique constraint error
-        createWorkflowMutation.mutate({
-          name: `${workflows[0].name}-${Date.now()}`, // Make name unique by adding timestamp
+        // Update the existing workflow
+        const existingWorkflow = workflows[0];
+        updateWorkflowMutation.mutate({
+          id: existingWorkflow.id,
+          name: existingWorkflow.name,
           description:
-            workflows[0].description ||
+            existingWorkflow.description ||
             "Organization's content approval workflow",
           teamId,
           steps: savedSteps.map((step) => ({
@@ -206,7 +219,8 @@ export function useApprovalWorkflow(teamId: string) {
     isError: hasErrors,
     error: workflowError,
     saveWorkflow,
-    isSaving: createWorkflowMutation.isPending,
+    isSaving:
+      createWorkflowMutation.isPending || updateWorkflowMutation.isPending,
     refetchWorkflows, // Expose refetch for manual refresh if needed
     organizationUsers,
     getUsersByRole,

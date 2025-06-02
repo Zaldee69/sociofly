@@ -28,6 +28,7 @@ import { PostToolbar } from "./components/post-toolbar";
 import { MediaFileList } from "./components/media-file-list";
 import { PostActionSelector } from "./components/post-action-selector";
 import { SocialAccountPreview } from "./components/social-account-preview";
+import { ApprovalStatusDisplay } from "./components/approval-status";
 import { useMediaFiles } from "./hooks/use-media-files";
 import { usePostSubmit } from "./hooks/use-post-submit";
 import type { AddPostDialogProps, SocialAccount } from "./types";
@@ -316,6 +317,13 @@ export function AddPostDialog({
             <h1 className="text-2xl font-bold mb-4">
               {post?.id ? "Edit Post" : "Buat Post"}
             </h1>
+
+            {/* Show approval status when editing a post */}
+            {post?.id && (
+              <div className="mb-6">
+                <ApprovalStatusDisplay postId={post.id} />
+              </div>
+            )}
 
             {/* Social account selector */}
             <SocialAccountSelect

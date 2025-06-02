@@ -80,7 +80,7 @@ export default function Component() {
   const { isColorVisible } = useCalendarContext();
 
   const { data: posts } = api.post.getAll.useQuery({
-    teamId: "cmaz4ieo30002vxoghd7052c0",
+    teamId: "cmbem1h0o001avxptiy3xxnre",
   });
 
   // Filter events based on visible colors

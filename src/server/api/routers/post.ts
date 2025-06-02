@@ -572,7 +572,15 @@ export const postRouter = createTRPCRouter({
       return ctx.prisma.approvalInstance.findMany({
         where: { postId },
         include: {
-          workflow: true,
+          workflow: {
+            include: {
+              steps: {
+                orderBy: {
+                  order: "asc",
+                },
+              },
+            },
+          },
           assignments: {
             include: {
               step: true,

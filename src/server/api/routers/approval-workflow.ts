@@ -5,11 +5,13 @@ import { prisma } from "@/lib/prisma/client"; // Import prisma directly for fall
 
 // Schema for workflow creation
 const workflowCreateSchema = z.object({
+  id: z.string().optional(), // Optional ID for updating existing workflows
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   steps: z
     .array(
       z.object({
+        id: z.string().optional(), // Optional for existing steps
         name: z.string().min(1, "Step name is required"),
         order: z.number().int().positive(),
         role: z.string(),
@@ -204,6 +206,112 @@ export const approvalWorkflowRouter = createTRPCRouter({
         });
       } catch (error) {
         console.error("Error in createWorkflow:", error);
+        throw error;
+      }
+    }),
+
+  updateWorkflow: protectedProcedure
+    .input(
+      workflowCreateSchema.extend({
+        id: z.string(), // Required for updates
+        teamId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Use the prisma client from context, or fallback to the imported client
+      const db = ctx.prisma || prisma;
+      const { id, teamId, ...workflowData } = input;
+
+      try {
+        // Check if user has permission to update workflow in this team
+        const membership = await db.membership.findUnique({
+          where: {
+            userId_teamId: {
+              userId: ctx.auth.userId,
+              teamId,
+            },
+          },
+          include: {
+            grantsPermission: {
+              include: {
+                permission: true,
+              },
+            },
+          },
+        });
+
+        if (!membership) {
+          throw new Error("Not a member of this team");
+        }
+
+        // Check if user has permission to update approval workflows
+        const hasPermission =
+          membership.role === "OWNER" ||
+          membership.role === "MANAGER" ||
+          membership.grantsPermission.some(
+            (grant) =>
+              grant.permission.code === "workflow.update" ||
+              grant.permission.code === "workflow.create"
+          );
+
+        if (!hasPermission) {
+          throw new Error("Insufficient permissions");
+        }
+
+        // Verify the workflow exists and belongs to this team
+        const existingWorkflow = await db.approvalWorkflow.findUnique({
+          where: { id },
+          include: { steps: true },
+        });
+
+        if (!existingWorkflow) {
+          throw new Error("Workflow not found");
+        }
+
+        if (existingWorkflow.teamId !== teamId) {
+          throw new Error("Workflow does not belong to this team");
+        }
+
+        // Update workflow - we'll use a transaction to ensure all operations succeed
+        return db.$transaction(async (tx) => {
+          // Update the workflow
+          const workflowRecord = await tx.approvalWorkflow.update({
+            where: { id },
+            data: {
+              name: workflowData.name,
+              description: workflowData.description,
+            },
+          });
+
+          // Delete existing steps
+          await tx.approvalStep.deleteMany({
+            where: { workflowId: id },
+          });
+
+          // Create new steps
+          await Promise.all(
+            workflowData.steps.map((step) =>
+              tx.approvalStep.create({
+                data: {
+                  name: step.name,
+                  order: step.order,
+                  role: step.role as Role,
+                  assignedUserId: step.assignedUserId ?? undefined,
+                  requireAllUsersInRole: step.requireAllUsersInRole,
+                  workflowId: id,
+                },
+              })
+            )
+          );
+
+          // Return the workflow with steps
+          return tx.approvalWorkflow.findUnique({
+            where: { id },
+            include: { steps: true },
+          });
+        });
+      } catch (error) {
+        console.error("Error in updateWorkflow:", error);
         throw error;
       }
     }),

@@ -339,11 +339,10 @@ export const approvalRequestRouter = createTRPCRouter({
     .input(
       z.object({
         postId: z.string(),
-        workflowId: z.string(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { postId, workflowId } = input;
+      const { postId } = input;
 
       // Get the post and check ownership
       const post = await ctx.prisma.post.findUnique({
@@ -374,11 +373,11 @@ export const approvalRequestRouter = createTRPCRouter({
         });
       }
 
-      // Check if workflow exists and belongs to this team
-      const workflow = await ctx.prisma.approvalWorkflow.findUnique({
+      // Find the team's default workflow (first active workflow for the team)
+      const workflow = await ctx.prisma.approvalWorkflow.findFirst({
         where: {
-          id: workflowId,
           teamId: post.teamId,
+          isActive: true,
         },
         include: {
           steps: {
@@ -392,7 +391,7 @@ export const approvalRequestRouter = createTRPCRouter({
       if (!workflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Approval workflow not found",
+          message: "No approval workflow found for this team",
         });
       }
 
@@ -433,7 +432,7 @@ export const approvalRequestRouter = createTRPCRouter({
         const instance = await tx.approvalInstance.create({
           data: {
             postId,
-            workflowId,
+            workflowId: workflow.id,
             status: ApprovalStatus.IN_PROGRESS,
             currentStepOrder: firstStep.order,
           },
