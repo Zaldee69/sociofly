@@ -2,6 +2,121 @@ import { z } from "zod";
 import { ApprovalStatus, Role } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { sendApprovalRequestEmail, sendApprovalStatusEmail } from "@/lib/email";
+
+// Helper function to send approval request notifications
+async function sendApprovalNotifications(
+  ctx: any,
+  assignmentIds: string[],
+  postId: string,
+  teamId: string,
+  tx?: any // Add optional transaction client
+) {
+  try {
+    // Use transaction client if provided, otherwise use ctx.prisma
+    const prisma = tx || ctx.prisma;
+
+    // Get post and team details
+    const postWithDetails = await prisma.post.findUnique({
+      where: { id: postId },
+      include: {
+        user: {
+          select: { name: true, email: true },
+        },
+        team: {
+          select: { name: true },
+        },
+      },
+    });
+
+    console.log("postWithDetails", postWithDetails);
+
+    if (!postWithDetails) return;
+
+    // Get assignment details
+    const assignments = await prisma.approvalAssignment.findMany({
+      where: {
+        id: {
+          in: assignmentIds,
+        },
+      },
+      include: {
+        user: {
+          select: { name: true, email: true },
+        },
+      },
+    });
+
+    console.log("assignments", assignments);
+
+    // Send email to each assigned user
+    for (const assignment of assignments) {
+      if (assignment.user) {
+        await sendApprovalRequestEmail({
+          approverEmail: assignment.user.email,
+          approverName: assignment.user.name || assignment.user.email,
+          postContent: postWithDetails.content,
+          teamName: postWithDetails.team.name,
+          authorName: postWithDetails.user.name || postWithDetails.user.email,
+          assignmentId: assignment.id,
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error sending approval notifications:", error);
+    // Don't throw error to avoid breaking the main workflow
+  }
+}
+
+// Helper function to send approval status notifications
+async function sendApprovalStatusNotification(
+  ctx: any,
+  assignmentId: string,
+  approved: boolean,
+  feedback?: string
+) {
+  try {
+    const assignment = await ctx.prisma.approvalAssignment.findUnique({
+      where: { id: assignmentId },
+      include: {
+        user: {
+          select: { name: true, email: true },
+        },
+        instance: {
+          include: {
+            post: {
+              include: {
+                user: {
+                  select: { name: true, email: true },
+                },
+                team: {
+                  select: { name: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!assignment?.instance.post || !assignment.user) return;
+
+    await sendApprovalStatusEmail({
+      authorEmail: assignment.instance.post.user.email,
+      authorName:
+        assignment.instance.post.user.name ||
+        assignment.instance.post.user.email,
+      postContent: assignment.instance.post.content,
+      teamName: assignment.instance.post.team.name,
+      approverName: assignment.user.name || assignment.user.email,
+      status: approved ? "approved" : "rejected",
+      feedback,
+    });
+  } catch (error) {
+    console.error("Error sending approval status notification:", error);
+    // Don't throw error to avoid breaking the main workflow
+  }
+}
 
 export const approvalRequestRouter = createTRPCRouter({
   // Get all approval requests assigned to current user for review
@@ -262,7 +377,7 @@ export const approvalRequestRouter = createTRPCRouter({
         // Create assignment(s) for the first step
         if (firstStep.assignedUserId) {
           // If a specific user is assigned
-          await tx.approvalAssignment.create({
+          const assignment = await tx.approvalAssignment.create({
             data: {
               stepId: firstStep.id,
               instanceId: instance.id,
@@ -270,6 +385,15 @@ export const approvalRequestRouter = createTRPCRouter({
               status: ApprovalStatus.PENDING,
             },
           });
+
+          // Send notification email
+          await sendApprovalNotifications(
+            ctx,
+            [assignment.id],
+            postId,
+            post.teamId,
+            tx
+          );
         } else if (firstStep.requireAllUsersInRole) {
           // If all users with a specific role are required
           const membersWithRole = await tx.membership.findMany({
@@ -280,7 +404,7 @@ export const approvalRequestRouter = createTRPCRouter({
             },
           });
 
-          await Promise.all(
+          const assignments = await Promise.all(
             membersWithRole.map((member) =>
               tx.approvalAssignment.create({
                 data: {
@@ -292,9 +416,19 @@ export const approvalRequestRouter = createTRPCRouter({
               })
             )
           );
+
+          // Send notification emails
+          const assignmentIds = assignments.map((a) => a.id);
+          await sendApprovalNotifications(
+            ctx,
+            assignmentIds,
+            postId,
+            post.teamId,
+            tx
+          );
         } else {
           // Just role-based, any user with that role can approve
-          await tx.approvalAssignment.create({
+          const assignment = await tx.approvalAssignment.create({
             data: {
               stepId: firstStep.id,
               instanceId: instance.id,
@@ -302,6 +436,45 @@ export const approvalRequestRouter = createTRPCRouter({
               // No specific assignedUserId means any user with the role can approve
             },
           });
+
+          // For role-based assignments, we need to get all users with that role to notify them
+          const membersWithRole = await tx.membership.findMany({
+            where: {
+              teamId: post.teamId,
+              role: firstStep.role,
+              status: "ACTIVE",
+            },
+            include: {
+              user: {
+                select: { name: true, email: true },
+              },
+            },
+          });
+
+          // Send notifications to all users with the role
+          if (membersWithRole.length > 0) {
+            const postWithDetails = await tx.post.findUnique({
+              where: { id: postId },
+              include: {
+                user: { select: { name: true, email: true } },
+                team: { select: { name: true } },
+              },
+            });
+
+            if (postWithDetails) {
+              for (const member of membersWithRole) {
+                await sendApprovalRequestEmail({
+                  approverEmail: member.user.email,
+                  approverName: member.user.name || member.user.email,
+                  postContent: postWithDetails.content,
+                  teamName: postWithDetails.team.name,
+                  authorName:
+                    postWithDetails.user.name || postWithDetails.user.email,
+                  assignmentId: assignment.id,
+                });
+              }
+            }
+          }
         }
 
         return instance;
@@ -399,6 +572,14 @@ export const approvalRequestRouter = createTRPCRouter({
           },
         });
 
+        // Send status notification to the author
+        await sendApprovalStatusNotification(
+          ctx,
+          assignmentId,
+          approve,
+          feedback
+        );
+
         if (!approve) {
           // If rejected, update the instance status
           await tx.approvalInstance.update({
@@ -479,7 +660,7 @@ export const approvalRequestRouter = createTRPCRouter({
         // Create assignment(s) for the next step
         if (nextStep.assignedUserId) {
           // If a specific user is assigned
-          await tx.approvalAssignment.create({
+          const nextAssignment = await tx.approvalAssignment.create({
             data: {
               stepId: nextStep.id,
               instanceId: assignment.instanceId,
@@ -487,6 +668,15 @@ export const approvalRequestRouter = createTRPCRouter({
               status: ApprovalStatus.PENDING,
             },
           });
+
+          // Send notification email for next step
+          await sendApprovalNotifications(
+            ctx,
+            [nextAssignment.id],
+            assignment.instance.postId || "",
+            assignment.instance.workflow.teamId,
+            tx
+          );
         } else if (nextStep.requireAllUsersInRole) {
           // If all users with a specific role are required
           const membersWithRole = await tx.membership.findMany({
@@ -497,7 +687,7 @@ export const approvalRequestRouter = createTRPCRouter({
             },
           });
 
-          await Promise.all(
+          const nextAssignments = await Promise.all(
             membersWithRole.map((member) =>
               tx.approvalAssignment.create({
                 data: {
@@ -509,9 +699,19 @@ export const approvalRequestRouter = createTRPCRouter({
               })
             )
           );
+
+          // Send notification emails for next step
+          const nextAssignmentIds = nextAssignments.map((a) => a.id);
+          await sendApprovalNotifications(
+            ctx,
+            nextAssignmentIds,
+            assignment.instance.postId || "",
+            assignment.instance.workflow.teamId,
+            tx
+          );
         } else {
           // Just role-based, any user with that role can approve
-          await tx.approvalAssignment.create({
+          const nextAssignment = await tx.approvalAssignment.create({
             data: {
               stepId: nextStep.id,
               instanceId: assignment.instanceId,
@@ -519,6 +719,44 @@ export const approvalRequestRouter = createTRPCRouter({
               // No specific assignedUserId means any user with the role can approve
             },
           });
+
+          // For role-based assignments, notify all users with that role
+          const membersWithRole = await tx.membership.findMany({
+            where: {
+              teamId: assignment.instance.workflow.teamId,
+              role: nextStep.role,
+              status: "ACTIVE",
+            },
+            include: {
+              user: {
+                select: { name: true, email: true },
+              },
+            },
+          });
+
+          if (membersWithRole.length > 0 && assignment.instance.postId) {
+            const postWithDetails = await tx.post.findUnique({
+              where: { id: assignment.instance.postId },
+              include: {
+                user: { select: { name: true, email: true } },
+                team: { select: { name: true } },
+              },
+            });
+
+            if (postWithDetails) {
+              for (const member of membersWithRole) {
+                await sendApprovalRequestEmail({
+                  approverEmail: member.user.email,
+                  approverName: member.user.name || member.user.email,
+                  postContent: postWithDetails.content,
+                  teamName: postWithDetails.team.name,
+                  authorName:
+                    postWithDetails.user.name || postWithDetails.user.email,
+                  assignmentId: nextAssignment.id,
+                });
+              }
+            }
+          }
         }
 
         return { success: true, status: "MOVED_TO_NEXT_STEP" };
