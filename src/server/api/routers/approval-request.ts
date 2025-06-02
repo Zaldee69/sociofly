@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { ApprovalStatus, Role } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { sendApprovalRequestEmail, sendApprovalStatusEmail } from "@/lib/email";
+import { randomBytes } from "crypto";
 
 // Helper function to send approval request notifications
 async function sendApprovalNotifications(
@@ -186,6 +187,70 @@ export const approvalRequestRouter = createTRPCRouter({
           createdAt: "desc",
         },
       });
+    }),
+
+  // Get specific assignment by ID (for direct access)
+  getAssignmentById: protectedProcedure
+    .input(z.object({ assignmentId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const { assignmentId } = input;
+
+      const assignment = await ctx.prisma.approvalAssignment.findUnique({
+        where: { id: assignmentId },
+        include: {
+          step: true,
+          instance: {
+            include: {
+              post: {
+                include: {
+                  postSocialAccounts: {
+                    include: {
+                      socialAccount: true,
+                    },
+                  },
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true,
+                    },
+                  },
+                },
+              },
+              workflow: true,
+            },
+          },
+        },
+      });
+
+      if (!assignment) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Assignment not found",
+        });
+      }
+
+      // Check if user has access to this assignment
+      const hasAccess =
+        assignment.assignedUserId === ctx.auth.userId || // Directly assigned
+        (!assignment.assignedUserId && // Role-based assignment
+          (await ctx.prisma.membership.findFirst({
+            where: {
+              userId: ctx.auth.userId,
+              teamId: assignment.instance.workflow.teamId,
+              role: assignment.step.role,
+              status: "ACTIVE",
+            },
+          })));
+
+      if (!hasAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have access to this assignment",
+        });
+      }
+
+      return assignment;
     }),
 
   // Get all approval requests created by the current user
@@ -761,5 +826,357 @@ export const approvalRequestRouter = createTRPCRouter({
 
         return { success: true, status: "MOVED_TO_NEXT_STEP" };
       });
+    }),
+
+  // Generate magic link for external reviewer
+  generateMagicLink: protectedProcedure
+    .input(
+      z.object({
+        assignmentId: z.string(),
+        reviewerEmail: z.string().email(),
+        expiresInHours: z.number().default(72), // Default 3 days
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { assignmentId, reviewerEmail, expiresInHours } = input;
+
+      // Get the assignment and verify permissions
+      const assignment = await ctx.prisma.approvalAssignment.findUnique({
+        where: { id: assignmentId },
+        include: {
+          step: true,
+          instance: {
+            include: {
+              workflow: {
+                include: {
+                  team: true,
+                },
+              },
+              post: true,
+            },
+          },
+        },
+      });
+
+      if (!assignment) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Assignment not found",
+        });
+      }
+
+      // Check if user has permission to generate magic links for this team
+      const membership = await ctx.prisma.membership.findUnique({
+        where: {
+          userId_teamId: {
+            userId: ctx.auth.userId,
+            teamId: assignment.instance.workflow.team.id,
+          },
+        },
+      });
+
+      if (!membership || !["OWNER", "MANAGER"].includes(membership.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to generate magic links",
+        });
+      }
+
+      // Generate secure token
+      const token = randomBytes(32).toString("hex");
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + expiresInHours);
+
+      // Store the magic link token
+      await ctx.prisma.temporaryData.create({
+        data: {
+          id: token,
+          data: JSON.stringify({
+            type: "approval_magic_link",
+            assignmentId,
+            reviewerEmail,
+            createdBy: ctx.auth.userId,
+          }),
+          expiresAt,
+        },
+      });
+
+      // Generate the magic link URL
+      const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+      const magicLink = `${baseUrl}/approvals?token=${token}`;
+
+      return {
+        magicLink,
+        expiresAt,
+        token,
+      };
+    }),
+
+  // Verify magic link and get assignment details
+  verifyMagicLink: publicProcedure
+    .input(
+      z.object({
+        token: z.string(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { token } = input;
+
+      // Get the magic link data
+      const magicLinkData = await ctx.prisma.temporaryData.findUnique({
+        where: { id: token },
+      });
+
+      if (!magicLinkData || magicLinkData.expiresAt < new Date()) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Invalid or expired magic link",
+        });
+      }
+
+      const linkData = JSON.parse(magicLinkData.data);
+
+      if (linkData.type !== "approval_magic_link") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid magic link type",
+        });
+      }
+
+      // Get assignment details
+      const assignment = await ctx.prisma.approvalAssignment.findUnique({
+        where: { id: linkData.assignmentId },
+        include: {
+          step: true,
+          instance: {
+            include: {
+              workflow: {
+                include: {
+                  team: true,
+                },
+              },
+              post: {
+                include: {
+                  user: {
+                    select: { name: true, email: true },
+                  },
+                  postSocialAccounts: {
+                    include: {
+                      socialAccount: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!assignment) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Assignment not found",
+        });
+      }
+
+      return {
+        assignment,
+        reviewerEmail: linkData.reviewerEmail,
+        isValid: true,
+      };
+    }),
+
+  // Submit review via magic link
+  submitMagicLinkReview: publicProcedure
+    .input(
+      z.object({
+        token: z.string(),
+        approve: z.boolean(),
+        feedback: z.string().optional(),
+        reviewerName: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { token, approve, feedback, reviewerName } = input;
+
+      // Verify magic link
+      const magicLinkData = await ctx.prisma.temporaryData.findUnique({
+        where: { id: token },
+      });
+
+      if (!magicLinkData || magicLinkData.expiresAt < new Date()) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Invalid or expired magic link",
+        });
+      }
+
+      const linkData = JSON.parse(magicLinkData.data);
+
+      // Get assignment
+      const assignment = await ctx.prisma.approvalAssignment.findUnique({
+        where: { id: linkData.assignmentId },
+        include: {
+          step: true,
+          instance: {
+            include: {
+              workflow: {
+                include: {
+                  steps: {
+                    orderBy: {
+                      order: "asc",
+                    },
+                  },
+                },
+              },
+              post: true,
+            },
+          },
+        },
+      });
+
+      if (!assignment) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Assignment not found",
+        });
+      }
+
+      if (assignment.status !== ApprovalStatus.PENDING) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This assignment has already been reviewed",
+        });
+      }
+
+      // Process the review (similar to reviewAssignment but for external reviewers)
+      const result = await ctx.prisma.$transaction(async (tx) => {
+        // Update the assignment
+        await tx.approvalAssignment.update({
+          where: { id: linkData.assignmentId },
+          data: {
+            status: approve ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
+            feedback: feedback
+              ? `${feedback} (Reviewed by: ${reviewerName || linkData.reviewerEmail})`
+              : `Reviewed by: ${reviewerName || linkData.reviewerEmail}`,
+            completedAt: new Date(),
+          },
+        });
+
+        // Send status notification to the author
+        await sendApprovalStatusNotification(
+          ctx,
+          linkData.assignmentId,
+          approve,
+          feedback
+        );
+
+        if (!approve) {
+          // If rejected, update the instance status
+          await tx.approvalInstance.update({
+            where: { id: assignment.instanceId },
+            data: {
+              status: ApprovalStatus.REJECTED,
+            },
+          });
+
+          // Update post status to indicate action required
+          if (assignment.instance.postId) {
+            await tx.post.update({
+              where: { id: assignment.instance.postId },
+              data: {
+                status: "DRAFT",
+              },
+            });
+          }
+
+          return { success: true, status: "REJECTED" };
+        }
+
+        // If approved, check if this is the last step or if all assignees have approved
+        const currentStep = assignment.step;
+        const nextSteps = assignment.instance.workflow.steps.filter(
+          (step) => step.order > currentStep.order
+        );
+
+        // Check if all assignments for this step are approved
+        const stepAssignments = await tx.approvalAssignment.findMany({
+          where: {
+            instanceId: assignment.instanceId,
+            stepId: currentStep.id,
+          },
+        });
+
+        const allApproved = stepAssignments.every(
+          (a) =>
+            a.status === ApprovalStatus.APPROVED ||
+            a.id === linkData.assignmentId
+        );
+
+        if (!allApproved) {
+          return { success: true, status: "WAITING_FOR_OTHERS" };
+        }
+
+        if (nextSteps.length === 0) {
+          // This was the last step
+          await tx.approvalInstance.update({
+            where: { id: assignment.instanceId },
+            data: {
+              status: ApprovalStatus.APPROVED,
+              currentStepOrder: null,
+            },
+          });
+
+          if (assignment.instance.postId) {
+            await tx.post.update({
+              where: { id: assignment.instance.postId },
+              data: {
+                status: "SCHEDULED",
+              },
+            });
+          }
+
+          return { success: true, status: "APPROVED" };
+        }
+
+        // Move to next step (implementation similar to reviewAssignment)
+        const nextStep = nextSteps[0];
+        await tx.approvalInstance.update({
+          where: { id: assignment.instanceId },
+          data: {
+            currentStepOrder: nextStep.order,
+          },
+        });
+
+        // Create assignments for next step
+        if (nextStep.assignedUserId) {
+          const nextAssignment = await tx.approvalAssignment.create({
+            data: {
+              stepId: nextStep.id,
+              instanceId: assignment.instanceId,
+              assignedUserId: nextStep.assignedUserId,
+              status: ApprovalStatus.PENDING,
+            },
+          });
+
+          await sendApprovalNotifications(
+            ctx,
+            [nextAssignment.id],
+            assignment.instance.postId || "",
+            assignment.instance.workflow.teamId,
+            tx
+          );
+        }
+        // Add other next step logic as needed...
+
+        return { success: true, status: "MOVED_TO_NEXT_STEP" };
+      });
+
+      // Invalidate the magic link after use
+      await ctx.prisma.temporaryData.delete({
+        where: { id: token },
+      });
+
+      return result;
     }),
 });
