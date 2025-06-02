@@ -45,8 +45,6 @@ export function SocialAccountSelect({
   const [open, setOpen] = useState(false);
   const [selectedValues, setSelectedValues] = useState<string[]>(defaultValue);
 
-  console.log("defaultValue:", defaultValue);
-
   // Update selected values when defaultValue changes (for edit mode)
   useEffect(() => {
     setSelectedValues(defaultValue);

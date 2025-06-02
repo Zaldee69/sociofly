@@ -1,7 +1,7 @@
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import { PostFormValues, PostAction } from "../schema";
 import { CalendarPost } from "../../types";
-import { ApprovalAssignment } from "@prisma/client";
+import { ApprovalAssignment, PostStatus } from "@prisma/client";
 import { getBaseUrl } from "@/utils/general";
 import superjson from "superjson";
 import type { AppRouter } from "@/server/api/root";
@@ -49,32 +49,31 @@ export async function submitPostWithApproval(
     // The post status would be updated by the approval request process
     // but we can return a representation of the post for UI updates
     return {
-      ...createdPost,
-      title:
-        post.content.substring(0, 30) + (post.content.length > 30 ? "..." : ""),
-      start: post.scheduledAt,
-      end: post.scheduledAt,
       id: createdPost.id,
-      status: "PENDING_APPROVAL", // This is a UI-only status
-      socialAccounts: post.socialAccounts,
+      postSocialAccounts: [], // Will be populated by the backend
+      content: post.content,
+      scheduledAt: post.scheduledAt,
+      status: "PENDING_APPROVAL" as PostStatus,
+      mediaUrls: post.mediaUrls.map(
+        (media) => media.uploadedUrl || media.preview
+      ),
     } as CalendarPost;
   }
 
   // For posts without approval workflow, return the standard post
   return {
-    ...createdPost,
-    title:
-      post.content.substring(0, 30) + (post.content.length > 30 ? "..." : ""),
-    start: post.scheduledAt,
-    end: post.scheduledAt,
     id: createdPost.id,
-    status:
-      post.postAction === PostAction.PUBLISH_NOW
-        ? "PUBLISHED"
-        : post.postAction === PostAction.SCHEDULE
-          ? "SCHEDULED"
-          : "DRAFT",
-    socialAccounts: post.socialAccounts,
+    postSocialAccounts: [], // Will be populated by the backend
+    content: post.content,
+    scheduledAt: post.scheduledAt,
+    status: (post.postAction === PostAction.PUBLISH_NOW
+      ? "PUBLISHED"
+      : post.postAction === PostAction.SCHEDULE
+        ? "SCHEDULED"
+        : "DRAFT") as PostStatus,
+    mediaUrls: post.mediaUrls.map(
+      (media) => media.uploadedUrl || media.preview
+    ),
   } as CalendarPost;
 }
 

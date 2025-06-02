@@ -152,8 +152,6 @@ export function PostItem({
     return `${formatTimeWithOptionalMinutes(displayStart)} - ${formatTimeWithOptionalMinutes(displayEnd)}`;
   };
 
-  console.log(post.postSocialAccounts);
-
   if (view === "month") {
     return (
       <PostWrapper

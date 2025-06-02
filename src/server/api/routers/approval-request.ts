@@ -49,7 +49,7 @@ export const approvalRequestRouter = createTRPCRouter({
             include: {
               post: {
                 include: {
-                  socialAccounts: {
+                  postSocialAccounts: {
                     include: {
                       socialAccount: true,
                     },
@@ -116,7 +116,7 @@ export const approvalRequestRouter = createTRPCRouter({
           workflow: true,
           post: {
             include: {
-              socialAccounts: {
+              postSocialAccounts: {
                 include: {
                   socialAccount: true,
                 },

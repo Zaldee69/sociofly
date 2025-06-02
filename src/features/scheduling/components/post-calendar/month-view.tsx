@@ -74,7 +74,6 @@ export function MonthView({
 
   const handlePostClick = (post: CalendarPost, e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log(post);
     onPostSelect(post);
   };
 

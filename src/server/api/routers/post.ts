@@ -179,6 +179,8 @@ export const postRouter = createTRPCRouter({
         },
       });
 
+      console.log(socialAccountIds);
+
       if (socialAccounts.length !== socialAccountIds.length) {
         throw new TRPCError({
           code: "BAD_REQUEST",
