@@ -6,11 +6,20 @@ import {
   PostSocialAccount,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma/client";
+import {
+  FacebookPublisher,
+  PublishResult,
+} from "./publishers/facebook-publisher";
 
-interface PublishResult {
-  success: boolean;
-  error?: string;
-  platformPostId?: string;
+interface PublishResponse {
+  postId: string;
+  results: PublishResult[];
+  summary: {
+    totalPlatforms: number;
+    successCount: number;
+    failedCount: number;
+    skippedCount: number;
+  };
 }
 
 type PostWithRelations = Post & {
@@ -22,182 +31,142 @@ type SocialAccountWithRelations = SocialAccount & {
   platform: SocialPlatform;
   accessToken: string;
 };
-6;
+
 // Abstract interface for platform-specific publishers
 interface SocialMediaPublisher {
   publish(
-    socialAccountId: string,
+    socialAccount: SocialAccountWithRelations,
     content: string,
     mediaUrls: string[]
-  ): Promise<string | null>;
+  ): Promise<PublishResult>;
 }
 
-// Facebook implementation
-class FacebookPublisher implements SocialMediaPublisher {
-  async publish(
-    socialAccountId: string,
-    content: string,
-    mediaUrls: string[]
-  ): Promise<string | null> {
-    try {
-      // Get the social account with its access token
-      const socialAccount = await prisma.socialAccount.findUnique({
-        where: { id: socialAccountId },
-      });
-
-      if (!socialAccount) {
-        throw new Error(`Social account ${socialAccountId} not found`);
-      }
-
-      // Here you would implement the actual Facebook API call
-      // This is a placeholder for the actual implementation
-      console.log(
-        `Publishing to Facebook with token ${socialAccount.accessToken.substring(0, 5)}...`
-      );
-      console.log(`Content: ${content}`);
-      console.log(`Media: ${mediaUrls.join(", ")}`);
-
-      // For demonstration, we'll return a mock post ID
-      return `fb_post_${Date.now()}`;
-    } catch (error) {
-      console.error("Error publishing to Facebook:", error);
-      return null;
-    }
-  }
-}
-
-// Twitter implementation
+// Twitter implementation (placeholder for now)
 class TwitterPublisher implements SocialMediaPublisher {
   async publish(
-    socialAccountId: string,
+    socialAccount: SocialAccountWithRelations,
     content: string,
     mediaUrls: string[]
-  ): Promise<string | null> {
+  ): Promise<PublishResult> {
     try {
-      // Get the social account with its access token
-      const socialAccount = await prisma.socialAccount.findUnique({
-        where: { id: socialAccountId },
-      });
-
-      if (!socialAccount) {
-        throw new Error(`Social account ${socialAccountId} not found`);
-      }
-
-      // Here you would implement the actual Twitter API call
-      // This is a placeholder for the actual implementation
-      console.log(
-        `Publishing to Twitter with token ${socialAccount.accessToken.substring(0, 5)}...`
-      );
+      // TODO: Implement real Twitter API integration
+      console.log(`Publishing to Twitter...`);
       console.log(`Content: ${content}`);
       console.log(`Media: ${mediaUrls.join(", ")}`);
 
-      // For demonstration, we'll return a mock tweet ID
-      return `tweet_${Date.now()}`;
+      // Simulate API call delay
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      return {
+        success: true,
+        platformPostId: `tweet_${Date.now()}`,
+        platform: SocialPlatform.TWITTER,
+      };
     } catch (error) {
       console.error("Error publishing to Twitter:", error);
-      return null;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown Twitter error",
+        platform: SocialPlatform.TWITTER,
+      };
     }
   }
 }
 
-// Instagram implementation
+// Instagram implementation (placeholder for now)
 class InstagramPublisher implements SocialMediaPublisher {
   async publish(
-    socialAccountId: string,
+    socialAccount: SocialAccountWithRelations,
     content: string,
     mediaUrls: string[]
-  ): Promise<string | null> {
+  ): Promise<PublishResult> {
     try {
-      // Get the social account with its access token
-      const socialAccount = await prisma.socialAccount.findUnique({
-        where: { id: socialAccountId },
-      });
-
-      if (!socialAccount) {
-        throw new Error(`Social account ${socialAccountId} not found`);
-      }
-
-      // Here you would implement the actual Instagram API call
-      // This is a placeholder for the actual implementation
-      console.log(
-        `Publishing to Instagram with token ${socialAccount.accessToken.substring(0, 5)}...`
-      );
+      // TODO: Implement real Instagram API integration
+      console.log(`Publishing to Instagram...`);
       console.log(`Content: ${content}`);
       console.log(`Media: ${mediaUrls.join(", ")}`);
 
-      // For demonstration, we'll return a mock media ID
-      return `ig_media_${Date.now()}`;
+      // Simulate API call delay
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      return {
+        success: true,
+        platformPostId: `ig_media_${Date.now()}`,
+        platform: SocialPlatform.INSTAGRAM,
+      };
     } catch (error) {
       console.error("Error publishing to Instagram:", error);
-      return null;
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Unknown Instagram error",
+        platform: SocialPlatform.INSTAGRAM,
+      };
     }
   }
 }
 
-// LinkedIn implementation
+// LinkedIn implementation (placeholder for now)
 class LinkedInPublisher implements SocialMediaPublisher {
   async publish(
-    socialAccountId: string,
+    socialAccount: SocialAccountWithRelations,
     content: string,
     mediaUrls: string[]
-  ): Promise<string | null> {
+  ): Promise<PublishResult> {
     try {
-      // Get the social account with its access token
-      const socialAccount = await prisma.socialAccount.findUnique({
-        where: { id: socialAccountId },
-      });
-
-      if (!socialAccount) {
-        throw new Error(`Social account ${socialAccountId} not found`);
-      }
-
-      // Here you would implement the actual LinkedIn API call
-      // This is a placeholder for the actual implementation
-      console.log(
-        `Publishing to LinkedIn with token ${socialAccount.accessToken.substring(0, 5)}...`
-      );
+      // TODO: Implement real LinkedIn API integration
+      console.log(`Publishing to LinkedIn...`);
       console.log(`Content: ${content}`);
       console.log(`Media: ${mediaUrls.join(", ")}`);
 
-      // For demonstration, we'll return a mock post ID
-      return `linkedin_post_${Date.now()}`;
+      // Simulate API call delay
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      return {
+        success: true,
+        platformPostId: `linkedin_post_${Date.now()}`,
+        platform: SocialPlatform.LINKEDIN,
+      };
     } catch (error) {
       console.error("Error publishing to LinkedIn:", error);
-      return null;
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Unknown LinkedIn error",
+        platform: SocialPlatform.LINKEDIN,
+      };
     }
   }
 }
 
-// TikTok implementation
+// TikTok implementation (placeholder for now)
 class TikTokPublisher implements SocialMediaPublisher {
   async publish(
-    socialAccountId: string,
+    socialAccount: SocialAccountWithRelations,
     content: string,
     mediaUrls: string[]
-  ): Promise<string | null> {
+  ): Promise<PublishResult> {
     try {
-      // Get the social account with its access token
-      const socialAccount = await prisma.socialAccount.findUnique({
-        where: { id: socialAccountId },
-      });
-
-      if (!socialAccount) {
-        throw new Error(`Social account ${socialAccountId} not found`);
-      }
-
-      // Here you would implement the actual TikTok API call
-      // This is a placeholder for the actual implementation
-      console.log(
-        `Publishing to TikTok with token ${socialAccount.accessToken.substring(0, 5)}...`
-      );
+      // TODO: Implement real TikTok API integration
+      console.log(`Publishing to TikTok...`);
       console.log(`Content: ${content}`);
       console.log(`Media: ${mediaUrls.join(", ")}`);
 
-      // For demonstration, we'll return a mock video ID
-      return `tiktok_video_${Date.now()}`;
+      // Simulate API call delay
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      return {
+        success: true,
+        platformPostId: `tiktok_video_${Date.now()}`,
+        platform: SocialPlatform.TIKTOK,
+      };
     } catch (error) {
       console.error("Error publishing to TikTok:", error);
-      return null;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown TikTok error",
+        platform: SocialPlatform.TIKTOK,
+      };
     }
   }
 }
@@ -208,7 +177,7 @@ function getPublisherForPlatform(
 ): SocialMediaPublisher {
   switch (platform) {
     case SocialPlatform.FACEBOOK:
-      return new FacebookPublisher();
+      return new FacebookPublisherClass();
     case SocialPlatform.TWITTER:
       return new TwitterPublisher();
     case SocialPlatform.INSTAGRAM:
@@ -219,6 +188,17 @@ function getPublisherForPlatform(
       return new TikTokPublisher();
     default:
       throw new Error(`Unsupported platform: ${platform}`);
+  }
+}
+
+// Wrapper class for FacebookPublisher to match interface
+class FacebookPublisherClass implements SocialMediaPublisher {
+  async publish(
+    socialAccount: SocialAccountWithRelations,
+    content: string,
+    mediaUrls: string[]
+  ): Promise<PublishResult> {
+    return FacebookPublisher.publish(socialAccount, content, mediaUrls);
   }
 }
 
@@ -252,27 +232,21 @@ export class PostPublisherService {
         return {
           success: false,
           error: "Post atau akun sosial tidak ditemukan",
+          platform: SocialPlatform.FACEBOOK, // Default, but this shouldn't happen
         };
       }
 
       const { post, socialAccount } = postSocialAccount;
 
       // Implementasikan publikasi ke platform yang berbeda
-      let result: PublishResult;
-
       const publisher = getPublisherForPlatform(socialAccount.platform);
-      const platformPostId = await publisher.publish(
-        socialAccount.id,
+      const publishResult = await publisher.publish(
+        socialAccount,
         post.content,
         post.mediaUrls
       );
 
-      if (platformPostId) {
-        result = {
-          success: true,
-          platformPostId,
-        };
-
+      if (publishResult.success && publishResult.platformPostId) {
         // Update status posting
         await prisma.postSocialAccount.update({
           where: {
@@ -305,13 +279,14 @@ export class PostPublisherService {
             },
           });
         }
+
+        return {
+          success: true,
+          platformPostId: publishResult.platformPostId,
+          platform: socialAccount.platform,
+        };
       } else {
         // Jika gagal, update status menjadi FAILED
-        result = {
-          success: false,
-          error: "Publikasi gagal",
-        };
-
         await prisma.postSocialAccount.update({
           where: {
             postId_socialAccountId: {
@@ -341,14 +316,19 @@ export class PostPublisherService {
             },
           });
         }
-      }
 
-      return result;
+        return {
+          success: false,
+          error: publishResult.error || "Publikasi gagal",
+          platform: socialAccount.platform,
+        };
+      }
     } catch (error) {
       console.error("Error publishing post:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
+        platform: SocialPlatform.FACEBOOK, // Default for error cases
       };
     }
   }
@@ -380,6 +360,7 @@ export class PostPublisherService {
         {
           success: false,
           error: error instanceof Error ? error.message : "Unknown error",
+          platform: SocialPlatform.FACEBOOK, // Default for error cases
         },
       ];
     }

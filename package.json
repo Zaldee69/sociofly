@@ -10,6 +10,7 @@
     "lint": "next lint",
     "test": "vitest",
     "test:cron": "npx tsx scripts/test-cron.ts",
+    "test:integration": "npx tsx scripts/test-integration.ts",
     "seed:hashtags": "npx tsx src/features/social/scripts/seed-hashtags.ts",
     "seed:permissions": "npx tsx src/server/permissions/seed/seed-role-permissions.ts",
     "db:push": "prisma db push",
