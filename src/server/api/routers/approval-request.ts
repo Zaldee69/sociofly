@@ -1178,4 +1178,165 @@ export const approvalRequestRouter = createTRPCRouter({
 
       return result;
     }),
+
+  // Resubmit a rejected post for approval (Approach 2: Continue from rejection stage)
+  resubmitPost: protectedProcedure
+    .input(
+      z.object({
+        postId: z.string(),
+        restartFromBeginning: z.boolean().default(false), // Keep for API compatibility but always use false
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { postId } = input;
+
+      // Get the post and its current approval instance
+      const post = await ctx.prisma.post.findUnique({
+        where: { id: postId },
+        include: {
+          approvalInstances: {
+            include: {
+              workflow: {
+                include: {
+                  steps: {
+                    orderBy: {
+                      order: "asc",
+                    },
+                  },
+                },
+              },
+              assignments: {
+                include: {
+                  step: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 1,
+          },
+        },
+      });
+
+      if (!post) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Post not found",
+        });
+      }
+
+      // Check if user has access to this post
+      const membership = await ctx.prisma.membership.findUnique({
+        where: {
+          userId_teamId: {
+            userId: ctx.auth.userId,
+            teamId: post.teamId,
+          },
+        },
+      });
+
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have access to this post",
+        });
+      }
+
+      const currentInstance = post.approvalInstances[0];
+      if (
+        !currentInstance ||
+        currentInstance.status !== ApprovalStatus.REJECTED
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Post is not in a rejected state",
+        });
+      }
+
+      return await ctx.prisma.$transaction(async (tx) => {
+        // Find the step where rejection occurred (Approach 2: Continue from rejection stage)
+        const rejectedAssignments = currentInstance.assignments.filter(
+          (assignment) => assignment.status === ApprovalStatus.REJECTED
+        );
+
+        let targetStepOrder: number;
+        if (rejectedAssignments.length === 0) {
+          // Fallback to first step if no specific rejection found
+          targetStepOrder = 1;
+        } else {
+          // Get the earliest rejection step
+          const rejectionSteps = rejectedAssignments.map(
+            (assignment) => assignment.step.order
+          );
+          targetStepOrder = Math.min(...rejectionSteps);
+        }
+
+        // Update the approval instance
+        await tx.approvalInstance.update({
+          where: { id: currentInstance.id },
+          data: {
+            status: ApprovalStatus.IN_PROGRESS,
+            currentStepOrder: targetStepOrder,
+          },
+        });
+
+        // Reset only the assignments from the rejection step onwards
+        const stepsToReset = currentInstance.workflow.steps.filter(
+          (step) => step.order >= targetStepOrder
+        );
+
+        for (const step of stepsToReset) {
+          await tx.approvalAssignment.updateMany({
+            where: {
+              instanceId: currentInstance.id,
+              stepId: step.id,
+            },
+            data: {
+              status: ApprovalStatus.PENDING,
+              feedback: null,
+              completedAt: null,
+            },
+          });
+        }
+
+        // Update post status
+        await tx.post.update({
+          where: { id: postId },
+          data: {
+            status: "DRAFT", // Set to draft while under review
+          },
+        });
+
+        // Send notifications to assignees of the target step (rejection step)
+        const targetStep = currentInstance.workflow.steps.find(
+          (step) => step.order === targetStepOrder
+        );
+
+        if (targetStep) {
+          const targetAssignments = await tx.approvalAssignment.findMany({
+            where: {
+              instanceId: currentInstance.id,
+              stepId: targetStep.id,
+            },
+          });
+
+          if (targetAssignments.length > 0) {
+            await sendApprovalNotifications(
+              ctx,
+              targetAssignments.map((a) => a.id),
+              postId,
+              post.teamId,
+              tx
+            );
+          }
+        }
+
+        return {
+          success: true,
+          message: "Post resubmitted for review from rejection stage",
+          targetStepOrder,
+        };
+      });
+    }),
 });

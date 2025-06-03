@@ -3,8 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Instagram, Twitter, Facebook } from "lucide-react";
+import { Instagram, Twitter, Facebook, ExternalLink } from "lucide-react";
 import { PostStatus } from "@prisma/client";
+import { useRouter } from "next/navigation";
 
 import { useTeamContext } from "@/lib/contexts/team-context";
 import { trpc } from "@/lib/trpc/client";
@@ -34,6 +35,7 @@ import { usePostSubmit } from "./hooks/use-post-submit";
 import type { AddPostDialogProps, SocialAccount } from "./types";
 import { PostAction, PostFormValues, postSchema } from "./schema";
 import { SocialAccountSelect } from "../../../../../components/social-account-select";
+import { usePostApprovalStatus } from "./components/approval-status";
 
 export function AddPostDialog({
   startDate,
@@ -45,11 +47,12 @@ export function AddPostDialog({
   post,
 }: AddPostDialogProps) {
   const { currentTeamId } = useTeamContext();
+  const router = useRouter();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
   // Social account state
   const [localSelectedAccounts, setLocalSelectedAccounts] = useState<string[]>(
-    post?.postSocialAccounts.map((acc) => acc.id) || []
+    []
   );
   const [accountPostPreview, setAccountPostPreview] = useState<
     SocialAccount | undefined
@@ -59,35 +62,12 @@ export function AddPostDialog({
   const form = useForm<PostFormValues>({
     resolver: zodResolver(postSchema) as any,
     defaultValues: {
-      content: post?.content || "",
-      mediaUrls: post?.mediaUrls
-        ? post.mediaUrls.map((url) => ({
-            name: url.split("/").pop() || "file",
-            preview: url,
-            size: 0,
-            type: url.match(/\.(jpg|jpeg|png|gif)$/i)
-              ? `image/${url.match(/\.([^.]+)$/)?.[1] || "jpeg"}`
-              : "image/jpeg",
-            fileId: crypto.randomUUID(),
-            uploadedUrl: url,
-          }))
-        : [],
-      scheduledAt: post?.scheduledAt
-        ? new Date(post.scheduledAt)
-        : startDate || new Date(),
-      status: post?.status || "DRAFT",
-      postAction: post
-        ? post.status === "SCHEDULED"
-          ? PostAction.SCHEDULE
-          : post.status === "DRAFT"
-            ? PostAction.SAVE_AS_DRAFT
-            : PostAction.PUBLISH_NOW
-        : PostAction.PUBLISH_NOW,
-      socialAccounts: post?.postSocialAccounts?.length
-        ? (post.postSocialAccounts
-            .map((acc) => acc.socialAccount?.id)
-            .filter(Boolean) as string[])
-        : ["placeholder"],
+      content: "",
+      mediaUrls: [],
+      scheduledAt: startDate || new Date(),
+      status: "DRAFT",
+      postAction: PostAction.PUBLISH_NOW,
+      socialAccounts: ["placeholder"],
       userId: undefined,
       teamId: currentTeamId || undefined,
       needsApproval: false,
@@ -109,6 +89,7 @@ export function AddPostDialog({
     selectedFiles,
     onSave,
     onClose,
+    post,
   });
 
   console.log(selectedAccounts);
@@ -138,72 +119,74 @@ export function AddPostDialog({
     }
   );
 
-  // Update form and local state when post data changes
+  // Update form and local state when post data changes or dialog opens
   useEffect(() => {
-    if (post?.postSocialAccounts?.length) {
-      const accountIds = post.postSocialAccounts.map((acc) => acc.id);
-      setLocalSelectedAccounts(accountIds);
+    if (isOpen) {
+      if (post?.postSocialAccounts?.length) {
+        // Get the correct social account IDs
+        const socialAccountIds = post.postSocialAccounts
+          .map((psa) => psa.socialAccount?.id)
+          .filter(Boolean) as string[];
 
-      // Set first account as preview
-      const firstAccount = post
-        .postSocialAccounts[0] as unknown as SocialAccount;
-      if (firstAccount) {
-        setAccountPostPreview(firstAccount);
-      }
+        setLocalSelectedAccounts(socialAccountIds);
 
-      // Update form values
-      form.setValue("socialAccounts", accountIds, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-      form.setValue("content", post.content);
-
-      if (post.mediaUrls?.length) {
-        const mediaItems = post.mediaUrls.map((url) => ({
-          name: url.split("/").pop() || "file",
-          preview: url,
-          size: 0,
-          type: url.match(/\.(jpg|jpeg|png|gif)$/i)
-            ? `image/${url.match(/\.([^.]+)$/)?.[1] || "jpeg"}`
-            : "image/jpeg",
-          fileId: crypto.randomUUID(),
-          uploadedUrl: url,
-        }));
-
-        form.setValue("mediaUrls", mediaItems, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-      }
-
-      form.setValue("scheduledAt", post.scheduledAt, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-
-      form.setValue("status", post.status, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-
-      // Map PostStatus to PostAction
-      const actionMap: Record<PostStatus, PostAction> = {
-        SCHEDULED: PostAction.SCHEDULE,
-        PUBLISHED: PostAction.PUBLISH_NOW,
-        DRAFT: PostAction.SAVE_AS_DRAFT,
-        FAILED: PostAction.SAVE_AS_DRAFT,
-      };
-
-      form.setValue(
-        "postAction",
-        actionMap[post.status] || PostAction.SAVE_AS_DRAFT,
-        {
-          shouldDirty: true,
-          shouldValidate: true,
+        // Set first social account as preview
+        const firstSocialAccount = post.postSocialAccounts[0]?.socialAccount;
+        if (firstSocialAccount) {
+          setAccountPostPreview(firstSocialAccount as SocialAccount);
         }
-      );
+
+        // Update form values with post data
+        form.reset({
+          content: post.content,
+          mediaUrls: post.mediaUrls?.length
+            ? post.mediaUrls.map((url) => ({
+                name: url.split("/").pop() || "file",
+                preview: url,
+                size: 0,
+                type: url.match(/\.(jpg|jpeg|png|gif)$/i)
+                  ? `image/${url.match(/\.([^.]+)$/)?.[1] || "jpeg"}`
+                  : "image/jpeg",
+                fileId: crypto.randomUUID(),
+                uploadedUrl: url,
+              }))
+            : [],
+          scheduledAt: new Date(post.scheduledAt),
+          status: post.status,
+          postAction: (() => {
+            const actionMap: Record<PostStatus, PostAction> = {
+              SCHEDULED: PostAction.SCHEDULE,
+              PUBLISHED: PostAction.PUBLISH_NOW,
+              DRAFT: PostAction.SAVE_AS_DRAFT,
+              FAILED: PostAction.SAVE_AS_DRAFT,
+            };
+            return actionMap[post.status] || PostAction.SAVE_AS_DRAFT;
+          })(),
+          socialAccounts: socialAccountIds,
+          userId: undefined,
+          teamId: currentTeamId || undefined,
+          needsApproval: false,
+          approvalWorkflowId: undefined,
+        });
+      } else {
+        // Reset form for new post
+        form.reset({
+          content: "",
+          mediaUrls: [],
+          scheduledAt: startDate || new Date(),
+          status: "DRAFT",
+          postAction: PostAction.PUBLISH_NOW,
+          socialAccounts: ["placeholder"],
+          userId: undefined,
+          teamId: currentTeamId || undefined,
+          needsApproval: false,
+          approvalWorkflowId: undefined,
+        });
+        setLocalSelectedAccounts([]);
+        setAccountPostPreview(undefined);
+      }
     }
-  }, [post, form]);
+  }, [post, form, isOpen, startDate, currentTeamId]);
 
   // Group accounts by platform
   const groupedAccounts = useMemo(() => {
@@ -314,16 +297,27 @@ export function AddPostDialog({
         <div className="block xl:flex gap-4 h-full max-h-[90vh] overflow-hidden pr-2 xl:pr-0">
           {/* Left panel - Post editor */}
           <div className="w-full xl:w-7/12 pl-2.5 py-2.5 overflow-y-auto">
-            <h1 className="text-2xl font-bold mb-4">
-              {post?.id ? "Edit Post" : "Buat Post"}
-            </h1>
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="text-2xl font-bold">
+                {post?.id ? "Edit Post" : "Buat Post"}
+              </h1>
 
-            {/* Show approval status when editing a post */}
-            {post?.id && (
-              <div className="mb-6">
-                <ApprovalStatusDisplay postId={post.id} />
-              </div>
-            )}
+              {/* Navigation to post detail page when editing */}
+              {post?.id && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    router.push(`/posts/${post.id}`);
+                    onClose();
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  View Details
+                </Button>
+              )}
+            </div>
 
             {/* Social account selector */}
             <SocialAccountSelect
@@ -402,6 +396,7 @@ export function AddPostDialog({
                     <PostActionSelector
                       currentAction={postAction}
                       isUploading={isUploading}
+                      postId={post?.id}
                       onActionChange={(action) =>
                         form.setValue("postAction", action, {
                           shouldDirty: true,

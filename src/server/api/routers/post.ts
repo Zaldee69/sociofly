@@ -235,9 +235,13 @@ export const postRouter = createTRPCRouter({
 
   // Update post yang sudah ada
   update: protectedProcedure
-    .input(updatePostSchema)
+    .input(
+      updatePostSchema.extend({
+        socialAccountIds: z.array(z.string()).optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...updateData } = input;
+      const { id, socialAccountIds, ...updateData } = input;
 
       // Periksa apakah post ada dan pengguna memiliki akses
       const post = await ctx.prisma.post.findUnique({
@@ -271,28 +275,75 @@ export const postRouter = createTRPCRouter({
         });
       }
 
-      // Update post
-      const updatedPost = await ctx.prisma.post.update({
-        where: { id },
-        data: updateData,
-        include: {
-          postSocialAccounts: {
-            include: {
-              socialAccount: true,
+      // Use transaction to update post and social accounts
+      return await ctx.prisma.$transaction(async (tx) => {
+        // Update post
+        const updatedPost = await tx.post.update({
+          where: { id },
+          data: updateData,
+          include: {
+            postSocialAccounts: {
+              include: {
+                socialAccount: true,
+              },
             },
           },
-        },
-      });
-
-      // Jika status diperbarui, update status semua PostSocialAccount
-      if (input.status) {
-        await ctx.prisma.postSocialAccount.updateMany({
-          where: { postId: id },
-          data: { status: input.status },
         });
-      }
 
-      return updatedPost;
+        // Update social accounts if provided
+        if (socialAccountIds) {
+          // Verify all social accounts belong to the team
+          const socialAccounts = await tx.socialAccount.findMany({
+            where: {
+              id: { in: socialAccountIds },
+              teamId: post.teamId,
+            },
+          });
+
+          if (socialAccounts.length !== socialAccountIds.length) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Beberapa akun sosial tidak valid",
+            });
+          }
+
+          // Delete existing social account associations
+          await tx.postSocialAccount.deleteMany({
+            where: { postId: id },
+          });
+
+          // Create new social account associations
+          await Promise.all(
+            socialAccountIds.map((socialAccountId) =>
+              tx.postSocialAccount.create({
+                data: {
+                  postId: id,
+                  socialAccountId,
+                  status: input.status || post.status,
+                },
+              })
+            )
+          );
+        } else if (input.status) {
+          // If only status is updated, update all PostSocialAccount statuses
+          await tx.postSocialAccount.updateMany({
+            where: { postId: id },
+            data: { status: input.status },
+          });
+        }
+
+        // Return updated post with fresh social accounts
+        return await tx.post.findUnique({
+          where: { id },
+          include: {
+            postSocialAccounts: {
+              include: {
+                socialAccount: true,
+              },
+            },
+          },
+        });
+      });
     }),
 
   // Hapus post

@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   FileText,
   Edit,
@@ -117,6 +118,7 @@ const PostsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPost, setSelectedPost] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const router = useRouter();
 
   // Filter posts based on filters
   const filteredPosts = dummyPosts.filter((post) => {
@@ -249,13 +251,9 @@ const PostsPage = () => {
                     {filteredPosts.map((post) => (
                       <tr
                         key={post.id}
-                        className={`border-b last:border-b-0 hover:bg-muted/50 cursor-pointer ${
+                        className={`border-b last:border-b-0 hover:bg-muted/50 ${
                           selectedPost === post.id ? "bg-primary/5" : ""
                         }`}
-                        onClick={() => {
-                          setSelectedPost(post.id)
-                          setOpen(true)
-                        }}
                       >
                         <td className="px-3 py-2">
                           <span
@@ -301,7 +299,19 @@ const PostsPage = () => {
                             <Button
                               variant="ghost"
                               size="icon"
+                              aria-label="View Details"
+                              onClick={() => router.push(`/posts/${post.id}`)}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               aria-label="Edit"
+                              onClick={() => {
+                                setSelectedPost(post.id);
+                                setOpen(true);
+                              }}
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -317,13 +327,9 @@ const PostsPage = () => {
                 {filteredPosts.map((post) => (
                   <Card
                     key={post.id}
-                    className={`overflow-hidden cursor-pointer ${
+                    className={`overflow-hidden ${
                       selectedPost === post.id ? "ring-2 ring-primary" : ""
                     }`}
-                    onClick={() => {
-                      setSelectedPost(post.id)
-                      setOpen(true)
-                    }}
                   >
                     <CardContent className="p-0">
                       {post.image && (
@@ -371,6 +377,20 @@ const PostsPage = () => {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
+                              onClick={() => router.push(`/posts/${post.id}`)}
+                              title="View Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                setSelectedPost(post.id);
+                                setOpen(true);
+                              }}
+                              title="Edit Post"
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -378,6 +398,7 @@ const PostsPage = () => {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-destructive"
+                              title="Delete Post"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -396,143 +417,143 @@ const PostsPage = () => {
               <DialogHeader>
                 <DialogTitle>Content Details</DialogTitle>
               </DialogHeader>
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      {platformIcon[selectedPostDetails?.platform || ""]}
-                      <span
-                        className={
-                          "inline-block px-2 py-0.5 rounded text-xs font-semibold " +
-                          (statusColor[selectedPostDetails?.status || ""] || "")
-                        }
-                      >
-                        {selectedPostDetails?.status}
-                      </span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {selectedPostDetails?.scheduledAt}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    {platformIcon[selectedPostDetails?.platform || ""]}
+                    <span
+                      className={
+                        "inline-block px-2 py-0.5 rounded text-xs font-semibold " +
+                        (statusColor[selectedPostDetails?.status || ""] || "")
+                      }
+                    >
+                      {selectedPostDetails?.status}
                     </span>
                   </div>
+                  <span className="text-xs text-muted-foreground">
+                    {selectedPostDetails?.scheduledAt}
+                  </span>
+                </div>
 
-                  <div className="mb-4">
-                    <p className="text-sm whitespace-pre-line">
-                      {selectedPostDetails?.content}
-                    </p>
+                <div className="mb-4">
+                  <p className="text-sm whitespace-pre-line">
+                    {selectedPostDetails?.content}
+                  </p>
+                </div>
+
+                {selectedPostDetails?.image && (
+                  <div className="mb-4 rounded-md overflow-hidden border">
+                    <img
+                      src={selectedPostDetails?.image}
+                      alt=""
+                      className="w-full h-auto max-h-[200px] object-cover"
+                    />
                   </div>
+                )}
 
-                  {selectedPostDetails?.image && (
-                    <div className="mb-4 rounded-md overflow-hidden border">
-                      <img
-                        src={selectedPostDetails?.image}
-                        alt=""
-                        className="w-full h-auto max-h-[200px] object-cover"
-                      />
-                    </div>
-                  )}
-
-                  {selectedPostDetails?.status === "Sent" && (
-                    <div className="mb-4 p-3 bg-muted rounded-md">
-                      <h4 className="text-sm font-medium mb-2">Performance</h4>
-                      <div className="grid grid-cols-3 gap-2 text-center">
-                        <div className="p-2 bg-white rounded shadow-sm">
-                          <div className="font-semibold">
-                            {selectedPostDetails?.engagement.likes}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Likes
-                          </div>
+                {selectedPostDetails?.status === "Sent" && (
+                  <div className="mb-4 p-3 bg-muted rounded-md">
+                    <h4 className="text-sm font-medium mb-2">Performance</h4>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="p-2 bg-white rounded shadow-sm">
+                        <div className="font-semibold">
+                          {selectedPostDetails?.engagement.likes}
                         </div>
-                        <div className="p-2 bg-white rounded shadow-sm">
-                          <div className="font-semibold">
-                            {selectedPostDetails?.engagement.comments}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Comments
-                          </div>
+                        <div className="text-xs text-muted-foreground">
+                          Likes
                         </div>
-                        <div className="p-2 bg-white rounded shadow-sm">
-                          <div className="font-semibold">
-                            {selectedPostDetails?.engagement.shares}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Shares
-                          </div>
+                      </div>
+                      <div className="p-2 bg-white rounded shadow-sm">
+                        <div className="font-semibold">
+                          {selectedPostDetails?.engagement.comments}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Comments
+                        </div>
+                      </div>
+                      <div className="p-2 bg-white rounded shadow-sm">
+                        <div className="font-semibold">
+                          {selectedPostDetails?.engagement.shares}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Shares
                         </div>
                       </div>
                     </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-2 mt-6">
+                  {selectedPostDetails?.status === "Scheduled" && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start"
+                      >
+                        <Calendar size={14} className="mr-2" />
+                        Reschedule
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start"
+                      >
+                        <Share2 size={14} className="mr-2" />
+                        Publish Now
+                      </Button>
+                    </>
                   )}
 
-                  <div className="flex flex-col gap-2 mt-6">
-                    {selectedPostDetails?.status === "Scheduled" && (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full justify-start"
-                        >
-                          <Calendar size={14} className="mr-2" />
-                          Reschedule
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full justify-start"
-                        >
-                          <Share2 size={14} className="mr-2" />
-                          Publish Now
-                        </Button>
-                      </>
-                    )}
+                  {selectedPostDetails?.status === "Sent" && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start"
+                      >
+                        <Eye size={14} className="mr-2" />
+                        View on {selectedPostDetails?.platform}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start"
+                      >
+                        <MessageCircle size={14} className="mr-2" />
+                        View Comments
+                      </Button>
+                    </>
+                  )}
 
-                    {selectedPostDetails?.status === "Sent" && (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full justify-start"
-                        >
-                          <Eye size={14} className="mr-2" />
-                          View on {selectedPostDetails?.platform}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full justify-start"
-                        >
-                          <MessageCircle size={14} className="mr-2" />
-                          View Comments
-                        </Button>
-                      </>
-                    )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                  >
+                    <Edit size={14} className="mr-2" />
+                    Edit Post
+                  </Button>
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start"
-                    >
-                      <Edit size={14} className="mr-2" />
-                      Edit Post
-                    </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                  >
+                    <ExternalLink size={14} className="mr-2" />
+                    Duplicate
+                  </Button>
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start"
-                    >
-                      <ExternalLink size={14} className="mr-2" />
-                      Duplicate
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start text-destructive"
-                    >
-                      <Trash2 size={14} className="mr-2" />
-                      Delete
-                    </Button>
-                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start text-destructive"
+                  >
+                    <Trash2 size={14} className="mr-2" />
+                    Delete
+                  </Button>
                 </div>
+              </div>
             </DialogContent>
           </Dialog>
         </div>

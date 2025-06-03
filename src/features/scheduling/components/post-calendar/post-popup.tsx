@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { format, isSameDay } from "date-fns";
-import { XIcon } from "lucide-react";
+import { XIcon, ExternalLink } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { CalendarPost } from "./types";
 import { PostItem } from "./post-item";
 
@@ -22,6 +24,7 @@ export function PostsPopup({
   onPostSelect,
 }: PostsPopupProps) {
   const popupRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   // Handle click outside to close popup
   useEffect(() => {
@@ -56,6 +59,12 @@ export function PostsPopup({
 
   const handlePostClick = (post: CalendarPost) => {
     onPostSelect(post);
+    onClose();
+  };
+
+  const handleViewDetails = (post: CalendarPost, event: React.MouseEvent) => {
+    event.stopPropagation();
+    router.push(`/posts/${post.id}`);
     onClose();
   };
 
@@ -108,23 +117,30 @@ export function PostsPopup({
           <div className="text-muted-foreground py-2 text-sm">No posts</div>
         ) : (
           posts.map((post) => {
-            const postStart = new Date(post.start);
-            const postEnd = new Date(post.end);
-            const isFirstDay = isSameDay(date, postStart);
-            const isLastDay = isSameDay(date, postEnd);
+            const postDate = new Date(post.scheduledAt);
+            const isToday = isSameDay(date, postDate);
 
             return (
-              <div
-                key={post.id}
-                className="cursor-pointer"
-                onClick={() => handlePostClick(post)}
-              >
-                <PostItem
-                  post={post}
-                  view="agenda"
-                  isFirstDay={isFirstDay}
-                  isLastDay={isLastDay}
-                />
+              <div key={post.id} className="group relative">
+                <div
+                  className="cursor-pointer"
+                  onClick={() => handlePostClick(post)}
+                >
+                  <PostItem post={post} view="agenda" />
+                </div>
+
+                {/* View Details Button - appears on hover */}
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 w-8 p-0 bg-white/90 backdrop-blur-sm"
+                    onClick={(e) => handleViewDetails(post, e)}
+                    title="View Details"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             );
           })

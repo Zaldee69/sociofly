@@ -137,8 +137,17 @@ export function ApprovalStatusDisplay({ postId }: ApprovalStatusProps) {
                     )}
                   </div>
                 ))}
+                <div className="mt-3 text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-200">
+                  💡 Tip: Use the submit button below to resubmit this post for
+                  review
+                </div>
               </div>
-            ) : null,
+            ) : (
+              <div className="mt-3 text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-200">
+                💡 Tip: Use the submit button below to resubmit this post for
+                review
+              </div>
+            ),
         };
       case "IN_PROGRESS":
         const currentStep = instance.currentStepOrder;
@@ -208,4 +217,21 @@ export function ApprovalStatusDisplay({ postId }: ApprovalStatusProps) {
       </CardContent>
     </Card>
   );
+}
+
+// Export function to check if post is rejected (for use in other components)
+export function usePostApprovalStatus(postId: string) {
+  const { data: approvalInstances } = trpc.post.getApprovalInstances.useQuery(
+    { postId },
+    { enabled: !!postId }
+  );
+
+  const instance = approvalInstances?.[0];
+
+  return {
+    isRejected: instance?.status === "REJECTED",
+    isApproved: instance?.status === "APPROVED",
+    isInProgress: instance?.status === "IN_PROGRESS",
+    instance,
+  };
 }

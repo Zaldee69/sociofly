@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CheckCircle,
   XCircle,
@@ -17,9 +18,15 @@ import {
   User,
   Calendar,
   MessageSquare,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ApprovalStatus } from "@prisma/client";
+import { PostPreview } from "@/features/scheduling/components/post-calendar/post-dialog/components/post-preview";
+import {
+  FileWithStablePreview,
+  SocialAccount,
+} from "@/features/scheduling/components/post-calendar/post-dialog/types";
 
 export default function ApprovalsPage() {
   const searchParams = useSearchParams();
@@ -240,12 +247,138 @@ export default function ApprovalsPage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Main Content */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-6">
+            {/* Post Preview */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Eye className="h-5 w-5" />
+                  Post Preview
+                  {post.postSocialAccounts &&
+                    post.postSocialAccounts.length > 1 && (
+                      <Badge variant="outline" className="ml-auto">
+                        {post.postSocialAccounts.length} Platforms
+                      </Badge>
+                    )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  // Transform post data for PostPreview component
+                  const selectedFiles: FileWithStablePreview[] =
+                    post.mediaUrls?.map(
+                      (url, index) =>
+                        ({
+                          stableId: `media-${index}`,
+                          name: `media-${index}.jpg`,
+                          preview: url,
+                          // Required File properties (mock values for preview)
+                          lastModified: Date.now(),
+                          webkitRelativePath: "",
+                          size: 0,
+                          type: "image/jpeg",
+                          arrayBuffer: async () => new ArrayBuffer(0),
+                          slice: () => new Blob(),
+                          stream: () => new ReadableStream(),
+                          text: async () => "",
+                        }) as FileWithStablePreview
+                    ) || [];
+
+                  // Get all social accounts
+                  const socialAccounts =
+                    post.postSocialAccounts?.map((psa) => psa.socialAccount) ||
+                    [];
+
+                  // If only one social account, show single preview
+                  if (socialAccounts.length <= 1) {
+                    const firstSocialAccount = socialAccounts[0];
+                    const accountPostPreview: SocialAccount | undefined =
+                      firstSocialAccount
+                        ? {
+                            id: firstSocialAccount.id,
+                            name: firstSocialAccount.name,
+                            platform: firstSocialAccount.platform,
+                            profilePicture: firstSocialAccount.profilePicture,
+                          }
+                        : undefined;
+
+                    return (
+                      <div className="flex justify-center">
+                        <PostPreview
+                          description={post.content}
+                          selectedFiles={selectedFiles}
+                          accountPostPreview={accountPostPreview}
+                        />
+                      </div>
+                    );
+                  }
+
+                  // If multiple social accounts, show tabs
+                  return (
+                    <Tabs defaultValue="0" className="w-full">
+                      <TabsList className="grid w-full grid-cols-2 lg:grid-cols-3 mb-6">
+                        {socialAccounts.map((account, index) => (
+                          <TabsTrigger
+                            key={account.id}
+                            value={index.toString()}
+                            className="flex items-center gap-2"
+                          >
+                            <span className="capitalize">
+                              {account.platform.toLowerCase()}
+                            </span>
+                            {account.name && (
+                              <span className="text-xs text-muted-foreground truncate max-w-20">
+                                {account.name}
+                              </span>
+                            )}
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+
+                      {socialAccounts.map((account, index) => {
+                        const accountPostPreview: SocialAccount = {
+                          id: account.id,
+                          name: account.name,
+                          platform: account.platform,
+                          profilePicture: account.profilePicture,
+                        };
+
+                        return (
+                          <TabsContent
+                            key={account.id}
+                            value={index.toString()}
+                            className="mt-0"
+                          >
+                            <div className="flex justify-center">
+                              <div className="w-full max-w-sm">
+                                <div className="mb-3 text-center">
+                                  <Badge variant="secondary" className="mb-2">
+                                    {account.platform} -{" "}
+                                    {account.name || account.profileId}
+                                  </Badge>
+                                </div>
+                                <PostPreview
+                                  description={post.content}
+                                  selectedFiles={selectedFiles}
+                                  accountPostPreview={accountPostPreview}
+                                />
+                              </div>
+                            </div>
+                          </TabsContent>
+                        );
+                      })}
+                    </Tabs>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
+            {/* Content Details */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <MessageSquare className="h-5 w-5" />
-                  Content to Review
+                  Content Details
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -258,6 +391,26 @@ export default function ApprovalsPage() {
                     <p className="whitespace-pre-wrap">{post.content}</p>
                   </div>
                 </div>
+
+                {/* Media URLs */}
+                {post.mediaUrls && post.mediaUrls.length > 0 && (
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">
+                      Media Files ({post.mediaUrls.length})
+                    </Label>
+                    <div className="mt-1 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {post.mediaUrls.map((url, index) => (
+                        <div key={index} className="relative aspect-square">
+                          <img
+                            src={url}
+                            alt={`Media ${index + 1}`}
+                            className="w-full h-full object-cover rounded-lg border"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Social Accounts */}
                 {post.postSocialAccounts &&
@@ -301,6 +454,19 @@ export default function ApprovalsPage() {
                     </span>
                   </div>
                 </div>
+
+                {/* Scheduled Date */}
+                {post.scheduledAt && (
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">
+                      Scheduled for
+                    </Label>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-gray-400" />
+                      <span>{new Date(post.scheduledAt).toLocaleString()}</span>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

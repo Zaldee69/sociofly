@@ -1,0 +1,1047 @@
+"use client";
+
+import React, { useState, useMemo } from "react";
+import { useParams, useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  Edit,
+  ExternalLink,
+  Heart,
+  MessageCircle,
+  Share2,
+  Eye,
+  Users,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  MoreHorizontal,
+  Copy,
+  Download,
+  Trash2,
+  RefreshCw,
+  Globe,
+  User,
+  BarChart3,
+  TrendingUp,
+  Target,
+  Activity,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { trpc } from "@/lib/trpc/client";
+import { useTeamContext } from "@/lib/contexts/team-context";
+import { format } from "date-fns";
+import { PostPreview } from "@/features/scheduling/components/post-calendar/post-dialog/components/post-preview";
+import { ApprovalStatusDisplay } from "@/features/scheduling/components/post-calendar/post-dialog/components/approval-status";
+import { DetailedApprovalStatus } from "@/features/approval/components/detailed-approval-status";
+import { AddPostDialog } from "@/features/scheduling/components/post-calendar/post-dialog";
+import { FileWithStablePreview } from "@/features/scheduling/components/post-calendar/post-dialog/hooks/use-media-files";
+import { SocialPlatform } from "@prisma/client";
+
+// Platform icons and colors
+const platformConfig: Record<
+  SocialPlatform,
+  { icon: string; color: string; name: string; bgGradient: string }
+> = {
+  INSTAGRAM: {
+    icon: "📷",
+    color: "bg-gradient-to-r from-purple-500 to-pink-500",
+    name: "Instagram",
+    bgGradient: "from-purple-500 to-pink-500",
+  },
+  TWITTER: {
+    icon: "🐦",
+    color: "bg-blue-500",
+    name: "Twitter",
+    bgGradient: "from-blue-400 to-blue-600",
+  },
+  FACEBOOK: {
+    icon: "📘",
+    color: "bg-blue-600",
+    name: "Facebook",
+    bgGradient: "from-blue-500 to-blue-700",
+  },
+  LINKEDIN: {
+    icon: "💼",
+    color: "bg-blue-700",
+    name: "LinkedIn",
+    bgGradient: "from-blue-600 to-blue-800",
+  },
+  TIKTOK: {
+    icon: "🎵",
+    color: "bg-black",
+    name: "TikTok",
+    bgGradient: "from-gray-800 to-black",
+  },
+  YOUTUBE: {
+    icon: "📺",
+    color: "bg-red-600",
+    name: "YouTube",
+    bgGradient: "from-red-500 to-red-700",
+  },
+};
+
+// Status configurations
+const statusConfig = {
+  DRAFT: {
+    icon: <Edit className="w-4 h-4" />,
+    color: "bg-gray-100 text-gray-800 border-gray-200",
+    label: "Draft",
+    dotColor: "bg-gray-400",
+  },
+  SCHEDULED: {
+    icon: <Clock className="w-4 h-4" />,
+    color: "bg-blue-100 text-blue-800 border-blue-200",
+    label: "Scheduled",
+    dotColor: "bg-blue-500",
+  },
+  PUBLISHED: {
+    icon: <CheckCircle className="w-4 h-4" />,
+    color: "bg-green-100 text-green-800 border-green-200",
+    label: "Published",
+    dotColor: "bg-green-500",
+  },
+  FAILED: {
+    icon: <XCircle className="w-4 h-4" />,
+    color: "bg-red-100 text-red-800 border-red-200",
+    label: "Failed",
+    dotColor: "bg-red-500",
+  },
+};
+
+// Mock analytics data generator
+const generateMockAnalytics = (platform: SocialPlatform) => {
+  const baseMetrics = {
+    INSTAGRAM: {
+      views: 2500,
+      likes: 180,
+      comments: 24,
+      shares: 12,
+      reach: 1800,
+      engagement: 8.6,
+    },
+    TWITTER: {
+      views: 1200,
+      likes: 45,
+      comments: 8,
+      shares: 15,
+      reach: 950,
+      engagement: 5.7,
+    },
+    FACEBOOK: {
+      views: 3200,
+      likes: 95,
+      comments: 18,
+      shares: 22,
+      reach: 2100,
+      engagement: 4.2,
+    },
+    LINKEDIN: {
+      views: 850,
+      likes: 32,
+      comments: 6,
+      shares: 8,
+      reach: 650,
+      engagement: 5.4,
+    },
+    TIKTOK: {
+      views: 5600,
+      likes: 420,
+      comments: 65,
+      shares: 89,
+      reach: 4200,
+      engagement: 10.3,
+    },
+    YOUTUBE: {
+      views: 1800,
+      likes: 78,
+      comments: 12,
+      shares: 6,
+      reach: 1400,
+      engagement: 5.3,
+    },
+  };
+
+  const base = baseMetrics[platform];
+
+  return {
+    overview: {
+      views: base.views,
+      likes: base.likes,
+      comments: base.comments,
+      shares: base.shares,
+      reach: base.reach,
+      engagement: base.engagement,
+    },
+    demographics: {
+      ageGroups: [
+        { range: "18-24", percentage: 25 },
+        { range: "25-34", percentage: 35 },
+        { range: "35-44", percentage: 22 },
+        { range: "45-54", percentage: 12 },
+        { range: "55+", percentage: 6 },
+      ],
+      gender: [
+        { type: "Female", percentage: 58 },
+        { type: "Male", percentage: 40 },
+        { type: "Other", percentage: 2 },
+      ],
+      topLocations: [
+        { country: "Indonesia", percentage: 45 },
+        { country: "Malaysia", percentage: 18 },
+        { country: "Singapore", percentage: 12 },
+        { country: "Thailand", percentage: 8 },
+        { country: "Others", percentage: 17 },
+      ],
+    },
+    historical: Array.from({ length: 7 }, (_, i) => ({
+      date: format(
+        new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000),
+        "MMM d"
+      ),
+      views: Math.floor(base.views * (0.7 + Math.random() * 0.6)),
+      engagement:
+        Math.floor(base.engagement * (0.8 + Math.random() * 0.4) * 10) / 10,
+    })),
+  };
+};
+
+// Analytics Components
+const MetricCard = ({
+  icon,
+  label,
+  value,
+  change,
+  trend,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  change?: string;
+  trend?: "up" | "down" | "neutral";
+}) => (
+  <div className="p-4 bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-200 hover:shadow-md min-h-[120px] flex flex-col justify-between">
+    <div className="flex items-start justify-between mb-2">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div className="flex-shrink-0">{icon}</div>
+        <span className="text-sm font-medium text-gray-600 truncate">
+          {label}
+        </span>
+      </div>
+      {change && (
+        <div className="flex-shrink-0 ml-2">
+          <span
+            className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap ${
+              trend === "up"
+                ? "text-green-700 bg-green-100"
+                : trend === "down"
+                  ? "text-red-700 bg-red-100"
+                  : "text-gray-700 bg-gray-100"
+            }`}
+          >
+            {trend === "up" ? "↗" : trend === "down" ? "↘" : "→"} {change}
+          </span>
+        </div>
+      )}
+    </div>
+    <div className="text-xl xl:text-2xl font-bold text-gray-900 truncate">
+      {value}
+    </div>
+  </div>
+);
+
+const DemographicChart = ({
+  data,
+  title,
+}: {
+  data: Array<{
+    range?: string;
+    type?: string;
+    country?: string;
+    percentage: number;
+  }>;
+  title: string;
+}) => (
+  <div className="space-y-2">
+    <h4 className="text-sm font-medium text-gray-700">{title}</h4>
+    <div className="space-y-1">
+      {data.map((item, index) => (
+        <div key={index} className="flex items-center justify-between text-xs">
+          <span className="text-gray-600">
+            {item.range || item.type || item.country}
+          </span>
+          <div className="flex items-center gap-2">
+            <div className="w-16 bg-gray-200 rounded-full h-1.5">
+              <div
+                className="bg-blue-500 h-1.5 rounded-full"
+                style={{ width: `${item.percentage}%` }}
+              ></div>
+            </div>
+            <span className="text-gray-900 font-medium w-8">
+              {item.percentage}%
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const HistoricalChart = ({
+  data,
+}: {
+  data: Array<{ date: string; views: number; engagement: number }>;
+}) => (
+  <div className="space-y-2">
+    <h4 className="text-sm font-medium text-gray-700">7-Day Performance</h4>
+    <div className="grid grid-cols-7 gap-1">
+      {data.map((day, index) => (
+        <div key={index} className="text-center">
+          <div className="text-xs text-gray-500 mb-1">{day.date}</div>
+          <div className="bg-gray-200 rounded h-12 flex items-end justify-center">
+            <div
+              className="bg-blue-500 rounded-t w-full"
+              style={{
+                height: `${(day.views / Math.max(...data.map((d) => d.views))) * 100}%`,
+              }}
+            ></div>
+          </div>
+          <div className="text-xs text-gray-600 mt-1">{day.views}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const AccountAnalytics = ({
+  account,
+  platform,
+}: {
+  account: any;
+  platform: SocialPlatform;
+}) => {
+  const analytics = generateMockAnalytics(platform);
+  const config = platformConfig[platform];
+
+  return (
+    <div className="space-y-8">
+      {/* Overview Metrics - Full Width Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 lg:gap-6">
+        <MetricCard
+          icon={<Eye className="w-5 h-5 text-blue-500" />}
+          label="Views"
+          value={analytics.overview.views.toLocaleString()}
+          change="+12%"
+          trend="up"
+        />
+        <MetricCard
+          icon={<Heart className="w-5 h-5 text-red-500" />}
+          label="Likes"
+          value={analytics.overview.likes.toLocaleString()}
+          change="+8%"
+          trend="up"
+        />
+        <MetricCard
+          icon={<MessageCircle className="w-5 h-5 text-green-500" />}
+          label="Comments"
+          value={analytics.overview.comments}
+          change="+15%"
+          trend="up"
+        />
+        <MetricCard
+          icon={<Share2 className="w-5 h-5 text-purple-500" />}
+          label="Shares"
+          value={analytics.overview.shares}
+          change="-2%"
+          trend="down"
+        />
+        <MetricCard
+          icon={<Users className="w-5 h-5 text-orange-500" />}
+          label="Reach"
+          value={analytics.overview.reach.toLocaleString()}
+          change="+5%"
+          trend="up"
+        />
+        <MetricCard
+          icon={<TrendingUp className="w-5 h-5 text-indigo-500" />}
+          label="Engagement"
+          value={`${analytics.overview.engagement}%`}
+          change="+0.3%"
+          trend="up"
+        />
+      </div>
+
+      {/* Charts and Insights - Enhanced Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+        {/* Historical Performance - Takes 2 columns on XL */}
+        <Card className="p-6 xl:col-span-2">
+          <div className="space-y-4">
+            <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-blue-600" />
+              7-Day Performance Trend
+            </h4>
+            <div className="grid grid-cols-7 gap-2">
+              {analytics.historical.map((day, index) => (
+                <div key={index} className="text-center">
+                  <div className="text-xs text-gray-500 mb-2">{day.date}</div>
+                  <div className="bg-gray-100 rounded-lg h-20 flex items-end justify-center p-1">
+                    <div
+                      className="bg-gradient-to-t from-blue-500 to-blue-400 rounded-t w-full transition-all duration-300 hover:from-blue-600 hover:to-blue-500"
+                      style={{
+                        height: `${(day.views / Math.max(...analytics.historical.map((d) => d.views))) * 100}%`,
+                      }}
+                    ></div>
+                  </div>
+                  <div className="text-xs font-medium text-gray-700 mt-2">
+                    {day.views.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {day.engagement}% eng.
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+
+        {/* Age Groups */}
+        <Card className="p-6">
+          <div className="space-y-4">
+            <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Target className="w-5 h-5 text-purple-600" />
+              Age Groups
+            </h4>
+            <div className="space-y-3">
+              {analytics.demographics.ageGroups.map((item, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">
+                    {item.range}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <div className="w-20 bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-purple-500 to-purple-400 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${item.percentage}%` }}
+                      ></div>
+                    </div>
+                    <span className="text-sm font-bold text-gray-900 w-10 text-right">
+                      {item.percentage}%
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+
+        {/* Gender Distribution */}
+        <Card className="p-6">
+          <div className="space-y-4">
+            <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Users className="w-5 h-5 text-green-600" />
+              Gender Split
+            </h4>
+            <div className="space-y-3">
+              {analytics.demographics.gender.map((item, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">
+                    {item.type}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <div className="w-20 bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          item.type === "Female"
+                            ? "bg-gradient-to-r from-pink-500 to-pink-400"
+                            : item.type === "Male"
+                              ? "bg-gradient-to-r from-blue-500 to-blue-400"
+                              : "bg-gradient-to-r from-gray-500 to-gray-400"
+                        }`}
+                        style={{ width: `${item.percentage}%` }}
+                      ></div>
+                    </div>
+                    <span className="text-sm font-bold text-gray-900 w-10 text-right">
+                      {item.percentage}%
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Top Locations - Full Width */}
+      <Card className="p-6">
+        <div className="space-y-4">
+          <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+            <Globe className="w-5 h-5 text-orange-600" />
+            Top Locations
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {analytics.demographics.topLocations.map((item, index) => (
+              <div
+                key={index}
+                className="text-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <div className="text-2xl mb-2">
+                  {item.country === "Indonesia"
+                    ? "🇮🇩"
+                    : item.country === "Malaysia"
+                      ? "🇲🇾"
+                      : item.country === "Singapore"
+                        ? "🇸🇬"
+                        : item.country === "Thailand"
+                          ? "🇹🇭"
+                          : "🌍"}
+                </div>
+                <div className="font-semibold text-gray-900">
+                  {item.percentage}%
+                </div>
+                <div className="text-sm text-gray-600">{item.country}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+export default function PostDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { currentTeamId } = useTeamContext();
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  const postId = params.id as string;
+
+  // Fetch post data
+  const {
+    data: post,
+    isLoading,
+    error,
+    refetch,
+  } = trpc.post.getById.useQuery({ id: postId }, { enabled: !!postId });
+
+  // Fetch approval instances
+  const { data: approvalInstances } = trpc.post.getApprovalInstances.useQuery(
+    { postId },
+    { enabled: !!postId }
+  );
+
+  // Delete mutation
+  const deletePostMutation = trpc.post.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Post deleted successfully!");
+      router.push("/posts");
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete post: ${error.message}`);
+    },
+  });
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast.success("Link copied to clipboard!");
+  };
+
+  const handleEdit = () => {
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDelete = () => {
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (post?.id) {
+      deletePostMutation.mutate({ id: post.id });
+    }
+    setIsDeleteDialogOpen(false);
+  };
+
+  const handlePostSave = (updatedPost: any) => {
+    // Refetch the post data to get the latest updates
+    refetch();
+    toast.success("Post updated successfully!");
+  };
+
+  const handlePostDelete = (postId: string) => {
+    // This is called from the edit dialog if user deletes from there
+    deletePostMutation.mutate({ id: postId });
+  };
+
+  // Convert mediaUrls to selectedFiles format for preview
+  const selectedFiles = useMemo((): FileWithStablePreview[] => {
+    if (!post?.mediaUrls?.length) return [];
+
+    return post.mediaUrls.map((url, index) => {
+      const fileName = url.split("/").pop() || `media-${index + 1}`;
+      const fileType = url.match(/\.(jpg|jpeg|png|gif)$/i)
+        ? `image/${url.match(/\.([^.]+)$/)?.[1] || "jpeg"}`
+        : url.match(/\.(mp4|mov|avi)$/i)
+          ? `video/${url.match(/\.([^.]+)$/)?.[1] || "mp4"}`
+          : "image/jpeg";
+
+      // Create a mock File object with required properties
+      const mockFile = new File([], fileName, { type: fileType });
+
+      // Add the additional properties needed for FileWithStablePreview
+      return Object.assign(mockFile, {
+        preview: url,
+        stableId: `media-${index}-${Date.now()}`,
+      }) as FileWithStablePreview;
+    });
+  }, [post?.mediaUrls]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50/50">
+        <div className="container mx-auto p-4 md:p-6 max-w-7xl">
+          <div className="animate-pulse space-y-6">
+            <div className="flex items-center gap-4">
+              <div className="h-8 w-8 bg-gray-200 rounded"></div>
+              <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="h-64 bg-gray-200 rounded-lg"></div>
+                <div className="h-48 bg-gray-200 rounded-lg"></div>
+              </div>
+              <div className="space-y-6">
+                <div className="h-32 bg-gray-200 rounded-lg"></div>
+                <div className="h-32 bg-gray-200 rounded-lg"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !post) {
+    return (
+      <div className="min-h-screen bg-gray-50/50 flex items-center justify-center">
+        <div className="container mx-auto p-4 md:p-6 max-w-2xl">
+          <Card className="border-red-200 shadow-lg">
+            <CardContent className="flex items-center justify-center py-16">
+              <div className="text-center">
+                <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-6" />
+                <h3 className="text-xl font-semibold text-red-800 mb-3">
+                  Post Not Found
+                </h3>
+                <p className="text-red-600 mb-6 max-w-md">
+                  The post you're looking for doesn't exist or has been deleted.
+                </p>
+                <Button
+                  onClick={() => router.push("/posts")}
+                  variant="outline"
+                  size="lg"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Posts
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const statusInfo = statusConfig[post.status] || statusConfig.DRAFT;
+  const hasApprovalWorkflow = approvalInstances && approvalInstances.length > 0;
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto p-6 max-w-6xl">
+        {/* Improved Proportional Header */}
+        <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            {/* Left Section - Navigation & Title */}
+            <div className="flex items-start gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push("/posts")}
+                className="hover:bg-gray-100 mt-1"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    Post Details
+                  </h1>
+                  <Badge className={`${statusInfo.color} border px-2.5 py-1`}>
+                    <div
+                      className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotColor} mr-1.5`}
+                    ></div>
+                    {statusInfo.label}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    <span>Created by {post.user.name || post.user.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    <span>
+                      {format(
+                        new Date(post.createdAt),
+                        "MMM d, yyyy 'at' h:mm a"
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    <span>
+                      Scheduled for{" "}
+                      {format(
+                        new Date(post.scheduledAt),
+                        "MMM d, yyyy 'at' h:mm a"
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Section - Actions */}
+            <div className="flex items-center gap-3 lg:flex-shrink-0">
+              <Button
+                onClick={handleEdit}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                size="sm"
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Edit Post
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-gray-300"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={handleCopyLink}>
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copy Link
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Download className="w-4 h-4 mr-2" />
+                    Export Data
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={handleDelete}
+                    className="text-red-600 focus:text-red-600"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Post
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Content - Post Preview */}
+          <div className="lg:col-span-2">
+            <Card className="bg-white shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">Post Preview</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <PostPreview
+                    description={post.content}
+                    selectedFiles={selectedFiles}
+                    accountPostPreview={
+                      post.postSocialAccounts[0]?.socialAccount || undefined
+                    }
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar - Info & Actions */}
+          <div className="space-y-6">
+            {/* Schedule Info */}
+            <Card className="bg-white gap-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-blue-600" />
+                  Schedule
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm">
+                  <div className="font-medium text-gray-900">
+                    {format(new Date(post.scheduledAt), "EEEE, MMM d, yyyy")}
+                  </div>
+                  <div className="text-gray-500">
+                    {format(new Date(post.scheduledAt), "h:mm a")}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Publishing Platforms Summary */}
+            <Card className="bg-white gap-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Share2 className="w-4 h-4 text-green-600" />
+                  Platforms
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {post.postSocialAccounts.map((psa) => {
+                    const account = psa.socialAccount;
+                    if (!account) return null;
+
+                    const config = platformConfig[account.platform];
+                    const analytics = generateMockAnalytics(account.platform);
+
+                    return (
+                      <div
+                        key={psa.id}
+                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+                      >
+                        <div
+                          className={`w-8 h-8 rounded-lg bg-gradient-to-r ${config.bgGradient} flex items-center justify-center text-white text-sm`}
+                        >
+                          {config.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm text-gray-900">
+                            {account.name}
+                          </div>
+                          <div className="text-xs text-gray-500 flex items-center gap-2">
+                            <span>{config.name}</span>
+                            {psa.status === "PUBLISHED" && (
+                              <>
+                                <span>•</span>
+                                <span className="text-blue-600">
+                                  {analytics.overview.views.toLocaleString()}{" "}
+                                  views
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <Badge
+                          variant={
+                            psa.status === "PUBLISHED" ? "default" : "secondary"
+                          }
+                          className="text-xs"
+                        >
+                          {psa.status}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Approval Workflow */}
+            {hasApprovalWorkflow && (
+              <Card className="bg-white gap-0 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Users className="w-4 h-4 text-purple-600" />
+                    Approval Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <DetailedApprovalStatus postId={postId} />
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+
+        {/* Full-Width Analytics Section */}
+        <Card className="bg-white shadow-sm mt-8">
+          <CardHeader className="border-b">
+            <CardTitle className="text-xl flex items-center gap-3">
+              <BarChart3 className="w-6 h-6 text-blue-600" />
+              Analytics & Performance
+              <Badge variant="secondary" className="ml-auto">
+                {post.postSocialAccounts.length} Platform
+                {post.postSocialAccounts.length > 1 ? "s" : ""}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <Tabs
+              defaultValue={post.postSocialAccounts[0]?.socialAccount?.id}
+              className="w-full"
+            >
+              <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 mb-8 h-auto p-1 gap-2">
+                {post.postSocialAccounts.map((psa) => {
+                  const account = psa.socialAccount;
+                  if (!account) return null;
+
+                  const config = platformConfig[account.platform];
+                  const analytics = generateMockAnalytics(account.platform);
+
+                  return (
+                    <TabsTrigger
+                      key={account.id}
+                      value={account.id}
+                      className="flex flex-col items-center gap-2 p-3 h-auto data-[state=active]:bg-blue-50 min-h-[100px] justify-center"
+                    >
+                      <div
+                        className={`w-8 h-8 rounded-lg bg-gradient-to-r ${config.bgGradient} flex items-center justify-center text-white text-sm flex-shrink-0`}
+                      >
+                        {config.icon}
+                      </div>
+                      <div className="text-center w-full">
+                        <div className="font-medium text-sm">{config.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {analytics.overview.views.toLocaleString()} views
+                        </div>
+                      </div>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+
+              {post.postSocialAccounts.map((psa) => {
+                const account = psa.socialAccount;
+                if (!account) return null;
+
+                return (
+                  <TabsContent
+                    key={account.id}
+                    value={account.id}
+                    className="space-y-6"
+                  >
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`w-12 h-12 rounded-xl bg-gradient-to-r ${platformConfig[account.platform].bgGradient} flex items-center justify-center text-white text-xl`}
+                        >
+                          {platformConfig[account.platform].icon}
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {account.name}
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            {platformConfig[account.platform].name} Performance
+                            Analytics
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Badge
+                          variant={
+                            psa.status === "PUBLISHED" ? "default" : "secondary"
+                          }
+                          className="px-3 py-1"
+                        >
+                          {psa.status}
+                        </Badge>
+                        <Button variant="outline" size="sm">
+                          <Download className="w-4 h-4 mr-2" />
+                          Export
+                        </Button>
+                      </div>
+                    </div>
+
+                    <AccountAnalytics
+                      account={account}
+                      platform={account.platform}
+                    />
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Edit Post Dialog */}
+        <AddPostDialog
+          post={post || null}
+          isOpen={isEditDialogOpen}
+          onClose={() => setIsEditDialogOpen(false)}
+          onSave={handlePostSave}
+          onDelete={handlePostDelete}
+        />
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog
+          open={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Post</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this post? This action cannot be
+                undone.
+                {post?.status === "PUBLISHED" && (
+                  <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-sm">
+                    <strong>Warning:</strong> This post has already been
+                    published to social media platforms.
+                  </div>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-red-600 hover:bg-red-700"
+                disabled={deletePostMutation.isPending}
+              >
+                {deletePostMutation.isPending ? "Deleting..." : "Delete Post"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </div>
+  );
+}

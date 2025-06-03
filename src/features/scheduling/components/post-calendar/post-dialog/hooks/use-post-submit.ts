@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { UseFormReturn } from "react-hook-form";
 import { useUploadThing } from "@/lib/utils/uploadthing";
+import { trpc } from "@/lib/trpc/client";
 import { PostAction, PostFormValues } from "../schema";
 import { submitPostWithApproval } from "../components/approval-workflow-integration";
 import { FileWithStablePreview } from "./use-media-files";
+import { CalendarPost } from "../../types";
+import { toast } from "sonner";
 
 interface UsePostSubmitProps {
   form: UseFormReturn<PostFormValues>;
@@ -11,6 +14,7 @@ interface UsePostSubmitProps {
   selectedFiles: FileWithStablePreview[];
   onSave?: (result: any) => void;
   onClose: () => void;
+  post?: CalendarPost | null;
 }
 
 export function usePostSubmit({
@@ -19,10 +23,43 @@ export function usePostSubmit({
   selectedFiles,
   onSave,
   onClose,
+  post,
 }: UsePostSubmitProps) {
   const [isUploading, setIsUploading] = useState(false);
 
-  // Setup UploadThing hook
+  // Check if post is rejected
+  const { data: approvalInstances } = trpc.post.getApprovalInstances.useQuery(
+    { postId: post?.id || "" },
+    { enabled: !!post?.id }
+  );
+
+  const isRejectedPost = approvalInstances?.[0]?.status === "REJECTED";
+
+  const updatePostMutation = trpc.post.update.useMutation({
+    onSuccess: (result) => {
+      console.log("Post updated successfully:", result);
+      onSave?.(result);
+      form.reset();
+      onClose();
+    },
+    onError: (error) => {
+      console.error("Error updating post:", error);
+    },
+  });
+
+  // Add resubmit mutation
+  const resubmitPostMutation = trpc.approvalRequest.resubmitPost.useMutation({
+    onSuccess: () => {
+      toast.success("Post resubmitted for review!");
+      onSave?.(null);
+      form.reset();
+      onClose();
+    },
+    onError: (error) => {
+      toast.error(`Failed to resubmit: ${error.message}`);
+    },
+  });
+
   const { startUpload } = useUploadThing("mediaUploader", {
     onClientUploadComplete: (res) => {
       if (!res) return;
@@ -42,16 +79,13 @@ export function usePostSubmit({
         throw new Error("No team selected");
       }
 
-      // Find media items that need to be uploaded (blob URLs)
       const mediaToUpload = values.mediaUrls.filter(
         (media) => media.preview.startsWith("blob:") && !media.uploadedUrl
       );
 
-      // If we have files to upload
       if (mediaToUpload.length > 0) {
         setIsUploading(true);
 
-        // Find the actual File objects that need uploading
         const filesToUpload = mediaToUpload
           .map((media) => {
             return selectedFiles.find((file) => file.stableId === media.fileId);
@@ -60,17 +94,14 @@ export function usePostSubmit({
 
         if (filesToUpload.length > 0) {
           try {
-            // Upload files to UploadThing
             const uploadResult = await startUpload(
               filesToUpload.map((f) => f as unknown as File),
               { teamId }
             );
 
             if (uploadResult) {
-              // Update the media URLs with the uploaded URLs
               const updatedMediaUrls = [...values.mediaUrls];
 
-              // Match uploaded files with their entries in mediaUrls
               uploadResult.forEach((result, index) => {
                 if (result) {
                   const fileId = filesToUpload[index].stableId;
@@ -87,7 +118,6 @@ export function usePostSubmit({
                 }
               });
 
-              // Update form values with uploaded URLs
               values.mediaUrls = updatedMediaUrls;
             }
           } catch (error) {
@@ -99,7 +129,63 @@ export function usePostSubmit({
         }
       }
 
-      // Handle post with approval request
+      // Handle resubmission for rejected posts
+      if (
+        post?.id &&
+        isRejectedPost &&
+        values.postAction === PostAction.REQUEST_REVIEW
+      ) {
+        // First update the post content, then resubmit
+        const mediaUrls = values.mediaUrls.map(
+          (media) => media.uploadedUrl || media.preview
+        );
+
+        await updatePostMutation.mutateAsync({
+          id: post.id,
+          content: values.content,
+          mediaUrls,
+          scheduledAt: values.scheduledAt,
+          status: "DRAFT",
+          socialAccountIds: values.socialAccounts,
+        });
+
+        // Then resubmit for approval
+        await resubmitPostMutation.mutateAsync({
+          postId: post.id,
+          restartFromBeginning: false,
+        });
+
+        return;
+      }
+
+      // Handle regular post updates
+      if (post?.id) {
+        const mediaUrls = values.mediaUrls.map(
+          (media) => media.uploadedUrl || media.preview
+        );
+
+        let status = values.status;
+        if (values.postAction === PostAction.PUBLISH_NOW) {
+          status = "PUBLISHED";
+        } else if (values.postAction === PostAction.SCHEDULE) {
+          status = "SCHEDULED";
+        } else if (values.postAction === PostAction.SAVE_AS_DRAFT) {
+          status = "DRAFT";
+        }
+
+        await updatePostMutation.mutateAsync({
+          id: post.id,
+          content: values.content,
+          mediaUrls,
+          scheduledAt: values.scheduledAt,
+          status,
+          socialAccountIds: values.socialAccounts,
+        });
+
+        return;
+      }
+
+      // Handle new post creation
       if (values.postAction === PostAction.REQUEST_REVIEW) {
         console.log(values);
 
@@ -113,9 +199,6 @@ export function usePostSubmit({
           onClose();
         }
       } else {
-        // Handle regular post submission
-        // Here you would typically call your API to save the post
-        // For now, just resetting the form and closing
         form.reset();
         onClose();
       }
@@ -125,7 +208,10 @@ export function usePostSubmit({
   };
 
   return {
-    isUploading,
+    isUploading:
+      isUploading ||
+      updatePostMutation.isPending ||
+      resubmitPostMutation.isPending,
     handleSubmit,
   };
 }
