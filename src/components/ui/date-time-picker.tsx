@@ -34,9 +34,16 @@ export function DateTimePicker24hForm() {
 
   const form = useFormContext();
 
-  // Update minimum time whenever component renders
+  // Update minimum time whenever component renders (every minute)
   useEffect(() => {
     setMinTime(addMinutes(new Date(), 1));
+
+    // Update minTime every minute to keep it current
+    const interval = setInterval(() => {
+      setMinTime(addMinutes(new Date(), 1));
+    }, 60000); // Update every minute
+
+    return () => clearInterval(interval);
   }, []);
 
   function handleDateSelect(date: Date | undefined) {
@@ -78,7 +85,7 @@ export function DateTimePicker24hForm() {
 
     // If the new date is today, ensure time is not in the past
     if (isToday(newDate) && isBefore(newDate, minTime)) {
-      toast.error("Cannot select a time in the past");
+      toast.error("Waktu posting harus minimal 1 menit dari sekarang");
       return;
     }
 
@@ -131,11 +138,6 @@ export function DateTimePicker24hForm() {
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0">
           <div className="sm:flex">
-            {form.formState.errors.scheduledAt && (
-              <div className="text-red-500 text-sm">
-                {form.formState.errors.scheduledAt.message?.toString()}
-              </div>
-            )}
             <Calendar
               mode="single"
               selected={form.getValues("scheduledAt")}

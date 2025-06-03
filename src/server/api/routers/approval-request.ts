@@ -420,11 +420,11 @@ export const approvalRequestRouter = createTRPCRouter({
       const firstStep = workflow.steps[0];
 
       return ctx.prisma.$transaction(async (tx) => {
-        // Update post status
+        // Update post status to DRAFT during approval process
         await tx.post.update({
           where: { id: postId },
           data: {
-            status: "SCHEDULED", // Keep as SCHEDULED since we're just in approval process
+            status: "DRAFT", // Keep as DRAFT until approval is complete
           },
         });
 

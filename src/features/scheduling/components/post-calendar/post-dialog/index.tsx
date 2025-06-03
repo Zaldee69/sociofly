@@ -6,12 +6,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Instagram, Twitter, Facebook, ExternalLink } from "lucide-react";
 import { PostStatus } from "@prisma/client";
 import { useRouter } from "next/navigation";
+import { addMinutes } from "date-fns";
 
 import { useTeamContext } from "@/lib/contexts/team-context";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { DateTimePicker24hForm } from "@/components/ui/date-time-picker";
-import { Form, FormField, FormControl, FormItem } from "@/components/ui/form";
+import {
+  Form,
+  FormField,
+  FormControl,
+  FormItem,
+  FormMessage,
+} from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -64,7 +71,7 @@ export function AddPostDialog({
     defaultValues: {
       content: "",
       mediaUrls: [],
-      scheduledAt: startDate || new Date(),
+      scheduledAt: addMinutes(startDate || new Date(), 1),
       status: "DRAFT",
       postAction: PostAction.PUBLISH_NOW,
       socialAccounts: ["placeholder"],
@@ -173,7 +180,7 @@ export function AddPostDialog({
         form.reset({
           content: "",
           mediaUrls: [],
-          scheduledAt: startDate || new Date(),
+          scheduledAt: addMinutes(startDate || new Date(), 1),
           status: "DRAFT",
           postAction: PostAction.PUBLISH_NOW,
           socialAccounts: ["placeholder"],
@@ -391,18 +398,36 @@ export function AddPostDialog({
                   </DialogClose>
 
                   <div className="flex gap-2">
-                    <DateTimePicker24hForm />
+                    <FormField
+                      control={form.control}
+                      name="scheduledAt"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <DateTimePicker24hForm />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
                     <PostActionSelector
                       currentAction={postAction}
                       isUploading={isUploading}
                       postId={post?.id}
-                      onActionChange={(action) =>
+                      onActionChange={(action) => {
                         form.setValue("postAction", action, {
                           shouldDirty: true,
                           shouldValidate: true,
-                        })
-                      }
+                        });
+                        // Trigger validation for scheduledAt when action changes to SCHEDULE or REQUEST_REVIEW
+                        if (
+                          action === PostAction.SCHEDULE ||
+                          action === PostAction.REQUEST_REVIEW
+                        ) {
+                          form.trigger("scheduledAt");
+                        }
+                      }}
                     />
                   </div>
                 </DialogFooter>

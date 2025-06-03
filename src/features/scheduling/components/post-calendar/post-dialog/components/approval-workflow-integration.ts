@@ -45,14 +45,13 @@ export async function submitPostWithApproval(
       postId: createdPost.id,
     });
 
-    // The post status would be updated by the approval request process
-    // but we can return a representation of the post for UI updates
+    // The post status should be DRAFT while in approval process
     return {
       id: createdPost.id,
       postSocialAccounts: [], // Will be populated by the backend
       content: post.content,
       scheduledAt: post.scheduledAt,
-      status: "PENDING_APPROVAL" as PostStatus,
+      status: "DRAFT" as PostStatus, // Keep as DRAFT until approved
       mediaUrls: post.mediaUrls.map(
         (media) => media.uploadedUrl || media.preview
       ),

@@ -60,6 +60,20 @@ export function usePostSubmit({
     },
   });
 
+  // Add submit for approval mutation
+  const submitForApprovalMutation =
+    trpc.approvalRequest.submitForApproval.useMutation({
+      onSuccess: () => {
+        toast.success("Post submitted for review!");
+        onSave?.(null);
+        form.reset();
+        onClose();
+      },
+      onError: (error) => {
+        toast.error(`Failed to submit for review: ${error.message}`);
+      },
+    });
+
   const { startUpload } = useUploadThing("mediaUploader", {
     onClientUploadComplete: (res) => {
       if (!res) return;
@@ -164,6 +178,27 @@ export function usePostSubmit({
           (media) => media.uploadedUrl || media.preview
         );
 
+        // Handle REQUEST_REVIEW for existing posts
+        if (values.postAction === PostAction.REQUEST_REVIEW) {
+          // First update the post content, then submit for approval
+          await updatePostMutation.mutateAsync({
+            id: post.id,
+            content: values.content,
+            mediaUrls,
+            scheduledAt: values.scheduledAt,
+            status: "DRAFT", // Keep as DRAFT until approved
+            socialAccountIds: values.socialAccounts,
+          });
+
+          // Then submit for approval
+          await submitForApprovalMutation.mutateAsync({
+            postId: post.id,
+          });
+
+          return;
+        }
+
+        // Handle other post actions
         let status = values.status;
         if (values.postAction === PostAction.PUBLISH_NOW) {
           status = "PUBLISHED";
@@ -211,7 +246,8 @@ export function usePostSubmit({
     isUploading:
       isUploading ||
       updatePostMutation.isPending ||
-      resubmitPostMutation.isPending,
+      resubmitPostMutation.isPending ||
+      submitForApprovalMutation.isPending,
     handleSubmit,
   };
 }

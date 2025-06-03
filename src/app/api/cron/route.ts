@@ -36,6 +36,14 @@ export async function POST(request: Request) {
         result = await SchedulerService.checkExpiredTokens();
         break;
 
+      case "process_approval_edge_cases":
+        result = await SchedulerService.processApprovalEdgeCases();
+        break;
+
+      case "get_system_health":
+        result = await SchedulerService.getApprovalSystemHealth();
+        break;
+
       default:
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }

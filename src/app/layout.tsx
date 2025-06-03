@@ -18,6 +18,15 @@ const dmSans = DM_Sans({
 
 const inter = Inter({ subsets: ["latin"] });
 
+// Initialize cron jobs on server startup
+if (typeof window === "undefined") {
+  import("@/lib/cron-startup").then(({ initializeCronJobs }) => {
+    initializeCronJobs().catch((error) => {
+      console.error("Failed to initialize cron jobs:", error);
+    });
+  });
+}
+
 export const metadata: Metadata = {
   title: "Post Spark - Social Media Management",
   description: "Streamline your social media management with Post Spark",

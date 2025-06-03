@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma/client";
 import { PostPublisherService } from "./post-publisher";
 import { PostStatus, ApprovalStatus } from "@prisma/client";
+import { ApprovalEdgeCaseHandler } from "./approval-edge-case-handler";
 
 export class SchedulerService {
   /**
@@ -189,6 +190,167 @@ export class SchedulerService {
       });
 
       return 0;
+    }
+  }
+
+  /**
+   * Process all approval edge cases
+   * This should be called by a cron job every hour to handle various edge cases
+   */
+  static async processApprovalEdgeCases(): Promise<{
+    totalIssues: number;
+    reports: any[];
+  }> {
+    try {
+      console.log("Starting approval edge case processing...");
+
+      // Run all edge case checks
+      const reports = await ApprovalEdgeCaseHandler.runAllEdgeCaseChecks();
+
+      const totalIssues = reports.reduce(
+        (sum, report) => sum + report.count,
+        0
+      );
+
+      // Log the results
+      await prisma.cronLog.create({
+        data: {
+          name: "process_approval_edge_cases",
+          status: "SUCCESS",
+          message: `Processed ${totalIssues} edge cases across ${reports.length} categories`,
+        },
+      });
+
+      // Log individual reports for detailed tracking
+      for (const report of reports) {
+        if (report.count > 0) {
+          await prisma.cronLog.create({
+            data: {
+              name: `edge_case_${report.type}`,
+              status: "INFO",
+              message: `Found and processed ${report.count} cases of type: ${report.type}`,
+            },
+          });
+        }
+      }
+
+      console.log(
+        `Completed edge case processing. Total issues handled: ${totalIssues}`
+      );
+
+      return {
+        totalIssues,
+        reports,
+      };
+    } catch (error) {
+      console.error("Error in processApprovalEdgeCases:", error);
+
+      await prisma.cronLog.create({
+        data: {
+          name: "process_approval_edge_cases",
+          status: "ERROR",
+          message: `Error processing approval edge cases: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        },
+      });
+
+      return {
+        totalIssues: 0,
+        reports: [],
+      };
+    }
+  }
+
+  /**
+   * Get health statistics for the approval system
+   */
+  static async getApprovalSystemHealth(): Promise<{
+    pendingApprovals: number;
+    overduePosts: number;
+    stuckApprovals: number;
+    expiredTokens: number;
+    healthScore: number;
+  }> {
+    try {
+      const now = new Date();
+
+      // Count pending approvals
+      const pendingApprovals = await prisma.approvalAssignment.count({
+        where: {
+          status: ApprovalStatus.PENDING,
+        },
+      });
+
+      // Count overdue posts (scheduled time passed but still in approval)
+      const overduePosts = await prisma.post.count({
+        where: {
+          status: PostStatus.DRAFT,
+          scheduledAt: {
+            lt: now,
+          },
+          approvalInstances: {
+            some: {
+              status: ApprovalStatus.IN_PROGRESS,
+            },
+          },
+        },
+      });
+
+      // Count stuck approvals (more than 48 hours old)
+      const stuckThreshold = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+      const stuckApprovals = await prisma.approvalInstance.count({
+        where: {
+          status: ApprovalStatus.IN_PROGRESS,
+          createdAt: {
+            lt: stuckThreshold,
+          },
+          assignments: {
+            every: {
+              status: ApprovalStatus.PENDING,
+              completedAt: null,
+            },
+          },
+        },
+      });
+
+      // Count expired tokens
+      const expiredTokens = await prisma.socialAccount.count({
+        where: {
+          expiresAt: {
+            lte: now,
+          },
+        },
+      });
+
+      // Calculate health score (0-100)
+      // Lower scores indicate more issues
+      let healthScore = 100;
+
+      // Deduct points for issues
+      healthScore -= Math.min(overduePosts * 10, 50); // Max 50 points deduction
+      healthScore -= Math.min(stuckApprovals * 15, 30); // Max 30 points deduction
+      healthScore -= Math.min(expiredTokens * 5, 20); // Max 20 points deduction
+
+      // Ensure health score doesn't go below 0
+      healthScore = Math.max(healthScore, 0);
+
+      return {
+        pendingApprovals,
+        overduePosts,
+        stuckApprovals,
+        expiredTokens,
+        healthScore,
+      };
+    } catch (error) {
+      console.error("Error getting approval system health:", error);
+      return {
+        pendingApprovals: 0,
+        overduePosts: 0,
+        stuckApprovals: 0,
+        expiredTokens: 0,
+        healthScore: 0,
+      };
     }
   }
 }
