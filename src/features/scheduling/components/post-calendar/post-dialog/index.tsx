@@ -186,7 +186,7 @@ export function AddPostDialog({
         setAccountPostPreview(undefined);
       }
     }
-  }, [post, form, isOpen, startDate, currentTeamId]);
+  }, [post, form, isOpen, startDate, currentTeamId, socialAccounts]);
 
   // Group accounts by platform
   const groupedAccounts = useMemo(() => {
@@ -323,7 +323,7 @@ export function AddPostDialog({
             <SocialAccountSelect
               placeholder="Pilih Akun"
               options={accountOptions}
-              defaultValue={localSelectedAccounts}
+              value={localSelectedAccounts}
               onChange={handleAccountChange}
             />
 

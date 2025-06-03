@@ -29,6 +29,7 @@ export interface SocialAccountOption {
 
 interface SocialAccountSelectProps {
   options: SocialAccountOption[];
+  value?: string[];
   defaultValue?: string[];
   onChange?: (value: string[]) => void;
   placeholder?: string;
@@ -37,18 +38,30 @@ interface SocialAccountSelectProps {
 
 export function SocialAccountSelect({
   options,
+  value,
   defaultValue = [],
   onChange,
   placeholder = "Select social accounts...",
   disabled = false,
 }: SocialAccountSelectProps) {
   const [open, setOpen] = useState(false);
-  const [selectedValues, setSelectedValues] = useState<string[]>(defaultValue);
+  const [selectedValues, setSelectedValues] = useState<string[]>(
+    value || defaultValue
+  );
 
-  // Update selected values when defaultValue changes (for edit mode)
+  // Update selected values when value prop changes (controlled mode)
   useEffect(() => {
-    setSelectedValues(defaultValue);
-  }, [defaultValue]);
+    if (value !== undefined) {
+      setSelectedValues(value);
+    }
+  }, [value]);
+
+  // Update selected values when defaultValue changes (for edit mode in uncontrolled mode)
+  useEffect(() => {
+    if (value === undefined) {
+      setSelectedValues(defaultValue);
+    }
+  }, [defaultValue, value]);
 
   // Get all available options including children from groups
   const getAllOptions = () => {
@@ -70,18 +83,26 @@ export function SocialAccountSelect({
     return allOptions.find((option) => option.value === value);
   };
 
-  const handleSelect = (value: string) => {
-    const newSelectedValues = selectedValues.includes(value)
-      ? selectedValues.filter((v) => v !== value)
-      : [...selectedValues, value];
+  const handleSelect = (selectValue: string) => {
+    const newSelectedValues = selectedValues.includes(selectValue)
+      ? selectedValues.filter((v) => v !== selectValue)
+      : [...selectedValues, selectValue];
 
-    setSelectedValues(newSelectedValues);
+    // Only update internal state if not controlled
+    if (value === undefined) {
+      setSelectedValues(newSelectedValues);
+    }
     onChange?.(newSelectedValues);
   };
 
   const clearAll = () => {
-    setSelectedValues([]);
-    onChange?.([]);
+    const newSelectedValues: string[] = [];
+
+    // Only update internal state if not controlled
+    if (value === undefined) {
+      setSelectedValues(newSelectedValues);
+    }
+    onChange?.(newSelectedValues);
   };
 
   const selectedLabels = selectedValues.map((value) => {

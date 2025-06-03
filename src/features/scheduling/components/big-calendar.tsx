@@ -63,11 +63,14 @@ const mapToCalendarPosts = (apiPosts: any[] | undefined): CalendarPost[] => {
   return apiPosts.map((post) => ({
     id: post.id || String(Math.random()),
     postSocialAccounts:
-      post.postSocialAccounts?.map((sa: any) => ({
-        id: sa.socialAccount.id,
-        name: sa.socialAccount.name,
-        platform: sa.socialAccount.platform,
-        profilePicture: sa.socialAccount.profilePicture,
+      post.postSocialAccounts?.map((psa: any) => ({
+        id: psa.id,
+        socialAccount: {
+          id: psa.socialAccount.id,
+          name: psa.socialAccount.name,
+          platform: psa.socialAccount.platform,
+          profilePicture: psa.socialAccount.profilePicture,
+        },
       })) ?? [],
     content: post.content || "",
     scheduledAt: post.scheduledAt,
