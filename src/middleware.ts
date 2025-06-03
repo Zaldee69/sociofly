@@ -8,8 +8,6 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/api/webhooks/clerk",
   "/api/uploadthing",
-  "/api/cron-manager(.*)",
-  "/api/cron(.*)",
   "/error(.*)",
   "/legal/(.*)",
   "/about",
@@ -18,6 +16,15 @@ const isPublicRoute = createRouteMatcher([
 
 export default clerkMiddleware(async (auth, req) => {
   try {
+    // Skip authentication entirely for cron API routes
+    if (
+      req.nextUrl.pathname.startsWith("/api/cron-manager") ||
+      req.nextUrl.pathname.startsWith("/api/cron/")
+    ) {
+      console.log(`🔓 Bypassing Clerk auth for: ${req.nextUrl.pathname}`);
+      return NextResponse.next();
+    }
+
     // Cek apakah rute memerlukan autentikasi
     if (!isPublicRoute(req)) {
       // Protect the route and redirect unauth users to sign-in
@@ -39,7 +46,12 @@ export default clerkMiddleware(async (auth, req) => {
   } catch (error) {
     console.error("Middleware error:", error);
 
-    // Handle auth errors by redirecting to sign-in
+    // Don't redirect API routes to sign-in, return 401 instead
+    if (req.nextUrl.pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Handle auth errors by redirecting to sign-in for non-API routes
     const signInUrl = new URL("/sign-in", req.url);
     signInUrl.searchParams.set("redirect_url", req.url);
 

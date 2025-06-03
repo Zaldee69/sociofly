@@ -74,12 +74,44 @@ export async function GET(request: NextRequest) {
 
   // Get user's Facebook pages
   const pagesResponse = await fetch(
-    `https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`
+    `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&access_token=${accessToken}`
   );
 
   const pagesData = await pagesResponse.json();
 
-  if (!pagesResponse.ok || !pagesData.data || pagesData.data.length === 0) {
+  if (!pagesResponse.ok) {
+    console.error("Facebook pages API error:", pagesData);
+
+    const sessionId = crypto.randomUUID();
+    await prisma.temporaryData.create({
+      data: {
+        id: sessionId,
+        data: JSON.stringify({
+          error: true,
+          message: `Failed to fetch Facebook pages: ${pagesData.error?.message || "Unknown error"}. Please ensure your Facebook app has proper permissions.`,
+        }),
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // Expires in 30 minutes
+      },
+    });
+
+    // Create URL with conditional parameters
+    const redirectUrl = new URL(
+      origin ? origin : `/onboarding?step=add_social_accounts`,
+      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    );
+
+    // Only add params if they exist
+    if (userType) redirectUrl.searchParams.append("userType", userType);
+    if (orgName) redirectUrl.searchParams.append("orgName", orgName);
+    if (teamEmails) redirectUrl.searchParams.append("teamEmails", teamEmails);
+    redirectUrl.searchParams.append("refresh", "true");
+    redirectUrl.searchParams.append("sessionId", sessionId);
+    redirectUrl.searchParams.append("error", "true");
+
+    return NextResponse.redirect(redirectUrl.toString());
+  }
+
+  if (!pagesData.data || pagesData.data.length === 0) {
     const sessionId = crypto.randomUUID();
     await prisma.temporaryData.create({
       data: {

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:cron": "ENABLE_CRON_JOBS=true next dev",
+    "dev:auto": "scripts/start-with-cron.sh",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -19,7 +20,8 @@
     "cron:restart": "curl -X POST localhost:3000/api/cron-manager -H 'Content-Type: application/json' -d '{\"action\": \"initialize\", \"apiKey\": \"test-scheduler-key\"}'",
     "cron:status": "curl 'localhost:3000/api/cron-manager?action=status&apiKey=test-scheduler-key'",
     "cron:stats": "curl 'localhost:3000/api/cron-manager?action=stats&apiKey=test-scheduler-key'",
-    "cron:stop": "curl -X POST localhost:3000/api/cron-manager -H 'Content-Type: application/json' -d '{\"action\": \"stop\", \"apiKey\": \"test-scheduler-key\"}'"
+    "cron:stop": "curl -X POST localhost:3000/api/cron-manager -H 'Content-Type: application/json' -d '{\"action\": \"stop\", \"apiKey\": \"test-scheduler-key\"}'",
+    "cron:monitor": "watch -n 30 'npm run cron:status'"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

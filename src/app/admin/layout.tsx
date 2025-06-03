@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Settings, Activity, Heart, Shield } from "lucide-react";
+import { Settings, Activity, Heart, Shield, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -7,6 +7,11 @@ const navigation = [
     name: "Dashboard",
     href: "/admin",
     icon: Settings,
+  },
+  {
+    name: "Post Monitoring",
+    href: "/admin/post-monitoring",
+    icon: FileText,
   },
   {
     name: "Cron Jobs",

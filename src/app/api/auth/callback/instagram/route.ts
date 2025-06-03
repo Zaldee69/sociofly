@@ -69,17 +69,43 @@ export async function GET(request: NextRequest) {
 
   // Get Instagram Business Account ID
   const accountsResponse = await fetch(
-    `https://graph.facebook.com/v21.0/me/accounts?access_token=${tokenData.access_token}`
+    `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&access_token=${tokenData.access_token}`
   );
 
   const accountsData = await accountsResponse.json();
 
   if (!accountsResponse.ok) {
     console.error("Facebook accounts error:", accountsData);
-    return NextResponse.json(
-      { error: "Failed to get Facebook accounts" },
-      { status: 400 }
+
+    // Simpan error dalam temporary data
+    const sessionId = crypto.randomUUID();
+    await prisma.temporaryData.create({
+      data: {
+        id: sessionId,
+        data: JSON.stringify({
+          error: true,
+          message: `Failed to fetch Facebook pages: ${accountsData.error?.message || "Unknown error"}. Please ensure your Facebook app has proper permissions.`,
+        }),
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // Expires in 30 minutes
+      },
+    });
+
+    // Create URL with conditional parameters
+    const redirectUrl = new URL(
+      origin ? origin : `/onboarding?step=add_social_accounts`,
+      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     );
+
+    // Only add params if they exist
+    if (userType) redirectUrl.searchParams.append("userType", userType);
+    if (orgName) redirectUrl.searchParams.append("orgName", orgName);
+    if (teamEmails) redirectUrl.searchParams.append("teamEmails", teamEmails);
+    redirectUrl.searchParams.append("refresh", "true");
+    redirectUrl.searchParams.append("sessionId", sessionId);
+    redirectUrl.searchParams.append("error", "true");
+
+    // Redirect with constructed URL
+    return NextResponse.redirect(redirectUrl.toString());
   }
 
   if (!accountsData.data || accountsData.data.length === 0) {
