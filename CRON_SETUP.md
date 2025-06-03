@@ -99,7 +99,13 @@ curl -X POST http://localhost:3000/api/cron-manager \
 
 ## Dashboard Monitoring
 
-Akses dashboard monitoring di aplikasi untuk:
+Akses dashboard monitoring melalui halaman admin:
+
+- **`/admin`** - Dashboard utama dengan semua monitoring
+- **`/admin/cron`** - Dedicated cron jobs monitoring
+- **`/admin/system-health`** - Dedicated approval system health
+
+### Features:
 
 - 📊 Monitor status semua cron jobs
 - 📈 Lihat statistik execution (success rate, last run, dll)
@@ -107,19 +113,9 @@ Akses dashboard monitoring di aplikasi untuk:
 - ⏸️ Start/stop jobs secara manual
 - 🚨 Alert jika ada jobs yang tidak berjalan
 
-Import dan gunakan komponen:
+### Admin Layout:
 
-```tsx
-import { CronJobMonitor } from "@/components/dashboard/cron-job-monitor";
-
-function AdminDashboard() {
-  return (
-    <div>
-      <CronJobMonitor />
-    </div>
-  );
-}
-```
+Halaman admin dilengkapi dengan sidebar navigation untuk mudah berpindah antar halaman monitoring.
 
 ## Job Schedules
 
