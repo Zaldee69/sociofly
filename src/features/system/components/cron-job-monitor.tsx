@@ -55,6 +55,7 @@ export function CronJobMonitor() {
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [processingJob, setProcessingJob] = useState<string | null>(null);
+  const [isRestarting, setIsRestarting] = useState(false);
 
   const apiKey = process.env.NEXT_PUBLIC_CRON_API_KEY || "test-scheduler-key";
 
@@ -142,6 +143,34 @@ export function CronJobMonitor() {
     }
   };
 
+  // Auto-restart all cron jobs
+  const restartAllJobs = async () => {
+    setIsRestarting(true);
+    try {
+      const response = await fetch("/api/cron-manager", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "initialize",
+          apiKey,
+        }),
+      });
+
+      if (response.ok) {
+        console.log("✅ All cron jobs restarted successfully");
+        await refreshData(); // Refresh data after restart
+      } else {
+        console.error("❌ Failed to restart cron jobs");
+      }
+    } catch (error) {
+      console.error("❌ Error restarting cron jobs:", error);
+    } finally {
+      setIsRestarting(false);
+    }
+  };
+
   // Initialize data
   const refreshData = async () => {
     setIsLoading(true);
@@ -151,6 +180,10 @@ export function CronJobMonitor() {
       setIsLoading(false);
     }
   };
+
+  const runningJobs = jobStatus.filter((job) => job.running).length;
+  const totalJobs = jobStatus.length;
+  const allJobsStopped = totalJobs > 0 && runningJobs === 0;
 
   // Auto-refresh every minute
   useEffect(() => {
@@ -201,11 +234,51 @@ export function CronJobMonitor() {
     );
   }
 
-  const runningJobs = jobStatus.filter((job) => job.running).length;
-  const totalJobs = jobStatus.length;
-
   return (
     <div className="space-y-6">
+      {/* Alert for all jobs stopped */}
+      {allJobsStopped && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertTitle className="text-red-800">
+            ⚠️ All Cron Jobs Stopped
+          </AlertTitle>
+          <AlertDescription className="text-red-700">
+            All automated jobs have stopped running. This will affect post
+            scheduling and system monitoring.
+            <div className="mt-3 flex gap-2">
+              <Button
+                onClick={restartAllJobs}
+                disabled={isRestarting}
+                size="sm"
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {isRestarting ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-2 animate-spin" />
+                    Restarting...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-3 w-3 mr-2" />
+                    Restart All Jobs
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={refreshData}
+                variant="outline"
+                size="sm"
+                className="border-red-300 text-red-700 hover:bg-red-50"
+              >
+                <RefreshCw className="h-3 w-3 mr-2" />
+                Check Again
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Overview */}
       <Card>
         <CardHeader>
@@ -223,7 +296,16 @@ export function CronJobMonitor() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-green-600" />
+                <Activity
+                  className={cn(
+                    "h-4 w-4",
+                    runningJobs === totalJobs
+                      ? "text-green-600"
+                      : runningJobs > 0
+                        ? "text-yellow-600"
+                        : "text-red-600"
+                  )}
+                />
                 <span className="text-sm">
                   {runningJobs}/{totalJobs} jobs running
                 </span>
@@ -238,9 +320,25 @@ export function CronJobMonitor() {
                 </div>
               )}
             </div>
-            <Button onClick={refreshData} variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+            <div className="flex gap-2">
+              {allJobsStopped && (
+                <Button
+                  onClick={restartAllJobs}
+                  disabled={isRestarting}
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {isRestarting ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Zap className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
+              <Button onClick={refreshData} variant="outline" size="sm">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Job Status Table */}
@@ -258,8 +356,20 @@ export function CronJobMonitor() {
             <TableBody>
               {jobStatus.map((job) => {
                 const stats = jobStats?.jobs[job.name];
-                const successRate = stats
-                  ? Math.round((stats.success / (stats.total || 1)) * 100)
+
+                // Calculate success rate based on completed jobs only (success + error)
+                // Exclude "started" jobs that haven't completed yet
+                const completedJobs = stats ? stats.success + stats.error : 0;
+                const successRate =
+                  completedJobs > 0
+                    ? Math.round((stats!.success / completedJobs) * 100)
+                    : (stats?.success ?? 0) > 0
+                      ? 100
+                      : 0; // If there are successes but no errors, it's 100%
+
+                // Calculate pending jobs (started but not completed)
+                const pendingJobs = stats
+                  ? stats.started - (stats.success + stats.error)
                   : 0;
 
                 return (
@@ -331,7 +441,14 @@ export function CronJobMonitor() {
                               style={{ width: `${successRate}%` }}
                             />
                           </div>
-                          <span className="text-sm">{successRate}%</span>
+                          <div className="text-sm">
+                            <div>{successRate}%</div>
+                            {pendingJobs > 0 && (
+                              <div className="text-xs text-orange-600">
+                                {pendingJobs} pending
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <span className="text-sm text-muted-foreground">

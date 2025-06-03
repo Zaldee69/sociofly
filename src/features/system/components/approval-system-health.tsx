@@ -47,11 +47,18 @@ export function ApprovalSystemHealth() {
   );
   const [edgeCaseReports, setEdgeCaseReports] = useState<EdgeCaseReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Fetch health metrics
-  const fetchHealthMetrics = async () => {
+  const fetchHealthMetrics = async (isManualRefresh = false) => {
+    if (isManualRefresh) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+
     try {
       const response = await fetch("/api/cron", {
         method: "POST",
@@ -68,9 +75,17 @@ export function ApprovalSystemHealth() {
         const data = await response.json();
         setHealthMetrics(data.result);
         setLastUpdated(new Date());
+      } else {
+        console.error("Failed to fetch health metrics:", response.statusText);
       }
     } catch (error) {
       console.error("Error fetching health metrics:", error);
+    } finally {
+      if (isManualRefresh) {
+        setIsRefreshing(false);
+      } else {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -93,13 +108,18 @@ export function ApprovalSystemHealth() {
         const data = await response.json();
         setEdgeCaseReports(data.result.reports);
         // Refresh health metrics after processing
-        await fetchHealthMetrics();
+        await fetchHealthMetrics(true);
       }
     } catch (error) {
       console.error("Error processing edge cases:", error);
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Manual refresh handler
+  const handleManualRefresh = () => {
+    fetchHealthMetrics(true);
   };
 
   // Auto-refresh every 5 minutes
@@ -215,8 +235,15 @@ export function ApprovalSystemHealth() {
                       : "Critical issues require immediate action"}
               </p>
             </div>
-            <Button onClick={fetchHealthMetrics} variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4" />
+            <Button
+              onClick={handleManualRefresh}
+              variant="outline"
+              size="sm"
+              disabled={isRefreshing}
+            >
+              <RefreshCw
+                className={cn("h-4 w-4", isRefreshing && "animate-spin")}
+              />
             </Button>
           </div>
         </CardContent>

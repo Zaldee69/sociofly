@@ -12,6 +12,7 @@ interface CronJobConfig {
 
 export class CronManager {
   private static jobs: Map<string, cron.ScheduledTask> = new Map();
+  private static jobStatuses: Map<string, boolean> = new Map();
   private static isInitialized = false;
 
   /**
@@ -98,6 +99,7 @@ export class CronManager {
     );
 
     this.jobs.set(config.name, task);
+    this.jobStatuses.set(config.name, true); // Mark as running
     console.log(
       `🕒 Registered cron job: ${config.name} (${config.schedule}) - ${config.description}`
     );
@@ -223,10 +225,12 @@ export class CronManager {
 
     for (const [name, task] of this.jobs) {
       task.stop();
+      this.jobStatuses.set(name, false); // Mark as stopped
       console.log(`⏹️  Stopped cron job: ${name}`);
     }
 
     this.jobs.clear();
+    this.jobStatuses.clear(); // Clear all statuses
     this.isInitialized = false;
     console.log("✅ All cron jobs stopped");
   }
@@ -238,7 +242,7 @@ export class CronManager {
     const task = this.jobs.get(jobName);
     if (task) {
       task.stop();
-      this.jobs.delete(jobName);
+      this.jobStatuses.set(jobName, false); // Mark as stopped
       console.log(`⏹️  Stopped cron job: ${jobName}`);
       return true;
     }
@@ -252,6 +256,7 @@ export class CronManager {
     const task = this.jobs.get(jobName);
     if (task) {
       task.start();
+      this.jobStatuses.set(jobName, true); // Mark as running
       console.log(`▶️  Started cron job: ${jobName}`);
       return true;
     }
@@ -263,10 +268,10 @@ export class CronManager {
    */
   static getJobStatus(): Array<{ name: string; running: boolean }> {
     const status = [];
-    for (const [name, task] of this.jobs) {
+    for (const [name] of this.jobs) {
       status.push({
         name,
-        running: task.getStatus() === "scheduled",
+        running: this.jobStatuses.get(name) || false,
       });
     }
     return status;
@@ -304,7 +309,13 @@ export class CronManager {
       }
 
       acc[log.name].total++;
-      acc[log.name][log.status.toLowerCase()]++;
+
+      // Count both "SUCCESS" and "COMPLETED" as successful executions
+      if (log.status === "SUCCESS" || log.status === "COMPLETED") {
+        acc[log.name].success++;
+      } else {
+        acc[log.name][log.status.toLowerCase()]++;
+      }
 
       if (!acc[log.name].lastRun || log.executedAt > acc[log.name].lastRun) {
         acc[log.name].lastRun = log.executedAt;
