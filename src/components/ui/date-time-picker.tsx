@@ -29,7 +29,11 @@ import { CalendarIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useFormContext } from "react-hook-form";
 
-export function DateTimePicker24hForm() {
+export function DateTimePicker24hForm({
+  disabled = false,
+}: {
+  disabled?: boolean;
+}) {
   const [minTime, setMinTime] = useState<Date>(addMinutes(new Date(), 1));
 
   const form = useFormContext();
@@ -47,32 +51,34 @@ export function DateTimePicker24hForm() {
   }, []);
 
   function handleDateSelect(date: Date | undefined) {
-    if (date) {
-      // Get current values
-      const currentTime = form.getValues("scheduledAt") || new Date();
+    if (disabled || !date) return;
 
-      // Create new date with selected date but keep current time
-      const newDate = new Date(date);
-      newDate.setHours(currentTime.getHours());
-      newDate.setMinutes(currentTime.getMinutes());
+    // Get current values
+    const currentTime = form.getValues("scheduledAt") || new Date();
 
-      // If the new date is today, ensure time is not in the past
-      if (isToday(newDate) && isBefore(newDate, minTime)) {
-        newDate.setHours(minTime.getHours());
-        newDate.setMinutes(minTime.getMinutes());
-      }
+    // Create new date with selected date but keep current time
+    const newDate = new Date(date);
+    newDate.setHours(currentTime.getHours());
+    newDate.setMinutes(currentTime.getMinutes());
 
-      console.log("newDate", newDate);
-
-      form.setValue("scheduledAt", newDate, {
-        shouldDirty: true,
-        shouldValidate: true,
-        shouldTouch: true,
-      });
+    // If the new date is today, ensure time is not in the past
+    if (isToday(newDate) && isBefore(newDate, minTime)) {
+      newDate.setHours(minTime.getHours());
+      newDate.setMinutes(minTime.getMinutes());
     }
+
+    console.log("newDate", newDate);
+
+    form.setValue("scheduledAt", newDate, {
+      shouldDirty: true,
+      shouldValidate: true,
+      shouldTouch: true,
+    });
   }
 
   function handleTimeChange(type: "hour" | "minute", value: string) {
+    if (disabled) return;
+
     const currentDate = form.getValues("scheduledAt") || new Date();
     let newDate = new Date(currentDate);
 
@@ -98,12 +104,14 @@ export function DateTimePicker24hForm() {
 
   // Determine if an hour button should be disabled
   function isHourDisabled(hour: number): boolean {
+    if (disabled) return true;
     if (!isToday(form.getValues("scheduledAt"))) return false;
     return hour < minTime.getHours();
   }
 
   // Determine if a minute button should be disabled
   function isMinuteDisabled(minute: number): boolean {
+    if (disabled) return true;
     const currentValue = form.getValues("scheduledAt");
     if (!currentValue || !isToday(currentValue)) return false;
 
@@ -126,6 +134,7 @@ export function DateTimePicker24hForm() {
                 "w-full pl-3 text-left font-normal",
                 !form.getValues("scheduledAt") && "text-muted-foreground"
               )}
+              disabled={disabled}
             >
               {form.getValues("scheduledAt") ? (
                 format(form.getValues("scheduledAt"), "MM/dd/yyyy HH:mm")
@@ -144,6 +153,7 @@ export function DateTimePicker24hForm() {
               onSelect={handleDateSelect}
               fromDate={new Date()}
               initialFocus
+              disabled={disabled}
             />
             <div className="flex flex-col sm:flex-row sm:h-[300px] divide-y sm:divide-y-0 sm:divide-x">
               <ScrollArea className="w-64 sm:w-auto">

@@ -43,6 +43,7 @@ import type { AddPostDialogProps, SocialAccount } from "./types";
 import { PostAction, PostFormValues, postSchema } from "./schema";
 import { SocialAccountSelect } from "../../../../../components/social-account-select";
 import { usePostApprovalStatus } from "./components/approval-status";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 export function AddPostDialog({
   startDate,
@@ -301,6 +302,18 @@ export function AddPostDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {/* Loading overlay */}
+        {isUploading && (
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <LoadingSpinner className="h-8 w-8" />
+              <p className="text-sm font-medium text-muted-foreground">
+                Processing your post...
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="block xl:flex gap-4 h-full max-h-[90vh] overflow-hidden pr-2 xl:pr-0">
           {/* Left panel - Post editor */}
           <div className="w-full xl:w-7/12 pl-2.5 py-2.5 overflow-y-auto">
@@ -332,6 +345,7 @@ export function AddPostDialog({
               options={accountOptions}
               value={localSelectedAccounts}
               onChange={handleAccountChange}
+              disabled={isUploading}
             />
 
             {/* Media uploader dialog */}
@@ -360,6 +374,7 @@ export function AddPostDialog({
                             placeholder="What's on your mind?"
                             className="resize-none border-none active:border-none focus-visible:border-none focus-visible:ring-0 shadow-none p-0 min-h-[150px] max-h-[250px]"
                             rows={10}
+                            disabled={isUploading}
                             {...field}
                           />
                         </FormControl>
@@ -374,6 +389,7 @@ export function AddPostDialog({
                         files={selectedFiles}
                         onRemoveFile={removeFile}
                         onReorderFiles={reorderFiles}
+                        disabled={isUploading}
                       />
                     </div>
 
@@ -384,6 +400,7 @@ export function AddPostDialog({
                         onMediaSelect={(file) => handleFileSelect([file])}
                         media={mediaData?.items || []}
                         onHashtagSelect={handleHashtagSelect}
+                        disabled={isUploading}
                       />
                     </div>
                   </div>
@@ -392,7 +409,11 @@ export function AddPostDialog({
                 {/* Form footer with actions */}
                 <DialogFooter className="mt-4 !justify-between">
                   <DialogClose asChild>
-                    <Button type="button" variant="outline">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isUploading}
+                    >
                       Cancel
                     </Button>
                   </DialogClose>
@@ -404,7 +425,7 @@ export function AddPostDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
-                            <DateTimePicker24hForm />
+                            <DateTimePicker24hForm disabled={isUploading} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

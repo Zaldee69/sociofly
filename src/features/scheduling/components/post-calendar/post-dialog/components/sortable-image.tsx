@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { cn } from "@/lib/utils";
 
 interface FileWithStablePreview extends File {
   preview: string;
@@ -10,11 +11,12 @@ interface FileWithStablePreview extends File {
 interface SortableImageProps {
   file: FileWithStablePreview;
   index: number;
-  onRemove: (file: FileWithStablePreview) => void;
+  onRemove?: (file: FileWithStablePreview) => void;
+  disabled?: boolean;
 }
 
 export const SortableImage = memo(
-  ({ file, index, onRemove }: SortableImageProps) => {
+  ({ file, index, onRemove, disabled = false }: SortableImageProps) => {
     const {
       attributes,
       listeners,
@@ -24,13 +26,14 @@ export const SortableImage = memo(
       isDragging,
     } = useSortable({
       id: file.stableId,
+      disabled,
     });
 
     const style = {
       transform: CSS.Transform.toString(transform),
       transition,
       zIndex: isDragging ? 1 : 0,
-      opacity: isDragging ? 0.5 : 1,
+      opacity: isDragging ? 0.5 : disabled ? 0.6 : 1,
       touchAction: "none",
     };
 
@@ -39,9 +42,11 @@ export const SortableImage = memo(
         <div
           ref={setNodeRef}
           style={style}
-          className="border rounded-md w-fit cursor-move"
-          {...attributes}
-          {...listeners}
+          className={cn(
+            "border rounded-md w-fit",
+            disabled ? "cursor-not-allowed" : "cursor-move"
+          )}
+          {...(disabled ? {} : { ...attributes, ...listeners })}
         >
           <img
             src={file.preview}
@@ -50,17 +55,19 @@ export const SortableImage = memo(
             draggable={false}
           />
         </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onRemove(file);
-          }}
-          className="absolute -top-2 -right-2 h-5 w-5 bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 z-50 rounded-full text-sm font-medium hover:cursor-pointer"
-        >
-          ×
-        </button>
+        {onRemove && !disabled && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onRemove(file);
+            }}
+            className="absolute -top-2 -right-2 h-5 w-5 bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 z-50 rounded-full text-sm font-medium hover:cursor-pointer"
+          >
+            ×
+          </button>
+        )}
       </div>
     );
   },
@@ -69,7 +76,9 @@ export const SortableImage = memo(
     return (
       prevProps.file.stableId === nextProps.file.stableId &&
       prevProps.file.preview === nextProps.file.preview &&
-      prevProps.index === nextProps.index
+      prevProps.index === nextProps.index &&
+      prevProps.disabled === nextProps.disabled &&
+      prevProps.onRemove === nextProps.onRemove
     );
   }
 );

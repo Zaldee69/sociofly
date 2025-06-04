@@ -9,6 +9,8 @@ import {
 } from "@/features/scheduling/components/post-calendar/types";
 import { PostCalendar } from "@/features/scheduling/components/post-calendar";
 import { api } from "@/lib/utils/api";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 // Etiquettes data for calendar filtering
 export const etiquettes = [
@@ -82,7 +84,7 @@ const mapToCalendarPosts = (apiPosts: any[] | undefined): CalendarPost[] => {
 export default function Component() {
   const { isColorVisible } = useCalendarContext();
 
-  const { data: posts } = api.post.getAll.useQuery({
+  const { data: posts, isLoading: isPostsLoading } = api.post.getAll.useQuery({
     teamId: "cmbem1h0o001avxptiy3xxnre",
   });
 
@@ -91,6 +93,95 @@ export default function Component() {
     if (!posts || !posts.posts) return [];
     return mapToCalendarPosts(posts.posts);
   }, [posts]);
+
+  // Show loading skeleton while data is being fetched
+  if (isPostsLoading) {
+    return (
+      <div className="flex flex-col rounded-lg space-y-4">
+        {/* Header skeleton */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-5 sm:px-4">
+          <div className="flex sm:flex-col max-sm:items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <Skeleton className="h-7 w-48" />
+            </div>
+            <Skeleton className="h-6 w-32" />
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center sm:gap-2 max-sm:order-1">
+                <Skeleton className="h-8 w-8 rounded" />
+                <Skeleton className="h-8 w-8 rounded" />
+              </div>
+              <Skeleton className="h-8 w-16" />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+          </div>
+        </div>
+
+        {/* Calendar skeleton */}
+        <div className="border border-border/70 rounded-lg overflow-hidden">
+          {/* Weekdays header skeleton */}
+          <div className="grid grid-cols-7 gap-px bg-border/70">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, i) => (
+              <div key={i} className="bg-background p-3 text-center">
+                <Skeleton className="h-4 w-8 mx-auto" />
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar grid skeleton - 6 weeks */}
+          <div className="grid grid-cols-7 gap-px bg-border/70">
+            {Array.from({ length: 42 }).map((_, i) => {
+              // Simulate some days having events
+              const hasEvents = Math.random() > 0.7;
+              const eventCount = hasEvents
+                ? Math.floor(Math.random() * 3) + 1
+                : 0;
+
+              return (
+                <div
+                  key={i}
+                  className="bg-background p-2 min-h-[120px] flex flex-col"
+                >
+                  <div className="flex justify-between items-center mb-2">
+                    <Skeleton className="h-4 w-6" />
+                  </div>
+                  <div className="space-y-1 flex-1">
+                    {Array.from({ length: eventCount }).map((_, eventIndex) => {
+                      // Vary the event widths to make it look more realistic
+                      const widthClass =
+                        eventIndex === 0
+                          ? "w-full"
+                          : eventIndex === 1
+                            ? "w-4/5"
+                            : "w-3/4";
+                      return (
+                        <Skeleton
+                          key={eventIndex}
+                          className={`h-5 ${widthClass} rounded`}
+                          style={{
+                            animationDelay: `${i * 0.05 + eventIndex * 0.1}s`,
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Loading message */}
+        <div className="text-center text-sm text-muted-foreground">
+          Loading your calendar...
+        </div>
+      </div>
+    );
+  }
 
   const handlePostAdd = (post: CalendarPost) => {
     // setPosts([...posts, post]);

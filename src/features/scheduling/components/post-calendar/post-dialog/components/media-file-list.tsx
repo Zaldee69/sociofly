@@ -25,21 +25,29 @@ interface MediaFileListProps {
   files: FileWithStablePreview[];
   onRemoveFile: (file: FileWithStablePreview) => void;
   onReorderFiles: (newFiles: FileWithStablePreview[]) => void;
+  disabled?: boolean;
 }
 
 export function MediaFileList({
   files,
   onRemoveFile,
   onReorderFiles,
+  disabled = false,
 }: MediaFileListProps) {
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
+    if (disabled) return;
+
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
@@ -65,6 +73,7 @@ export function MediaFileList({
       <SortableContext
         items={files.map((f) => f.stableId)}
         strategy={rectSortingStrategy}
+        disabled={disabled}
       >
         <div className="flex flex-wrap gap-2 aspect-auto">
           {files.map((file, index) => (
@@ -72,7 +81,8 @@ export function MediaFileList({
               key={file.stableId}
               file={file}
               index={index}
-              onRemove={onRemoveFile}
+              onRemove={disabled ? undefined : onRemoveFile}
+              disabled={disabled}
             />
           ))}
         </div>

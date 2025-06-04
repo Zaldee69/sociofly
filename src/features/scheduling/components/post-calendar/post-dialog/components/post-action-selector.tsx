@@ -1,4 +1,4 @@
-import { Check, ChevronDown, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, RefreshCw, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -20,6 +20,7 @@ interface TAction {
   value: PostAction | "RESUBMIT";
   title: string;
   description: string;
+  loadingText: string;
 }
 
 const normalActions: TAction[] = [
@@ -27,21 +28,25 @@ const normalActions: TAction[] = [
     value: PostAction.PUBLISH_NOW,
     title: "Publish Sekarang",
     description: "Buat postingan dan publish sekarang",
+    loadingText: "Publishing post...",
   },
   {
     value: PostAction.SCHEDULE,
     title: "Jadwalkan",
     description: "Buat postingan dan jadwalkan untuk publish nanti",
+    loadingText: "Scheduling post...",
   },
   {
     value: PostAction.SAVE_AS_DRAFT,
     title: "Simpan Sebagai Draft",
     description: "Buat postingan dan simpan sebagai draft",
+    loadingText: "Saving draft...",
   },
   {
     value: PostAction.REQUEST_REVIEW,
     title: "Ajukan Review",
     description: "Buat postingan dan ajukan review kepada pengguna lain",
+    loadingText: "Submitting for review...",
   },
 ];
 
@@ -49,6 +54,7 @@ const resubmitAction: TAction = {
   value: "RESUBMIT",
   title: "Resubmit for Review",
   description: "Resubmit this post for review from rejection stage",
+  loadingText: "Resubmitting for review...",
 };
 
 interface PostActionSelectorProps {
@@ -87,6 +93,15 @@ export function PostActionSelector({
     setIsOpenPopover(false);
   };
 
+  // Get the loading text based on current action
+  const getLoadingText = () => {
+    if (isRejected) {
+      return resubmitAction.loadingText;
+    }
+    const action = actions.find((a) => a.value === currentAction);
+    return action?.loadingText || "Processing...";
+  };
+
   return (
     <div className={buttonVariants({ className: "pr-0" })}>
       <button
@@ -95,16 +110,17 @@ export function PostActionSelector({
         className="cursor-pointer flex items-center gap-2"
         disabled={isUploading}
       >
-        {isRejected && <RefreshCw className="w-4 h-4" />}
+        {isUploading && <Loader2 className="w-4 h-4 animate-spin" />}
+        {isRejected && !isUploading && <RefreshCw className="w-4 h-4" />}
         {isUploading
-          ? "Uploading Media..."
+          ? getLoadingText()
           : isRejected
             ? resubmitAction.title
             : defaultAction?.title}
       </button>
       <Popover open={isOpenPopover} onOpenChange={setIsOpenPopover}>
         <PopoverTrigger asChild>
-          <button className="p-2 border-l">
+          <button className="p-2 border-l" disabled={isUploading}>
             <ChevronDown className="w-4 h-4" />
           </button>
         </PopoverTrigger>

@@ -63,6 +63,7 @@ interface PostToolbarProps {
     size?: number;
     [key: string]: any; // Allow for additional properties
   }>;
+  disabled?: boolean;
 }
 
 // Helper function to format file size
@@ -80,6 +81,7 @@ export function PostToolbar({
   onMediaSelect,
   onHashtagSelect,
   media,
+  disabled = false,
 }: PostToolbarProps) {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [initialContext, setInitialContext] = useState("");
@@ -93,6 +95,8 @@ export function PostToolbar({
   const form = useFormContext();
 
   const handleAIButtonClick = () => {
+    if (disabled) return;
+
     const content = form?.getValues("content");
 
     if (!content || content.trim() === "") {
@@ -145,7 +149,7 @@ export function PostToolbar({
 
   return (
     <Menubar className="border-none shadow-none !p-1">
-      <Dialog open={isAIChatOpen} onOpenChange={setIsAIChatOpen}>
+      <Dialog open={isAIChatOpen && !disabled} onOpenChange={setIsAIChatOpen}>
         <DialogContent className="min-w-5xl min-h-[70vh] max-h-[74vh] overflow-hidden w-full">
           <DialogHeader>
             <DialogTitle>Enhance Your Post with FlyBot</DialogTitle>
@@ -165,7 +169,7 @@ export function PostToolbar({
       </Dialog>
 
       <MenubarMenu>
-        <MenubarTrigger>
+        <MenubarTrigger disabled={disabled}>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild className="cursor-pointer">
@@ -178,10 +182,10 @@ export function PostToolbar({
           </TooltipProvider>
         </MenubarTrigger>
         <MenubarContent>
-          <MenubarItem onClick={onUploadClick}>
+          <MenubarItem onClick={disabled ? undefined : onUploadClick}>
             <Image className="text-black" /> Add Image
           </MenubarItem>
-          <MenubarItem>
+          <MenubarItem disabled={disabled}>
             <Video className="text-black" /> Add Video
           </MenubarItem>
           <MenubarSeparator />
@@ -246,7 +250,7 @@ export function PostToolbar({
         </MenubarContent>
       </MenubarMenu>
       <MenubarMenu>
-        <MenubarTrigger>
+        <MenubarTrigger disabled={disabled}>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
