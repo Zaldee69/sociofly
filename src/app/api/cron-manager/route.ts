@@ -58,6 +58,11 @@ export async function POST(request: Request) {
         result = { message: "Cron manager initialized" };
         break;
 
+      case "restart":
+        await CronManager.forceRestart();
+        result = { message: "Cron manager restarted successfully" };
+        break;
+
       default:
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }

@@ -13,6 +13,7 @@ export class SchedulerService {
     success: number;
     failed: number;
     skipped: number;
+    rate_limited: number;
     processed: number;
     total: number;
   }> {
@@ -21,7 +22,8 @@ export class SchedulerService {
       const now = new Date();
 
       // Limit processing to prevent overwhelming the system
-      const BATCH_SIZE = parseInt(process.env.CRON_BATCH_SIZE || "10");
+      // Reduced batch size to prevent Instagram API rate limiting
+      const BATCH_SIZE = parseInt(process.env.CRON_BATCH_SIZE || "3");
 
       // First, count total due posts for reporting
       const totalDue = await prisma.post.count({
@@ -38,17 +40,30 @@ export class SchedulerService {
           success: 0,
           failed: 0,
           skipped: 0,
+          rate_limited: 0,
           processed: 0,
           total: 0,
         };
       }
 
       // Find scheduled posts that are due (with limit for performance)
+      // Exclude posts that recently failed due to rate limits
       const duePosts = await prisma.post.findMany({
         where: {
           status: PostStatus.SCHEDULED,
           scheduledAt: {
             lte: now, // Less than or equal to now
+          },
+          // Skip posts that failed due to rate limits in the last 10 minutes
+          NOT: {
+            AND: [
+              { status: PostStatus.FAILED },
+              {
+                updatedAt: {
+                  gte: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes ago
+                },
+              },
+            ],
           },
         },
         include: {
@@ -78,10 +93,17 @@ export class SchedulerService {
       let successCount = 0;
       let failedCount = 0;
       let skippedCount = 0;
+      let rateLimitedCount = 0;
 
       // Use Promise.allSettled for parallel processing with error isolation
-      const postPromises = duePosts.map(async (post) => {
+      // But add sequential delays to prevent API overload
+      const postPromises = duePosts.map(async (post, index) => {
         try {
+          // Add staggered delay to prevent all posts hitting API simultaneously
+          if (index > 0) {
+            await new Promise((resolve) => setTimeout(resolve, index * 1000)); // 1s delay per post
+          }
+
           // Check if post needs approval
           const hasApprovalInstances = post.approvalInstances.length > 0;
           const isApproved = post.approvalInstances.some(
@@ -112,6 +134,23 @@ export class SchedulerService {
               .filter((r) => !r.success)
               .map((r) => r.error)
               .join(", ");
+
+            // Check if this is a rate limit error
+            const isRateLimitError =
+              errorMessage.toLowerCase().includes("rate limit") ||
+              errorMessage.toLowerCase().includes("request limit reached");
+
+            if (isRateLimitError) {
+              console.error(
+                `🚨 Rate limit hit for post ${post.id}: ${errorMessage}`
+              );
+              return {
+                status: "rate_limited",
+                postId: post.id,
+                error: errorMessage,
+              };
+            }
+
             console.error(
               `❌ Failed to publish post ${post.id}: ${errorMessage}`
             );
@@ -141,6 +180,9 @@ export class SchedulerService {
             case "skipped":
               skippedCount++;
               break;
+            case "rate_limited":
+              rateLimitedCount++;
+              break;
           }
         } else {
           failedCount++; // Promise was rejected
@@ -154,6 +196,7 @@ export class SchedulerService {
           success: successCount,
           failed: failedCount,
           skipped: skippedCount,
+          rate_limited: rateLimitedCount,
           total: totalDue,
           remaining: totalDue - duePosts.length,
           batchSize: BATCH_SIZE,
@@ -167,7 +210,7 @@ export class SchedulerService {
                 ? "PARTIAL"
                 : "FAILED"
               : "SUCCESS",
-          message: `Batch processed ${duePosts.length} posts: ${successCount} success, ${failedCount} failed, ${skippedCount} skipped. ${totalDue - duePosts.length} remaining. Data: ${JSON.stringify(batchData)}`,
+          message: `Batch processed ${duePosts.length} posts: ${successCount} success, ${failedCount} failed, ${skippedCount} skipped, ${rateLimitedCount} rate_limited. ${totalDue - duePosts.length} remaining. Data: ${JSON.stringify(batchData)}`,
         };
 
         await prisma.cronLog.create({ data: logData });
@@ -177,6 +220,7 @@ export class SchedulerService {
         success: successCount,
         failed: failedCount,
         skipped: skippedCount,
+        rate_limited: rateLimitedCount,
         processed: duePosts.length,
         total: totalDue,
       };
@@ -198,6 +242,7 @@ export class SchedulerService {
         success: 0,
         failed: 0,
         skipped: 0,
+        rate_limited: 0,
         processed: 0,
         total: 0,
       };

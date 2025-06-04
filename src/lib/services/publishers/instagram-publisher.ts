@@ -15,6 +15,15 @@ export interface SocialAccountWithRelations extends SocialAccount {
 }
 
 export class InstagramPublisher {
+  // Rate limiting configuration
+  private static readonly API_DELAY_MS = 2000; // 2 seconds between API calls
+  private static readonly MAX_RETRIES = 3;
+  private static readonly RATE_LIMIT_ERRORS = [
+    "Application request limit reached",
+    "Rate limit exceeded",
+    "Too many requests",
+  ];
+
   /**
    * Static publish method to match SocialMediaPublisher interface
    */
@@ -24,6 +33,49 @@ export class InstagramPublisher {
     mediaUrls: string[] = []
   ): Promise<PublishResult> {
     return this.publishToInstagram(socialAccount, content, mediaUrls);
+  }
+
+  /**
+   * Add delay to prevent rate limiting
+   */
+  private static async addApiDelay(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, this.API_DELAY_MS));
+  }
+
+  /**
+   * Check if error is rate limit related
+   */
+  private static isRateLimitError(errorMessage: string): boolean {
+    return this.RATE_LIMIT_ERRORS.some((error) =>
+      errorMessage.toLowerCase().includes(error.toLowerCase())
+    );
+  }
+
+  /**
+   * Retry with exponential backoff for rate limit errors
+   */
+  private static async retryWithBackoff<T>(
+    operation: () => Promise<T>,
+    retries: number = this.MAX_RETRIES
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      if (retries > 0 && this.isRateLimitError(errorMessage)) {
+        const backoffDelay = (this.MAX_RETRIES - retries + 1) * 5000; // 5s, 10s, 15s
+        console.log(
+          `⏳ Rate limit detected, retrying in ${backoffDelay}ms... (${retries} attempts left)`
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+        return this.retryWithBackoff(operation, retries - 1);
+      }
+
+      throw error;
+    }
   }
 
   /**
@@ -39,15 +91,23 @@ export class InstagramPublisher {
 
       FacebookAdsApi.init(socialAccount.accessToken);
 
-      // Test Instagram account access
+      // Test Instagram account access - only request basic fields that are always available
       const response = await fetch(
-        `https://graph.facebook.com/v22.0/${socialAccount.profileId}?fields=id,username,account_type&access_token=${socialAccount.accessToken}`
+        `https://graph.facebook.com/v22.0/${socialAccount.profileId}?fields=id,username&access_token=${socialAccount.accessToken}`
       );
 
       const data = await response.json();
 
       if (data.error) {
         console.error("Instagram token validation failed:", data.error);
+        return false;
+      }
+
+      // Check if we got the expected data
+      if (!data.id || !data.username) {
+        console.error(
+          "Instagram token validation failed: Missing required fields"
+        );
         return false;
       }
 
@@ -69,17 +129,27 @@ export class InstagramPublisher {
     accountInfo?: {
       id: string;
       username: string;
-      accountType: string;
+      accountType?: string;
       name?: string;
     };
     error?: string;
   }> {
     try {
-      const response = await fetch(
+      // First try with account_type, if it fails, try without it
+      let response = await fetch(
         `https://graph.facebook.com/v22.0/${instagramAccountId}?fields=id,username,account_type,name&access_token=${accessToken}`
       );
 
-      const data = await response.json();
+      let data = await response.json();
+
+      // If account_type field causes an error, try without it
+      if (data.error && data.error.message.includes("account_type")) {
+        console.log("Account type field not available, trying without it...");
+        response = await fetch(
+          `https://graph.facebook.com/v22.0/${instagramAccountId}?fields=id,username,name&access_token=${accessToken}`
+        );
+        data = await response.json();
+      }
 
       if (data.error) {
         return {
@@ -132,33 +202,35 @@ export class InstagramPublisher {
         };
       }
 
-      let postId: string;
-
-      if (mediaUrls.length > 0) {
-        // Post with media (photo/video)
-        if (mediaUrls.length === 1) {
-          // Single media post
-          postId = await this.createSingleMediaPost(
-            socialAccount,
-            content,
-            mediaUrls[0]
-          );
-        } else {
-          // Carousel post (multiple media)
-          postId = await this.createCarouselPost(
-            socialAccount,
-            content,
-            mediaUrls
-          );
-        }
-      } else {
-        // Instagram requires media for posts, so we'll return an error
+      if (mediaUrls.length === 0) {
         return {
           success: false,
           error: "Instagram posts require at least one image or video",
           platform: SocialPlatform.INSTAGRAM,
         };
       }
+
+      // Add delay before publishing to prevent rate limiting
+      await this.addApiDelay();
+
+      // Use retry mechanism for publishing
+      const postId = await this.retryWithBackoff(async () => {
+        if (mediaUrls.length === 1) {
+          // Single media post
+          return await this.createSingleMediaPost(
+            socialAccount,
+            content,
+            mediaUrls[0]
+          );
+        } else {
+          // Carousel post (multiple media)
+          return await this.createCarouselPost(
+            socialAccount,
+            content,
+            mediaUrls
+          );
+        }
+      });
 
       return {
         success: true,
@@ -168,10 +240,21 @@ export class InstagramPublisher {
     } catch (error) {
       console.error("Error publishing to Instagram:", error);
 
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown Instagram error";
+
+      // Check if this is a rate limit error
+      if (this.isRateLimitError(errorMessage)) {
+        return {
+          success: false,
+          error: `Instagram rate limit reached: ${errorMessage}. Please try again later.`,
+          platform: SocialPlatform.INSTAGRAM,
+        };
+      }
+
       return {
         success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown Instagram error",
+        error: errorMessage,
         platform: SocialPlatform.INSTAGRAM,
       };
     }
@@ -284,6 +367,11 @@ export class InstagramPublisher {
         const mediaUrl = mediaUrls[i];
         const mediaType = this.getMediaType(mediaUrl);
 
+        // Add delay between media container creation to prevent rate limiting
+        if (i > 0) {
+          await this.addApiDelay();
+        }
+
         const containerResponse = await fetch(
           `https://graph.facebook.com/v22.0/${instagramAccountId}/media`,
           {
@@ -312,6 +400,9 @@ export class InstagramPublisher {
         containerIds.push(containerData.id);
         console.log(`✅ Media container ${i + 1} created: ${containerData.id}`);
       }
+
+      // Add delay before creating carousel container
+      await this.addApiDelay();
 
       // Step 2: Create carousel container
       const carouselResponse = await fetch(
@@ -454,7 +545,7 @@ export class InstagramPublisher {
     Array<{
       id: string;
       username: string;
-      accountType: string;
+      accountType?: string;
     }>
   > {
     try {

@@ -14,17 +14,37 @@ export class CronManager {
   private static jobs: Map<string, cron.ScheduledTask> = new Map();
   private static jobStatuses: Map<string, boolean> = new Map();
   private static isInitialized = false;
+  private static initializationPromise: Promise<void> | null = null;
 
   /**
-   * Initialize and start all cron jobs
+   * Initialize and start all cron jobs (with singleton protection)
    */
   static async initialize(): Promise<void> {
+    // If already initialized, just return
     if (this.isInitialized) {
-      console.log("⚠️  Cron Manager already initialized");
+      console.log("⚠️  Cron Manager already initialized - skipping");
       return;
     }
 
+    // If initialization is in progress, wait for it
+    if (this.initializationPromise) {
+      console.log("⏳ Cron Manager initialization in progress - waiting...");
+      return this.initializationPromise;
+    }
+
+    // Start initialization
+    this.initializationPromise = this._doInitialize();
+    return this.initializationPromise;
+  }
+
+  /**
+   * Actual initialization logic
+   */
+  private static async _doInitialize(): Promise<void> {
     console.log("🕒 Initializing Cron Manager...");
+
+    // Stop all existing jobs first (cleanup)
+    this.stopAll();
 
     const jobConfigs: CronJobConfig[] = [
       {
@@ -74,6 +94,7 @@ export class CronManager {
     }
 
     this.isInitialized = true;
+    this.initializationPromise = null; // Reset promise
     console.log("✅ Cron Manager initialized successfully");
 
     // Log startup
@@ -373,5 +394,22 @@ export class CronManager {
       );
       throw error;
     }
+  }
+
+  /**
+   * Force re-initialization (for manual restarts)
+   */
+  static async forceRestart(): Promise<void> {
+    console.log("🔄 Force restarting Cron Manager...");
+
+    // Reset state
+    this.isInitialized = false;
+    this.initializationPromise = null;
+
+    // Stop all jobs
+    this.stopAll();
+
+    // Re-initialize
+    await this.initialize();
   }
 }
