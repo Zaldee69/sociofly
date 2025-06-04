@@ -7,6 +7,7 @@ Dokumentasi untuk operasional sistem, monitoring, dan management.
 ### 📊 System Monitoring
 
 - **[Monitoring System](POST_MONITORING_SYSTEM.md)** - Komprehensif system monitoring dengan alerting dan auto-scaling
+- **[Cron Performance Tuning](CRON_PERFORMANCE_TUNING.md)** - Optimasi performance cron job dan batch processing
 
 ## 🔍 Operations Overview
 

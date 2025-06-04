@@ -455,6 +455,72 @@ export const postRouter = createTRPCRouter({
       };
     }),
 
+  // Publish post immediately (for "Publish Now" action)
+  publishNow: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { id } = input;
+
+      // Get the post and check access
+      const post = await ctx.prisma.post.findUnique({
+        where: { id },
+        include: {
+          postSocialAccounts: true,
+        },
+      });
+
+      if (!post) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Post not found",
+        });
+      }
+
+      // Check if user has access to the post
+      const membership = await ctx.prisma.membership.findUnique({
+        where: {
+          userId_teamId: {
+            userId: ctx.auth.userId,
+            teamId: post.teamId,
+          },
+        },
+      });
+
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have access to publish this post",
+        });
+      }
+
+      // Use PostPublisherService to publish to all platforms
+      const results = await PostPublisherService.publishToAllPlatforms(id);
+
+      // Get updated post data
+      const updatedPost = await ctx.prisma.post.findUnique({
+        where: { id },
+        include: {
+          postSocialAccounts: {
+            include: {
+              socialAccount: true,
+            },
+          },
+        },
+      });
+
+      if (!updatedPost) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to get updated post data after publishing",
+        });
+      }
+
+      return {
+        post: updatedPost,
+        results,
+      };
+    }),
+
   // Mendapatkan daftar post yang gagal dipublikasi
   getFailed: protectedProcedure
     .input(

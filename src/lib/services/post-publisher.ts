@@ -10,6 +10,7 @@ import {
   FacebookPublisher,
   PublishResult,
 } from "./publishers/facebook-publisher";
+import { InstagramPublisher } from "./publishers/instagram-publisher";
 
 interface PublishResponse {
   postId: string;
@@ -73,36 +74,14 @@ class TwitterPublisher implements SocialMediaPublisher {
   }
 }
 
-// Instagram implementation (placeholder for now)
-class InstagramPublisher implements SocialMediaPublisher {
+// Wrapper class for InstagramPublisher to match interface
+class InstagramPublisherClass implements SocialMediaPublisher {
   async publish(
     socialAccount: SocialAccountWithRelations,
     content: string,
     mediaUrls: string[]
   ): Promise<PublishResult> {
-    try {
-      // TODO: Implement real Instagram API integration
-      console.log(`Publishing to Instagram...`);
-      console.log(`Content: ${content}`);
-      console.log(`Media: ${mediaUrls.join(", ")}`);
-
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      return {
-        success: true,
-        platformPostId: `ig_media_${Date.now()}`,
-        platform: SocialPlatform.INSTAGRAM,
-      };
-    } catch (error) {
-      console.error("Error publishing to Instagram:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown Instagram error",
-        platform: SocialPlatform.INSTAGRAM,
-      };
-    }
+    return InstagramPublisher.publish(socialAccount, content, mediaUrls);
   }
 }
 
@@ -181,7 +160,7 @@ function getPublisherForPlatform(
     case SocialPlatform.TWITTER:
       return new TwitterPublisher();
     case SocialPlatform.INSTAGRAM:
-      return new InstagramPublisher();
+      return new InstagramPublisherClass();
     case SocialPlatform.LINKEDIN:
       return new LinkedInPublisher();
     case SocialPlatform.TIKTOK:

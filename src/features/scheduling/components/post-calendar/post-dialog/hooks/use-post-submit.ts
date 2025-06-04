@@ -74,6 +74,51 @@ export function usePostSubmit({
       },
     });
 
+  // Add regular post creation mutation
+  const createPostMutation = trpc.post.create.useMutation({
+    onSuccess: (result) => {
+      console.log("Post created successfully:", result);
+      toast.success("Post created successfully!");
+      onSave?.(result);
+      form.reset();
+      onClose();
+    },
+    onError: (error) => {
+      console.error("Error creating post:", error);
+      toast.error(`Failed to create post: ${error.message}`);
+    },
+  });
+
+  // Add publish now mutation
+  const publishNowMutation = trpc.post.publishNow.useMutation({
+    onSuccess: (result) => {
+      console.log("Post published successfully:", result);
+
+      // Check publishing results
+      const allSuccessful = result.results.every(
+        (publishResult: any) => publishResult.success
+      );
+
+      if (allSuccessful) {
+        toast.success("Post published successfully to all platforms!");
+      } else {
+        const failedPlatforms = result.results
+          .filter((publishResult: any) => !publishResult.success)
+          .map((publishResult: any) => publishResult.platform)
+          .join(", ");
+        toast.warning(`Post published but failed on: ${failedPlatforms}`);
+      }
+
+      onSave?.(result.post);
+      form.reset();
+      onClose();
+    },
+    onError: (error) => {
+      console.error("Error publishing post:", error);
+      toast.error(`Failed to publish post: ${error.message}`);
+    },
+  });
+
   const { startUpload } = useUploadThing("mediaUploader", {
     onClientUploadComplete: (res) => {
       if (!res) return;
@@ -201,41 +246,96 @@ export function usePostSubmit({
         // Handle other post actions
         let status = values.status;
         if (values.postAction === PostAction.PUBLISH_NOW) {
-          status = "PUBLISHED";
-        } else if (values.postAction === PostAction.SCHEDULE) {
-          status = "SCHEDULED";
-        } else if (values.postAction === PostAction.SAVE_AS_DRAFT) {
-          status = "DRAFT";
+          // For PUBLISH_NOW, update to DRAFT first, then publish
+          await updatePostMutation.mutateAsync({
+            id: post.id,
+            content: values.content,
+            mediaUrls,
+            scheduledAt: values.scheduledAt,
+            status: "DRAFT", // Update to DRAFT first
+            socialAccountIds: values.socialAccounts,
+          });
+
+          // Then immediately publish using publishNowMutation
+          await publishNowMutation.mutateAsync({
+            id: post.id,
+          });
+        } else {
+          // Handle other actions normally
+          if (values.postAction === PostAction.SCHEDULE) {
+            status = "SCHEDULED";
+          } else if (values.postAction === PostAction.SAVE_AS_DRAFT) {
+            status = "DRAFT";
+          }
+
+          await updatePostMutation.mutateAsync({
+            id: post.id,
+            content: values.content,
+            mediaUrls,
+            scheduledAt: values.scheduledAt,
+            status,
+            socialAccountIds: values.socialAccounts,
+          });
         }
-
-        await updatePostMutation.mutateAsync({
-          id: post.id,
-          content: values.content,
-          mediaUrls,
-          scheduledAt: values.scheduledAt,
-          status,
-          socialAccountIds: values.socialAccounts,
-        });
-
-        return;
       }
 
-      // Handle new post creation
-      if (values.postAction === PostAction.REQUEST_REVIEW) {
-        console.log(values);
+      // Handle new post creation (only for new posts, not existing ones)
+      if (!post?.id) {
+        if (values.postAction === PostAction.REQUEST_REVIEW) {
+          console.log(values);
 
-        values.needsApproval = true;
-        values.approvalWorkflowId = "cmazrs8yb0020vx9edn5yibnt";
+          values.needsApproval = true;
+          values.approvalWorkflowId = "cmazrs8yb0020vx9edn5yibnt";
 
-        const result = await submitPostWithApproval(values, teamId);
-        if (result) {
-          onSave?.(result);
-          form.reset();
-          onClose();
+          const result = await submitPostWithApproval(values, teamId);
+          if (result) {
+            onSave?.(result);
+            form.reset();
+            onClose();
+          }
+        } else {
+          // Handle regular post creation for other actions
+          const mediaUrls = values.mediaUrls.map(
+            (media) => media.uploadedUrl || media.preview
+          );
+
+          // For PUBLISH_NOW, create as DRAFT first, then publish immediately
+          if (values.postAction === PostAction.PUBLISH_NOW) {
+            // Create post as DRAFT first
+            const createdPost = await createPostMutation.mutateAsync({
+              content: values.content,
+              mediaUrls,
+              scheduledAt: values.scheduledAt,
+              platform: "ALL", // This is determined by social accounts selection
+              teamId: teamId!,
+              socialAccountIds: values.socialAccounts,
+              postStatus: "DRAFT", // Create as DRAFT first
+            });
+
+            // Then immediately publish using publishNowMutation
+            await publishNowMutation.mutateAsync({
+              id: createdPost.id,
+            });
+          } else {
+            // For other actions, determine status normally
+            let status = values.status;
+            if (values.postAction === PostAction.SCHEDULE) {
+              status = "SCHEDULED";
+            } else if (values.postAction === PostAction.SAVE_AS_DRAFT) {
+              status = "DRAFT";
+            }
+
+            await createPostMutation.mutateAsync({
+              content: values.content,
+              mediaUrls,
+              scheduledAt: values.scheduledAt,
+              platform: "ALL", // This is determined by social accounts selection
+              teamId: teamId!,
+              socialAccountIds: values.socialAccounts,
+              postStatus: status,
+            });
+          }
         }
-      } else {
-        form.reset();
-        onClose();
       }
     } catch (error) {
       console.error("Error submitting post:", error);
@@ -247,7 +347,9 @@ export function usePostSubmit({
       isUploading ||
       updatePostMutation.isPending ||
       resubmitPostMutation.isPending ||
-      submitForApprovalMutation.isPending,
+      submitForApprovalMutation.isPending ||
+      createPostMutation.isPending ||
+      publishNowMutation.isPending,
     handleSubmit,
   };
 }

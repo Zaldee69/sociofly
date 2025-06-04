@@ -6,18 +6,44 @@ import { ApprovalEdgeCaseHandler } from "./approval-edge-case-handler";
 export class SchedulerService {
   /**
    * Checks for and publishes all posts that are due to be published
-   * This should be called by a cron job on a regular interval
+   * This should be called by a cron job on a regular interval (every 1 minute)
+   * Optimized for performance with batching and parallel processing
    */
   static async processDuePublications(): Promise<{
     success: number;
     failed: number;
     skipped: number;
+    processed: number;
+    total: number;
   }> {
     try {
       // Get current time
       const now = new Date();
 
-      // Find all scheduled posts that are due
+      // Limit processing to prevent overwhelming the system
+      const BATCH_SIZE = parseInt(process.env.CRON_BATCH_SIZE || "10");
+
+      // First, count total due posts for reporting
+      const totalDue = await prisma.post.count({
+        where: {
+          status: PostStatus.SCHEDULED,
+          scheduledAt: {
+            lte: now,
+          },
+        },
+      });
+
+      if (totalDue === 0) {
+        return {
+          success: 0,
+          failed: 0,
+          skipped: 0,
+          processed: 0,
+          total: 0,
+        };
+      }
+
+      // Find scheduled posts that are due (with limit for performance)
       const duePosts = await prisma.post.findMany({
         where: {
           status: PostStatus.SCHEDULED,
@@ -26,42 +52,49 @@ export class SchedulerService {
           },
         },
         include: {
+          postSocialAccounts: {
+            select: {
+              socialAccountId: true,
+              status: true,
+            },
+          },
           approvalInstances: {
-            where: {
-              // Either no approval instances or all are approved
-              OR: [{ status: ApprovalStatus.APPROVED }],
+            select: {
+              status: true,
             },
           },
         },
+        orderBy: {
+          scheduledAt: "asc", // Process oldest first
+        },
+        take: BATCH_SIZE, // Limit to prevent overwhelming system
       });
 
-      console.log(`Found ${duePosts.length} posts due for publishing`);
+      console.log(
+        `📋 Processing ${duePosts.length} of ${totalDue} due posts (batch size: ${BATCH_SIZE})`
+      );
 
       // Track results
-      const results = {
-        success: 0,
-        failed: 0,
-        skipped: 0,
-      };
+      let successCount = 0;
+      let failedCount = 0;
+      let skippedCount = 0;
 
-      // Process each post
-      for (const post of duePosts) {
+      // Use Promise.allSettled for parallel processing with error isolation
+      const postPromises = duePosts.map(async (post) => {
         try {
-          // Skip posts that need approval but aren't approved yet
-          const needsApproval = await prisma.approvalInstance.count({
-            where: {
-              postId: post.id,
-            },
-          });
-
+          // Check if post needs approval
+          const hasApprovalInstances = post.approvalInstances.length > 0;
           const isApproved = post.approvalInstances.some(
             (instance) => instance.status === ApprovalStatus.APPROVED
           );
 
-          if (needsApproval && !isApproved) {
-            console.log(`Skipping post ${post.id} - awaiting approval`);
-            results.skipped++;
-            continue;
+          if (hasApprovalInstances && !isApproved) {
+            console.log(`⏩ Skipping post ${post.id} - awaiting approval`);
+            return {
+              status: "skipped",
+              postId: post.id,
+              reason: "awaiting approval",
+            };
           }
 
           // Publish the post
@@ -72,58 +105,88 @@ export class SchedulerService {
           const allSuccessful = publishResult.every((result) => result.success);
 
           if (allSuccessful) {
-            results.success++;
-            console.log(`Successfully published post ${post.id}`);
-
-            // Log to CronLog
-            await prisma.cronLog.create({
-              data: {
-                name: "publish_scheduled_post",
-                status: "SUCCESS",
-                message: `Published post ${post.id}`,
-              },
-            });
+            console.log(`✅ Successfully published post ${post.id}`);
+            return { status: "success", postId: post.id };
           } else {
-            results.failed++;
-            console.error(`Failed to publish post ${post.id}`);
-
-            // Log the error
-            await prisma.cronLog.create({
-              data: {
-                name: "publish_scheduled_post",
-                status: "FAILED",
-                message: `Failed to publish post ${post.id}: ${publishResult
-                  .filter((r) => !r.success)
-                  .map((r) => r.error)
-                  .join(", ")}`,
-              },
-            });
+            const errorMessage = publishResult
+              .filter((r) => !r.success)
+              .map((r) => r.error)
+              .join(", ");
+            console.error(
+              `❌ Failed to publish post ${post.id}: ${errorMessage}`
+            );
+            return { status: "failed", postId: post.id, error: errorMessage };
           }
         } catch (error) {
-          results.failed++;
-          console.error(`Error processing post ${post.id}:`, error);
-
-          // Log the error
-          await prisma.cronLog.create({
-            data: {
-              name: "publish_scheduled_post",
-              status: "ERROR",
-              message: `Error processing post ${post.id}: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          });
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          console.error(`❌ Error processing post ${post.id}:`, errorMessage);
+          return { status: "failed", postId: post.id, error: errorMessage };
         }
+      });
+
+      // Wait for all posts to be processed
+      const postResults = await Promise.allSettled(postPromises);
+
+      // Count results
+      postResults.forEach((result) => {
+        if (result.status === "fulfilled") {
+          switch (result.value.status) {
+            case "success":
+              successCount++;
+              break;
+            case "failed":
+              failedCount++;
+              break;
+            case "skipped":
+              skippedCount++;
+              break;
+          }
+        } else {
+          failedCount++; // Promise was rejected
+        }
+      });
+
+      // Single batch log entry instead of individual logs (reduces DB writes significantly)
+      if (duePosts.length > 0) {
+        const batchData = {
+          processed: duePosts.length,
+          success: successCount,
+          failed: failedCount,
+          skipped: skippedCount,
+          total: totalDue,
+          remaining: totalDue - duePosts.length,
+          batchSize: BATCH_SIZE,
+        };
+
+        const logData = {
+          name: "publish_due_posts_batch",
+          status:
+            failedCount > 0
+              ? successCount > 0
+                ? "PARTIAL"
+                : "FAILED"
+              : "SUCCESS",
+          message: `Batch processed ${duePosts.length} posts: ${successCount} success, ${failedCount} failed, ${skippedCount} skipped. ${totalDue - duePosts.length} remaining. Data: ${JSON.stringify(batchData)}`,
+        };
+
+        await prisma.cronLog.create({ data: logData });
       }
 
-      return results;
+      return {
+        success: successCount,
+        failed: failedCount,
+        skipped: skippedCount,
+        processed: duePosts.length,
+        total: totalDue,
+      };
     } catch (error) {
-      console.error("Error in processDuePublications:", error);
+      console.error("❌ Error in processDuePublications:", error);
 
       // Log the overall error
       await prisma.cronLog.create({
         data: {
-          name: "publish_scheduled_post",
+          name: "publish_due_posts_error",
           status: "ERROR",
           message: `Overall error in processDuePublications: ${
             error instanceof Error ? error.message : String(error)
@@ -135,6 +198,8 @@ export class SchedulerService {
         success: 0,
         failed: 0,
         skipped: 0,
+        processed: 0,
+        total: 0,
       };
     }
   }

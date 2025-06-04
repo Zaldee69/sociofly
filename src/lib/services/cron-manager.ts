@@ -29,7 +29,7 @@ export class CronManager {
     const jobConfigs: CronJobConfig[] = [
       {
         name: "publish_due_posts",
-        schedule: "*/5 * * * *", // Every 5 minutes
+        schedule: "*/1 * * * *", // Every 1 minute
         description: "Publish posts that are due for publication",
         enabled: process.env.CRON_PUBLISH_ENABLED !== "false",
         handler: this.handlePublishDuePosts,

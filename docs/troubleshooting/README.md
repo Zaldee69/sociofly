@@ -10,6 +10,7 @@ Komprehensif guide untuk mengatasi masalah umum dan errors.
 - **[Quick Cron Fix](QUICK_CRON_FIX.md)** - Quick fixes untuk cron issues
 - **[Permission Fixes](README-PERMISSION-FIXES.md)** - Permission dan authentication issues
 - **[Facebook API Issues](FACEBOOK_API_ISSUES.md)** - Facebook Graph API troubleshooting dan token management
+- **[Instagram API Issues](INSTAGRAM_API_ISSUES.md)** - Instagram API troubleshooting dan Business account setup
 - **[Hydration Issues](HYDRATION_ISSUES.md)** - React hydration errors dan SSR troubleshooting
 
 ## 🔍 Quick Diagnostics
@@ -272,6 +273,56 @@ npm run social:refresh-tokens
 - **API Version**: Update to latest Graph API version
 
 See detailed guide: [Facebook API Issues](FACEBOOK_API_ISSUES.md)
+
+### 7. Instagram API Issues
+
+**Symptoms:**
+
+- Instagram posting failures
+- "Instagram posts require media" errors
+- Instagram account not found errors
+- Video processing timeout errors
+
+**Quick Diagnosis:**
+
+```bash
+# Test Instagram account
+npm run instagram:validate
+
+# Get Instagram accounts from Facebook Page
+npm run instagram:get-accounts
+
+# Test Instagram API
+npm run test:instagram
+
+# Check account info manually
+curl "https://graph.facebook.com/v22.0/INSTAGRAM_ACCOUNT_ID?fields=id,username,account_type&access_token=PAGE_ACCESS_TOKEN"
+```
+
+**Solutions:**
+
+```bash
+# Get Instagram accounts from Facebook Page
+npm run instagram:get-accounts
+
+# Update Instagram tokens (same as Page tokens)
+npm run facebook:get-page-tokens
+
+# Test Instagram integration
+npm run test:instagram
+
+# Check Instagram publisher logs
+tail -f logs/social-media.log
+```
+
+**Common Instagram Fixes:**
+
+- **Account Not Found**: Ensure Instagram Business Account is connected to Facebook Page
+- **Missing Media**: Instagram requires at least one image or video for posts
+- **Token Issues**: Instagram uses Page Access Tokens from connected Facebook Page
+- **Video Processing**: Ensure videos meet Instagram requirements (MP4, max 60s, 720p+)
+
+See detailed guide: [Instagram API Issues](INSTAGRAM_API_ISSUES.md)
 
 ## 🔧 Debugging Tools
 

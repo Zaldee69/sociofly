@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sistem ini mengintegrasikan penjadwalan otomatis dengan publikasi ke berbagai platform social media, termasuk Facebook, Twitter, Instagram, LinkedIn, dan TikTok. Facebook menggunakan SDK resmi, sementara platform lain menggunakan placeholder yang siap untuk implementasi API.
+Sistem ini mengintegrasikan penjadwalan otomatis dengan publikasi ke berbagai platform social media, termasuk Facebook, Instagram, Twitter, LinkedIn, dan TikTok. Facebook dan Instagram menggunakan Facebook Graph API dengan implementasi lengkap, sementara platform lain menggunakan placeholder yang siap untuk implementasi API.
 
 ## Architecture
 
@@ -72,6 +72,91 @@ Implementasi nyata menggunakan Facebook Business SDK:
 - ✅ Media support (photo)
 - ✅ Error handling
 - ✅ Token refresh
+
+## Instagram Integration
+
+### 5. InstagramPublisher (Real Implementation)
+
+**Location**: `src/lib/services/publishers/instagram-publisher.ts`
+
+Implementasi lengkap menggunakan Facebook Graph API for Instagram:
+
+- ✅ Instagram Business Account validation
+- ✅ Single image/video posting
+- ✅ Carousel posts (multiple media)
+- ✅ Video processing with status monitoring
+- ✅ Media type auto-detection
+- ✅ Token validation
+- ✅ Error handling
+
+### Prerequisites
+
+Instagram Publisher menggunakan Facebook Graph API dan memerlukan:
+
+```bash
+# Same dependencies as Facebook
+npm install facebook-nodejs-business-sdk @types/facebook-nodejs-business-sdk
+```
+
+### Configuration
+
+Instagram Publisher memerlukan:
+
+- Instagram Business Account (connected to Facebook Page)
+- Valid Facebook Page Access Token
+- Proper permissions: `instagram_basic`, `instagram_content_publish`, `pages_manage_posts`
+
+### Usage Examples
+
+```typescript
+// Direct Instagram publishing
+const result = await InstagramPublisher.publish(
+  socialAccount,
+  "Amazing content! #instagram #socialmedia",
+  ["https://example.com/image1.jpg", "https://example.com/image2.jpg"]
+);
+
+// Get Instagram accounts from Facebook Page
+const accounts = await InstagramPublisher.getConnectedInstagramAccounts(
+  pageAccessToken,
+  pageId
+);
+
+// Token validation
+const isValid = await InstagramPublisher.validateToken(socialAccount);
+```
+
+### Instagram Features
+
+- **Single Media Posts**: High-quality images and videos
+- **Carousel Posts**: 2-10 images/videos in one post
+- **Video Processing**: Automatic video processing monitoring
+- **Media Type Detection**: Auto-detect image vs video format
+- **Caption Support**: Full caption with hashtags and mentions
+
+### Instagram Requirements
+
+- **Media Required**: Instagram posts must include at least one image or video
+- **Image Format**: JPG, PNG (minimum 1080x1080 for square)
+- **Video Format**: MP4, MOV (max 60 seconds, minimum 720p)
+- **Business Account**: Must be Instagram Business or Creator account
+
+## Database Schema for Instagram
+
+```sql
+-- Instagram account in SocialAccount table
+INSERT INTO "SocialAccount" (
+  "platform",
+  "accessToken",    -- Facebook Page Access Token
+  "profileId",      -- Instagram Business Account ID
+  "name"            -- Instagram username
+) VALUES (
+  'INSTAGRAM',
+  'page_access_token',
+  'instagram_business_account_id',
+  '@instagram_username'
+);
+```
 
 ## Facebook Integration
 
@@ -149,6 +234,14 @@ model PostSocialAccount {
 - **API rate limits** - Respects Facebook rate limiting
 - **Invalid page** - Clear error messages
 
+### Instagram Errors
+
+- **Account not connected** - Instagram Business Account not linked to Facebook Page
+- **Media required** - Instagram posts must include at least one image/video
+- **Video processing timeout** - Video processing failed or took too long
+- **Invalid media format** - Unsupported file format or size
+- **Business account required** - Personal Instagram accounts not supported
+
 ### General Errors
 
 - **Network issues** - Retry logic (future enhancement)
@@ -198,9 +291,32 @@ Tests semua komponen:
 - ✅ SchedulerService functionality
 - ✅ PostPublisherService integration
 - ✅ Facebook token validation
+- ✅ Instagram token validation
 - ✅ Edge case processing
 - ✅ System health check
 - ✅ Database statistics
+
+### Facebook API Test
+
+```bash
+npm run test:facebook
+```
+
+### Instagram API Test
+
+```bash
+npm run test:instagram
+```
+
+### Get Instagram Accounts
+
+```bash
+# Get Instagram accounts from Facebook Pages
+npm run instagram:get-accounts
+
+# Validate Instagram setup
+npm run instagram:validate
+```
 
 ### Cron Test
 
@@ -327,5 +443,5 @@ curl -X POST localhost:3000/api/cron-manager \
 
 ---
 
-**Status**: ✅ Facebook integration complete, other platforms ready for implementation  
+**Status**: ✅ Facebook & Instagram integration complete, other platforms ready for implementation  
 **Last Updated**: December 2024
