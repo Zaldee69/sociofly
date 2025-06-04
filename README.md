@@ -1,143 +1,224 @@
 # My Scheduler App
 
-A modern scheduling app for team collaboration and social media management.
+**Aplikasi penjadwalan posting social media yang canggih dengan high availability, monitoring, dan auto-scaling.**
 
-## Recommended File Structure
+[![Status](https://img.shields.io/badge/status-production--ready-green)](/)
+[![Node.js](https://img.shields.io/badge/node.js-18+-blue)](/)
+[![Redis](https://img.shields.io/badge/redis-7.0+-red)](/)
+[![BullMQ](https://img.shields.io/badge/BullMQ-integrated-orange)](/)
 
-```
-my-scheduler-app/
-├── .next/                    # Next.js build output
-├── node_modules/             # Dependencies
-├── prisma/                   # Database schema and migrations
-│   ├── migrations/           # Database migrations
-│   └── schema.prisma         # Prisma schema
-├── public/                   # Static assets
-│   └── ...
-├── src/
-│   ├── app/                  # Next.js App Router
-│   │   ├── (auth)/           # Authentication routes
-│   │   ├── (pages)/          # Public pages
-│   │   ├── admin/            # Admin pages
-│   │   ├── api/              # API routes
-│   │   │   ├── auth/         # Auth API endpoints
-│   │   │   ├── trpc/         # tRPC API endpoints
-│   │   │   └── ...
-│   │   ├── error/            # Error pages
-│   │   ├── onboarding/       # Onboarding flow
-│   │   └── ...
-│   ├── components/           # React components
-│   │   ├── analytics/        # Analytics components
-│   │   ├── dashboard/        # Dashboard components
-│   │   ├── icons/            # Icon components
-│   │   ├── layout/           # Layout components
-│   │   ├── scheduling/       # Scheduling components
-│   │   ├── social/           # Social media components
-│   │   ├── ui/               # UI components (shadcn/ui)
-│   │   └── ...
-│   ├── config/               # Application configuration
-│   │   ├── constants.ts      # Constants
-│   │   ├── env.ts            # Environment variables
-│   │   └── ...
-│   ├── features/             # Feature-specific code
-│   │   ├── auth/             # Authentication
-│   │   ├── scheduling/       # Scheduling
-│   │   ├── social/           # Social media
-│   │   └── ...
-│   ├── lib/                  # Library code
-│   │   ├── db/               # Database utilities
-│   │   ├── trpc/             # tRPC setup
-│   │   ├── validations/      # Validation schemas
-│   │   └── ...
-│   ├── server/               # Server-side code
-│   │   ├── api/              # API handlers
-│   │   ├── auth/             # Auth utilities
-│   │   ├── permissions/      # Permission logic
-│   │   └── ...
-│   ├── types/                # TypeScript types
-│   │   ├── api.ts            # API types
-│   │   ├── auth.ts           # Auth types
-│   │   └── ...
-│   ├── utils/                # Utility functions
-│   │   ├── date.ts           # Date utilities
-│   │   ├── formatting.ts     # Formatting utilities
-│   │   └── ...
-│   └── middleware.ts         # Next.js middleware
-├── .eslintrc.json            # ESLint configuration
-├── .gitignore                # Git ignore file
-├── components.json           # shadcn/ui components config
-├── next.config.js            # Next.js configuration
-├── package.json              # Dependencies and scripts
-├── postcss.config.mjs        # PostCSS configuration
-├── tailwind.config.ts        # Tailwind configuration
-├── tsconfig.json             # TypeScript configuration
-└── ...
-```
-
-## Main Features
-
-- Team collaboration
-- Social media scheduling
-- Content approval workflows
-- Media management
-- Analytics
-
-## Running Restrukturisasi Script
-
-Untuk menjalankan script restrukturisasi yang akan menyusun ulang codebase sesuai dengan struktur yang direkomendasikan:
+## 🚀 Quick Start
 
 ```bash
-# Menggunakan NPM script
-npm run restructure
+# Clone dan setup
+git clone <repository-url>
+cd my-scheduler-app
+npm install
 
-# Atau menjalankan script langsung
-bash scripts/restructure.sh
+# Setup environment
+cp .env.example .env
+
+# Setup database
+npm run db:push
+
+# Setup Redis cluster (optional)
+npm run cluster:setup
+
+# Start development
+npm run dev:cluster
 ```
 
-Script ini akan:
+## 🎯 Key Features
 
-1. Membuat backup codebase terlebih dahulu
-2. Menghapus file yang tidak perlu (.DS_Store, dll)
-3. Membuat struktur direktori baru
-4. Memindahkan file ke lokasi yang sesuai
-5. Memperbarui import paths
+- ✅ **Multi-platform Social Media Posting** (Facebook, Instagram, Twitter, LinkedIn)
+- ✅ **Advanced Scheduling System** (Cron + BullMQ hybrid)
+- ✅ **High Availability** (Redis cluster dengan automatic failover)
+- ✅ **Real-time Monitoring** (System health & performance metrics)
+- ✅ **Auto-scaling Workers** (Dynamic scaling berdasarkan queue load)
+- ✅ **Approval Workflow** (Multi-level approval system)
+- ✅ **Team Collaboration** (Role-based access control)
 
-Jika Anda hanya ingin memperbarui import paths:
+## 📚 Documentation
+
+### 🚀 Getting Started
+
+- **[Complete Documentation](docs/README.md)** - Komprehensif guide dan index
+- **[Quick Setup Guide](#quick-start)** - Get running in 5 minutes
+- **[Environment Configuration](#configuration)** - Essential setup
+
+### 🏗️ Infrastructure & Architecture
+
+- **[Redis Cluster Setup](docs/infrastructure/REDIS_CLUSTER_SETUP.md)** - High availability dengan monitoring
+- **[BullMQ Integration](docs/infrastructure/BULLMQ_INTEGRATION.md)** - Queue system dan job processing
+- **[Cron System](docs/infrastructure/CRON_SETUP.md)** - Scheduling infrastructure
+- **[Monitoring System](docs/operations/POST_MONITORING_SYSTEM.md)** - Health monitoring dan alerting
+
+### 🔧 Operations & Management
+
+- **[System Monitoring](docs/operations/)** - Monitoring, scaling, dan performance
+- **[Queue Management](#queue-management)** - BullMQ operations
+- **[Troubleshooting](docs/troubleshooting/)** - Common issues dan solutions
+
+### 🎯 Features & Development
+
+- **[Feature Documentation](docs/features/)** - Social media integration, approval workflow
+- **[Development Guide](docs/development/)** - Best practices, file structure
+- **[API Reference](#api-reference)** - Complete API documentation
+
+## ⚡ Management Commands
+
+### Development
 
 ```bash
-npm run update-imports
+npm run dev              # Basic development
+npm run dev:cron         # With cron jobs enabled
+npm run dev:cluster      # Full cluster support
 ```
 
-## Getting Started
-
-First, run the development server:
+### Redis Cluster
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run cluster:setup    # Initial cluster setup
+npm run cluster:start    # Start cluster
+npm run cluster:status   # Check cluster health
+npm run test:cluster     # Test cluster integration
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Queue Management
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run queue:status     # Check queue status
+npm run queue:metrics    # Queue performance metrics
+npm run queue:monitor    # Real-time monitoring
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### System Monitoring
 
-## Learn More
+```bash
+npm run monitor:start    # Start system monitoring
+npm run monitor:health   # Health check
+npm run scaling:start    # Start auto-scaling
+```
 
-To learn more about Next.js, take a look at the following resources:
+## 🏗️ Architecture
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Application Layer                        │
+│  Next.js 15 │ React 19 │ TypeScript │ Tailwind CSS        │
+└─────────────────────────────────────────────────────────────┘
+                               │
+┌─────────────────────────────────────────────────────────────┐
+│                  Scheduling & Queue Layer                  │
+│  Enhanced Cron │ BullMQ │ Queue Management │ Auto-scaling │
+└─────────────────────────────────────────────────────────────┘
+                               │
+┌─────────────────────────────────────────────────────────────┐
+│                  Infrastructure Layer                      │
+│ Redis Cluster │ PostgreSQL │ Monitoring │ Alert System    │
+│   (6 nodes)   │  Database  │   System   │    & Scaling    │
+└─────────────────────────────────────────────────────────────┘
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🔧 Configuration
 
-## Deploy on Vercel
+### Core Environment Variables
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+# Database
+DATABASE_URL="postgresql://..."
+DIRECT_URL="postgresql://..."
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Authentication
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_..."
+CLERK_SECRET_KEY="sk_..."
+
+# Redis & Queue System
+REDIS_USE_CLUSTER=true
+REDIS_CLUSTER_HOST_1=localhost
+REDIS_CLUSTER_PORT_1=7001
+
+# Monitoring & Scaling
+ENABLE_CRON_JOBS=true
+ENABLE_SYSTEM_MONITORING=true
+ENABLE_AUTO_SCALING=true
+CRON_API_KEY=your-secure-api-key
+```
+
+Lihat [Environment Configuration Guide](docs/README.md#configuration) untuk konfigurasi lengkap.
+
+## 📊 Monitoring Dashboard
+
+### Real-time Monitoring
+
+```bash
+# System health overview
+curl "localhost:3000/api/monitoring?action=health_check&apiKey=your-key"
+
+# Redis cluster status
+curl "localhost:3000/api/monitoring?action=redis_cluster&apiKey=your-key"
+
+# Queue performance metrics
+curl "localhost:3000/api/monitoring?action=queue_metrics&apiKey=your-key"
+```
+
+### Web Dashboard
+
+- **System Health**: `http://localhost:3000/dashboard/monitoring`
+- **Queue Management**: `http://localhost:3000/dashboard/queues`
+- **Performance Metrics**: `http://localhost:3000/dashboard/metrics`
+
+## 🚨 Production Readiness
+
+### High Availability Features
+
+- ✅ Redis cluster dengan automatic failover
+- ✅ Health monitoring dengan alerting
+- ✅ Auto-scaling workers berdasarkan load
+- ✅ Graceful degradation (fallback ke node-cron)
+- ✅ Comprehensive error handling
+- ✅ Performance metrics dan logging
+
+### Deployment Checklist
+
+- [ ] Environment variables configured
+- [ ] Redis cluster setup dan tested
+- [ ] Database migrations applied
+- [ ] Monitoring system active
+- [ ] API keys secured
+- [ ] SSL certificates configured
+- [ ] Backup strategy implemented
+
+## 🤝 Contributing
+
+1. Read [Development Guidelines](docs/development/best-practices.md)
+2. Follow [File Structure Guide](docs/development/file-restructure-plan.md)
+3. Check [Migration Scripts](docs/development/migration-scripts.md)
+4. Update documentation for new features
+
+## 📞 Support & Troubleshooting
+
+### Common Issues
+
+- **[Redis Connection Issues](docs/troubleshooting/CRON_TROUBLESHOOTING.md)**
+- **[Queue Processing Problems](docs/troubleshooting/QUICK_CRON_FIX.md)**
+- **[Permission Errors](docs/troubleshooting/README-PERMISSION-FIXES.md)**
+
+### Resources
+
+- **[Complete Documentation](docs/README.md)** - Comprehensive guide
+- **[Troubleshooting Guide](docs/troubleshooting/)** - Issue resolution
+- **[API Documentation](docs/infrastructure/BULLMQ_INTEGRATION.md)** - API reference
+- **[Team Migration](docs/TEAM_MIGRATION.md)** - Onboarding guide
+
+## 📝 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+**Last Updated**: December 2024  
+**Version**: 1.0.0  
+**Status**: Production Ready
+
+![My Scheduler App](https://img.shields.io/badge/My%20Scheduler%20App-Production%20Ready-success)
