@@ -9,6 +9,8 @@ Komprehensif guide untuk mengatasi masalah umum dan errors.
 - **[Cron Troubleshooting](CRON_TROUBLESHOOTING.md)** - Masalah cron job dan penjadwalan
 - **[Quick Cron Fix](QUICK_CRON_FIX.md)** - Quick fixes untuk cron issues
 - **[Permission Fixes](README-PERMISSION-FIXES.md)** - Permission dan authentication issues
+- **[Facebook API Issues](FACEBOOK_API_ISSUES.md)** - Facebook Graph API troubleshooting dan token management
+- **[Hydration Issues](HYDRATION_ISSUES.md)** - React hydration errors dan SSR troubleshooting
 
 ## 🔍 Quick Diagnostics
 
@@ -223,6 +225,53 @@ npm run scaling:config
 # Check scaling logs
 tail -f logs/autoscaler.log
 ```
+
+### 6. Facebook API Issues
+
+**Symptoms:**
+
+- Facebook posting failures
+- Token validation errors
+- "Error #100: Tried accessing nonexisting field (accounts)"
+- Permission denied errors
+
+**Quick Diagnosis:**
+
+```bash
+# Test Facebook token
+curl "https://graph.facebook.com/me?access_token=YOUR_TOKEN"
+
+# Check token permissions
+curl "https://graph.facebook.com/me/permissions?access_token=YOUR_TOKEN"
+
+# Validate token type
+curl "https://graph.facebook.com/debug_token?input_token=YOUR_TOKEN&access_token=APP_TOKEN"
+```
+
+**Solutions:**
+
+```bash
+# Check Facebook publisher logs
+tail -f logs/social-media.log
+
+# Test Facebook integration
+npm run test:facebook
+
+# Refresh Facebook tokens
+npm run social:refresh-tokens
+
+# Check Facebook app configuration
+# Visit: https://developers.facebook.com/apps/
+```
+
+**Common Facebook Fixes:**
+
+- **Token Type Mismatch**: Use User token for `/me/accounts`, Page token for posting
+- **Missing Permissions**: Ensure `pages_manage_posts`, `pages_show_list` permissions
+- **Expired Tokens**: Implement automatic token refresh
+- **API Version**: Update to latest Graph API version
+
+See detailed guide: [Facebook API Issues](FACEBOOK_API_ISSUES.md)
 
 ## 🔧 Debugging Tools
 

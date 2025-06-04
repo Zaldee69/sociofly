@@ -44,6 +44,108 @@ export class FacebookPublisher {
   }
 
   /**
+   * Get token type (USER or PAGE) and basic info
+   */
+  static async getTokenInfo(accessToken: string): Promise<{
+    type: "USER" | "PAGE";
+    id: string;
+    name: string;
+    isValid: boolean;
+  } | null> {
+    try {
+      FacebookAdsApi.init(accessToken);
+      const user = new User("me");
+      const userInfo = await user.read(["id", "name", "category"]);
+
+      // If category exists, it's likely a Page token
+      const isPage = "category" in userInfo;
+
+      return {
+        type: isPage ? "PAGE" : "USER",
+        id: userInfo.id,
+        name: userInfo.name,
+        isValid: true,
+      };
+    } catch (error) {
+      console.error("Failed to get token info:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Get token permissions
+   */
+  static async getTokenPermissions(accessToken: string): Promise<string[]> {
+    try {
+      FacebookAdsApi.init(accessToken);
+      const user = new User("me");
+      const permissionsResponse = await user.read([], {
+        fields: ["permissions"],
+      });
+
+      if (
+        permissionsResponse.permissions &&
+        Array.isArray(permissionsResponse.permissions.data)
+      ) {
+        return permissionsResponse.permissions.data
+          .filter((perm: any) => perm.status === "granted")
+          .map((perm: any) => perm.permission);
+      }
+
+      return [];
+    } catch (error) {
+      console.error("Failed to get token permissions:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Validate Page token and get Page information
+   * Specifically for Page Access Tokens stored in database
+   */
+  static async validatePageToken(
+    accessToken: string,
+    pageId: string
+  ): Promise<{
+    isValid: boolean;
+    pageInfo?: {
+      id: string;
+      name: string;
+      category: string;
+    };
+    error?: string;
+  }> {
+    try {
+      FacebookAdsApi.init(accessToken);
+      const page = new Page(pageId);
+
+      // Try to read page information
+      const pageInfo = await page.read(["id", "name", "category"]);
+
+      return {
+        isValid: true,
+        pageInfo: {
+          id: pageInfo.id,
+          name: pageInfo.name,
+          category: pageInfo.category,
+        },
+      };
+    } catch (error: any) {
+      console.error("Page token validation failed:", error);
+
+      let errorMessage = "Unknown error";
+      if (error.message) {
+        errorMessage = error.message;
+      }
+
+      return {
+        isValid: false,
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
    * Publish content to Facebook
    */
   static async publishToFacebook(
@@ -108,43 +210,66 @@ export class FacebookPublisher {
     content: string,
     mediaUrls: string[]
   ): Promise<string> {
+    if (!socialAccount.profileId) {
+      throw new Error("Page ID (profileId) is required for page posting");
+    }
+
     try {
-      // Get user's pages and find the target page
-      const user = new User("me");
-      const pages = await user.getAccounts(["id", "name", "access_token"]);
+      // Initialize with the stored Page access token
+      FacebookAdsApi.init(socialAccount.accessToken);
+      const page = new Page(socialAccount.profileId);
 
-      const targetPage = pages.find(
-        (page: any) => page.id === socialAccount.profileId
+      // First, validate that this is a valid Page token for the specified page
+      console.log(
+        `🔍 Validating Page token for Page ID: ${socialAccount.profileId}`
       );
-      if (!targetPage) {
-        throw new Error(
-          `Facebook page ${socialAccount.profileId} not found or no access`
-        );
-      }
+      const pageInfo = await page.read(["id", "name", "category"]);
+      console.log(`✅ Page validated: ${pageInfo.name} (${pageInfo.id})`);
 
-      // Use page access token for publishing
-      FacebookAdsApi.init(targetPage.access_token);
-      const page = new Page(socialAccount.profileId!);
-
+      // Proceed with publishing
       let result: any;
-
       if (mediaUrls.length > 0) {
-        // Post with media (photo)
+        console.log(`📸 Publishing post with media to Page: ${pageInfo.name}`);
         result = await page.createPhoto([], {
           message: content,
-          url: mediaUrls[0], // Facebook Graph API supports one image per photo post
+          url: mediaUrls[0], // Facebook supports one image per photo post
         });
       } else {
-        // Text-only post
+        console.log(`📝 Publishing text post to Page: ${pageInfo.name}`);
         result = await page.createFeed([], {
           message: content,
         });
       }
 
+      console.log(`🎉 Successfully published to Page. Post ID: ${result.id}`);
       return result.id;
-    } catch (error) {
-      console.error("Error publishing to Facebook page:", error);
-      throw error;
+    } catch (directPageError: any) {
+      console.error("❌ Direct page publishing failed:", directPageError);
+
+      // Check if this is a token/permission error
+      if (this.isTokenError(directPageError)) {
+        throw new Error(
+          `Page Access Token is invalid or expired for Page ID: ${socialAccount.profileId}. ` +
+            `Please refresh the Page token. Error: ${directPageError.message}`
+        );
+      }
+
+      // Check if this is a permission error
+      if (directPageError.message?.includes("permissions")) {
+        throw new Error(
+          `Insufficient permissions to post to Page ID: ${socialAccount.profileId}. ` +
+            `Required permissions: pages_manage_posts. Error: ${directPageError.message}`
+        );
+      }
+
+      // For database-stored Page tokens, we should NOT fallback to user accounts method
+      // since the token is specifically for this page
+      throw new Error(
+        `Failed to publish to Facebook Page ${socialAccount.profileId}. ` +
+          `This appears to be a Page Access Token issue. ` +
+          `Please verify: 1) Token is valid, 2) Token has pages_manage_posts permission, ` +
+          `3) Page ID is correct. Original error: ${directPageError.message}`
+      );
     }
   }
 

@@ -25,9 +25,33 @@ interface Team {
 }
 
 export function TeamSwitcher() {
+  const [isMounted, setIsMounted] = React.useState(false);
   const { currentTeamId, setCurrentTeamId, isLoading } = useTeamContext();
   const { data: teams } = trpc.team.getAllTeams.useQuery();
   const currentTeam = teams?.find((team: Team) => team.id === currentTeamId);
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Prevent hydration mismatch by showing consistent state until mounted
+  if (!isMounted) {
+    return (
+      <SidebarMenuButton
+        size="lg"
+        className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+      >
+        <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+          <AudioWaveform className="size-4" />
+        </div>
+        <div className="grid flex-1 text-left text-sm leading-tight">
+          <span className="truncate font-semibold">Loading...</span>
+          <span className="truncate text-xs"></span>
+        </div>
+        <ChevronsUpDown className="ml-auto" />
+      </SidebarMenuButton>
+    );
+  }
 
   return (
     <DropdownMenu>

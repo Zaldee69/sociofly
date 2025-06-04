@@ -26,19 +26,26 @@ import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { InvitationIndicator } from "@/components/ui/invitation-indicator";
 import { useSignOut } from "@/lib/auth-utils";
+import React from "react";
 
 export function NavUser() {
+  const [isMounted, setIsMounted] = React.useState(false);
   const { user } = useUser();
   const signOut = useSignOut();
 
-  if (!user) {
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!isMounted || !user) {
     return null;
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <div className="flex w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md px-2 py-1.5 hover:bg-accent hover:text-accent-foreground">
+        <button className="flex w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md px-2 py-1.5 text-left hover:bg-accent hover:text-accent-foreground">
           <div className="relative">
             <Avatar className="h-8 w-8 rounded-lg">
               <AvatarImage src={user.imageUrl} alt={user.firstName!} />
@@ -60,7 +67,7 @@ export function NavUser() {
             </span>
           </div>
           <MoreVerticalIcon className="ml-auto size-4" />
-        </div>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         className="w-56 rounded-lg"
