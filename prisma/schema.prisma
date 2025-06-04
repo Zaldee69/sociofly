@@ -99,13 +99,15 @@ model Post {
 }
 
 model PostSocialAccount {
-  id              String        @id @default(cuid())
+  id              String          @id @default(cuid())
   postId          String
   socialAccountId String
-  status          PostStatus    @default(DRAFT)
+  status          PostStatus      @default(DRAFT)
   publishedAt     DateTime?
-  post            Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
-  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  platformPostId  String? // Store the platform-specific post ID for analytics tracking
+  post            Post            @relation(fields: [postId], references: [id], onDelete: Cascade)
+  socialAccount   SocialAccount   @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  analytics       PostAnalytics[]
 
   @@unique([postId, socialAccountId])
 }
@@ -358,4 +360,40 @@ enum BillingPlan {
   FREE
   PRO
   ENTERPRISE
+}
+
+// Analytics models
+model PostAnalytics {
+  id                  String            @id @default(cuid())
+  postSocialAccountId String
+  views               Int               @default(0)
+  likes               Int               @default(0)
+  comments            Int               @default(0)
+  shares              Int               @default(0)
+  clicks              Int               @default(0)
+  reach               Int               @default(0)
+  impressions         Int               @default(0)
+  engagement          Float             @default(0) // Percentage
+  recordedAt          DateTime          @default(now())
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  postSocialAccount   PostSocialAccount @relation(fields: [postSocialAccountId], references: [id], onDelete: Cascade)
+
+  @@index([postSocialAccountId])
+  @@index([recordedAt])
+}
+
+model PostAnalyticsDemographics {
+  id                  String   @id @default(cuid())
+  postSocialAccountId String
+  ageGroup            String // "18-24", "25-34", etc.
+  gender              String? // "male", "female", "other"
+  location            String? // Country/city
+  percentage          Float // Percentage of total audience
+  recordedAt          DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([postSocialAccountId])
+  @@index([recordedAt])
 }

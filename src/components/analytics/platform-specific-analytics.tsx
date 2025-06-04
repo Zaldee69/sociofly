@@ -52,6 +52,18 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+/**
+ * DEMO COMPONENT - Platform Specific Analytics UI Demo
+ *
+ * This component contains MOCK DATA for UI demonstration purposes only.
+ * It is NOT part of the real analytics system.
+ *
+ * For real analytics functionality, see:
+ * - src/lib/services/social-analytics/real-analytics-service.ts
+ * - src/server/api/routers/real-analytics.ts
+ * - src/app/(pages)/posts/[id]/page.tsx (AccountAnalytics component)
+ */
+
 interface PlatformSpecificAnalyticsProps {
   account: SocialAccount;
 }
@@ -77,6 +89,8 @@ const PlatformSpecificAnalytics: React.FC<PlatformSpecificAnalyticsProps> = ({
 }) => {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
 
+  // NOTE: This is MOCK DATA for UI demonstration only
+  // Real analytics data comes from the RealSocialAnalyticsService
   const mockPosts: Record<string, Post[]> = {
     instagram: [
       {

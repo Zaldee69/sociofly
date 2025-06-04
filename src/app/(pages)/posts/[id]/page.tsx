@@ -133,103 +133,6 @@ const statusConfig = {
   },
 };
 
-// Mock analytics data generator
-const generateMockAnalytics = (platform: SocialPlatform) => {
-  const baseMetrics = {
-    INSTAGRAM: {
-      views: 2500,
-      likes: 180,
-      comments: 24,
-      shares: 12,
-      reach: 1800,
-      engagement: 8.6,
-    },
-    TWITTER: {
-      views: 1200,
-      likes: 45,
-      comments: 8,
-      shares: 15,
-      reach: 950,
-      engagement: 5.7,
-    },
-    FACEBOOK: {
-      views: 3200,
-      likes: 95,
-      comments: 18,
-      shares: 22,
-      reach: 2100,
-      engagement: 4.2,
-    },
-    LINKEDIN: {
-      views: 850,
-      likes: 32,
-      comments: 6,
-      shares: 8,
-      reach: 650,
-      engagement: 5.4,
-    },
-    TIKTOK: {
-      views: 5600,
-      likes: 420,
-      comments: 65,
-      shares: 89,
-      reach: 4200,
-      engagement: 10.3,
-    },
-    YOUTUBE: {
-      views: 1800,
-      likes: 78,
-      comments: 12,
-      shares: 6,
-      reach: 1400,
-      engagement: 5.3,
-    },
-  };
-
-  const base = baseMetrics[platform];
-
-  return {
-    overview: {
-      views: base.views,
-      likes: base.likes,
-      comments: base.comments,
-      shares: base.shares,
-      reach: base.reach,
-      engagement: base.engagement,
-    },
-    demographics: {
-      ageGroups: [
-        { range: "18-24", percentage: 25 },
-        { range: "25-34", percentage: 35 },
-        { range: "35-44", percentage: 22 },
-        { range: "45-54", percentage: 12 },
-        { range: "55+", percentage: 6 },
-      ],
-      gender: [
-        { type: "Female", percentage: 58 },
-        { type: "Male", percentage: 40 },
-        { type: "Other", percentage: 2 },
-      ],
-      topLocations: [
-        { country: "Indonesia", percentage: 45 },
-        { country: "Malaysia", percentage: 18 },
-        { country: "Singapore", percentage: 12 },
-        { country: "Thailand", percentage: 8 },
-        { country: "Others", percentage: 17 },
-      ],
-    },
-    historical: Array.from({ length: 7 }, (_, i) => ({
-      date: format(
-        new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000),
-        "MMM d"
-      ),
-      views: Math.floor(base.views * (0.7 + Math.random() * 0.6)),
-      engagement:
-        Math.floor(base.engagement * (0.8 + Math.random() * 0.4) * 10) / 10,
-    })),
-  };
-};
-
 // Analytics Components
 const MetricCard = ({
   icon,
@@ -340,15 +243,80 @@ const HistoricalChart = ({
 const AccountAnalytics = ({
   account,
   platform,
+  analytics,
+  isLoading,
+  error,
+  postStatus,
 }: {
   account: any;
   platform: SocialPlatform;
+  analytics?: any; // Real analytics data
+  isLoading?: boolean;
+  error?: string;
+  postStatus?: string;
 }) => {
-  const analytics = generateMockAnalytics(platform);
-  const config = platformConfig[platform];
+  // Only show analytics if we have real data
+  if (!analytics) {
+    return (
+      <div className="space-y-8">
+        {postStatus !== "PUBLISHED" ? (
+          <div className="text-center py-8">
+            <div className="text-amber-500 mb-2">⏳ Post not yet published</div>
+            <div className="text-sm text-muted-foreground">
+              Analytics will be available after publishing
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <div className="text-gray-500 mb-2">
+              📊 No analytics data available
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Analytics data will appear once collection is completed
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
+      {/* Show loading state if analytics are being fetched */}
+      {isLoading && (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="text-sm text-muted-foreground">
+            Loading analytics data...
+          </div>
+        </div>
+      )}
+
+      {/* Show error state */}
+      {error && !isLoading && (
+        <div className="text-center py-8">
+          <div className="text-red-500 mb-2">⚠️ Failed to load analytics</div>
+          <div className="text-sm text-muted-foreground mb-4">{error}</div>
+          <Button
+            onClick={() => window.location.reload()}
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry Loading Analytics
+          </Button>
+        </div>
+      )}
+
+      {/* Show success message for real data */}
+      {!isLoading && (
+        <div className="text-center py-2">
+          <div className="text-xs text-green-600">
+            ✅ Real analytics data loaded
+          </div>
+        </div>
+      )}
+
       {/* Overview Metrics - Full Width Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 lg:gap-6">
         <MetricCard
@@ -402,17 +370,22 @@ const AccountAnalytics = ({
           <div className="space-y-4">
             <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
               <Activity className="w-5 h-5 text-blue-600" />
-              7-Day Performance Trend
+              Performance Trend
             </h4>
             <div className="grid grid-cols-7 gap-2">
-              {analytics.historical.map((day, index) => (
+              {(analytics.historical || []).map((day: any, index: number) => (
                 <div key={index} className="text-center">
-                  <div className="text-xs text-gray-500 mb-2">{day.date}</div>
+                  <div className="text-xs text-gray-500 mb-2">
+                    {new Date(day.date).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </div>
                   <div className="bg-gray-100 rounded-lg h-20 flex items-end justify-center p-1">
                     <div
                       className="bg-gradient-to-t from-blue-500 to-blue-400 rounded-t w-full transition-all duration-300 hover:from-blue-600 hover:to-blue-500"
                       style={{
-                        height: `${(day.views / Math.max(...analytics.historical.map((d) => d.views))) * 100}%`,
+                        height: `${(day.views / Math.max(...analytics.historical.map((d: any) => d.views))) * 100}%`,
                       }}
                     ></div>
                   </div>
@@ -436,24 +409,29 @@ const AccountAnalytics = ({
               Age Groups
             </h4>
             <div className="space-y-3">
-              {analytics.demographics.ageGroups.map((item, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">
-                    {item.range}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <div className="w-20 bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-gradient-to-r from-purple-500 to-purple-400 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${item.percentage}%` }}
-                      ></div>
-                    </div>
-                    <span className="text-sm font-bold text-gray-900 w-10 text-right">
-                      {item.percentage}%
+              {analytics.demographics.ageGroups.map(
+                (item: any, index: number) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between"
+                  >
+                    <span className="text-sm font-medium text-gray-700">
+                      {item.range}
                     </span>
+                    <div className="flex items-center gap-3">
+                      <div className="w-20 bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-gradient-to-r from-purple-500 to-purple-400 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${item.percentage}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm font-bold text-gray-900 w-10 text-right">
+                        {item.percentage}%
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              )}
             </div>
           </div>
         </Card>
@@ -466,7 +444,7 @@ const AccountAnalytics = ({
               Gender Split
             </h4>
             <div className="space-y-3">
-              {analytics.demographics.gender.map((item, index) => (
+              {analytics.demographics.gender.map((item: any, index: number) => (
                 <div key={index} className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">
                     {item.type}
@@ -503,28 +481,30 @@ const AccountAnalytics = ({
             Top Locations
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {analytics.demographics.topLocations.map((item, index) => (
-              <div
-                key={index}
-                className="text-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <div className="text-2xl mb-2">
-                  {item.country === "Indonesia"
-                    ? "🇮🇩"
-                    : item.country === "Malaysia"
-                      ? "🇲🇾"
-                      : item.country === "Singapore"
-                        ? "🇸🇬"
-                        : item.country === "Thailand"
-                          ? "🇹🇭"
-                          : "🌍"}
+            {analytics.demographics.topLocations.map(
+              (item: any, index: number) => (
+                <div
+                  key={index}
+                  className="text-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <div className="text-2xl mb-2">
+                    {item.country === "Indonesia"
+                      ? "🇮🇩"
+                      : item.country === "Malaysia"
+                        ? "🇲🇾"
+                        : item.country === "Singapore"
+                          ? "🇸🇬"
+                          : item.country === "Thailand"
+                            ? "🇹🇭"
+                            : "🌍"}
+                  </div>
+                  <div className="font-semibold text-gray-900">
+                    {item.percentage}%
+                  </div>
+                  <div className="text-sm text-gray-600">{item.country}</div>
                 </div>
-                <div className="font-semibold text-gray-900">
-                  {item.percentage}%
-                </div>
-                <div className="text-sm text-gray-600">{item.country}</div>
-              </div>
-            ))}
+              )
+            )}
           </div>
         </div>
       </Card>
@@ -548,6 +528,46 @@ export default function PostDetailPage() {
     error,
     refetch,
   } = trpc.post.getById.useQuery({ id: postId }, { enabled: !!postId });
+
+  // Fetch analytics data for published posts
+  const {
+    data: analyticsData,
+    isLoading: isAnalyticsLoading,
+    error: analyticsError,
+    refetch: refetchAnalytics,
+  } = trpc.post.getAnalytics.useQuery(
+    { postId },
+    {
+      enabled: !!postId && !!post && post.status === "PUBLISHED",
+      refetchOnWindowFocus: false,
+      retry: 3,
+      retryDelay: 1000,
+    }
+  );
+
+  // Debug logging
+  React.useEffect(() => {
+    console.log("Analytics Debug:", {
+      postId,
+      postStatus: post?.status,
+      postTeamId: post?.teamId,
+      currentTeamId,
+      isQueryEnabled: !!postId && !!post && post.status === "PUBLISHED",
+      isAnalyticsLoading,
+      analyticsData,
+      analyticsError: analyticsError?.message,
+      analyticsErrorCode: analyticsError?.data?.code,
+      postSocialAccountsCount: post?.postSocialAccounts?.length,
+    });
+  }, [
+    postId,
+    post?.status,
+    post?.teamId,
+    currentTeamId,
+    isAnalyticsLoading,
+    analyticsData,
+    analyticsError,
+  ]);
 
   // Fetch approval instances
   const { data: approvalInstances } = trpc.post.getApprovalInstances.useQuery(
@@ -933,14 +953,16 @@ export default function PostDetailPage() {
                     if (!account) return null;
 
                     const config = platformConfig[account.platform];
-                    const analytics = generateMockAnalytics(account.platform);
-                    const isFailed = psa.status === "FAILED";
+                    // Get real analytics data for this platform
+                    const platformAnalytics = analyticsData?.platforms?.find(
+                      (p: any) => p.socialAccountId === account.id
+                    );
 
                     return (
                       <div
                         key={psa.id}
                         className={`flex items-center gap-3 p-4 rounded-lg border transition-all duration-200 ${
-                          isFailed
+                          psa.status === "FAILED"
                             ? "bg-red-50 border-red-200 hover:bg-red-100"
                             : "bg-gray-50 border-gray-200 hover:bg-gray-100"
                         }`}
@@ -949,7 +971,7 @@ export default function PostDetailPage() {
                           className={`w-10 h-10 rounded-lg bg-gradient-to-r ${config.bgGradient} flex items-center justify-center text-white text-lg relative flex-shrink-0`}
                         >
                           {config.icon}
-                          {isFailed && (
+                          {psa.status === "FAILED" && (
                             <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center border-2 border-white">
                               <XCircle className="w-2.5 h-2.5 text-white" />
                             </div>
@@ -965,11 +987,14 @@ export default function PostDetailPage() {
                             </div>
                             {psa.status === "PUBLISHED" && (
                               <div className="text-xs text-blue-600 font-medium">
-                                {analytics.overview.views.toLocaleString()}{" "}
-                                views
+                                {isAnalyticsLoading
+                                  ? "Loading..."
+                                  : platformAnalytics
+                                    ? `${platformAnalytics.overview.views.toLocaleString()} views`
+                                    : "No data"}
                               </div>
                             )}
-                            {isFailed && (
+                            {psa.status === "FAILED" && (
                               <div className="flex items-center gap-1 text-xs text-red-600 font-medium">
                                 <AlertTriangle className="w-3 h-3" />
                                 Failed to publish
@@ -990,7 +1015,7 @@ export default function PostDetailPage() {
                           >
                             {psa.status}
                           </Badge>
-                          {isFailed && (
+                          {psa.status === "FAILED" && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -1053,7 +1078,10 @@ export default function PostDetailPage() {
                   if (!account) return null;
 
                   const config = platformConfig[account.platform];
-                  const analytics = generateMockAnalytics(account.platform);
+                  // Get real analytics data for this platform
+                  const platformAnalytics = analyticsData?.platforms?.find(
+                    (p: any) => p.socialAccountId === account.id
+                  );
 
                   return (
                     <TabsTrigger
@@ -1069,7 +1097,11 @@ export default function PostDetailPage() {
                       <div className="text-center w-full">
                         <div className="font-medium text-sm">{config.name}</div>
                         <div className="text-xs text-gray-500">
-                          {analytics.overview.views.toLocaleString()} views
+                          {isAnalyticsLoading
+                            ? "Loading..."
+                            : platformAnalytics
+                              ? `${platformAnalytics.overview.views.toLocaleString()} views`
+                              : "No data"}
                         </div>
                       </div>
                     </TabsTrigger>
@@ -1123,6 +1155,12 @@ export default function PostDetailPage() {
                     <AccountAnalytics
                       account={account}
                       platform={account.platform}
+                      analytics={analyticsData?.platforms?.find(
+                        (p: any) => p.socialAccountId === account.id
+                      )}
+                      isLoading={isAnalyticsLoading}
+                      error={analyticsError?.message}
+                      postStatus={post.status}
                     />
                   </TabsContent>
                 );
@@ -1138,6 +1176,7 @@ export default function PostDetailPage() {
           onClose={() => setIsEditDialogOpen(false)}
           onSave={handlePostSave}
           onDelete={handlePostDelete}
+          hideViewDetailsButton={true}
         />
 
         {/* Delete Confirmation Dialog */}
@@ -1147,14 +1186,38 @@ export default function PostDetailPage() {
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete Post</AlertDialogTitle>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                Delete Post
+              </AlertDialogTitle>
               <AlertDialogDescription>
                 Are you sure you want to delete this post? This action cannot be
                 undone.
                 {post?.status === "PUBLISHED" && (
-                  <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-sm">
-                    <strong>Warning:</strong> This post has already been
-                    published to social media platforms.
+                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-red-800 text-sm">
+                        <div className="font-semibold mb-1">
+                          Warning: Post sudah dipublikasikan
+                        </div>
+                        <div className="space-y-1">
+                          <p>
+                            • Post ini sudah dipublikasikan ke platform sosial
+                            media
+                          </p>
+                          <p>
+                            • Menghapus hanya akan menghilangkan dari database
+                            internal
+                          </p>
+                          <p>• Post akan tetap ada di platform sosial media</p>
+                          <p>
+                            • Anda perlu menghapus manual dari setiap platform
+                            jika diperlukan
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </AlertDialogDescription>

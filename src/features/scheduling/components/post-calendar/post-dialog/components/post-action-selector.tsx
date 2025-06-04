@@ -1,4 +1,10 @@
-import { Check, ChevronDown, RefreshCw, Loader2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  RefreshCw,
+  Loader2,
+  CheckCircle,
+} from "lucide-react";
 import { useState } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -62,6 +68,7 @@ interface PostActionSelectorProps {
   isUploading: boolean;
   onActionChange: (action: PostAction) => void;
   postId?: string; // Add postId to detect rejection status
+  postStatus?: string; // Add post status to detect if published
 }
 
 export function PostActionSelector({
@@ -69,11 +76,30 @@ export function PostActionSelector({
   isUploading,
   onActionChange,
   postId,
+  postStatus,
 }: PostActionSelectorProps) {
   const [isOpenPopover, setIsOpenPopover] = useState(false);
 
   // Check if post is rejected
   const { isRejected } = usePostApprovalStatus(postId || "");
+
+  // Check if post is published
+  const isPublished = postStatus === "PUBLISHED";
+
+  // If post is published, show read-only status
+  if (isPublished) {
+    return (
+      <div
+        className={buttonVariants({
+          variant: "default",
+          className: "pr-3 cursor-default bg-green-600 hover:bg-green-600",
+        })}
+      >
+        <CheckCircle className="w-4 h-4 mr-2" />
+        Published
+      </div>
+    );
+  }
 
   // If post is rejected, show resubmit action as primary
   const actions = isRejected

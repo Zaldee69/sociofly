@@ -3,7 +3,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Instagram, Twitter, Facebook, ExternalLink } from "lucide-react";
+import {
+  Instagram,
+  Twitter,
+  Facebook,
+  ExternalLink,
+  AlertTriangle,
+} from "lucide-react";
 import { PostStatus } from "@prisma/client";
 import { useRouter } from "next/navigation";
 import { addMinutes } from "date-fns";
@@ -29,6 +35,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import { MediaUploader } from "./components/media-uploader";
 import { PostPreview } from "./components/post-preview";
@@ -53,10 +60,15 @@ export function AddPostDialog({
   onSave,
   onDelete,
   post,
+  hideViewDetailsButton = false,
 }: AddPostDialogProps) {
   const { currentTeamId } = useTeamContext();
   const router = useRouter();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+
+  // Check if post is published (read-only mode)
+  const isPublished = post?.status === "PUBLISHED";
+  const isReadOnly = isPublished;
 
   // Social account state
   const [localSelectedAccounts, setLocalSelectedAccounts] = useState<string[]>(
@@ -296,9 +308,11 @@ export function AddPostDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="xl:min-w-7xl w-full p-0 max-h-[90vh] overflow-hidden">
         <DialogHeader className="hidden">
-          <DialogTitle>Buat Post</DialogTitle>
+          <DialogTitle>{post?.id ? "Edit Post" : "Buat Post"}</DialogTitle>
           <DialogDescription>
-            Buat post untuk akun yang dipilih
+            {isPublished
+              ? "View published post details"
+              : "Buat post untuk akun yang dipilih"}
           </DialogDescription>
         </DialogHeader>
 
@@ -319,11 +333,15 @@ export function AddPostDialog({
           <div className="w-full xl:w-7/12 pl-2.5 py-2.5 overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-2xl font-bold">
-                {post?.id ? "Edit Post" : "Buat Post"}
+                {post?.id
+                  ? isPublished
+                    ? "View Post"
+                    : "Edit Post"
+                  : "Buat Post"}
               </h1>
 
-              {/* Navigation to post detail page when editing */}
-              {post?.id && (
+              {/* Navigation to post detail page when editing - only show if not hidden */}
+              {post?.id && !hideViewDetailsButton && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -339,21 +357,35 @@ export function AddPostDialog({
               )}
             </div>
 
+            {/* Published post warning */}
+            {isPublished && (
+              <Alert className="mb-4 border-orange-200 bg-orange-50">
+                <AlertTriangle className="h-4 w-4 text-orange-600" />
+                <AlertDescription className="text-orange-800">
+                  <strong>Post sudah dipublish:</strong> Post ini sudah
+                  dipublikasikan ke platform sosial media. Editing dibatasi
+                  untuk menjaga konsistensi dengan konten yang sudah live.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Social account selector */}
             <SocialAccountSelect
               placeholder="Pilih Akun"
               options={accountOptions}
               value={localSelectedAccounts}
               onChange={handleAccountChange}
-              disabled={isUploading}
+              disabled={isUploading || isReadOnly}
             />
 
             {/* Media uploader dialog */}
-            <MediaUploader
-              isOpen={isUploadDialogOpen}
-              onOpenChange={setIsUploadDialogOpen}
-              onFileSelect={handleFileSelect}
-            />
+            {!isReadOnly && (
+              <MediaUploader
+                isOpen={isUploadDialogOpen}
+                onOpenChange={setIsUploadDialogOpen}
+                onFileSelect={handleFileSelect}
+              />
+            )}
 
             {/* Post form */}
             <Form {...form}>
@@ -371,10 +403,15 @@ export function AddPostDialog({
                       <FormItem>
                         <FormControl>
                           <Textarea
-                            placeholder="What's on your mind?"
+                            placeholder={
+                              isReadOnly
+                                ? "Post content..."
+                                : "What's on your mind?"
+                            }
                             className="resize-none border-none active:border-none focus-visible:border-none focus-visible:ring-0 shadow-none p-0 min-h-[150px] max-h-[250px]"
                             rows={10}
-                            disabled={isUploading}
+                            disabled={isUploading || isReadOnly}
+                            readOnly={isReadOnly}
                             {...field}
                           />
                         </FormControl>
@@ -387,22 +424,24 @@ export function AddPostDialog({
                     <div className="mt-5">
                       <MediaFileList
                         files={selectedFiles}
-                        onRemoveFile={removeFile}
-                        onReorderFiles={reorderFiles}
-                        disabled={isUploading}
+                        onRemoveFile={isReadOnly ? () => {} : removeFile}
+                        onReorderFiles={isReadOnly ? () => {} : reorderFiles}
+                        disabled={isUploading || isReadOnly}
                       />
                     </div>
 
                     {/* Post toolbar */}
-                    <div className="mt-4">
-                      <PostToolbar
-                        onUploadClick={() => setIsUploadDialogOpen(true)}
-                        onMediaSelect={(file) => handleFileSelect([file])}
-                        media={mediaData?.items || []}
-                        onHashtagSelect={handleHashtagSelect}
-                        disabled={isUploading}
-                      />
-                    </div>
+                    {!isReadOnly && (
+                      <div className="mt-4">
+                        <PostToolbar
+                          onUploadClick={() => setIsUploadDialogOpen(true)}
+                          onMediaSelect={(file) => handleFileSelect([file])}
+                          media={mediaData?.items || []}
+                          onHashtagSelect={handleHashtagSelect}
+                          disabled={isUploading || isReadOnly}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -414,43 +453,48 @@ export function AddPostDialog({
                       variant="outline"
                       disabled={isUploading}
                     >
-                      Cancel
+                      {isReadOnly ? "Close" : "Cancel"}
                     </Button>
                   </DialogClose>
 
-                  <div className="flex gap-2">
-                    <FormField
-                      control={form.control}
-                      name="scheduledAt"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <DateTimePicker24hForm disabled={isUploading} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  {!isReadOnly && (
+                    <div className="flex gap-2">
+                      <FormField
+                        control={form.control}
+                        name="scheduledAt"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <DateTimePicker24hForm
+                                disabled={isUploading || isReadOnly}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <PostActionSelector
-                      currentAction={postAction}
-                      isUploading={isUploading}
-                      postId={post?.id}
-                      onActionChange={(action) => {
-                        form.setValue("postAction", action, {
-                          shouldDirty: true,
-                          shouldValidate: true,
-                        });
-                        // Trigger validation for scheduledAt when action changes to SCHEDULE or REQUEST_REVIEW
-                        if (
-                          action === PostAction.SCHEDULE ||
-                          action === PostAction.REQUEST_REVIEW
-                        ) {
-                          form.trigger("scheduledAt");
-                        }
-                      }}
-                    />
-                  </div>
+                      <PostActionSelector
+                        currentAction={postAction}
+                        isUploading={isUploading}
+                        postId={post?.id}
+                        postStatus={post?.status}
+                        onActionChange={(action) => {
+                          form.setValue("postAction", action, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                          // Trigger validation for scheduledAt when action changes to SCHEDULE or REQUEST_REVIEW
+                          if (
+                            action === PostAction.SCHEDULE ||
+                            action === PostAction.REQUEST_REVIEW
+                          ) {
+                            form.trigger("scheduledAt");
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
                 </DialogFooter>
               </form>
             </Form>
@@ -462,7 +506,9 @@ export function AddPostDialog({
               accounts={selectedAccounts || []}
               allAccounts={socialAccounts}
               currentPreviewAccount={accountPostPreview}
-              onSelectPreviewAccount={setAccountPostPreview}
+              onSelectPreviewAccount={
+                isReadOnly ? () => {} : setAccountPostPreview
+              }
             />
 
             <div

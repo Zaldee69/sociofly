@@ -718,4 +718,123 @@ export const postRouter = createTRPCRouter({
         },
       });
     }),
+
+  // Get analytics for a specific post
+  getAnalytics: protectedProcedure
+    .input(z.object({ postId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const { postId } = input;
+
+      // Get post with analytics data
+      const post = await ctx.prisma.post.findUnique({
+        where: { id: postId },
+        include: {
+          postSocialAccounts: {
+            include: {
+              socialAccount: true,
+              analytics: {
+                orderBy: { recordedAt: "desc" },
+                take: 7, // Get last 7 days of data
+              },
+            },
+          },
+        },
+      });
+
+      if (!post) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Post tidak ditemukan",
+        });
+      }
+
+      // Check if user has access to this post
+      const membership = await ctx.prisma.membership.findUnique({
+        where: {
+          userId_teamId: {
+            userId: ctx.auth.userId,
+            teamId: post.teamId,
+          },
+        },
+      });
+
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Anda tidak memiliki akses ke post ini",
+        });
+      }
+
+      // Process analytics data for each platform
+      const analyticsData = post.postSocialAccounts.map((psa) => {
+        const latestAnalytics = psa.analytics[0]; // Most recent data
+        const historicalData = psa.analytics.reverse(); // Chronological order
+
+        return {
+          platform: psa.socialAccount.platform,
+          socialAccountId: psa.socialAccountId,
+          socialAccountName: psa.socialAccount.name,
+          status: psa.status,
+          publishedAt: psa.publishedAt,
+          overview: latestAnalytics
+            ? {
+                views: latestAnalytics.views,
+                likes: latestAnalytics.likes,
+                comments: latestAnalytics.comments,
+                shares: latestAnalytics.shares,
+                clicks: latestAnalytics.clicks,
+                reach: latestAnalytics.reach,
+                impressions: latestAnalytics.impressions,
+                engagement: latestAnalytics.engagement,
+              }
+            : {
+                views: 0,
+                likes: 0,
+                comments: 0,
+                shares: 0,
+                clicks: 0,
+                reach: 0,
+                impressions: 0,
+                engagement: 0,
+              },
+          historical: historicalData.map((analytics, index) => ({
+            date: analytics.recordedAt.toISOString().split("T")[0],
+            views: analytics.views,
+            likes: analytics.likes,
+            comments: analytics.comments,
+            shares: analytics.shares,
+            engagement: analytics.engagement,
+            reach: analytics.reach,
+          })),
+          // Mock demographics data for now (can be extended later)
+          demographics: {
+            ageGroups: [
+              { range: "18-24", percentage: 25 },
+              { range: "25-34", percentage: 35 },
+              { range: "35-44", percentage: 22 },
+              { range: "45-54", percentage: 12 },
+              { range: "55+", percentage: 6 },
+            ],
+            gender: [
+              { type: "Female", percentage: 58 },
+              { type: "Male", percentage: 40 },
+              { type: "Other", percentage: 2 },
+            ],
+            topLocations: [
+              { country: "Indonesia", percentage: 45 },
+              { country: "Malaysia", percentage: 18 },
+              { country: "Singapore", percentage: 12 },
+              { country: "Thailand", percentage: 8 },
+              { country: "Others", percentage: 17 },
+            ],
+          },
+        };
+      });
+
+      return {
+        postId: post.id,
+        postStatus: post.status,
+        platforms: analyticsData,
+      };
+    }),
 });

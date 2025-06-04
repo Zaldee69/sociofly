@@ -22,6 +22,10 @@
     "instagram:validate": "npx tsx scripts/get-instagram-accounts.ts --validate",
     "seed:hashtags": "npx tsx src/features/social/scripts/seed-hashtags.ts",
     "seed:permissions": "npx tsx src/server/permissions/seed/seed-role-permissions.ts",
+    "analytics:collect": "tsx scripts/collect-analytics.ts",
+    "analytics:check": "tsx scripts/check-analytics.ts",
+    "test:publish-platform-id": "tsx scripts/test-publish-with-platform-id.ts",
+    "test:create-and-publish": "tsx scripts/create-and-test-publish.ts",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
@@ -179,6 +183,7 @@
     "msw": "^2.7.5",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
+    "tsx": "^4.19.4",
     "typescript": "^5",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.1.2"

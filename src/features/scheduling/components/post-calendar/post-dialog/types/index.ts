@@ -10,6 +10,7 @@ export interface AddPostDialogProps {
   onClose: () => void;
   onSave: (post: CalendarPost) => void;
   onDelete: (eventId: string) => void;
+  hideViewDetailsButton?: boolean;
 }
 
 export interface FileWithPreview extends File {

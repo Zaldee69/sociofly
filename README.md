@@ -222,3 +222,79 @@ MIT License - see [LICENSE](LICENSE) file for details.
 **Status**: Production Ready
 
 ![My Scheduler App](https://img.shields.io/badge/My%20Scheduler%20App-Production%20Ready-success)
+
+## Features
+
+### Post Management & Publishing
+
+- **Smart Loading States**: Calendar and post dialog now include comprehensive loading indicators
+- **Published Post Protection**: Enhanced UX for posts that have already been published
+  - ✅ **Read-only mode** for published posts to prevent content inconsistency
+  - ⚠️ **Enhanced delete warnings** with detailed implications
+  - 🔒 **Disabled editing** for published posts to maintain platform consistency
+  - 📱 **Visual indicators** showing post publication status
+
+### Loading States Implementation
+
+- **Calendar Loading**: Realistic skeleton with animated placeholders
+- **Post Dialog Loading**: Full overlay with spinner during submission
+- **Form Disable States**: All inputs disabled during processing
+- **Action Feedback**: Detailed loading messages for different actions
+
+## Post Status Behavior
+
+### Published Posts (Status: PUBLISHED)
+
+- **Edit Restrictions**:
+  - Form fields become read-only
+  - Media upload disabled
+  - Toolbar actions hidden
+  - Visual warning displayed
+- **Delete Behavior**:
+  - Shows enhanced warning dialog
+  - Explains post remains on social platforms
+  - Requires manual deletion from each platform
+- **Reasoning**: Maintains consistency between database and live social media content
+
+### Draft/Scheduled Posts
+
+- **Full Editing**: All features available
+- **Standard Actions**: Publish, Schedule, Save Draft, Request Review
+- **Media Management**: Upload, reorder, remove media files
+
+## Technical Implementation
+
+### Loading States
+
+```tsx
+// Calendar loading skeleton
+if (isPostsLoading) {
+  return <CalendarSkeleton />;
+}
+
+// Post dialog loading overlay
+{
+  isUploading && <LoadingOverlay />;
+}
+```
+
+### Published Post Protection
+
+```tsx
+const isPublished = post?.status === "PUBLISHED";
+const isReadOnly = isPublished;
+
+// Conditional rendering based on published status
+{
+  !isReadOnly && <EditableComponents />;
+}
+```
+
+## Usage Guidelines
+
+1. **Creating Posts**: All features available for new posts
+2. **Editing Drafts**: Full editing capabilities maintained
+3. **Published Posts**: View-only mode with detailed warnings for destructive actions
+4. **Loading Feedback**: Users receive clear feedback during all operations
+
+This approach ensures data integrity while providing clear user feedback about the implications of their actions.

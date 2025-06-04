@@ -226,7 +226,7 @@ export class PostPublisherService {
       );
 
       if (publishResult.success && publishResult.platformPostId) {
-        // Update status posting
+        // Update status posting dan simpan platformPostId
         await prisma.postSocialAccount.update({
           where: {
             postId_socialAccountId: {
@@ -237,6 +237,7 @@ export class PostPublisherService {
           data: {
             status: PostStatus.PUBLISHED,
             publishedAt: new Date(),
+            platformPostId: publishResult.platformPostId,
           },
         });
 
