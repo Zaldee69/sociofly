@@ -566,6 +566,17 @@ export default function PostDetailPage() {
     },
   });
 
+  // Retry failed post mutation
+  const retryPostMutation = trpc.post.retry.useMutation({
+    onSuccess: () => {
+      toast.success("Post retry initiated successfully!");
+      refetch(); // Refresh post data to show updated status
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to retry post: ${error.message}`);
+    },
+  });
+
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
     toast.success("Link copied to clipboard!");
@@ -577,6 +588,12 @@ export default function PostDetailPage() {
 
   const handleDelete = () => {
     setIsDeleteDialogOpen(true);
+  };
+
+  const handleRetry = () => {
+    if (post?.id) {
+      retryPostMutation.mutate({ id: post.id });
+    }
   };
 
   const confirmDelete = () => {
@@ -619,6 +636,11 @@ export default function PostDetailPage() {
       }) as FileWithStablePreview;
     });
   }, [post?.mediaUrls]);
+
+  // Check if post has any failed platforms
+  const hasFailedPlatforms = post?.postSocialAccounts?.some(
+    (psa) => psa.status === "FAILED"
+  );
 
   if (isLoading) {
     return (
@@ -768,6 +790,21 @@ export default function PostDetailPage() {
                     Export Data
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
+                  {hasFailedPlatforms && (
+                    <DropdownMenuItem
+                      onClick={handleRetry}
+                      disabled={retryPostMutation.isPending}
+                      className="text-blue-600 focus:text-blue-600"
+                    >
+                      <RefreshCw
+                        className={`w-4 h-4 mr-2 ${retryPostMutation.isPending ? "animate-spin" : ""}`}
+                      />
+                      {retryPostMutation.isPending
+                        ? "Retrying..."
+                        : "Retry Failed Posts"}
+                    </DropdownMenuItem>
+                  )}
+                  {hasFailedPlatforms && <DropdownMenuSeparator />}
                   <DropdownMenuItem
                     onClick={handleDelete}
                     className="text-red-600 focus:text-red-600"
@@ -784,6 +821,46 @@ export default function PostDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content - Post Preview */}
           <div className="lg:col-span-2">
+            {/* Failed Posts Alert */}
+            {hasFailedPlatforms && (
+              <Card className="bg-red-50 border-red-200 shadow-sm mb-6">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0">
+                      <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-semibold text-red-800 mb-1">
+                        Publication Failed
+                      </h3>
+                      <p className="text-sm text-red-700 mb-3">
+                        This post failed to publish to some platforms. Check the
+                        platform details below and try again.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={handleRetry}
+                          disabled={retryPostMutation.isPending}
+                          size="sm"
+                          className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                          <RefreshCw
+                            className={`w-4 h-4 mr-2 ${retryPostMutation.isPending ? "animate-spin" : ""}`}
+                          />
+                          {retryPostMutation.isPending
+                            ? "Retrying..."
+                            : "Retry All Failed"}
+                        </Button>
+                        <span className="text-xs text-red-600">
+                          or retry individual platforms below
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <Card className="bg-white shadow-sm">
               <CardHeader>
                 <CardTitle className="text-lg">Post Preview</CardTitle>
@@ -827,10 +904,27 @@ export default function PostDetailPage() {
             {/* Publishing Platforms Summary */}
             <Card className="bg-white gap-0 shadow-sm">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Share2 className="w-4 h-4 text-green-600" />
-                  Platforms
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Share2 className="w-4 h-4 text-green-600" />
+                    Platforms
+                  </CardTitle>
+                  {hasFailedPlatforms && (
+                    <Badge variant="destructive" className="text-xs">
+                      {
+                        post.postSocialAccounts.filter(
+                          (psa) => psa.status === "FAILED"
+                        ).length
+                      }{" "}
+                      Failed
+                    </Badge>
+                  )}
+                </div>
+                {hasFailedPlatforms && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    Some platforms failed to publish. Click retry to try again.
+                  </p>
+                )}
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -840,42 +934,78 @@ export default function PostDetailPage() {
 
                     const config = platformConfig[account.platform];
                     const analytics = generateMockAnalytics(account.platform);
+                    const isFailed = psa.status === "FAILED";
 
                     return (
                       <div
                         key={psa.id}
-                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+                        className={`flex items-center gap-3 p-4 rounded-lg border transition-all duration-200 ${
+                          isFailed
+                            ? "bg-red-50 border-red-200 hover:bg-red-100"
+                            : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                        }`}
                       >
                         <div
-                          className={`w-8 h-8 rounded-lg bg-gradient-to-r ${config.bgGradient} flex items-center justify-center text-white text-sm`}
+                          className={`w-10 h-10 rounded-lg bg-gradient-to-r ${config.bgGradient} flex items-center justify-center text-white text-lg relative flex-shrink-0`}
                         >
                           {config.icon}
+                          {isFailed && (
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center border-2 border-white">
+                              <XCircle className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm text-gray-900">
+                          <div className="font-semibold text-sm text-gray-900 mb-1">
                             {account.name}
                           </div>
-                          <div className="text-xs text-gray-500 flex items-center gap-2">
-                            <span>{config.name}</span>
+                          <div className="flex flex-col gap-1">
+                            <div className="text-xs text-gray-600">
+                              {config.name}
+                            </div>
                             {psa.status === "PUBLISHED" && (
-                              <>
-                                <span>•</span>
-                                <span className="text-blue-600">
-                                  {analytics.overview.views.toLocaleString()}{" "}
-                                  views
-                                </span>
-                              </>
+                              <div className="text-xs text-blue-600 font-medium">
+                                {analytics.overview.views.toLocaleString()}{" "}
+                                views
+                              </div>
+                            )}
+                            {isFailed && (
+                              <div className="flex items-center gap-1 text-xs text-red-600 font-medium">
+                                <AlertTriangle className="w-3 h-3" />
+                                Failed to publish
+                              </div>
                             )}
                           </div>
                         </div>
-                        <Badge
-                          variant={
-                            psa.status === "PUBLISHED" ? "default" : "secondary"
-                          }
-                          className="text-xs"
-                        >
-                          {psa.status}
-                        </Badge>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Badge
+                            variant={
+                              psa.status === "PUBLISHED"
+                                ? "default"
+                                : psa.status === "FAILED"
+                                  ? "destructive"
+                                  : "secondary"
+                            }
+                            className="text-xs font-medium"
+                          >
+                            {psa.status}
+                          </Badge>
+                          {isFailed && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleRetry}
+                              disabled={retryPostMutation.isPending}
+                              className="text-blue-600 border-blue-300 hover:bg-blue-50 hover:border-blue-400 transition-colors"
+                              title="Retry publishing to this platform"
+                            >
+                              <RefreshCw
+                                className={`w-4 h-4 ${retryPostMutation.isPending ? "animate-spin" : ""}`}
+                              />
+                              <span className="sr-only">Retry</span>
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
