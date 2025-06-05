@@ -32,8 +32,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { FileUploadArea } from "../schedule-post/components/file-upload-area";
-import { useFiles } from "../schedule-post/contexts/file-context";
+import { FileUploadArea } from "@/components/file-management/file-upload-area";
+import { useFiles } from "@/components/file-management/file-context";
 import { MediaThumbnail } from "./components/media-thumbnail";
 import Link from "next/link";
 import { MediaTable } from "./components/media-table";

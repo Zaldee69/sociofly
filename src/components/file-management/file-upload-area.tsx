@@ -14,13 +14,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useFiles } from "../contexts/file-context";
+import { useFiles } from "./file-context";
 import { cn } from "@/lib/utils";
 
 import { trpc } from "@/lib/trpc/client";
-import { FileWithPreview } from "../types";
+import { FileWithPreview } from "./types";
 import { useTeamContext } from "@/lib/contexts/team-context";
-import { useUploadThing } from "@/utils/uploadthing";
+import { useUploadThing } from "@/lib/utils/uploadthing";
 
 interface FileUploadAreaProps {
   onUploadStart?: () => void;

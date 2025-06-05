@@ -7,7 +7,13 @@ import {
   useCallback,
   ReactNode,
 } from "react";
-import { FileWithPreview } from "../types";
+import { DndContext, closestCenter, DragEndEvent } from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  horizontalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { FileWithPreview } from "./types";
 
 type FileContextType = {
   files: FileWithPreview[];

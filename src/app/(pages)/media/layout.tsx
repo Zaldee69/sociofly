@@ -1,9 +1,9 @@
-import { FileProvider } from "../schedule-post/contexts/file-context";
+import { FileProvider } from "@/components/file-management/file-context";
 
-export default function MediaLayout({
-  children,
-}: {
+interface MediaLayoutProps {
   children: React.ReactNode;
-}) {
+}
+
+export default function MediaLayout({ children }: MediaLayoutProps) {
   return <FileProvider>{children}</FileProvider>;
 }

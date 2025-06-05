@@ -1,9 +1,11 @@
-import { FileProvider } from "./contexts/file-context";
+import { FileProvider } from "@/components/file-management/file-context";
+
+interface SchedulePostLayoutProps {
+  children: React.ReactNode;
+}
 
 export default function SchedulePostLayout({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+}: SchedulePostLayoutProps) {
   return <FileProvider>{children}</FileProvider>;
 }

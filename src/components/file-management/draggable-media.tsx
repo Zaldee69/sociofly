@@ -6,7 +6,7 @@ import { X, CheckCircle2, Loader2 } from "lucide-react";
 import { useRef } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { FileWithPreview } from "../types";
+import { FileWithPreview } from "./types";
 
 interface DraggableMediaProps {
   file: FileWithPreview;

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useFiles } from "../contexts/file-context";
+import { useFiles } from "@/components/file-management/file-context";
 import { z } from "zod";
 
 interface PostResponse {

@@ -33,10 +33,9 @@ import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { MultiSelect } from "@/components/multi-select";
 import { useScheduleForm } from "./hooks/use-schedule-form";
-import { FileUploadArea } from "./components/file-upload-area";
+import { FileUploadArea } from "@/components/file-management/file-upload-area";
 import { AIContentProvider, useAIContent } from "./contexts/ai-content-context";
-import { hooks } from "@/utils"
-// Replace with: const { useKeyboardShortcut } = hooks;;
+import { useKeyboardShortcut } from "@/lib/hooks";
 import { socialAccounts } from "./data/mock-accounts";
 
 const SchedulePostContent = () => {

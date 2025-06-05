@@ -135,11 +135,9 @@ export default function Component() {
           {/* Calendar grid skeleton - 6 weeks */}
           <div className="grid grid-cols-7 gap-px bg-border/70">
             {Array.from({ length: 42 }).map((_, i) => {
-              // Simulate some days having events
-              const hasEvents = Math.random() > 0.7;
-              const eventCount = hasEvents
-                ? Math.floor(Math.random() * 3) + 1
-                : 0;
+              // Use deterministic values instead of Math.random() to avoid hydration mismatch
+              const hasEvents = i % 5 === 0; // Every 5th day has events
+              const eventCount = hasEvents ? (i % 3) + 1 : 0; // Consistent event count
 
               return (
                 <div
@@ -151,7 +149,7 @@ export default function Component() {
                   </div>
                   <div className="space-y-1 flex-1">
                     {Array.from({ length: eventCount }).map((_, eventIndex) => {
-                      // Vary the event widths to make it look more realistic
+                      // Use deterministic widths instead of random
                       const widthClass =
                         eventIndex === 0
                           ? "w-full"
@@ -161,10 +159,7 @@ export default function Component() {
                       return (
                         <Skeleton
                           key={eventIndex}
-                          className={`h-5 ${widthClass} rounded`}
-                          style={{
-                            animationDelay: `${i * 0.05 + eventIndex * 0.1}s`,
-                          }}
+                          className={`h-5 ${widthClass} rounded animate-pulse`}
                         />
                       );
                     })}

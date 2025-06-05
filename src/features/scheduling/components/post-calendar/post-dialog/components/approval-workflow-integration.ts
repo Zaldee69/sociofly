@@ -2,7 +2,7 @@ import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import { PostFormValues, PostAction } from "../schema";
 import { CalendarPost } from "../../types";
 import { ApprovalAssignment, PostStatus } from "@prisma/client";
-import { getBaseUrl } from "@/utils/general";
+import { getBaseUrl } from "@/lib/utils";
 import superjson from "superjson";
 import type { AppRouter } from "@/server/api/root";
 

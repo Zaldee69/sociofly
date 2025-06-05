@@ -1,13 +1,4 @@
-export type FileWithPreview = {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  preview?: string;
-  file?: File;
-  isUploaded: boolean;
-  isUploading: boolean;
-  uploadProgress: number;
-  url?: string;
-  isSelected: boolean;
-};
+// Types for schedule-post page
+// This file is included by TypeScript's include pattern but currently empty
+
+export {};

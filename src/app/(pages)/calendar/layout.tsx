@@ -1,11 +1,11 @@
 import { CalendarProvider } from "@/features/scheduling/components/post-calendar/calendar-context";
-import { FileProvider } from "../schedule-post/contexts/file-context";
+import { FileProvider } from "@/components/file-management/file-context";
 
-export default async function Layout({
-  children,
-}: {
+interface CalendarLayoutProps {
   children: React.ReactNode;
-}) {
+}
+
+export default function CalendarLayout({ children }: CalendarLayoutProps) {
   return (
     <FileProvider>
       <CalendarProvider>
