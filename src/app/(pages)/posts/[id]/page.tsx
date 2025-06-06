@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -61,6 +61,7 @@ import { DetailedApprovalStatus } from "@/features/approval/components/detailed-
 import { AddPostDialog } from "@/features/scheduling/components/post-calendar/post-dialog";
 import { FileWithStablePreview } from "@/features/scheduling/components/post-calendar/post-dialog/hooks/use-media-files";
 import { SocialPlatform } from "@prisma/client";
+import { processInsights, InsightSummary } from "@/lib/insightProcessor";
 
 // Platform icons and colors
 const platformConfig: Record<
@@ -250,11 +251,56 @@ const AccountAnalytics = ({
 }: {
   account: any;
   platform: SocialPlatform;
-  analytics?: any; // Real analytics data
+  analytics?: any;
   isLoading?: boolean;
   error?: string;
   postStatus?: string;
 }) => {
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [insights, setInsights] = useState<InsightSummary | null>(null);
+
+  // Process analytics data when available
+  useEffect(() => {
+    async function processAnalytics() {
+      if (!analytics) return;
+
+      const insightData = {
+        platforms: [
+          {
+            platform: platform,
+            socialAccountName: account.name,
+            overview: {
+              impressions:
+                platform === "FACEBOOK"
+                  ? (analytics.richInsights?.impressions ?? 0)
+                  : analytics.overview.views,
+              reach: analytics.overview.reach,
+              engagement: analytics.overview.engagement,
+              clicks: analytics.richInsights?.clicks ?? 0,
+            },
+            richInsights: {
+              impressionsPaid: analytics.richInsights?.impressionsPaid ?? 0,
+              impressionsOrganic:
+                analytics.richInsights?.impressionsOrganic ?? 0,
+            },
+          },
+        ],
+      };
+
+      setIsGeneratingAI(true);
+      try {
+        // const result = await processInsights(insightData, true);
+        // setInsights(result);
+      } catch (error) {
+        console.error("Error processing insights:", error);
+      } finally {
+        setIsGeneratingAI(false);
+      }
+    }
+
+    processAnalytics();
+  }, [analytics, platform, account.name]);
+
   // Only show analytics if we have real data
   if (!analytics) {
     return (
@@ -322,6 +368,27 @@ const AccountAnalytics = ({
           </div>
         </div>
       )}
+
+      {/* Insights Summary Card */}
+      {/* <Card className="p-6">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-blue-600" />
+              Performance Summary
+            </h4>
+            {isGeneratingAI && (
+              <div className="flex items-center gap-2 text-sm text-blue-600">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                Generating AI insights...
+              </div>
+            )}
+          </div>
+          <div className="prose prose-sm max-w-none text-gray-600">
+            {insights?.narrative || "Generating insights..."}
+          </div>
+        </div>
+      </Card> */}
 
       {/* Enhanced Overview Metrics */}
       <div className="space-y-6">
