@@ -92,14 +92,14 @@ async function debugFacebookAPI() {
         {
           params: {
             access_token: facebookAccount.accessToken,
-            fields: "id,message,created_time",
+            fields: "id,message,caption,created_time",
           },
         }
       );
       console.log("✅ Basic post info retrieved:");
       console.log(`   Post ID: ${basicInfo.data.id}`);
       console.log(
-        `   Message: ${basicInfo.data.message?.substring(0, 50) || "No message"}...`
+        `   Message: ${(basicInfo.data.message || basicInfo.data.caption || "No message").substring(0, 50)}...`
       );
       console.log(`   Created: ${basicInfo.data.created_time}`);
 

@@ -267,6 +267,7 @@ export class RealSocialAnalyticsService {
           reach: analytics.reach,
           impressions: analytics.impressions,
           engagement: analytics.engagement,
+          rawInsights: analytics.rawInsights || [],
         })),
         demographics: this.generateDemographics(psa.socialAccount.platform),
       }));
@@ -421,8 +422,25 @@ export class RealSocialAnalyticsService {
     postSocialAccountId: string,
     analyticsData: SocialAnalyticsData
   ): Promise<void> {
-    await this.prisma.postAnalytics.create({
-      data: {
+    await this.prisma.postAnalytics.upsert({
+      where: {
+        postSocialAccountId_recordedAt: {
+          postSocialAccountId,
+          recordedAt: analyticsData.recordedAt,
+        },
+      },
+      update: {
+        views: analyticsData.views,
+        likes: analyticsData.likes,
+        comments: analyticsData.comments,
+        shares: analyticsData.shares,
+        clicks: analyticsData.clicks || 0,
+        reach: analyticsData.reach,
+        impressions: analyticsData.impressions,
+        engagement: analyticsData.engagement,
+        rawInsights: analyticsData.rawInsights || undefined,
+      },
+      create: {
         postSocialAccountId,
         views: analyticsData.views,
         likes: analyticsData.likes,
@@ -433,6 +451,7 @@ export class RealSocialAnalyticsService {
         impressions: analyticsData.impressions,
         engagement: analyticsData.engagement,
         recordedAt: analyticsData.recordedAt,
+        rawInsights: analyticsData.rawInsights || undefined,
       },
     });
   }

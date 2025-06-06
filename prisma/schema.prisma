@@ -13,16 +13,16 @@ model User {
   clerkId             String               @unique
   email               String               @unique
   name                String?
-  subscriptionPlan    BillingPlan          @default(FREE) // Tambahkan di User
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   onboardingStatus    OnboardingStatus     @default(NOT_STARTED)
+  subscriptionPlan    BillingPlan          @default(FREE)
+  approvalAssignments ApprovalAssignment[]
+  media               Media[]
   memberships         Membership[]
   posts               Post[]
   socialAccounts      SocialAccount[]
-  media               Media[]
   teams               Team[]
-  approvalAssignments ApprovalAssignment[]
 }
 
 model Team {
@@ -32,32 +32,32 @@ model Team {
   logo              String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  ownerId           String
+  approvalWorkflows ApprovalWorkflow[]
+  customRoles       CustomRole[]
+  invitations       Invitation[]
+  Media             Media[]
   memberships       Membership[]
   posts             Post[]
   socialAccounts    SocialAccount[]
-  invitations       Invitation[]
-  Media             Media[]
-  ownerId           String
   owner             User               @relation(fields: [ownerId], references: [id])
-  customRoles       CustomRole[]
-  approvalWorkflows ApprovalWorkflow[]
 }
 
 model Membership {
   id               String            @id @default(cuid())
   role             Role              @default(CONTENT_CREATOR)
-  status           MemberStatus      @default(ACTIVE)
-  lastActiveAt     DateTime          @default(now())
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   userId           String
+  lastActiveAt     DateTime          @default(now())
+  status           MemberStatus      @default(ACTIVE)
+  customRoleId     String?
   teamId           String
+  customRole       CustomRole?       @relation(fields: [customRoleId], references: [id])
   team             Team              @relation(fields: [teamId], references: [id])
   user             User              @relation(fields: [userId], references: [id])
-  customRoleId     String?
-  customRole       CustomRole?       @relation(fields: [customRoleId], references: [id])
-  grantsPermission MembershipGrant[]
   deniesPermission MembershipDeny[]
+  grantsPermission MembershipGrant[]
 
   @@unique([userId, teamId])
 }
@@ -70,11 +70,11 @@ model SocialAccount {
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   userId         String
-  teamId         String
-  profilePicture String?
   name           String?
   platform       SocialPlatform
-  profileId      String? // Added to store platform-specific profile IDs like Instagram user ID
+  profilePicture String?
+  profileId      String?
+  teamId         String
   posts          PostSocialAccount[]
   team           Team                @relation(fields: [teamId], references: [id])
   user           User                @relation(fields: [userId], references: [id])
@@ -92,10 +92,10 @@ model Post {
   publishedAt        DateTime?
   userId             String
   teamId             String
-  postSocialAccounts PostSocialAccount[]
+  approvalInstances  ApprovalInstance[]
   team               Team                @relation(fields: [teamId], references: [id])
   user               User                @relation(fields: [userId], references: [id])
-  approvalInstances  ApprovalInstance[]
+  postSocialAccounts PostSocialAccount[]
 }
 
 model PostSocialAccount {
@@ -104,10 +104,10 @@ model PostSocialAccount {
   socialAccountId String
   status          PostStatus      @default(DRAFT)
   publishedAt     DateTime?
-  platformPostId  String? // Store the platform-specific post ID for analytics tracking
+  platformPostId  String?
+  analytics       PostAnalytics[]
   post            Post            @relation(fields: [postId], references: [id], onDelete: Cascade)
   socialAccount   SocialAccount   @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
-  analytics       PostAnalytics[]
 
   @@unique([postId, socialAccountId])
 }
@@ -116,10 +116,10 @@ model Invitation {
   id         String    @id @default(cuid())
   email      String
   role       Role      @default(CONTENT_CREATOR)
-  teamId     String
   createdAt  DateTime  @default(now())
   acceptedAt DateTime?
   rejectedAt DateTime?
+  teamId     String
   team       Team      @relation(fields: [teamId], references: [id])
 
   @@unique([email, teamId])
@@ -127,7 +127,6 @@ model Invitation {
 
 model Media {
   id         String    @id @default(cuid())
-  name       String // Original filename
   url        String
   type       MediaType
   size       Int
@@ -135,11 +134,12 @@ model Media {
   tags       String[]
   updatedAt  DateTime  @updatedAt
   userId     String
-  teamId     String
-  user       User      @relation(fields: [userId], references: [id])
-  team       Team      @relation(fields: [teamId], references: [id])
-  usageCount Int       @default(0)
   lastUsedAt DateTime?
+  usageCount Int       @default(0)
+  name       String
+  teamId     String
+  team       Team      @relation(fields: [teamId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
 
   @@index([teamId])
   @@index([userId])
@@ -170,18 +170,18 @@ model CronLog {
 
 model Permission {
   id              String                 @id @default(cuid())
-  code            String                 @unique // contoh: "content.create", "content.approve"
-  description     String                 @default("") // Deskripsi untuk permission
-  roles           RolePermission[]
+  code            String                 @unique
+  description     String                 @default("")
   customRoles     CustomRolePermission[]
-  MembershipGrant MembershipGrant[]
   MembershipDeny  MembershipDeny[]
+  MembershipGrant MembershipGrant[]
+  roles           RolePermission[]
 }
 
 model RolePermission {
   id           String     @id @default(cuid())
-  role         Role
   permissionId String
+  role         Role
   permission   Permission @relation(fields: [permissionId], references: [id])
 
   @@unique([role, permissionId])
@@ -192,9 +192,9 @@ model CustomRole {
   name        String
   displayName String
   description String?
-  teamId      String
   createdAt   DateTime               @default(now())
   updatedAt   DateTime               @updatedAt
+  teamId      String
   team        Team                   @relation(fields: [teamId], references: [id])
   permissions CustomRolePermission[]
   memberships Membership[]
@@ -234,6 +234,113 @@ model MembershipDeny {
   @@unique([membershipId, permissionId])
 }
 
+model TemporaryData {
+  id        String   @id @default(cuid())
+  data      String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+model ApprovalWorkflow {
+  id          String             @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  teamId      String
+  instances   ApprovalInstance[]
+  steps       ApprovalStep[]
+  team        Team               @relation(fields: [teamId], references: [id])
+
+  @@unique([name, teamId])
+}
+
+model ApprovalStep {
+  id                    String               @id @default(cuid())
+  name                  String
+  order                 Int
+  role                  Role
+  assignedUserId        String?
+  requireAllUsersInRole Boolean              @default(false)
+  workflowId            String
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  assignments           ApprovalAssignment[]
+  workflow              ApprovalWorkflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, order])
+}
+
+model ApprovalInstance {
+  id               String               @id @default(cuid())
+  postId           String?
+  workflowId       String
+  status           ApprovalStatus       @default(IN_PROGRESS)
+  currentStepOrder Int?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  assignments      ApprovalAssignment[]
+  post             Post?                @relation(fields: [postId], references: [id])
+  workflow         ApprovalWorkflow     @relation(fields: [workflowId], references: [id])
+}
+
+model ApprovalAssignment {
+  id             String           @id @default(cuid())
+  stepId         String
+  instanceId     String
+  assignedUserId String?
+  status         ApprovalStatus   @default(PENDING)
+  feedback       String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  completedAt    DateTime?
+  user           User?            @relation(fields: [assignedUserId], references: [id])
+  instance       ApprovalInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  step           ApprovalStep     @relation(fields: [stepId], references: [id])
+
+  @@unique([stepId, instanceId, assignedUserId])
+}
+
+model PostAnalytics {
+  id                  String            @id @default(cuid())
+  postSocialAccountId String
+  views               Int               @default(0)
+  likes               Int               @default(0)
+  comments            Int               @default(0)
+  shares              Int               @default(0)
+  clicks              Int               @default(0)
+  reach               Int               @default(0)
+  impressions         Int               @default(0)
+  engagement          Float             @default(0)
+  recordedAt          DateTime          @default(now())
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  rawInsights         Json?
+  postSocialAccount   PostSocialAccount @relation(fields: [postSocialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([postSocialAccountId, recordedAt])
+  @@index([postSocialAccountId])
+  @@index([recordedAt])
+}
+
+model PostAnalyticsDemographics {
+  id                  String   @id @default(cuid())
+  postSocialAccountId String
+  ageGroup            String
+  gender              String?
+  location            String?
+  percentage          Float
+  recordedAt          DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([postSocialAccountId])
+  @@index([recordedAt])
+}
+
 enum MediaType {
   IMAGE
   VIDEO
@@ -254,76 +361,6 @@ enum SocialPlatform {
   YOUTUBE
 }
 
-model TemporaryData {
-  id        String   @id @default(cuid())
-  data      String   @db.Text // JSON stringified data
-  createdAt DateTime @default(now())
-  expiresAt DateTime
-
-  @@index([expiresAt]) // To help with cleanup of expired data
-}
-
-model ApprovalWorkflow {
-  id          String             @id @default(cuid())
-  name        String
-  description String?
-  isActive    Boolean            @default(true)
-  teamId      String
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  team        Team               @relation(fields: [teamId], references: [id])
-  steps       ApprovalStep[]
-  instances   ApprovalInstance[]
-
-  @@unique([name, teamId])
-}
-
-model ApprovalStep {
-  id                    String               @id @default(cuid())
-  name                  String
-  order                 Int
-  role                  Role
-  assignedUserId        String?
-  requireAllUsersInRole Boolean              @default(false)
-  workflowId            String
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  workflow              ApprovalWorkflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-  assignments           ApprovalAssignment[]
-
-  @@unique([workflowId, order])
-}
-
-model ApprovalInstance {
-  id               String               @id @default(cuid())
-  postId           String?
-  workflowId       String
-  status           ApprovalStatus       @default(IN_PROGRESS)
-  currentStepOrder Int?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  workflow         ApprovalWorkflow     @relation(fields: [workflowId], references: [id])
-  post             Post?                @relation(fields: [postId], references: [id], onDelete: SetNull)
-  assignments      ApprovalAssignment[]
-}
-
-model ApprovalAssignment {
-  id             String           @id @default(cuid())
-  stepId         String
-  instanceId     String
-  assignedUserId String?
-  status         ApprovalStatus   @default(PENDING)
-  feedback       String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  completedAt    DateTime?
-  step           ApprovalStep     @relation(fields: [stepId], references: [id])
-  instance       ApprovalInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
-  user           User?            @relation(fields: [assignedUserId], references: [id])
-
-  @@unique([stepId, instanceId, assignedUserId])
-}
-
 enum ApprovalStatus {
   PENDING
   APPROVED
@@ -333,7 +370,6 @@ enum ApprovalStatus {
 }
 
 enum Role {
-  OWNER
   MANAGER
   SUPERVISOR
   CONTENT_CREATOR
@@ -341,6 +377,7 @@ enum Role {
   CLIENT_REVIEWER
   ANALYST
   INBOX_AGENT
+  OWNER
 }
 
 enum PostStatus {
@@ -360,40 +397,4 @@ enum BillingPlan {
   FREE
   PRO
   ENTERPRISE
-}
-
-// Analytics models
-model PostAnalytics {
-  id                  String            @id @default(cuid())
-  postSocialAccountId String
-  views               Int               @default(0)
-  likes               Int               @default(0)
-  comments            Int               @default(0)
-  shares              Int               @default(0)
-  clicks              Int               @default(0)
-  reach               Int               @default(0)
-  impressions         Int               @default(0)
-  engagement          Float             @default(0) // Percentage
-  recordedAt          DateTime          @default(now())
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
-  postSocialAccount   PostSocialAccount @relation(fields: [postSocialAccountId], references: [id], onDelete: Cascade)
-
-  @@index([postSocialAccountId])
-  @@index([recordedAt])
-}
-
-model PostAnalyticsDemographics {
-  id                  String   @id @default(cuid())
-  postSocialAccountId String
-  ageGroup            String // "18-24", "25-34", etc.
-  gender              String? // "male", "female", "other"
-  location            String? // Country/city
-  percentage          Float // Percentage of total audience
-  recordedAt          DateTime @default(now())
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  @@index([postSocialAccountId])
-  @@index([recordedAt])
 }

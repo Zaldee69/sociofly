@@ -15,7 +15,7 @@ export class FacebookAnalyticsClient {
   private httpClient: AxiosInstance;
   private rateLimiter: SocialMediaRateLimiter;
   private baseURL = "https://graph.facebook.com";
-  private apiVersion = "v18.0";
+  private apiVersion = "v22.0";
 
   constructor(rateLimiter: SocialMediaRateLimiter) {
     this.rateLimiter = rateLimiter;
@@ -177,32 +177,124 @@ export class FacebookAnalyticsClient {
       "post_reactions_anger_total", // ✅ Still valid
     ].join(",");
 
+    console.log(`🔍 Facebook: Fetching insights for post ${postId}`);
+
     try {
-      // First try to get insights
-      const response = await this.httpClient.get(`/${postId}`, {
-        params: {
-          access_token: accessToken,
-          fields: `id,message,created_time,insights.metric(${insights}),likes.summary(true),reactions.summary(true),comments.summary(true),shares`,
-        },
-      });
-
-      return response.data;
-    } catch (error: any) {
-      // If insights fail, try to get basic post data as fallback
-      console.warn(`Insights failed for post ${postId}, trying basic data...`);
-
-      try {
-        const basicResponse = await this.httpClient.get(`/${postId}`, {
+      // First, try to get actual insights data
+      console.log(`📊 Facebook: Trying to get insights data for ${postId}`);
+      const insightsResponse = await this.httpClient.get(
+        `/${postId}/insights`,
+        {
           params: {
             access_token: accessToken,
-            fields: `id,message,created_time,likes.summary(true),reactions.summary(true),comments.summary(true),shares`,
+            metric: insights,
+          },
+        }
+      );
+
+      console.log(
+        `✅ Facebook: Successfully fetched insights data for ${postId}`
+      );
+      console.log(`📊 Facebook: Insights response data:`, {
+        dataLength: insightsResponse.data.data?.length || 0,
+        data: insightsResponse.data.data,
+      });
+
+      // Get basic post data separately (without conflicting fields)
+      // If insights are empty, we'll get more detailed basic data
+      const hasInsights = insightsResponse.data.data?.length > 0;
+
+      let postResponse;
+      if (hasInsights) {
+        // If we have insights, we only need minimal post data
+        postResponse = await this.httpClient.get(`/${postId}`, {
+          params: {
+            access_token: accessToken,
+            fields: "id,created_time",
+          },
+        });
+      } else {
+        // If no insights, get more detailed basic data
+        console.log(
+          `📋 Facebook: No insights data, fetching detailed basic data for ${postId}`
+        );
+        try {
+          postResponse = await this.httpClient.get(`/${postId}`, {
+            params: {
+              access_token: accessToken,
+              fields:
+                "id,created_time,likes.summary(true),comments.summary(true)",
+            },
+          });
+        } catch (error) {
+          console.warn(
+            `⚠️ Facebook: Detailed basic data failed, using minimal fields`
+          );
+          postResponse = await this.httpClient.get(`/${postId}`, {
+            params: {
+              access_token: accessToken,
+              fields: "id,created_time,likes.summary(true)",
+            },
+          });
+        }
+      }
+
+      return {
+        ...postResponse.data,
+        insights: {
+          data: insightsResponse.data.data || [],
+        },
+      };
+    } catch (error: any) {
+      console.warn(
+        `⚠️ Facebook: Insights failed for ${postId}, trying basic data...`,
+        {
+          error: error.response?.data?.error?.message || error.message,
+        }
+      );
+
+      // Fallback to basic fields that work for all post types (including photos)
+      // Note: reactions field doesn't work with photo posts in v22.0+
+      const basicFields = `id,created_time,likes.summary(true),comments.summary(true)`;
+
+      try {
+        console.log(`Trying basic fields for all post types: ${basicFields}`);
+        const response = await this.httpClient.get(`/${postId}`, {
+          params: {
+            access_token: accessToken,
+            fields: basicFields,
           },
         });
 
-        return basicResponse.data;
+        const data = response.data;
+        console.log(`✅ Successfully fetched basic data for post`);
+        return data;
       } catch (basicError: any) {
-        // If both fail, throw the original insights error
-        throw error;
+        // If basic fields fail, try with even more minimal fields
+        console.warn(
+          `Basic fields failed for post ${postId}, trying minimal fields...`
+        );
+
+        const minimalFields = `id,created_time,likes.summary(true)`;
+
+        try {
+          console.log(`Trying minimal fields: ${minimalFields}`);
+          const minimalResponse = await this.httpClient.get(`/${postId}`, {
+            params: {
+              access_token: accessToken,
+              fields: minimalFields,
+            },
+          });
+
+          const data = minimalResponse.data;
+          console.log(`✅ Successfully fetched minimal data for post`);
+          return data;
+        } catch (minimalError: any) {
+          console.log(
+            `❌ Failed minimal data: ${minimalError.response?.data?.error?.message || minimalError.message}`
+          );
+          throw minimalError;
+        }
       }
     }
   }
@@ -261,7 +353,7 @@ export class FacebookAnalyticsClient {
     try {
       const params: any = {
         access_token: accessToken,
-        fields: "id,message,created_time",
+        fields: "id,message,caption,created_time",
         limit,
       };
 
@@ -273,7 +365,14 @@ export class FacebookAnalyticsClient {
         params,
       });
 
-      return response.data.data || [];
+      // Handle both message and caption fields for each post
+      const posts = response.data.data || [];
+      return posts.map((post: any) => {
+        if (!post.message && post.caption) {
+          post.message = post.caption;
+        }
+        return post;
+      });
     } catch (error: any) {
       console.error("Error fetching Facebook page posts:", error);
       throw error;
@@ -411,6 +510,6 @@ export class FacebookAnalyticsClient {
       ...(state && { state }),
     });
 
-    return `https://www.facebook.com/v18.0/dialog/oauth?${params.toString()}`;
+    return `https://www.facebook.com/v22.0/dialog/oauth?${params.toString()}`;
   }
 }

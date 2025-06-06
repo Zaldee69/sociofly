@@ -15,7 +15,7 @@ export class InstagramAnalyticsClient {
   private httpClient: AxiosInstance;
   private rateLimiter: SocialMediaRateLimiter;
   private baseURL = "https://graph.facebook.com";
-  private apiVersion = "v18.0";
+  private apiVersion = "v22.0";
 
   constructor(rateLimiter: SocialMediaRateLimiter) {
     this.rateLimiter = rateLimiter;
@@ -167,53 +167,107 @@ export class InstagramAnalyticsClient {
     mediaId: string,
     accessToken: string
   ): Promise<InstagramMediaData> {
-    // Different insights based on media type
-    const photoInsights = [
-      "impressions",
-      "reach",
-      "engagement",
-      "likes",
-      "comments",
-      "shares",
-      "saves",
-    ];
+    console.log(`🔍 Instagram: Fetching insights for media ${mediaId}`);
 
-    const videoInsights = [
-      "impressions",
-      "reach",
-      "engagement",
-      "likes",
-      "comments",
-      "shares",
-      "saves",
-      "video_views",
-    ];
+    try {
+      // First, get media info to determine type
+      console.log(`📋 Instagram: Getting media info for ${mediaId}`);
+      const mediaInfo = await this.httpClient.get(`/${mediaId}`, {
+        params: {
+          access_token: accessToken,
+          fields: "id,caption,timestamp,media_type",
+        },
+      });
 
-    // First, get media info to determine type
-    const mediaInfo = await this.httpClient.get(`/${mediaId}`, {
-      params: {
-        access_token: accessToken,
-        fields: "id,caption,timestamp,media_type",
-      },
-    });
+      const mediaType = mediaInfo.data.media_type;
+      console.log(`📸 Instagram: Media type is ${mediaType}`);
 
-    const mediaType = mediaInfo.data.media_type;
-    const insights = mediaType === "VIDEO" ? videoInsights : photoInsights;
+      // Use only metrics supported in v22.0+
+      // Based on: https://developers.facebook.com/docs/instagram-platform/reference/instagram-media/insights/
+      const supportedBasicInsights = [
+        "reach", // ✅ Still supported
+        "likes", // ✅ Still supported
+        "comments", // ✅ Still supported
+        "shares", // ✅ Still supported
+        "saved", // ✅ Still supported
+        "views", // ✅ New metric replacing impressions
+      ];
 
-    // Then get insights
-    const insightsResponse = await this.httpClient.get(`/${mediaId}/insights`, {
-      params: {
-        access_token: accessToken,
-        metric: insights.join(","),
-      },
-    });
+      const supportedVideoInsights = [
+        "reach", // ✅ Still supported
+        "likes", // ✅ Still supported
+        "comments", // ✅ Still supported
+        "shares", // ✅ Still supported
+        "saved", // ✅ Still supported
+        "views", // ✅ New metric replacing impressions
+        "ig_reels_avg_watch_time", // ✅ For reels
+      ];
 
-    return {
-      ...mediaInfo.data,
-      insights: {
-        data: insightsResponse.data.data,
-      },
-    };
+      // Choose insights based on media type
+      let insights: string[];
+      if (mediaType === "VIDEO" || mediaType === "REELS") {
+        insights = supportedVideoInsights;
+      } else {
+        insights = supportedBasicInsights;
+      }
+
+      console.log(`📊 Instagram: Requesting insights: ${insights.join(", ")}`);
+
+      // Then get insights
+      const insightsResponse = await this.httpClient.get(
+        `/${mediaId}/insights`,
+        {
+          params: {
+            access_token: accessToken,
+            metric: insights.join(","),
+          },
+        }
+      );
+
+      console.log(`✅ Instagram: Successfully fetched insights for ${mediaId}`);
+      return {
+        ...mediaInfo.data,
+        insights: {
+          data: insightsResponse.data.data,
+        },
+      };
+    } catch (error: any) {
+      console.error(`❌ Instagram: Error fetching insights for ${mediaId}:`, {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        errorCode: error.response?.data?.error?.code,
+        errorMessage: error.response?.data?.error?.message,
+        errorType: error.response?.data?.error?.type,
+        fullError: error.response?.data,
+      });
+
+      // Try fallback with just basic media info
+      try {
+        console.log(`🔄 Instagram: Trying fallback basic data for ${mediaId}`);
+        const mediaInfo = await this.httpClient.get(`/${mediaId}`, {
+          params: {
+            access_token: accessToken,
+            fields: "id,caption,timestamp,media_type",
+          },
+        });
+
+        console.log(
+          `✅ Instagram: Successfully fetched basic data for ${mediaId}`
+        );
+        return {
+          ...mediaInfo.data,
+          insights: {
+            data: [], // Empty insights data for fallback
+          },
+        };
+      } catch (fallbackError: any) {
+        console.error(
+          `❌ Instagram: Fallback also failed for ${mediaId}:`,
+          fallbackError.response?.data
+        );
+        throw error; // Throw original error
+      }
+    }
   }
 
   /**
@@ -306,6 +360,14 @@ export class InstagramAnalyticsClient {
     let type: PlatformError["type"] = "API_ERROR";
     let retryAfter: number | undefined;
 
+    // Log the full error for debugging
+    console.error("Full Instagram API error:", {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+    });
+
     if (error.response) {
       const status = error.response.status;
       const errorData = error.response.data?.error;
@@ -352,6 +414,9 @@ export class InstagramAnalyticsClient {
       code = "NETWORK_ERROR";
       message = "Network connection error";
       type = "NETWORK_ERROR";
+    } else {
+      // For other errors, include the actual error message
+      message = error.message || "An unknown error occurred";
     }
 
     return {
@@ -408,6 +473,6 @@ export class InstagramAnalyticsClient {
       ...(state && { state }),
     });
 
-    return `https://www.facebook.com/v18.0/dialog/oauth?${params.toString()}`;
+    return `https://www.facebook.com/v22.0/dialog/oauth?${params.toString()}`;
   }
 }

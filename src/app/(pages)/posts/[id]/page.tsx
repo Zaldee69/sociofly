@@ -280,6 +280,12 @@ const AccountAnalytics = ({
     );
   }
 
+  // SAFETY: fallback for richInsights and its nested properties
+  const { overview, historical, demographics } = analytics;
+  const richInsights = analytics.richInsights ?? {};
+  const reactions = richInsights.reactions ?? {};
+  const engagementMetrics = richInsights.engagementMetrics ?? {};
+
   return (
     <div className="space-y-8">
       {/* Show loading state if analytics are being fetched */}
@@ -311,96 +317,336 @@ const AccountAnalytics = ({
       {/* Show success message for real data */}
       {!isLoading && (
         <div className="text-center py-2">
-          <div className="text-xs text-green-600">
+          <div className="text-xs text-green-600 bg-green-50 inline-block px-3 py-1 rounded-full">
             ✅ Real analytics data loaded
           </div>
         </div>
       )}
 
-      {/* Overview Metrics - Full Width Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 lg:gap-6">
-        <MetricCard
-          icon={<Eye className="w-5 h-5 text-blue-500" />}
-          label="Views"
-          value={analytics.overview.views.toLocaleString()}
-          change="+12%"
-          trend="up"
-        />
-        <MetricCard
-          icon={<Heart className="w-5 h-5 text-red-500" />}
-          label="Likes"
-          value={analytics.overview.likes.toLocaleString()}
-          change="+8%"
-          trend="up"
-        />
-        <MetricCard
-          icon={<MessageCircle className="w-5 h-5 text-green-500" />}
-          label="Comments"
-          value={analytics.overview.comments}
-          change="+15%"
-          trend="up"
-        />
-        <MetricCard
-          icon={<Share2 className="w-5 h-5 text-purple-500" />}
-          label="Shares"
-          value={analytics.overview.shares}
-          change="-2%"
-          trend="down"
-        />
-        <MetricCard
-          icon={<Users className="w-5 h-5 text-orange-500" />}
-          label="Reach"
-          value={analytics.overview.reach.toLocaleString()}
-          change="+5%"
-          trend="up"
-        />
-        <MetricCard
-          icon={<TrendingUp className="w-5 h-5 text-indigo-500" />}
-          label="Engagement"
-          value={`${analytics.overview.engagement}%`}
-          change="+0.3%"
-          trend="up"
-        />
+      {/* Enhanced Overview Metrics */}
+      <div className="space-y-6">
+        {/* Primary Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 lg:gap-6">
+          <MetricCard
+            icon={<Eye className="w-5 h-5 text-blue-500" />}
+            label={platform === "FACEBOOK" ? "Impressions" : "Views"}
+            value={
+              platform === "FACEBOOK"
+                ? (richInsights.impressions ?? 0).toLocaleString()
+                : overview.views.toLocaleString()
+            }
+            change="+12%"
+            trend="up"
+          />
+          <MetricCard
+            icon={<Heart className="w-5 h-5 text-red-500" />}
+            label="Reactions"
+            value={(engagementMetrics.totalReactions ?? 0).toLocaleString()}
+            change="+8%"
+            trend="up"
+          />
+          <MetricCard
+            icon={<MessageCircle className="w-5 h-5 text-green-500" />}
+            label="Comments"
+            value={overview.comments}
+            change="+15%"
+            trend="up"
+          />
+          <MetricCard
+            icon={<Share2 className="w-5 h-5 text-purple-500" />}
+            label="Shares"
+            value={overview.shares}
+            change="-2%"
+            trend="down"
+          />
+          <MetricCard
+            icon={<Users className="w-5 h-5 text-orange-500" />}
+            label="Reach"
+            value={overview.reach.toLocaleString()}
+            change="+5%"
+            trend="up"
+          />
+          <MetricCard
+            icon={<TrendingUp className="w-5 h-5 text-indigo-500" />}
+            label="Engagement"
+            value={`${overview.engagement}%`}
+            change="+0.3%"
+            trend="up"
+          />
+        </div>
+
+        {/* Rich Insights Section for Facebook */}
+        {platform === "FACEBOOK" && richInsights && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            {/* Detailed Reactions Breakdown */}
+            <Card className="p-6">
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                  <Heart className="w-5 h-5 text-red-600" />
+                  Reaction Details
+                </h4>
+                <div className="space-y-3">
+                  {[
+                    {
+                      name: "Like",
+                      emoji: "👍",
+                      value: reactions.like ?? 0,
+                      color: "bg-blue-500",
+                    },
+                    {
+                      name: "Love",
+                      emoji: "❤️",
+                      value: reactions.love ?? 0,
+                      color: "bg-red-500",
+                    },
+                    {
+                      name: "Wow",
+                      emoji: "😮",
+                      value: reactions.wow ?? 0,
+                      color: "bg-yellow-500",
+                    },
+                    {
+                      name: "Haha",
+                      emoji: "😂",
+                      value: reactions.haha ?? 0,
+                      color: "bg-orange-500",
+                    },
+                    {
+                      name: "Sad",
+                      emoji: "😢",
+                      value: reactions.sad ?? 0,
+                      color: "bg-gray-500",
+                    },
+                    {
+                      name: "Angry",
+                      emoji: "😠",
+                      value: reactions.angry ?? 0,
+                      color: "bg-red-700",
+                    },
+                  ]
+                    .filter((reaction) => reaction.value > 0)
+                    .map((reaction, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">{reaction.emoji}</span>
+                          <span className="text-sm font-medium text-gray-700">
+                            {reaction.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-20 bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full transition-all duration-300 ${reaction.color}`}
+                              style={{
+                                width: `${(reaction.value / Math.max(1, engagementMetrics.totalReactions ?? 1)) * 100}%`,
+                              }}
+                            ></div>
+                          </div>
+                          <span className="text-sm font-bold text-gray-900 w-8 text-right">
+                            {reaction.value}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  {(engagementMetrics.totalReactions ?? 0) === 0 && (
+                    <div className="text-center py-4 text-gray-500">
+                      No reactions yet
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* Impressions Breakdown (Paid vs Organic) */}
+            <Card className="p-6">
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-blue-600" />
+                  Impressions Breakdown
+                </h4>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">
+                        Total Impressions
+                      </span>
+                      <span className="text-lg font-bold text-gray-900">
+                        {(richInsights.impressions ?? 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div
+                        className="bg-gradient-to-r from-blue-500 to-blue-400 h-3 rounded-full"
+                        style={{ width: "100%" }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        <span className="text-sm font-medium text-gray-700">
+                          Organic
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-gray-900">
+                          {(
+                            richInsights.impressionsOrganic ?? 0
+                          ).toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {(richInsights.impressions ?? 0) > 0
+                            ? Math.round(
+                                ((richInsights.impressionsOrganic ?? 0) /
+                                  (richInsights.impressions ?? 1)) *
+                                  100
+                              )
+                            : 0}
+                          %
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                        <span className="text-sm font-medium text-gray-700">
+                          Paid
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-gray-900">
+                          {(richInsights.impressionsPaid ?? 0).toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {(richInsights.impressions ?? 0) > 0
+                            ? Math.round(
+                                ((richInsights.impressionsPaid ?? 0) /
+                                  (richInsights.impressions ?? 1)) *
+                                  100
+                              )
+                            : 0}
+                          %
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Advanced Metrics */}
+            <Card className="p-6">
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                  <Target className="w-5 h-5 text-purple-600" />
+                  Advanced Metrics
+                </h4>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-gray-700">
+                        Unique Impressions
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Unique people reached
+                      </div>
+                    </div>
+                    <div className="text-lg font-bold text-blue-700">
+                      {(richInsights.impressionsUnique ?? 0).toLocaleString()}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-gray-700">
+                        Post Clicks
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Link & content clicks
+                      </div>
+                    </div>
+                    <div className="text-lg font-bold text-green-700">
+                      {(richInsights.clicks ?? 0).toLocaleString()}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-gray-700">
+                        Frequency
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Avg times seen per person
+                      </div>
+                    </div>
+                    <div className="text-lg font-bold text-purple-700">
+                      {(richInsights.impressionsUnique ?? 0) > 0
+                        ? (
+                            (richInsights.impressions ?? 0) /
+                            (richInsights.impressionsUnique ?? 1)
+                          ).toFixed(1)
+                        : "0"}
+                      x
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
 
-      {/* Charts and Insights - Enhanced Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
-        {/* Historical Performance - Takes 2 columns on XL */}
-        <Card className="p-6 xl:col-span-2">
-          <div className="space-y-4">
-            <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-blue-600" />
-              Performance Trend
-            </h4>
-            <div className="grid grid-cols-7 gap-2">
-              {(analytics.historical || []).map((day: any, index: number) => (
-                <div key={index} className="text-center">
-                  <div className="text-xs text-gray-500 mb-2">
-                    {new Date(day.date).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </div>
-                  <div className="bg-gray-100 rounded-lg h-20 flex items-end justify-center p-1">
-                    <div
-                      className="bg-gradient-to-t from-blue-500 to-blue-400 rounded-t w-full transition-all duration-300 hover:from-blue-600 hover:to-blue-500"
-                      style={{
-                        height: `${(day.views / Math.max(...analytics.historical.map((d: any) => d.views))) * 100}%`,
-                      }}
-                    ></div>
-                  </div>
-                  <div className="text-xs font-medium text-gray-700 mt-2">
-                    {day.views.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-gray-500">
+      {/* Historical Performance Chart - Enhanced */}
+      <Card className="p-6">
+        <div className="space-y-4">
+          <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-blue-600" />
+            7-Day Performance Trend
+          </h4>
+          <div className="grid grid-cols-7 gap-2">
+            {historical.map((day: any, index: number) => (
+              <div key={index} className="text-center">
+                <div className="text-xs text-gray-500 mb-2">{day.date}</div>
+                <div className="bg-gray-100 rounded-lg h-24 flex items-end justify-center p-1 relative group">
+                  <div
+                    className="bg-gradient-to-t from-blue-500 to-blue-400 rounded-t w-full transition-all duration-300 hover:from-blue-600 hover:to-blue-500"
+                    style={{
+                      height: `${(day.views / Math.max(...historical.map((d: any) => d.views || 1))) * 100}%`,
+                    }}
+                  ></div>
+
+                  {/* Tooltip on hover */}
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                    {day.views} views
+                    <br />
+                    {day.likes} likes
+                    <br />
                     {day.engagement}% eng.
                   </div>
                 </div>
-              ))}
-            </div>
+                <div className="text-xs font-medium text-gray-700 mt-2">
+                  {(platform === "FACEBOOK"
+                    ? day.impressions
+                    : day.views
+                  ).toLocaleString()}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {day.engagement}% eng.
+                </div>
+              </div>
+            ))}
           </div>
-        </Card>
+        </div>
+      </Card>
 
+      {/* Demographics Section - Enhanced */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {/* Age Groups */}
         <Card className="p-6">
           <div className="space-y-4">
@@ -409,29 +655,24 @@ const AccountAnalytics = ({
               Age Groups
             </h4>
             <div className="space-y-3">
-              {analytics.demographics.ageGroups.map(
-                (item: any, index: number) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between"
-                  >
-                    <span className="text-sm font-medium text-gray-700">
-                      {item.range}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <div className="w-20 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-gradient-to-r from-purple-500 to-purple-400 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${item.percentage}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-sm font-bold text-gray-900 w-10 text-right">
-                        {item.percentage}%
-                      </span>
+              {demographics.ageGroups.map((item: any, index: number) => (
+                <div key={index} className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">
+                    {item.range}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <div className="w-24 bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-purple-500 to-purple-400 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${item.percentage}%` }}
+                      ></div>
                     </div>
+                    <span className="text-sm font-bold text-gray-900 w-12 text-right">
+                      {item.percentage}%
+                    </span>
                   </div>
-                )
-              )}
+                </div>
+              ))}
             </div>
           </div>
         </Card>
@@ -441,16 +682,16 @@ const AccountAnalytics = ({
           <div className="space-y-4">
             <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
               <Users className="w-5 h-5 text-green-600" />
-              Gender Split
+              Gender Distribution
             </h4>
             <div className="space-y-3">
-              {analytics.demographics.gender.map((item: any, index: number) => (
+              {demographics.gender.map((item: any, index: number) => (
                 <div key={index} className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">
                     {item.type}
                   </span>
                   <div className="flex items-center gap-3">
-                    <div className="w-20 bg-gray-200 rounded-full h-2">
+                    <div className="w-24 bg-gray-200 rounded-full h-2">
                       <div
                         className={`h-2 rounded-full transition-all duration-300 ${
                           item.type === "Female"
@@ -462,7 +703,7 @@ const AccountAnalytics = ({
                         style={{ width: `${item.percentage}%` }}
                       ></div>
                     </div>
-                    <span className="text-sm font-bold text-gray-900 w-10 text-right">
+                    <span className="text-sm font-bold text-gray-900 w-12 text-right">
                       {item.percentage}%
                     </span>
                   </div>
@@ -471,43 +712,55 @@ const AccountAnalytics = ({
             </div>
           </div>
         </Card>
-      </div>
 
-      {/* Top Locations - Full Width */}
-      <Card className="p-6">
-        <div className="space-y-4">
-          <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-            <Globe className="w-5 h-5 text-orange-600" />
-            Top Locations
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {analytics.demographics.topLocations.map(
-              (item: any, index: number) => (
-                <div
-                  key={index}
-                  className="text-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="text-2xl mb-2">
-                    {item.country === "Indonesia"
-                      ? "🇮🇩"
-                      : item.country === "Malaysia"
-                        ? "🇲🇾"
-                        : item.country === "Singapore"
-                          ? "🇸🇬"
-                          : item.country === "Thailand"
-                            ? "🇹🇭"
-                            : "🌍"}
+        {/* Top Locations */}
+        <Card className="p-6">
+          <div className="space-y-4">
+            <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Globe className="w-5 h-5 text-orange-600" />
+              Top Locations
+            </h4>
+            <div className="space-y-3">
+              {demographics.topLocations
+                .slice(0, 5)
+                .map((item: any, index: number) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">
+                        {item.country === "Indonesia"
+                          ? "🇮🇩"
+                          : item.country === "Malaysia"
+                            ? "🇲🇾"
+                            : item.country === "Singapore"
+                              ? "🇸🇬"
+                              : item.country === "Thailand"
+                                ? "🇹🇭"
+                                : "🌍"}
+                      </span>
+                      <span className="text-sm font-medium text-gray-700">
+                        {item.country}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-20 bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-gradient-to-r from-orange-500 to-orange-400 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${item.percentage}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm font-bold text-gray-900 w-10 text-right">
+                        {item.percentage}%
+                      </span>
+                    </div>
                   </div>
-                  <div className="font-semibold text-gray-900">
-                    {item.percentage}%
-                  </div>
-                  <div className="text-sm text-gray-600">{item.country}</div>
-                </div>
-              )
-            )}
+                ))}
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 };

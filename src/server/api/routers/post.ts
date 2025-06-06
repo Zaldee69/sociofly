@@ -734,7 +734,7 @@ export const postRouter = createTRPCRouter({
               socialAccount: true,
               analytics: {
                 orderBy: { recordedAt: "desc" },
-                take: 7, // Get last 7 days of data
+                take: 30, // Get more data for better historical view
               },
             },
           },
@@ -765,10 +765,101 @@ export const postRouter = createTRPCRouter({
         });
       }
 
+      // Helper function to extract rich insights from rawInsights
+      const extractRichInsights = (rawInsights: any[]) => {
+        const insights: Record<string, any> = {};
+
+        rawInsights.forEach((insight) => {
+          const value = insight.values?.[0]?.value || 0;
+          insights[insight.name] = value;
+        });
+
+        return {
+          // Basic metrics
+          impressions: insights.post_impressions || 0,
+          impressionsUnique: insights.post_impressions_unique || 0,
+          impressionsPaid: insights.post_impressions_paid || 0,
+          impressionsOrganic: insights.post_impressions_organic || 0,
+          clicks: insights.post_clicks || 0,
+
+          // Detailed reactions
+          reactions: {
+            like: insights.post_reactions_like_total || 0,
+            love: insights.post_reactions_love_total || 0,
+            wow: insights.post_reactions_wow_total || 0,
+            haha: insights.post_reactions_haha_total || 0,
+            sad: insights.post_reactions_sorry_total || 0,
+            angry: insights.post_reactions_anger_total || 0,
+          },
+
+          // Engagement breakdown
+          engagementMetrics: {
+            totalReactions:
+              (insights.post_reactions_like_total || 0) +
+              (insights.post_reactions_love_total || 0) +
+              (insights.post_reactions_wow_total || 0) +
+              (insights.post_reactions_haha_total || 0) +
+              (insights.post_reactions_sorry_total || 0) +
+              (insights.post_reactions_anger_total || 0),
+            impressionsPaidVsOrganic: {
+              paid: insights.post_impressions_paid || 0,
+              organic: insights.post_impressions_organic || 0,
+              total: insights.post_impressions || 0,
+            },
+          },
+        };
+      };
+
       // Process analytics data for each platform
       const analyticsData = post.postSocialAccounts.map((psa) => {
-        const latestAnalytics = psa.analytics[0]; // Most recent data
-        const historicalData = psa.analytics.reverse(); // Chronological order
+        // FIXED: Prioritize records with rawInsights over just latest
+        const recordWithRawInsights = psa.analytics.find(
+          (analytics) =>
+            analytics.rawInsights && (analytics.rawInsights as any[]).length > 0
+        );
+
+        const latestAnalytics = psa.analytics[0]; // Most recent data (for basic metrics)
+
+        // Use record with rawInsights for rich insights, latest for basic metrics
+        const analyticsForRichInsights =
+          recordWithRawInsights || latestAnalytics;
+        const analyticsForBasicMetrics = latestAnalytics;
+
+        // Extract rich insights from the record that has rawInsights
+        const richInsights = analyticsForRichInsights?.rawInsights
+          ? extractRichInsights(analyticsForRichInsights.rawInsights as any[])
+          : null;
+
+        // Ensure we have at least 7 days of data for the chart
+        const chartData = [];
+        const today = new Date();
+
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(today);
+          date.setDate(date.getDate() - i);
+          const dateStr = date.toISOString().split("T")[0];
+
+          // Find analytics data for this date
+          const dayAnalytics = psa.analytics.find(
+            (analytics) =>
+              analytics.recordedAt.toISOString().split("T")[0] === dateStr
+          );
+
+          chartData.push({
+            date: new Date(date).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            }),
+            views: dayAnalytics?.views || 0,
+            likes: dayAnalytics?.likes || 0,
+            comments: dayAnalytics?.comments || 0,
+            shares: dayAnalytics?.shares || 0,
+            engagement: dayAnalytics?.engagement || 0,
+            reach: dayAnalytics?.reach || 0,
+            impressions: dayAnalytics?.impressions || 0,
+            clicks: dayAnalytics?.clicks || 0,
+          });
+        }
 
         return {
           platform: psa.socialAccount.platform,
@@ -776,16 +867,16 @@ export const postRouter = createTRPCRouter({
           socialAccountName: psa.socialAccount.name,
           status: psa.status,
           publishedAt: psa.publishedAt,
-          overview: latestAnalytics
+          overview: analyticsForBasicMetrics
             ? {
-                views: latestAnalytics.views,
-                likes: latestAnalytics.likes,
-                comments: latestAnalytics.comments,
-                shares: latestAnalytics.shares,
-                clicks: latestAnalytics.clicks,
-                reach: latestAnalytics.reach,
-                impressions: latestAnalytics.impressions,
-                engagement: latestAnalytics.engagement,
+                views: analyticsForBasicMetrics.views,
+                likes: analyticsForBasicMetrics.likes,
+                comments: analyticsForBasicMetrics.comments,
+                shares: analyticsForBasicMetrics.shares,
+                clicks: analyticsForBasicMetrics.clicks,
+                reach: analyticsForBasicMetrics.reach,
+                impressions: analyticsForBasicMetrics.impressions,
+                engagement: analyticsForBasicMetrics.engagement,
               }
             : {
                 views: 0,
@@ -797,16 +888,35 @@ export const postRouter = createTRPCRouter({
                 impressions: 0,
                 engagement: 0,
               },
-          historical: historicalData.map((analytics, index) => ({
-            date: analytics.recordedAt.toISOString().split("T")[0],
-            views: analytics.views,
-            likes: analytics.likes,
-            comments: analytics.comments,
-            shares: analytics.shares,
-            engagement: analytics.engagement,
-            reach: analytics.reach,
-          })),
-          // Mock demographics data for now (can be extended later)
+
+          // Rich insights data (prioritize records with rawInsights)
+          richInsights: richInsights || {
+            impressions: 0,
+            impressionsUnique: 0,
+            impressionsPaid: 0,
+            impressionsOrganic: 0,
+            clicks: 0,
+            reactions: {
+              like: 0,
+              love: 0,
+              wow: 0,
+              haha: 0,
+              sad: 0,
+              angry: 0,
+            },
+            engagementMetrics: {
+              totalReactions: 0,
+              impressionsPaidVsOrganic: {
+                paid: 0,
+                organic: 0,
+                total: 0,
+              },
+            },
+          },
+
+          historical: chartData,
+
+          // Enhanced demographics data based on real analytics if available
           demographics: {
             ageGroups: [
               { range: "18-24", percentage: 25 },

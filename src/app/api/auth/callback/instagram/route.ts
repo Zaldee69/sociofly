@@ -33,33 +33,25 @@ export async function GET(request: NextRequest) {
   }
 
   // Exchange code for access token
-  const tokenUrl = new URL(
-    "https://graph.facebook.com/v21.0/oauth/access_token"
+  const response = await fetch(
+    "https://graph.facebook.com/v22.0/oauth/access_token",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        client_id: process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID!,
+        client_secret: process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET!,
+        redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback/instagram`,
+        code: code,
+      }),
+    }
   );
-  tokenUrl.searchParams.append(
-    "client_id",
-    process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID!
-  );
-  tokenUrl.searchParams.append(
-    "client_secret",
-    process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET!
-  );
-  tokenUrl.searchParams.append(
-    "redirect_uri",
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback/instagram`
-  );
-  tokenUrl.searchParams.append("code", code);
 
-  const tokenResponse = await fetch(tokenUrl.toString(), {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  const tokenData = await response.json();
 
-  const tokenData = await tokenResponse.json();
-
-  if (!tokenResponse.ok) {
+  if (!response.ok) {
     console.error("Facebook token error:", tokenData);
     return NextResponse.json(
       { error: "Failed to get Facebook access token" },
@@ -68,13 +60,13 @@ export async function GET(request: NextRequest) {
   }
 
   // Get Instagram Business Account ID
-  const accountsResponse = await fetch(
-    `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&access_token=${tokenData.access_token}`
+  const pagesResponse = await fetch(
+    `https://graph.facebook.com/v22.0/me/accounts?fields=id,name,access_token&access_token=${tokenData.access_token}`
   );
 
-  const accountsData = await accountsResponse.json();
+  const accountsData = await pagesResponse.json();
 
-  if (!accountsResponse.ok) {
+  if (!pagesResponse.ok) {
     console.error("Facebook accounts error:", accountsData);
 
     // Simpan error dalam temporary data
@@ -150,17 +142,14 @@ export async function GET(request: NextRequest) {
   // First check all pages for Instagram business accounts
   for (const page of accountsData.data) {
     // Get Instagram Business Account for this page
-    const pageInstagramResponse = await fetch(
-      `https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account&access_token=${tokenData.access_token}`
+    const igBusinessResponse = await fetch(
+      `https://graph.facebook.com/v22.0/${page.id}?fields=instagram_business_account&access_token=${tokenData.access_token}`
     );
 
-    const pageInstagramData = await pageInstagramResponse.json();
+    const igBusinessData = await igBusinessResponse.json();
 
-    if (
-      pageInstagramResponse.ok &&
-      pageInstagramData.instagram_business_account
-    ) {
-      instagramBusinessAccount = pageInstagramData.instagram_business_account;
+    if (igBusinessResponse.ok && igBusinessData.instagram_business_account) {
+      instagramBusinessAccount = igBusinessData.instagram_business_account;
       pageId = page.id;
       break;
     }
@@ -204,13 +193,13 @@ export async function GET(request: NextRequest) {
   }
 
   // Get Instagram Business Account details
-  const instagramAccountResponse = await fetch(
-    `https://graph.facebook.com/v21.0/${instagramBusinessAccount.id}?fields=id,username,profile_picture_url&access_token=${tokenData.access_token}`
+  const igDetailsResponse = await fetch(
+    `https://graph.facebook.com/v22.0/${instagramBusinessAccount.id}?fields=id,username,profile_picture_url&access_token=${tokenData.access_token}`
   );
 
-  const instagramAccountData = await instagramAccountResponse.json();
+  const instagramAccountData = await igDetailsResponse.json();
 
-  if (!instagramAccountResponse.ok) {
+  if (!igDetailsResponse.ok) {
     console.error("Instagram account details error:", instagramAccountData);
 
     // Simpan error dalam temporary data

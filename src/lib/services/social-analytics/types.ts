@@ -14,6 +14,7 @@ export interface SocialAnalyticsData {
   impressions: number;
   engagement: number;
   recordedAt: Date;
+  rawInsights?: any; // Store full Facebook/Instagram insights array
 }
 
 export interface PlatformCredentials {

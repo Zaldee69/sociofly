@@ -10,6 +10,22 @@ import {
 
 export class SocialMediaDataNormalizer {
   /**
+   * Normalize a date to the start of the day (00:00:00.000)
+   * This ensures all analytics for the same day have identical timestamps
+   */
+  private static normalizeToStartOfDay(date: Date): Date {
+    return new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      0,
+      0,
+      0,
+      0
+    );
+  }
+
+  /**
    * Normalize Facebook analytics data to standard format
    */
   static normalizeFacebookData(
@@ -51,26 +67,35 @@ export class SocialMediaDataNormalizer {
     // Use impressions_unique as reach (closest available metric)
     let reach = impressionsUnique || impressions;
 
-    // Get comments and shares from basic post data if available (fallback)
-    let comments = 0;
+    // Always get comments from basic post data if available
+    let comments = postData.comments?.summary?.total_count || 0;
     let shares = 0;
+    let dataSource = "insights";
 
     // If insights data is not available, use basic post data as fallback
     if (insights.length === 0 && postData.likes) {
-      console.log("Using fallback data from basic post info");
+      console.log(
+        `Using fallback data from basic post info for post ${postData.id}`
+      );
+      dataSource = "fallback";
 
       // Use basic post data
       totalReactions =
         postData.reactions?.summary?.total_count ||
         postData.likes?.summary?.total_count ||
         0;
-      comments = postData.comments?.summary?.total_count || 0;
+      // comments already set above
       shares = postData.shares?.count || 0;
 
-      // For fallback, use a reasonable estimate for reach based on engagement
-      // This is not perfect but gives some usable data
-      if (totalReactions > 0) {
-        reach = Math.max(totalReactions * 10, 100); // Estimate reach as 10x engagement, min 100
+      // For fallback, use more realistic estimates for reach based on engagement
+      // Industry average: reach is typically 6-10x the total engagement for organic posts
+      const totalEngagementMetrics = totalReactions + comments + shares;
+      if (totalEngagementMetrics > 0) {
+        // Use 8x multiplier as middle ground, with minimum of actual engagement
+        reach = Math.max(totalEngagementMetrics * 8, totalEngagementMetrics);
+      } else {
+        // If no engagement data, use a very conservative estimate
+        reach = 50; // Minimal reach for published posts
       }
     }
 
@@ -78,20 +103,43 @@ export class SocialMediaDataNormalizer {
     const totalEngagement = totalReactions + comments + shares + clicks;
     const engagementRate = reach > 0 ? (totalEngagement / reach) * 100 : 0;
 
-    return {
+    // For views calculation, use more realistic approach
+    let calculatedViews = impressions;
+    if (!calculatedViews) {
+      // If no impressions data, estimate based on reach
+      // Typically impressions are 1.2-3x reach (people see posts multiple times)
+      calculatedViews = reach > 0 ? Math.round(reach * 1.5) : reach;
+    }
+
+    // For impressions calculation, ensure it's at least equal to reach
+    const calculatedImpressions = impressions || calculatedViews || reach;
+
+    const result = {
       postId,
       platform: SocialPlatform.FACEBOOK,
       platformPostId: postData.id,
-      views: impressions || reach, // Use impressions as views, fallback to reach
+      views: calculatedViews,
       likes: totalReactions,
       comments,
       shares,
       clicks,
       reach,
-      impressions: impressions || reach, // Use reach as fallback for impressions
+      impressions: calculatedImpressions,
       engagement: Math.round(engagementRate * 100) / 100,
-      recordedAt: new Date(),
+      recordedAt: this.normalizeToStartOfDay(new Date()),
+      rawInsights: postData.insights?.data || [],
     };
+
+    console.log(`Facebook analytics normalized for ${postData.id}:`, {
+      dataSource,
+      hasInsights: insights.length > 0,
+      likes: result.likes,
+      reach: result.reach,
+      views: result.views,
+      engagement: result.engagement + "%",
+    });
+
+    return result;
   }
 
   /**
@@ -109,18 +157,31 @@ export class SocialMediaDataNormalizer {
       return metric?.values?.[0]?.value || 0;
     };
 
-    const impressions = getMetricValue("impressions");
+    // Updated for Instagram API v22.0+ metrics
+    const views = getMetricValue("views"); // New metric replacing impressions
     const reach = getMetricValue("reach");
     const likes = getMetricValue("likes");
     const comments = getMetricValue("comments");
     const shares = getMetricValue("shares");
     const saves = getMetricValue("saves");
-    const views =
-      getMetricValue("views") || getMetricValue("video_views") || impressions;
+
+    // For compatibility, use views as impressions since impressions is deprecated
+    const impressions = views; // In v22.0+, views replaces impressions
 
     // For Instagram, engagement includes likes, comments, shares, and saves
     const totalEngagement = likes + comments + shares + saves;
     const engagementRate = reach > 0 ? (totalEngagement / reach) * 100 : 0;
+
+    console.log(`📊 Instagram: Normalized data for ${mediaData.id}:`, {
+      views,
+      reach,
+      likes,
+      comments,
+      shares,
+      saves,
+      totalEngagement,
+      engagementRate: Math.round(engagementRate * 100) / 100,
+    });
 
     return {
       postId,
@@ -132,9 +193,10 @@ export class SocialMediaDataNormalizer {
       shares,
       clicks: 0, // Instagram doesn't provide click data in basic insights
       reach,
-      impressions,
+      impressions, // Using views as impressions for compatibility
       engagement: Math.round(engagementRate * 100) / 100,
-      recordedAt: new Date(),
+      recordedAt: this.normalizeToStartOfDay(new Date()),
+      rawInsights: mediaData.insights?.data || [],
     };
   }
 

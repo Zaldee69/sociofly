@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
   }
 
   const tokenResponse = await fetch(
-    `https://graph.facebook.com/v21.0/oauth/access_token?client_secret=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET}&client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&code=${code}&redirect_uri=${encodeURIComponent(
+    `https://graph.facebook.com/v22.0/oauth/access_token?client_secret=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET}&client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&code=${code}&redirect_uri=${encodeURIComponent(
       `http://localhost:3000/api/auth/callback/facebook`
     )}`
   );
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
 
   // Get user's Facebook pages
   const pagesResponse = await fetch(
-    `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&access_token=${accessToken}`
+    `https://graph.facebook.com/v22.0/me/accounts?fields=id,name,access_token&access_token=${accessToken}`
   );
 
   const pagesData = await pagesResponse.json();
@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
   // Store user's Facebook pages
   for (const page of pagesData.data) {
     const profileResponse = await fetch(
-      `https://graph.facebook.com/v21.0/${page.id}/picture?type=large&redirect=false&access_token=${page.access_token}`
+      `https://graph.facebook.com/v22.0/${page.id}/picture?type=large&redirect=false&access_token=${page.access_token}`
     );
     const profileData = await profileResponse.json();
 

@@ -168,15 +168,11 @@ export const useOnboarding = () => {
     const encodedState = encodeURIComponent(JSON.stringify(stateData));
 
     if (platform === "FACEBOOK") {
-      window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${
-        process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID
-      }&state=${encodedState}&redirect_uri=${encodeURIComponent(
+      window.location.href = `https://www.facebook.com/v22.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&state=${encodedState}&redirect_uri=${encodeURIComponent(
         `${window.location.origin}/api/auth/callback/facebook`
-      )}&scope=email,business_management,pages_show_list,pages_read_engagement,pages_read_user_content,pages_manage_posts,pages_manage_cta,pages_manage_engagement,pages_manage_metadata,pages_manage_posts,pages_read_engagement,pages_read_user_content,pages_manage_posts,pages_manage_cta,pages_manage_engagement,pages_manage_metadata`;
+      )}&scope=email,business_management,pages_show_list,pages_read_engagement,read_insights,pages_read_user_content,pages_manage_posts,pages_manage_cta,pages_manage_engagement,pages_manage_metadata`;
     } else if (platform === "INSTAGRAM") {
-      window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${
-        process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID
-      }&state=${encodedState}&redirect_uri=${encodeURIComponent(
+      window.location.href = `https://www.facebook.com/v22.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID}&state=${encodedState}&redirect_uri=${encodeURIComponent(
         `${window.location.origin}/api/auth/callback/instagram`
       )}&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,instagram_manage_insights,business_management`;
     }
@@ -242,7 +238,7 @@ export const useOnboarding = () => {
 
       completeOnboarding.mutate({
         userType: types!,
-        organizationName,
+        teamName: organizationName,
         teamEmails: types === "team" ? emails : undefined,
         pagesData: finalPagesData,
         socialAccounts: {
@@ -270,7 +266,7 @@ export const useOnboarding = () => {
 
     completeOnboarding.mutate({
       userType: types!,
-      organizationName,
+      teamName: organizationName,
       teamEmails: types === "team" ? emails : undefined,
       pagesData: [],
       socialAccounts: {

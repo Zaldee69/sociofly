@@ -11,6 +11,7 @@ import { PostCalendar } from "@/features/scheduling/components/post-calendar";
 import { api } from "@/lib/utils/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useTeamContext } from "@/lib/contexts/team-context";
 
 // Etiquettes data for calendar filtering
 export const etiquettes = [
@@ -82,10 +83,10 @@ const mapToCalendarPosts = (apiPosts: any[] | undefined): CalendarPost[] => {
 };
 
 export default function Component() {
-  const { isColorVisible } = useCalendarContext();
+  const { currentTeamId } = useTeamContext();
 
   const { data: posts, isLoading: isPostsLoading } = api.post.getAll.useQuery({
-    teamId: "cmbem1h0o001avxptiy3xxnre",
+    teamId: currentTeamId!,
   });
 
   // Filter events based on visible colors

@@ -30,6 +30,8 @@ npm run dev:cluster
 
 ## 🎯 Key Features
 
+### Core Features
+
 - ✅ **Multi-platform Social Media Posting** (Facebook, Instagram, Twitter, LinkedIn)
 - ✅ **Advanced Scheduling System** (Cron + BullMQ hybrid)
 - ✅ **High Availability** (Redis cluster dengan automatic failover)
@@ -38,12 +40,41 @@ npm run dev:cluster
 - ✅ **Approval Workflow** (Multi-level approval system)
 - ✅ **Team Collaboration** (Role-based access control)
 
+### Post Management & Publishing
+
+- **Smart Loading States**: Calendar dan post dialog dengan loading indicators
+- **Published Post Protection**: Enhanced UX untuk posts yang sudah published
+  - 🔒 **Read-only mode** untuk published posts
+  - ⚠️ **Enhanced delete warnings** dengan detailed implications
+  - 📱 **Visual indicators** menunjukkan status publikasi post
+- **Loading States Implementation**: Comprehensive loading feedback
+- **Form Disable States**: All inputs disabled during processing
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Application Layer                        │
+│  Next.js 15 │ React 19 │ TypeScript │ Tailwind CSS        │
+└─────────────────────────────────────────────────────────────┘
+                               │
+┌─────────────────────────────────────────────────────────────┐
+│                  Scheduling & Queue Layer                  │
+│  Enhanced Cron │ BullMQ │ Queue Management │ Auto-scaling │
+└─────────────────────────────────────────────────────────────┘
+                               │
+┌─────────────────────────────────────────────────────────────┐
+│                  Infrastructure Layer                      │
+│ Redis Cluster │ PostgreSQL │ Monitoring │ Alert System    │
+│   (6 nodes)   │  Database  │   System   │    & Scaling    │
+└─────────────────────────────────────────────────────────────┘
+```
+
 ## 📚 Documentation
 
 ### 🚀 Getting Started
 
 - **[Complete Documentation](docs/README.md)** - Komprehensif guide dan index
-- **[Quick Setup Guide](#quick-start)** - Get running in 5 minutes
 - **[Environment Configuration](#configuration)** - Essential setup
 
 ### 🏗️ Infrastructure & Architecture
@@ -56,14 +87,12 @@ npm run dev:cluster
 ### 🔧 Operations & Management
 
 - **[System Monitoring](docs/operations/)** - Monitoring, scaling, dan performance
-- **[Queue Management](#queue-management)** - BullMQ operations
 - **[Troubleshooting](docs/troubleshooting/)** - Common issues dan solutions
 
 ### 🎯 Features & Development
 
 - **[Feature Documentation](docs/features/)** - Social media integration, approval workflow
 - **[Development Guide](docs/development/)** - Best practices, file structure
-- **[API Reference](#api-reference)** - Complete API documentation
 
 ## ⚡ Management Commands
 
@@ -98,26 +127,6 @@ npm run queue:monitor    # Real-time monitoring
 npm run monitor:start    # Start system monitoring
 npm run monitor:health   # Health check
 npm run scaling:start    # Start auto-scaling
-```
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   Application Layer                        │
-│  Next.js 15 │ React 19 │ TypeScript │ Tailwind CSS        │
-└─────────────────────────────────────────────────────────────┘
-                               │
-┌─────────────────────────────────────────────────────────────┐
-│                  Scheduling & Queue Layer                  │
-│  Enhanced Cron │ BullMQ │ Queue Management │ Auto-scaling │
-└─────────────────────────────────────────────────────────────┘
-                               │
-┌─────────────────────────────────────────────────────────────┐
-│                  Infrastructure Layer                      │
-│ Redis Cluster │ PostgreSQL │ Monitoring │ Alert System    │
-│   (6 nodes)   │  Database  │   System   │    & Scaling    │
-└─────────────────────────────────────────────────────────────┘
 ```
 
 ## 🔧 Configuration
@@ -189,6 +198,20 @@ curl "localhost:3000/api/monitoring?action=queue_metrics&apiKey=your-key"
 - [ ] SSL certificates configured
 - [ ] Backup strategy implemented
 
+## 💡 Post Status Behavior
+
+### Published Posts (Status: PUBLISHED)
+
+- **Edit Restrictions**: Form fields become read-only, media upload disabled
+- **Delete Behavior**: Shows enhanced warning dialog
+- **Reasoning**: Maintains consistency between database and live social media content
+
+### Draft/Scheduled Posts
+
+- **Full Editing**: All features available
+- **Standard Actions**: Publish, Schedule, Save Draft, Request Review
+- **Media Management**: Upload, reorder, remove media files
+
 ## 🤝 Contributing
 
 1. Read [Development Guidelines](docs/development/best-practices.md)
@@ -222,79 +245,3 @@ MIT License - see [LICENSE](LICENSE) file for details.
 **Status**: Production Ready
 
 ![My Scheduler App](https://img.shields.io/badge/My%20Scheduler%20App-Production%20Ready-success)
-
-## Features
-
-### Post Management & Publishing
-
-- **Smart Loading States**: Calendar and post dialog now include comprehensive loading indicators
-- **Published Post Protection**: Enhanced UX for posts that have already been published
-  - ✅ **Read-only mode** for published posts to prevent content inconsistency
-  - ⚠️ **Enhanced delete warnings** with detailed implications
-  - 🔒 **Disabled editing** for published posts to maintain platform consistency
-  - 📱 **Visual indicators** showing post publication status
-
-### Loading States Implementation
-
-- **Calendar Loading**: Realistic skeleton with animated placeholders
-- **Post Dialog Loading**: Full overlay with spinner during submission
-- **Form Disable States**: All inputs disabled during processing
-- **Action Feedback**: Detailed loading messages for different actions
-
-## Post Status Behavior
-
-### Published Posts (Status: PUBLISHED)
-
-- **Edit Restrictions**:
-  - Form fields become read-only
-  - Media upload disabled
-  - Toolbar actions hidden
-  - Visual warning displayed
-- **Delete Behavior**:
-  - Shows enhanced warning dialog
-  - Explains post remains on social platforms
-  - Requires manual deletion from each platform
-- **Reasoning**: Maintains consistency between database and live social media content
-
-### Draft/Scheduled Posts
-
-- **Full Editing**: All features available
-- **Standard Actions**: Publish, Schedule, Save Draft, Request Review
-- **Media Management**: Upload, reorder, remove media files
-
-## Technical Implementation
-
-### Loading States
-
-```tsx
-// Calendar loading skeleton
-if (isPostsLoading) {
-  return <CalendarSkeleton />;
-}
-
-// Post dialog loading overlay
-{
-  isUploading && <LoadingOverlay />;
-}
-```
-
-### Published Post Protection
-
-```tsx
-const isPublished = post?.status === "PUBLISHED";
-const isReadOnly = isPublished;
-
-// Conditional rendering based on published status
-{
-  !isReadOnly && <EditableComponents />;
-}
-```
-
-## Usage Guidelines
-
-1. **Creating Posts**: All features available for new posts
-2. **Editing Drafts**: Full editing capabilities maintained
-3. **Published Posts**: View-only mode with detailed warnings for destructive actions
-4. **Loading Feedback**: Users receive clear feedback during all operations
-
-This approach ensures data integrity while providing clear user feedback about the implications of their actions.
