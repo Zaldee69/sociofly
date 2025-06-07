@@ -228,48 +228,69 @@ export class FacebookPublisher {
 
       // Proceed with publishing
       let result: any;
-      if (mediaUrls.length > 0) {
-        console.log(`📸 Publishing post with media to Page: ${pageInfo.name}`);
-        result = await page.createPhoto([], {
-          message: content,
-          url: mediaUrls[0], // Facebook supports one image per photo post
-        });
-      } else {
+
+      if (mediaUrls.length === 0) {
+        // Text-only post
         console.log(`📝 Publishing text post to Page: ${pageInfo.name}`);
         result = await page.createFeed([], {
           message: content,
         });
+      } else if (mediaUrls.length === 1) {
+        // Single photo post
+        console.log(
+          `📸 Publishing single photo post to Page: ${pageInfo.name}`
+        );
+        result = await page.createPhoto([], {
+          message: content,
+          url: mediaUrls[0],
+        });
+      } else {
+        // Multiple photos post
+        console.log(
+          `🖼️ Publishing multi-photo post to Page: ${pageInfo.name} with ${mediaUrls.length} photos`
+        );
+
+        // Step 1: Upload each photo and get their IDs
+        const photoIds = [];
+        for (const [index, mediaUrl] of mediaUrls.entries()) {
+          console.log(`📤 Uploading photo ${index + 1}/${mediaUrls.length}`);
+          const photoResult = await page.createPhoto([], {
+            published: false, // Don't publish individual photos
+            url: mediaUrl,
+          });
+          photoIds.push(photoResult.id);
+        }
+
+        console.log(`✅ Successfully uploaded ${photoIds.length} photos`);
+
+        // Step 2: Create the multi-photo post with all uploaded photos
+        result = await fetch(
+          `https://graph.facebook.com/v18.0/${socialAccount.profileId}/feed`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              message: content,
+              attached_media: photoIds.map((id) => ({ media_fbid: id })),
+              access_token: socialAccount.accessToken,
+            }),
+          }
+        ).then((res) => res.json());
+
+        if (result.error) {
+          throw new Error(
+            `Failed to create multi-photo post: ${result.error.message}`
+          );
+        }
       }
 
       console.log(`🎉 Successfully published to Page. Post ID: ${result.id}`);
       return result.id;
-    } catch (directPageError: any) {
-      console.error("❌ Direct page publishing failed:", directPageError);
-
-      // Check if this is a token/permission error
-      if (this.isTokenError(directPageError)) {
-        throw new Error(
-          `Page Access Token is invalid or expired for Page ID: ${socialAccount.profileId}. ` +
-            `Please refresh the Page token. Error: ${directPageError.message}`
-        );
-      }
-
-      // Check if this is a permission error
-      if (directPageError.message?.includes("permissions")) {
-        throw new Error(
-          `Insufficient permissions to post to Page ID: ${socialAccount.profileId}. ` +
-            `Required permissions: pages_manage_posts. Error: ${directPageError.message}`
-        );
-      }
-
-      // For database-stored Page tokens, we should NOT fallback to user accounts method
-      // since the token is specifically for this page
-      throw new Error(
-        `Failed to publish to Facebook Page ${socialAccount.profileId}. ` +
-          `This appears to be a Page Access Token issue. ` +
-          `Please verify: 1) Token is valid, 2) Token has pages_manage_posts permission, ` +
-          `3) Page ID is correct. Original error: ${directPageError.message}`
-      );
+    } catch (error) {
+      console.error("Error publishing to Facebook page:", error);
+      throw error;
     }
   }
 

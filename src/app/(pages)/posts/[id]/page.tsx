@@ -275,7 +275,13 @@ const AccountAnalytics = ({
                   ? (analytics.richInsights?.impressions ?? 0)
                   : analytics.overview.views,
               reach: analytics.overview.reach,
-              engagement: analytics.overview.engagement,
+              engagement:
+                platform === "INSTAGRAM"
+                  ? Math.min(
+                      100,
+                      Math.max(0, analytics.overview.engagement * 100)
+                    )
+                  : analytics.overview.engagement,
               clicks: analytics.richInsights?.clicks ?? 0,
             },
             richInsights: {
@@ -289,8 +295,8 @@ const AccountAnalytics = ({
 
       setIsGeneratingAI(true);
       try {
-        // const result = await processInsights(insightData, true);
-        // setInsights(result);
+        const result = await processInsights(insightData, true);
+        setInsights(result);
       } catch (error) {
         console.error("Error processing insights:", error);
       } finally {

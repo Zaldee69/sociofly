@@ -4,7 +4,12 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   images: {
-    domains: ["localhost", "res.cloudinary.com", "images.unsplash.com"],
+    domains: [
+      "localhost",
+      "res.cloudinary.com",
+      "images.unsplash.com",
+      "utfs.io",
+    ],
     formats: ["image/avif", "image/webp"],
   },
   experimental: {},

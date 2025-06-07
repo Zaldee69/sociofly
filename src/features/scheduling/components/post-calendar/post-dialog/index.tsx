@@ -51,6 +51,7 @@ import { PostAction, PostFormValues, postSchema } from "./schema";
 import { SocialAccountSelect } from "../../../../../components/social-account-select";
 import { usePostApprovalStatus } from "./components/approval-status";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { InstagramOptimizationTips } from "./components/instagram-optimization-tips";
 
 export function AddPostDialog({
   startDate,
@@ -445,7 +446,21 @@ export function AddPostDialog({
                   </div>
                 </div>
 
-                {/* Form footer with actions */}
+                {/* Show Instagram image requirement message if Instagram account is selected */}
+
+                {!isReadOnly &&
+                  localSelectedAccounts.some(
+                    (id) =>
+                      socialAccounts?.find((acc) => acc.id === id)?.platform ===
+                      "INSTAGRAM"
+                  ) && (
+                    <InstagramOptimizationTips
+                      files={selectedFiles}
+                      showImageRequirement={selectedFiles.length === 0}
+                      className="mt-4"
+                    />
+                  )}
+
                 <DialogFooter className="mt-4 !justify-between">
                   <DialogClose asChild>
                     <Button

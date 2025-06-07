@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import Image from "next/image";
 import {
   BookmarkIcon,
   Earth,
@@ -28,6 +29,9 @@ import {
   memo,
   useRef,
   useCallback,
+  useMemo,
+  Suspense,
+  lazy,
 } from "react";
 
 import {
@@ -39,12 +43,7 @@ import {
 import { type CarouselApi } from "@/components/ui/carousel";
 import { SocialAccount } from "../types";
 import { FileWithStablePreview } from "../types";
-
-interface PostPreviewProps {
-  description: string;
-  selectedFiles: FileWithStablePreview[];
-  accountPostPreview: SocialAccount | undefined;
-}
+import React from "react";
 
 const formatHashtags = (input: string) => {
   const escaped = input
@@ -55,6 +54,43 @@ const formatHashtags = (input: string) => {
   return escaped.replace(/(#\w+)/g, `<span class="hashtag">$1</span>`);
 };
 
+// Enhanced image optimization with Instagram-specific handling
+const createOptimizedInstagramUrl = (url: string) => {
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+
+  try {
+    const urlObj = new URL(url);
+    urlObj.searchParams.set("width", "1080");
+    urlObj.searchParams.set("q", "85");
+    return urlObj.toString();
+  } catch {
+    return url;
+  }
+};
+
+interface PostPreviewProps {
+  description: string;
+  selectedFiles: FileWithStablePreview[];
+  accountPostPreview: SocialAccount | undefined;
+}
+
+// Lazy load components that are not immediately visible
+const Description = lazy(() =>
+  Promise.resolve({
+    default: memo(({ text, username }: { text: string; username: string }) => (
+      <p
+        dangerouslySetInnerHTML={{
+          __html:
+            `<span class="font-bold">${username}</span> ${formatHashtags(text)}` +
+            "<br />",
+        }}
+        className="text-sm"
+      />
+    )),
+  })
+);
+
+// Modify InstagramCarousel to use Instagram-specific optimization
 const InstagramCarousel = memo(
   ({ files }: { files: FileWithStablePreview[] }) => {
     const [api, setApi] = useState<CarouselApi>();
@@ -108,41 +144,34 @@ const InstagramCarousel = memo(
           </div>
         )}
         <CarouselContent>
-          {files.map((file) => (
-            <CarouselItem key={file.stableId}>
-              <div className="w-full aspect-square relative">
-                <img
-                  src={file.preview}
-                  alt={file.name}
-                  className="w-full h-full object-cover"
-                  loading="eager"
-                />
-              </div>
-            </CarouselItem>
-          ))}
+          {files.map((file, index) => {
+            return (
+              <CarouselItem key={file.stableId}>
+                <div className="w-full aspect-square relative">
+                  <Image
+                    src={createOptimizedInstagramUrl(file.preview)}
+                    alt={file.name}
+                    fill
+                    sizes="(max-width: 600px) 100vw, 600px"
+                    className="object-cover"
+                    priority={index === 0}
+                    quality={85}
+                    unoptimized={
+                      file.preview.startsWith("blob:") ||
+                      file.preview.startsWith("data:")
+                    }
+                  />
+                </div>
+              </CarouselItem>
+            );
+          })}
         </CarouselContent>
       </Carousel>
     );
   }
 );
 
-InstagramCarousel.displayName = "InstagramCarousel";
-
-const Description = memo(
-  ({ text, username }: { text: string; username: string }) => (
-    <p
-      dangerouslySetInnerHTML={{
-        __html:
-          `<span class="font-bold">${username}</span> ${formatHashtags(text)}` +
-          "<br />",
-      }}
-      className="text-sm"
-    />
-  )
-);
-
-Description.displayName = "Description";
-
+// Modify FacebookPreview to use optimized image sizing
 const FacebookPreview = memo(
   ({ description, selectedFiles, accountPostPreview }: PostPreviewProps) => {
     return (
@@ -198,17 +227,31 @@ const FacebookPreview = memo(
           >
             {selectedFiles.slice(0, 4).map((file, index) => (
               <div
-                key={index}
+                key={file.stableId}
                 className={cn(
                   "relative",
                   selectedFiles.length === 1 ? "aspect-[4/3]" : "aspect-square",
                   selectedFiles.length === 3 && index === 0 ? "col-span-2" : ""
                 )}
               >
-                <img
-                  src={file.preview}
+                <Image
+                  src={createOptimizedInstagramUrl(file.preview)}
                   alt={file.name}
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes={
+                    selectedFiles.length === 1
+                      ? "(max-width: 600px) 100vw, 600px"
+                      : selectedFiles.length === 3 && index === 0
+                        ? "(max-width: 600px) 100vw, 400px"
+                        : "(max-width: 600px) 50vw, 300px"
+                  }
+                  className="object-cover"
+                  priority={index === 0}
+                  quality={85}
+                  unoptimized={
+                    file.preview.startsWith("blob:") ||
+                    file.preview.startsWith("data:")
+                  }
                 />
                 {index === 3 && selectedFiles.length > 4 && (
                   <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -303,54 +346,41 @@ const InstagramPreview = memo(
 
 InstagramPreview.displayName = "InstagramPreview";
 
+// Modify the main PostPreview component
 export const PostPreview = memo(
   ({ description, selectedFiles, accountPostPreview }: PostPreviewProps) => {
-    const [isScrolled, setIsScrolled] = useState(false);
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    // Handler for scroll events
-    const handleScroll = useCallback((event: Event) => {
-      const target = event.target as HTMLDivElement;
-      setIsScrolled(target.scrollTop > 0);
-    }, []);
-
-    // Setup scroll event listener
-    useEffect(() => {
-      // Menggunakan parent container untuk scroll event karena kita tidak lagi
-      // menggunakan ScrollArea component
-      const scrollContainer = containerRef.current?.closest(".overflow-auto");
-      if (scrollContainer) {
-        scrollContainer.addEventListener("scroll", handleScroll);
-        return () =>
-          scrollContainer.removeEventListener("scroll", handleScroll);
+    const preview = useMemo(() => {
+      if (accountPostPreview?.platform === "FACEBOOK") {
+        return (
+          <FacebookPreview
+            description={description}
+            selectedFiles={selectedFiles}
+            accountPostPreview={accountPostPreview}
+          />
+        );
       }
-    }, [handleScroll]);
+      if (accountPostPreview?.platform === "INSTAGRAM") {
+        return (
+          <InstagramPreview
+            description={description}
+            selectedFiles={selectedFiles}
+            accountPostPreview={accountPostPreview}
+          />
+        );
+      }
+      return null;
+    }, [description, selectedFiles, accountPostPreview]);
 
     return (
-      <div ref={containerRef} className="w-full max-w-[340px] mx-auto">
-        <div
-          className={cn(
-            "sticky top-0 z-10 transition-colors duration-200",
-            isScrolled ? "bg-white shadow-sm" : "bg-transparent"
-          )}
-        >
-          <div className="bg-white rounded-lg shadow-sm mb-4 overflow-hidden">
-            {accountPostPreview?.platform === "FACEBOOK" && (
-              <FacebookPreview
-                description={description}
-                selectedFiles={selectedFiles}
-                accountPostPreview={accountPostPreview}
-              />
-            )}
-            {accountPostPreview?.platform === "INSTAGRAM" && (
-              <InstagramPreview
-                description={description}
-                selectedFiles={selectedFiles}
-                accountPostPreview={accountPostPreview}
-              />
-            )}
-          </div>
+      <div className="w-full max-w-[340px] mx-auto">
+        <div className="bg-white rounded-lg shadow-sm mb-4 overflow-hidden">
+          <Suspense
+            fallback={
+              <div className="p-4 animate-pulse">Loading preview...</div>
+            }
+          >
+            {preview}
+          </Suspense>
         </div>
       </div>
     );

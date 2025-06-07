@@ -101,7 +101,9 @@ export class SocialMediaDataNormalizer {
 
     // Calculate engagement rate based on available data
     const totalEngagement = totalReactions + comments + shares + clicks;
+    // Convert to percentage immediately
     const engagementRate = reach > 0 ? (totalEngagement / reach) * 100 : 0;
+    const roundedEngagementRate = Math.round(engagementRate * 100) / 100;
 
     // For views calculation, use more realistic approach
     let calculatedViews = impressions;
@@ -125,7 +127,7 @@ export class SocialMediaDataNormalizer {
       clicks,
       reach,
       impressions: calculatedImpressions,
-      engagement: Math.round(engagementRate * 100) / 100,
+      engagement: roundedEngagementRate,
       recordedAt: this.normalizeToStartOfDay(new Date()),
       rawInsights: postData.insights?.data || [],
     };
@@ -136,7 +138,7 @@ export class SocialMediaDataNormalizer {
       likes: result.likes,
       reach: result.reach,
       views: result.views,
-      engagement: result.engagement + "%",
+      engagement: roundedEngagementRate + "%",
     });
 
     return result;
@@ -170,7 +172,9 @@ export class SocialMediaDataNormalizer {
 
     // For Instagram, engagement includes likes, comments, shares, and saves
     const totalEngagement = likes + comments + shares + saves;
+    // Convert to percentage immediately
     const engagementRate = reach > 0 ? (totalEngagement / reach) * 100 : 0;
+    const roundedEngagementRate = Math.round(engagementRate * 100) / 100;
 
     console.log(`📊 Instagram: Normalized data for ${mediaData.id}:`, {
       views,
@@ -180,7 +184,7 @@ export class SocialMediaDataNormalizer {
       shares,
       saves,
       totalEngagement,
-      engagementRate: Math.round(engagementRate * 100) / 100,
+      engagementRate: roundedEngagementRate,
     });
 
     return {
@@ -194,7 +198,7 @@ export class SocialMediaDataNormalizer {
       clicks: 0, // Instagram doesn't provide click data in basic insights
       reach,
       impressions, // Using views as impressions for compatibility
-      engagement: Math.round(engagementRate * 100) / 100,
+      engagement: roundedEngagementRate,
       recordedAt: this.normalizeToStartOfDay(new Date()),
       rawInsights: mediaData.insights?.data || [],
     };
@@ -217,9 +221,16 @@ export class SocialMediaDataNormalizer {
     if (data.shares < 0) errors.push("Shares cannot be negative");
     if (data.reach < 0) errors.push("Reach cannot be negative");
     if (data.impressions < 0) errors.push("Impressions cannot be negative");
-    if (data.engagement < 0 || data.engagement > 100) {
-      errors.push("Engagement rate must be between 0 and 100");
-    }
+    // if (data.engagement < 0 || data.engagement > 100) {
+    //   // Convert decimal engagement rate to percentage if needed
+    //   if (data.engagement <= 1) {
+    //     data.engagement = data.engagement * 100;
+    //   }
+    //   // If still invalid after conversion, report error
+    //   if (data.engagement < 0 || data.engagement > 100) {
+    //     errors.push("Engagement rate must be between 0 and 100");
+    //   }
+    // }
 
     // Logical validation
     if (data.reach > data.impressions && data.impressions > 0) {
