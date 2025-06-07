@@ -49,6 +49,9 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { useState, useCallback, useRef } from "react";
 import { useFormContext } from "react-hook-form";
+import { MediaItem } from "./media-item";
+import { FixedSizeGrid as Grid, GridChildComponentProps } from "react-window";
+import AutoSizer from "react-virtualized-auto-sizer";
 
 interface PostToolbarProps {
   onUploadClick: () => void;
@@ -196,51 +199,58 @@ export function PostToolbar({
             </MenubarSubTrigger>
             <MenubarSubContent
               sideOffset={10}
-              className="max-w-[450px] overflow-y-auto mb-10"
+              className="w-[600px] h-[400px] overflow-hidden mb-10"
             >
-              <div className="grid grid-cols-3 gap-4">
-                {media.map((item) => (
-                  <div
-                    onClick={() => {
-                      const file = new File([item.name], item.name, {
-                        type: item.type,
-                      });
-                      const fileWithPreview = Object.assign(file, {
-                        preview: item.url || "",
-                        stableId: crypto.randomUUID(),
-                      }) as FileWithStablePreview;
-                      onMediaSelect(fileWithPreview);
-                      toast.success("Media added to post");
-                    }}
-                    key={item.id}
-                    className="group relative cursor-pointer rounded-md overflow-hidden border max-w-40"
-                  >
-                    <div className="aspect-square">
-                      <MediaThumbnail item={item} />
-                    </div>
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="bg-white/80 hover:bg-white"
-                      >
-                        <PlusCircle size={18} />
-                      </Button>
-                    </div>
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-2">
-                      <div className="text-sm truncate">{item.name}</div>
-                      <div className="text-xs opacity-80 flex justify-between">
-                        <span>
-                          {format(new Date(item.createdAt), "MMM d, yyyy")}
-                        </span>
-                        <span>
-                          {item.size ? formatBytes(item.size) : "Unknown"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <AutoSizer>
+                {({ height, width }: { height: number; width: number }) => {
+                  const columnCount = 3;
+                  const rowCount = Math.ceil(media.length / columnCount);
+                  const columnWidth = width / columnCount;
+                  const rowHeight = columnWidth; // Square aspect ratio
+
+                  return (
+                    <Grid
+                      columnCount={columnCount}
+                      columnWidth={columnWidth}
+                      height={height}
+                      rowCount={rowCount}
+                      rowHeight={rowHeight}
+                      width={width}
+                      itemData={{
+                        media,
+                        columnCount,
+                        onMediaSelect,
+                      }}
+                    >
+                      {({
+                        columnIndex,
+                        rowIndex,
+                        style,
+                        data,
+                      }: GridChildComponentProps<{
+                        media: typeof media;
+                        columnCount: number;
+                        onMediaSelect: typeof onMediaSelect;
+                      }>) => {
+                        const index = rowIndex * data.columnCount + columnIndex;
+                        const item = data.media[index];
+
+                        if (!item) return null;
+
+                        return (
+                          <div style={style}>
+                            <MediaItem
+                              key={item.id}
+                              item={item}
+                              onMediaSelect={data.onMediaSelect}
+                            />
+                          </div>
+                        );
+                      }}
+                    </Grid>
+                  );
+                }}
+              </AutoSizer>
             </MenubarSubContent>
           </MenubarSub>
           <MenubarSeparator />

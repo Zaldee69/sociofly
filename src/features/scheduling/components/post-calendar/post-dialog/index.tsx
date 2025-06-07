@@ -521,9 +521,7 @@ export function AddPostDialog({
               accounts={selectedAccounts || []}
               allAccounts={socialAccounts}
               currentPreviewAccount={accountPostPreview}
-              onSelectPreviewAccount={
-                isReadOnly ? () => {} : setAccountPostPreview
-              }
+              onSelectPreviewAccount={setAccountPostPreview}
             />
 
             <div
