@@ -82,6 +82,13 @@ export class CronManager {
         enabled: process.env.CRON_CLEANUP_ENABLED !== "false",
         handler: this.handleCleanupOldLogs,
       },
+      {
+        name: "analyze_engagement_hotspots",
+        schedule: "0 4 * * *", // Daily at 4 AM
+        description: "Analyze social media engagement hotspots",
+        enabled: process.env.CRON_HOTSPOT_ANALYSIS_ENABLED !== "false",
+        handler: this.handleAnalyzeHotspots,
+      },
     ];
 
     // Register and start jobs
@@ -212,6 +219,10 @@ export class CronManager {
     });
 
     return { deletedCount: deletedCount.count };
+  }
+
+  private static async handleAnalyzeHotspots(): Promise<any> {
+    return await SchedulerService.runHotspotAnalysisForAllAccounts();
   }
 
   /**
@@ -362,6 +373,7 @@ export class CronManager {
       check_expired_tokens: this.handleCheckExpiredTokens,
       system_health_check: this.handleSystemHealthCheck,
       cleanup_old_logs: this.handleCleanupOldLogs,
+      analyze_engagement_hotspots: this.handleAnalyzeHotspots,
     };
 
     const handler = jobConfigs[jobName as keyof typeof jobConfigs];

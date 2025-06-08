@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import { useTeamContext } from "@/lib/contexts/team-context";
 import SentimentAnalysis from "@/components/analytics/sentiment-analysis";
 
 const Analytics: React.FC = () => {
-  const [selectedAccount, setSelectedAccount] = useState<string | null>("1");
+  const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<string>("overview");
 
   const { currentTeamId } = useTeamContext();
@@ -28,6 +28,12 @@ const Analytics: React.FC = () => {
         refetchOnWindowFocus: false,
       }
     );
+
+  useEffect(() => {
+    if (socialAccounts?.length && !selectedAccount) {
+      setSelectedAccount(socialAccounts[0].id);
+    }
+  }, [socialAccounts, selectedAccount]);
 
   const handleAccountSelect = (accountId: string) => {
     setSelectedAccount(accountId);
@@ -78,18 +84,10 @@ const Analytics: React.FC = () => {
             </section>
 
             <section id="optimization" className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold">Optimization Tips</h2>
-                <p className="text-muted-foreground">
-                  Data-driven recommendations to improve performance
-                </p>
-              </div>
-              {/* {selectedAccount && currentTeamId && ( */}
               <PostTimeOptimizer
                 socialAccountId={selectedAccount!}
                 teamId={currentTeamId!}
               />
-              {/* )} */}
             </section>
 
             <section id="competitors" className="space-y-6">

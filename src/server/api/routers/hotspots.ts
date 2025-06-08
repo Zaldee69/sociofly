@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
-import { analyzeAndStoreHotspots } from "@/lib/services/analytics/smartSchedulerService";
 
 export const hotspotsRouter = createTRPCRouter({
   getHotspots: protectedProcedure
@@ -34,23 +33,37 @@ export const hotspotsRouter = createTRPCRouter({
         orderBy: [{ dayOfWeek: "asc" }, { hourOfDay: "asc" }],
       });
 
-      // If no hotspots exist yet, run the analysis
-      if (hotspots.length === 0) {
-        // Run the analysis
-        await analyzeAndStoreHotspots(input.socialAccountId);
-
-        // Fetch the newly created hotspots
-        const newHotspots = await ctx.prisma.engagementHotspot.findMany({
-          where: {
-            teamId: input.teamId,
-            socialAccountId: input.socialAccountId,
-          },
-          orderBy: [{ dayOfWeek: "asc" }, { hourOfDay: "asc" }],
-        });
-
-        return newHotspots;
-      }
-
+      // Return empty array if no data yet
+      // Frontend can show appropriate UI for no data state
       return hotspots;
+    }),
+
+  // Add new procedure to get last analysis time
+  getLastAnalysis: protectedProcedure
+    .input(
+      z.object({
+        socialAccountId: z.string(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const lastLog = await ctx.prisma.cronLog.findFirst({
+        where: {
+          name: "analyze_hotspots",
+          message: {
+            contains: input.socialAccountId,
+          },
+          status: "SUCCESS",
+        },
+        orderBy: {
+          executedAt: "desc",
+        },
+        select: {
+          executedAt: true,
+        },
+      });
+
+      return {
+        lastAnalyzed: lastLog?.executedAt || null,
+      };
     }),
 });

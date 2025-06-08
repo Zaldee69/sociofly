@@ -200,6 +200,7 @@ export function CronJobMonitor() {
       check_expired_tokens: "Check for expired social account tokens",
       system_health_check: "Monitor system health and log metrics",
       cleanup_old_logs: "Clean up old cron logs (keep last 30 days)",
+      analyze_engagement_hotspots: "Analyze social media engagement hotspots",
     };
     return descriptions[jobName] || "Unknown job";
   };
@@ -212,6 +213,7 @@ export function CronJobMonitor() {
       check_expired_tokens: "Daily at 2 AM",
       system_health_check: "Every 15 minutes",
       cleanup_old_logs: "Weekly on Sunday at 3 AM",
+      analyze_engagement_hotspots: "Daily at 4 AM",
     };
     return schedules[jobName] || "Unknown schedule";
   };

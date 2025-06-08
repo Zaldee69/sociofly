@@ -1,7 +1,20 @@
 import { prisma } from "@/lib/prisma/client";
 import { PostPublisherService } from "./post-publisher";
-import { PostStatus, ApprovalStatus } from "@prisma/client";
+import {
+  PostStatus,
+  ApprovalStatus,
+  PostSocialAccount,
+  PostAnalytics,
+} from "@prisma/client";
 import { ApprovalEdgeCaseHandler } from "./approval-edge-case-handler";
+import { addDays, subDays, startOfDay } from "date-fns";
+
+interface HeatmapCell {
+  totalScore: number;
+  count: number;
+}
+
+type Heatmap = Map<number, Map<number, HeatmapCell>>;
 
 export class SchedulerService {
   /**
@@ -460,6 +473,330 @@ export class SchedulerService {
         stuckApprovals: 0,
         expiredTokens: 0,
         healthScore: 0,
+      };
+    }
+  }
+
+  /**
+   * Analyzes historical post data to identify optimal posting times
+   * This should be called by a cron job every 24 hours
+   */
+  static async analyzeAndStoreHotspots(socialAccountId: string): Promise<void> {
+    const startTime = Date.now();
+
+    try {
+      // First, get the social account to verify it exists and get its teamId
+      const socialAccount = await prisma.socialAccount.findUnique({
+        where: { id: socialAccountId },
+        select: { teamId: true, name: true, platform: true },
+      });
+
+      if (!socialAccount) {
+        console.error(`Social account ${socialAccountId} not found`);
+        await prisma.cronLog.create({
+          data: {
+            name: "smart_scheduler_analysis",
+            status: "ERROR",
+            executedAt: new Date(),
+            message: `Social account ${socialAccountId} not found`,
+          },
+        });
+        return;
+      }
+
+      // Get posts from the last 90 days with their analytics
+      const startDate = subDays(startOfDay(new Date()), 90);
+      const posts = await prisma.postSocialAccount.findMany({
+        where: {
+          socialAccountId,
+          publishedAt: {
+            gte: startDate,
+          },
+          status: "PUBLISHED",
+        },
+        include: {
+          analytics: true,
+        },
+      });
+
+      // Initialize heatmap for each day of week and hour
+      const heatmap: Heatmap = new Map();
+      for (let day = 0; day < 7; day++) {
+        heatmap.set(day, new Map());
+        for (let hour = 0; hour < 24; hour++) {
+          heatmap.get(day)!.set(hour, { totalScore: 0, count: 0 });
+        }
+      }
+
+      // Process each post
+      posts.forEach(
+        (post: PostSocialAccount & { analytics: PostAnalytics[] }) => {
+          if (!post.publishedAt || !post.analytics.length) return;
+
+          const publishDate = new Date(post.publishedAt);
+          const dayOfWeek = publishDate.getUTCDay(); // 0 = Sunday
+          const hourOfDay = publishDate.getUTCHours();
+
+          // Get the most recent analytics for this post
+          const latestAnalytics = post.analytics.reduce(
+            (latest: PostAnalytics | null, current: PostAnalytics) => {
+              return !latest || current.recordedAt > latest.recordedAt
+                ? current
+                : latest;
+            },
+            null
+          );
+
+          if (!latestAnalytics) return;
+
+          // Calculate engagement score (weighted average of different metrics)
+          const engagementScore =
+            this.calculateEngagementScore(latestAnalytics);
+
+          // Update heatmap
+          const cell = heatmap.get(dayOfWeek)!.get(hourOfDay)!;
+          cell.totalScore += engagementScore;
+          cell.count += 1;
+        }
+      );
+
+      // Convert heatmap to hotspots and store in database
+      const hotspots = [];
+      for (const [dayOfWeek, hours] of heatmap.entries()) {
+        for (const [hourOfDay, data] of hours.entries()) {
+          const score = data.count > 0 ? data.totalScore / data.count : 0;
+          hotspots.push({
+            teamId: socialAccount.teamId,
+            socialAccountId,
+            dayOfWeek,
+            hourOfDay,
+            score: this.normalizeScore(score),
+            updatedAt: new Date(),
+          });
+        }
+      }
+
+      // Use transaction to update all hotspots atomically
+      await prisma.$transaction([
+        // Delete existing hotspots for this account
+        prisma.engagementHotspot.deleteMany({
+          where: { socialAccountId },
+        }),
+        // Insert new hotspots
+        prisma.engagementHotspot.createMany({
+          data: hotspots,
+        }),
+      ]);
+
+      const executionTime = Date.now() - startTime;
+
+      // Log success with more detailed information
+      await prisma.cronLog.create({
+        data: {
+          name: "smart_scheduler_analysis",
+          status: "SUCCESS",
+          executedAt: new Date(),
+          message: JSON.stringify({
+            accountId: socialAccountId,
+            accountName: socialAccount.name,
+            platform: socialAccount.platform,
+            analyzedPosts: posts.length,
+            daysAnalyzed: 90,
+            hotspotsGenerated: hotspots.length,
+            executionTimeMs: executionTime,
+          }),
+        },
+      });
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+
+      console.error("Error analyzing hotspots:", error);
+
+      // Log error with execution details
+      await prisma.cronLog.create({
+        data: {
+          name: "smart_scheduler_analysis",
+          status: "ERROR",
+          executedAt: new Date(),
+          message: JSON.stringify({
+            accountId: socialAccountId,
+            error: error instanceof Error ? error.message : String(error),
+            executionTimeMs: executionTime,
+          }),
+        },
+      });
+
+      throw error;
+    }
+  }
+
+  /**
+   * Calculates engagement score based on various metrics
+   */
+  private static calculateEngagementScore(analytics: PostAnalytics): number {
+    const { engagement, likes, comments, shares, clicks, reach, impressions } =
+      analytics;
+
+    // Base score is the engagement rate
+    let score = engagement * 100;
+
+    // Add weighted contributions from other metrics
+    if (reach > 0) {
+      score += ((likes + comments * 2 + shares * 3) / reach) * 100;
+    }
+
+    if (impressions > 0) {
+      score += (clicks / impressions) * 100;
+    }
+
+    return score;
+  }
+
+  /**
+   * Normalizes score to 0-100 range
+   */
+  private static normalizeScore(score: number): number {
+    // Normalize score to 0-100 range
+    const MIN_SCORE = 0;
+    const MAX_SCORE = 200; // Assuming max possible score from calculateEngagementScore
+
+    return Math.min(
+      100,
+      Math.max(0, ((score - MIN_SCORE) / (MAX_SCORE - MIN_SCORE)) * 100)
+    );
+  }
+
+  /**
+   * Runs hotspot analysis for all active social accounts
+   * This should be called by a cron job every 24 hours
+   */
+  static async runHotspotAnalysisForAllAccounts(): Promise<{
+    success: number;
+    failed: number;
+    total: number;
+    executionTimeMs: number;
+  }> {
+    const startTime = Date.now();
+    let successCount = 0;
+    let failedCount = 0;
+
+    try {
+      // Get all social accounts
+      const socialAccounts = await prisma.socialAccount.findMany({
+        select: {
+          id: true,
+          name: true,
+          platform: true,
+          teamId: true,
+        },
+      });
+
+      console.log(
+        `📊 Starting hotspot analysis for ${socialAccounts.length} accounts`
+      );
+
+      // Process accounts in parallel with a limit
+      const BATCH_SIZE = parseInt(process.env.ANALYSIS_BATCH_SIZE || "3");
+      const results = [];
+
+      // Process in batches to avoid overwhelming the system
+      for (let i = 0; i < socialAccounts.length; i += BATCH_SIZE) {
+        const batch = socialAccounts.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.allSettled(
+          batch.map(async (account) => {
+            try {
+              await this.analyzeAndStoreHotspots(account.id);
+              return { status: "success", accountId: account.id };
+            } catch (error) {
+              return {
+                status: "error",
+                accountId: account.id,
+                error: error instanceof Error ? error.message : String(error),
+              };
+            }
+          })
+        );
+
+        results.push(...batchResults);
+
+        // Add a small delay between batches to prevent rate limiting
+        if (i + BATCH_SIZE < socialAccounts.length) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+
+      // Count results
+      results.forEach((result) => {
+        if (
+          result.status === "fulfilled" &&
+          result.value.status === "success"
+        ) {
+          successCount++;
+        } else {
+          failedCount++;
+        }
+      });
+
+      const executionTime = Date.now() - startTime;
+
+      // Log overall results
+      await prisma.cronLog.create({
+        data: {
+          name: "smart_scheduler_batch_analysis",
+          status: failedCount === 0 ? "SUCCESS" : "PARTIAL",
+          executedAt: new Date(),
+          message: JSON.stringify({
+            totalAccounts: socialAccounts.length,
+            successfulAnalyses: successCount,
+            failedAnalyses: failedCount,
+            executionTimeMs: executionTime,
+            batchSize: BATCH_SIZE,
+            results: results.map((r) =>
+              r.status === "fulfilled"
+                ? r.value
+                : {
+                    status: "error",
+                    error:
+                      r.reason instanceof Error
+                        ? r.reason.message
+                        : String(r.reason),
+                  }
+            ),
+          }),
+        },
+      });
+
+      return {
+        success: successCount,
+        failed: failedCount,
+        total: socialAccounts.length,
+        executionTimeMs: executionTime,
+      };
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+
+      console.error("❌ Error in batch hotspot analysis:", error);
+
+      // Log the overall error
+      await prisma.cronLog.create({
+        data: {
+          name: "smart_scheduler_batch_analysis",
+          status: "ERROR",
+          executedAt: new Date(),
+          message: JSON.stringify({
+            error: error instanceof Error ? error.message : String(error),
+            successfulAnalyses: successCount,
+            failedAnalyses: failedCount,
+            executionTimeMs: executionTime,
+          }),
+        },
+      });
+
+      return {
+        success: successCount,
+        failed: failedCount,
+        total: 0,
+        executionTimeMs: executionTime,
       };
     }
   }
