@@ -1,54 +1,39 @@
-import React from "react";
+import React, { JSX } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Instagram, Facebook, Twitter, Linkedin, Check } from "lucide-react";
+import {
+  Instagram,
+  Facebook,
+  Twitter,
+  Linkedin,
+  Check,
+  Loader2,
+} from "lucide-react"; // Added Loader2
 import { cn } from "@/lib/utils";
+import { SocialPlatform } from "@prisma/client";
 
+// Use the SocialPlatform enum from your schema for consistency if possible
+// import { SocialPlatform } from "@prisma/client"; // Assuming you can import enums
+
+// Define the interface for SocialAccount - updated to include platform type string for now
 interface SocialAccount {
   id: string;
-  name: string;
-  username: string;
-  platform: "instagram" | "facebook" | "twitter" | "linkedin";
-  isConnected: boolean;
+  name: string | null;
+  platform: SocialPlatform;
+  profilePicture: string | null;
 }
 
 interface AnalyticsSidebarProps {
+  socialAccounts: SocialAccount[]; // Added prop for social accounts
+  isLoading: boolean; // Added prop for loading state
   selectedAccount: string | null;
   onSelectAccount: (accountId: string) => void;
+  activeSection: string | null; // Added prop for active navigation section
   onNavigateToSection: (sectionId: string) => void;
 }
 
-const mockAccounts: SocialAccount[] = [
-  {
-    id: "1",
-    name: "Company Instagram",
-    username: "company_ig",
-    platform: "instagram",
-    isConnected: true,
-  },
-  {
-    id: "2",
-    name: "Company Facebook",
-    username: "company_fb",
-    platform: "facebook",
-    isConnected: true,
-  },
-  {
-    id: "3",
-    name: "Company Twitter",
-    username: "company_tw",
-    platform: "twitter",
-    isConnected: false,
-  },
-  {
-    id: "4",
-    name: "Company LinkedIn",
-    username: "company_li",
-    platform: "linkedin",
-    isConnected: true,
-  },
-];
+// Removed mockAccounts
 
 const navigationLinks = [
   { label: "Overview", targetId: "overview" },
@@ -61,23 +46,26 @@ const navigationLinks = [
 ];
 
 const renderPlatformIcon = (platform: string) => {
-  switch (platform) {
-    case "instagram":
-      return <Instagram className="h-4 w-4 text-[#E1306C]" />;
-    case "facebook":
-      return <Facebook className="h-4 w-4 text-[#4267B2]" />;
-    case "twitter":
-      return <Twitter className="h-4 w-4 text-[#1DA1F2]" />;
-    case "linkedin":
-      return <Linkedin className="h-4 w-4 text-[#0077B5]" />;
-    default:
-      return <Instagram className="h-4 w-4" />;
-  }
+  // Use a map for cleaner mapping of platform strings to icons
+  const platformIcons: { [key: string]: JSX.Element } = {
+    instagram: <Instagram className="h-4 w-4 text-[#E1306C]" />,
+    facebook: <Facebook className="h-4 w-4 text-[#4267B2]" />,
+    twitter: <Twitter className="h-4 w-4 text-[#1DA1F2]" />,
+    linkedin: <Linkedin className="h-4 w-4 text-[#0077B5]" />,
+    // Add more platforms if needed
+  };
+  // Return the specific icon or a default one if not found
+  return (
+    platformIcons[platform.toLowerCase()] || <Instagram className="h-4 w-4" />
+  ); // Default icon
 };
 
 const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
+  socialAccounts, // Destructure new prop
+  isLoading, // Destructure new prop
   selectedAccount,
   onSelectAccount,
+  activeSection, // Destructure new prop
   onNavigateToSection,
 }) => {
   const handleSectionClick = (sectionId: string) => {
@@ -89,55 +77,68 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
   };
 
   return (
-    <div className="w-64 bg-gray-50 border-r h-full flex flex-col sticky top-0">
-      <div className="p-4">
+    <div className="w-46 border-r h-screen flex flex-col sticky top-0">
+      <div className="pb-4">
         <h3 className="font-semibold text-sm text-gray-900 mb-3">
           Social Media Accounts
         </h3>
-        <div className="space-y-2">
-          {mockAccounts.map((account) => (
-            <Button
-              key={account.id}
-              variant={selectedAccount === account.id ? "default" : "ghost"}
-              size="sm"
-              className={cn(
-                "w-full justify-start h-auto p-2",
-                !account.isConnected && "opacity-50"
-              )}
-              onClick={() => account.isConnected && onSelectAccount(account.id)}
-              disabled={!account.isConnected}
-            >
-              <div className="flex items-center gap-2 w-full">
-                {renderPlatformIcon(account.platform)}
-                <div className="flex-1 text-left">
-                  <div className="text-xs font-medium">{account.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    @{account.username}
+        <div className="space-y-2 flex flex-col pr-2">
+          {isLoading || !socialAccounts ? (
+            <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Loading accounts...
+            </div>
+          ) : socialAccounts.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-4">
+              No social accounts found.
+            </div>
+          ) : (
+            socialAccounts.map((account) => (
+              <Button
+                key={account.id}
+                variant={selectedAccount === account.id ? "default" : "ghost"}
+                size="sm"
+                className={cn("w-full justify-start h-auto p-2")}
+                onClick={() => onSelectAccount(account.id)}
+                // disabled={!account.isConnected}
+              >
+                <div className="flex items-center gap-2 w-full">
+                  {renderPlatformIcon(account.platform)}
+                  <div className="flex-1 text-left">
+                    <div className="text-xs font-medium">{account.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      @{account.name}
+                    </div>
                   </div>
                 </div>
-                {account.isConnected && selectedAccount === account.id && (
-                  <Check className="h-3 w-3" />
-                )}
-              </div>
-            </Button>
-          ))}
+              </Button>
+            ))
+          )}
         </div>
       </div>
 
       <Separator />
 
-      <div className="p-4">
+      <div className="py-4 flex-1 flex flex-col pr-2">
+        {" "}
+        {/* Added flex-1 and flex-col */}
         <h3 className="font-semibold text-sm text-gray-900 mb-3">
           Analytics Navigation
         </h3>
-        <ScrollArea className="flex-1">
+        {/* ScrollArea should take remaining space */}
+        <ScrollArea className="flex-1 pb-4">
+          {" "}
+          {/* Added pb-4 for padding below content */}
           <div className="space-y-1">
             {navigationLinks.map((link) => (
               <Button
                 key={link.targetId}
-                variant="ghost"
+                variant={activeSection === link.targetId ? "default" : "ghost"} // Style active link
                 size="sm"
-                className="w-full justify-start text-xs"
+                className={cn(
+                  "w-full justify-start text-xs",
+                  activeSection === link.targetId && "font-semibold" // Example active style
+                )}
                 onClick={() => handleSectionClick(link.targetId)}
               >
                 {link.label}

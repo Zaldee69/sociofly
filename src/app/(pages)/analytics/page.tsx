@@ -8,13 +8,26 @@ import AnalyticsSidebar from "@/components/analytics/analytics-sidebar";
 import OverviewSection from "@/components/analytics/overview-section";
 import PostPerformanceSection from "@/components/analytics/post-performance";
 import AudienceSection from "./audience";
-import SentimentAnalysis from "@/components/analytics/sentiment.analysis";
 import CompetitorBenchmarking from "@/components/analytics/competitor-benchmarking";
 import PostTimeOptimizer from "@/components/analytics/post-time-optimizer";
+import { trpc } from "@/lib/trpc/client";
+import { useTeamContext } from "@/lib/contexts/team-context";
+import SentimentAnalysis from "@/components/analytics/sentiment-analysis";
 
 const Analytics: React.FC = () => {
   const [selectedAccount, setSelectedAccount] = useState<string | null>("1");
   const [activeSection, setActiveSection] = useState<string>("overview");
+
+  const { currentTeamId } = useTeamContext();
+
+  const { data: socialAccounts, isLoading: isLoadingSocialAccount } =
+    trpc.onboarding.getSocialAccounts.useQuery(
+      { teamId: currentTeamId! },
+      {
+        enabled: !!currentTeamId,
+        refetchOnWindowFocus: false,
+      }
+    );
 
   const handleAccountSelect = (accountId: string) => {
     setSelectedAccount(accountId);
@@ -29,8 +42,11 @@ const Analytics: React.FC = () => {
     <div className="flex h-full">
       {/* Secondary Sidebar */}
       <AnalyticsSidebar
+        socialAccounts={socialAccounts || []}
+        isLoading={isLoadingSocialAccount}
         selectedAccount={selectedAccount}
         onSelectAccount={handleAccountSelect}
+        activeSection={activeSection}
         onNavigateToSection={handleSectionNavigate}
       />
 
@@ -58,7 +74,7 @@ const Analytics: React.FC = () => {
                   Monitor brand perception and audience sentiment
                 </p>
               </div>
-              {/* <SentimentAnalysis /> */}
+              <SentimentAnalysis />
             </section>
 
             <section id="optimization" className="space-y-6">
