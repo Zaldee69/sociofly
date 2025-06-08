@@ -26,12 +26,12 @@ model User {
 }
 
 model Team {
-  id                String             @id @default(cuid())
+  id                String              @id @default(cuid())
   name              String
-  slug              String             @unique
+  slug              String              @unique
   logo              String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   ownerId           String
   approvalWorkflows ApprovalWorkflow[]
   customRoles       CustomRole[]
@@ -40,7 +40,8 @@ model Team {
   memberships       Membership[]
   posts             Post[]
   socialAccounts    SocialAccount[]
-  owner             User               @relation(fields: [ownerId], references: [id])
+  owner             User                @relation(fields: [ownerId], references: [id])
+  EngagementHotspot EngagementHotspot[]
 }
 
 model Membership {
@@ -63,21 +64,22 @@ model Membership {
 }
 
 model SocialAccount {
-  id             String              @id @default(cuid())
-  accessToken    String
-  refreshToken   String?
-  expiresAt      DateTime?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  userId         String
-  name           String?
-  platform       SocialPlatform
-  profilePicture String?
-  profileId      String?
-  teamId         String
-  posts          PostSocialAccount[]
-  team           Team                @relation(fields: [teamId], references: [id])
-  user           User                @relation(fields: [userId], references: [id])
+  id                String              @id @default(cuid())
+  accessToken       String
+  refreshToken      String?
+  expiresAt         DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  userId            String
+  name              String?
+  platform          SocialPlatform
+  profilePicture    String?
+  profileId         String?
+  teamId            String
+  posts             PostSocialAccount[]
+  team              Team                @relation(fields: [teamId], references: [id])
+  user              User                @relation(fields: [userId], references: [id])
+  EngagementHotspot EngagementHotspot[]
 }
 
 model Post {
@@ -324,6 +326,22 @@ model PostAnalytics {
   @@unique([postSocialAccountId, recordedAt])
   @@index([postSocialAccountId])
   @@index([recordedAt])
+}
+
+model EngagementHotspot {
+  id              String   @id @default(cuid())
+  teamId          String
+  socialAccountId String
+  dayOfWeek       Int // 0=Sunday, 1=Monday, ..., 6=Saturday
+  hourOfDay       Int // 0-23 (in UTC)
+  score           Float // A calculated engagement score, e.g., 0-100
+  updatedAt       DateTime @updatedAt
+
+  team          Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([socialAccountId, dayOfWeek, hourOfDay])
+  @@index([socialAccountId])
 }
 
 model PostAnalyticsDemographics {

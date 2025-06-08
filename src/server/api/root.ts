@@ -14,6 +14,7 @@ import { permissionRouter } from "./routers/permission";
 import { approvalWorkflowRouter } from "./routers/approval-workflow";
 import { approvalRequestRouter } from "./routers/approval-request";
 import { realAnalyticsRouter } from "./routers/real-analytics";
+import { hotspotsRouter } from "./routers/hotspots";
 
 /**
  * Mengekspor objek appRouter yang berisi semua router tRPC
@@ -29,6 +30,7 @@ export const appRouter = createTRPCRouter({
   approvalWorkflow: approvalWorkflowRouter,
   approvalRequest: approvalRequestRouter,
   realAnalytics: realAnalyticsRouter,
+  hotspots: hotspotsRouter,
 });
 
 /**

@@ -84,7 +84,12 @@ const Analytics: React.FC = () => {
                   Data-driven recommendations to improve performance
                 </p>
               </div>
-              <PostTimeOptimizer />
+              {/* {selectedAccount && currentTeamId && ( */}
+              <PostTimeOptimizer
+                socialAccountId={selectedAccount!}
+                teamId={currentTeamId!}
+              />
+              {/* )} */}
             </section>
 
             <section id="competitors" className="space-y-6">

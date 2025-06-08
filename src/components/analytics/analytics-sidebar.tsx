@@ -100,7 +100,6 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
                 size="sm"
                 className={cn("w-full justify-start h-auto p-2")}
                 onClick={() => onSelectAccount(account.id)}
-                // disabled={!account.isConnected}
               >
                 <div className="flex items-center gap-2 w-full">
                   {renderPlatformIcon(account.platform)}
