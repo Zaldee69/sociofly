@@ -448,74 +448,37 @@ export const realAnalyticsRouter = createTRPCRouter({
   getAccountInsights: protectedProcedure
     .input(z.object({ socialAccountId: z.string() }))
     .query(async ({ ctx, input }) => {
-      // Fetch social account credentials
       const account = await ctx.prisma.socialAccount.findUnique({
         where: { id: input.socialAccountId },
-        select: { accessToken: true, profileId: true, platform: true },
+        select: { platform: true },
       });
 
       if (!account) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Social account not found",
-        });
-      }
-      const { accessToken, profileId, platform } = account;
-      if (!accessToken || !profileId) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Missing credentials for this social account",
+          message: "Account not found",
         });
       }
 
-      try {
-        let data: { followersCount: number; mediaCount: number };
-        if (platform === "INSTAGRAM") {
-          // Instagram business account metrics
-          const resp = await axios.get(
-            `https://graph.facebook.com/v22.0/${profileId}`,
-            {
-              params: {
-                fields: "followers_count,media_count",
-                access_token: accessToken,
-              },
-            }
-          );
-          data = {
-            followersCount: resp.data.followers_count,
-            mediaCount: resp.data.media_count,
-          };
-        } else if (platform === "FACEBOOK") {
-          // Facebook page metrics
-          const resp = await axios.get(
-            `https://graph.facebook.com/v22.0/${profileId}`,
-            {
-              params: {
-                fields: "fan_count,posts.summary(true).limit(0)",
-                access_token: accessToken,
-              },
-            }
-          );
-          data = {
-            followersCount: resp.data.fan_count,
-            mediaCount: resp.data.posts?.summary?.total_count || 0,
-          };
-        } else {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Unsupported platform for account insights",
-          });
-        }
+      const latest = await ctx.prisma.accountAnalytics.findFirst({
+        where: { socialAccountId: input.socialAccountId },
+        orderBy: { recordedAt: "desc" },
+      });
 
-        return {
-          platform,
-          ...data,
-        };
-      } catch (error: any) {
+      if (!latest) {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: error.message,
+          code: "NOT_FOUND",
+          message: "No analytics data available",
         });
       }
+
+      return {
+        platform: account.platform,
+        followersCount: latest.followersCount,
+        mediaCount: latest.mediaCount,
+        engagementRate: latest.engagementRate, // Data real
+        avgReachPerPost: latest.avgReachPerPost, // Data real
+        followerGrowth: latest.followerGrowth, // Data real
+      };
     }),
 });

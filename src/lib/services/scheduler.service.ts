@@ -823,36 +823,115 @@ export class SchedulerService {
         if (!accessToken || !profileId) throw new Error("Missing credentials");
         let followersCount: number;
         let mediaCount: number;
+        let engagementRate = 0;
+        let avgReachPerPost = 0;
+        let followerGrowth: Array<{ date: Date; value: number }> = [];
         if (platform === "INSTAGRAM") {
-          const resp = await axios.get(
-            `https://graph.facebook.com/v22.0/${profileId}`,
-            {
+          const [basicResp, insightsResp] = await Promise.all([
+            axios.get(`https://graph.facebook.com/v22.0/${profileId}`, {
               params: {
                 fields: "followers_count,media_count",
                 access_token: accessToken,
               },
-            }
+            }),
+            axios.get(
+              `https://graph.facebook.com/v22.0/${profileId}/insights`,
+              {
+                params: {
+                  metric: "engagement,reach,follower_count",
+                  period: "lifetime",
+                  access_token: accessToken,
+                },
+              }
+            ),
+          ]);
+          const basicData = basicResp.data;
+          const insightsData = insightsResp.data.data;
+          followersCount = basicData.followers_count;
+          mediaCount = basicData.media_count;
+          const eng = insightsData.find((d: any) => d.name === "engagement");
+          const reach = insightsData.find((d: any) => d.name === "reach");
+          const growth = insightsData.find(
+            (d: any) => d.name === "follower_count"
           );
-          followersCount = resp.data.followers_count;
-          mediaCount = resp.data.media_count;
+          engagementRate =
+            eng && basicData.followers_count
+              ? parseFloat(
+                  (
+                    (eng.values[0].value / basicData.followers_count) *
+                    100
+                  ).toFixed(2)
+                )
+              : 0;
+          avgReachPerPost =
+            reach && basicData.media_count
+              ? Math.round(reach.values[0].value / basicData.media_count)
+              : 0;
+          followerGrowth = growth
+            ? growth.values.map((v: any) => ({
+                date: new Date(v.end_time),
+                value: v.value,
+              }))
+            : [];
         } else if (platform === "FACEBOOK") {
-          const resp = await axios.get(
-            `https://graph.facebook.com/v22.0/${profileId}`,
-            {
+          const [basicResp, insightsResp] = await Promise.all([
+            axios.get(`https://graph.facebook.com/v22.0/${profileId}`, {
               params: {
                 fields: "fan_count,posts.summary(true).limit(0)",
                 access_token: accessToken,
               },
-            }
+            }),
+            axios.get(
+              `https://graph.facebook.com/v22.0/${profileId}/insights`,
+              {
+                params: {
+                  metric: "page_engaged_users,page_impressions",
+                  period: "lifetime",
+                  access_token: accessToken,
+                },
+              }
+            ),
+          ]);
+          const basicData = basicResp.data;
+          const insightsData = insightsResp.data.data;
+          followersCount = basicData.fan_count;
+          mediaCount = basicData.posts?.summary?.total_count || 0;
+          const engUser = insightsData.find(
+            (d: any) => d.name === "page_engaged_users"
           );
-          followersCount = resp.data.fan_count;
-          mediaCount = resp.data.posts?.summary?.total_count || 0;
+          const impressions = insightsData.find(
+            (d: any) => d.name === "page_impressions"
+          );
+          engagementRate =
+            engUser && basicData.fan_count
+              ? parseFloat(
+                  (
+                    (engUser.values[0].value / basicData.fan_count) *
+                    100
+                  ).toFixed(2)
+                )
+              : 0;
+          avgReachPerPost =
+            impressions && basicData.posts?.summary?.total_count
+              ? Math.round(
+                  impressions.values[0].value /
+                    basicData.posts.summary.total_count
+                )
+              : 0;
+          followerGrowth = [];
         } else {
           continue; // unsupported platform
         }
         // @ts-ignore: accountAnalytics model will be available after Prisma migration
         await prisma.accountAnalytics.create({
-          data: { socialAccountId: id, followersCount, mediaCount },
+          data: {
+            socialAccountId: id,
+            followersCount,
+            mediaCount,
+            engagementRate,
+            avgReachPerPost,
+            followerGrowth: JSON.stringify(followerGrowth),
+          },
         });
         success++;
       } catch (error) {

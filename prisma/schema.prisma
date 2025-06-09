@@ -366,6 +366,9 @@ model AccountAnalytics {
   recordedAt      DateTime      @default(now())
   followersCount  Int
   mediaCount      Int
+  engagementRate  Float         @default(0)
+  avgReachPerPost Int           @default(0)
+  followerGrowth  Json
   socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
 
   @@index([socialAccountId])

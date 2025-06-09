@@ -51,12 +51,13 @@ const Analytics: React.FC = () => {
 
   const handleAccountSelect = (accountId: string) => {
     setSelectedAccount(accountId);
-    console.log("Selected account:", accountId);
   };
 
   const handleSectionNavigate = (sectionId: string) => {
     setActiveSection(sectionId);
   };
+
+  console.log("accountInsight", accountInsight);
 
   return (
     <div className="flex h-full">
@@ -121,9 +122,9 @@ const Analytics: React.FC = () => {
               accountInsight={{
                 totalFollowers: accountInsight?.followersCount,
                 totalPosts: accountInsight?.mediaCount,
-                engagementRate: 0, // Default value or fetch from API if available
-                avgReachPerPost: 0, // Default value or fetch from API if available
-                followerGrowth: [], // Default empty array or fetch from API
+                engagementRate: accountInsight?.engagementRate,
+                avgReachPerPost: accountInsight?.avgReachPerPost,
+                followerGrowth: accountInsight?.followerGrowth as any,
               }}
               stats={stats}
               isLoading={isLoadingAccountInsight || isLoadingStats}
