@@ -80,6 +80,7 @@ model SocialAccount {
   team              Team                @relation(fields: [teamId], references: [id])
   user              User                @relation(fields: [userId], references: [id])
   EngagementHotspot EngagementHotspot[]
+  AccountAnalytics  AccountAnalytics[]
 }
 
 model Post {
@@ -356,6 +357,18 @@ model PostAnalyticsDemographics {
   updatedAt           DateTime @updatedAt
 
   @@index([postSocialAccountId])
+  @@index([recordedAt])
+}
+
+model AccountAnalytics {
+  id              String        @id @default(cuid())
+  socialAccountId String
+  recordedAt      DateTime      @default(now())
+  followersCount  Int
+  mediaCount      Int
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@index([socialAccountId])
   @@index([recordedAt])
 }
 

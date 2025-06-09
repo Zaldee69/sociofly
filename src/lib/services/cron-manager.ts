@@ -89,6 +89,13 @@ export class CronManager {
         enabled: process.env.CRON_HOTSPOT_ANALYSIS_ENABLED !== "false",
         handler: this.handleAnalyzeHotspots,
       },
+      {
+        name: "fetch_account_insights",
+        schedule: "0 5 * * *", // Daily at 5 AM
+        description: "Fetch account-level insights for all social accounts",
+        enabled: process.env.CRON_ACCOUNT_INSIGHTS_ENABLED !== "false",
+        handler: this.handleAccountInsights,
+      },
     ];
 
     // Register and start jobs
@@ -223,6 +230,10 @@ export class CronManager {
 
   private static async handleAnalyzeHotspots(): Promise<any> {
     return await SchedulerService.runHotspotAnalysisForAllAccounts();
+  }
+
+  private static async handleAccountInsights(): Promise<any> {
+    return await SchedulerService.runAccountInsightsForAllAccounts();
   }
 
   /**
@@ -374,6 +385,7 @@ export class CronManager {
       system_health_check: this.handleSystemHealthCheck,
       cleanup_old_logs: this.handleCleanupOldLogs,
       analyze_engagement_hotspots: this.handleAnalyzeHotspots,
+      fetch_account_insights: this.handleAccountInsights,
     };
 
     const handler = jobConfigs[jobName as keyof typeof jobConfigs];

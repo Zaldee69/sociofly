@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma/client";
+import axios from "axios";
 import { PostPublisherService } from "./post-publisher";
 import {
   PostStatus,
@@ -799,5 +800,66 @@ export class SchedulerService {
         executionTimeMs: executionTime,
       };
     }
+  }
+
+  /**
+   * Fetch and store account-level insights (followers, media count) for all social accounts.
+   * Should be called by a cron job daily.
+   */
+  static async runAccountInsightsForAllAccounts(): Promise<{
+    total: number;
+    success: number;
+    failed: number;
+  }> {
+    // Fetch all social accounts with credentials
+    const accounts = await prisma.socialAccount.findMany({
+      select: { id: true, accessToken: true, profileId: true, platform: true },
+    });
+    let success = 0;
+    let failed = 0;
+    for (const account of accounts) {
+      try {
+        const { id, accessToken, profileId, platform } = account;
+        if (!accessToken || !profileId) throw new Error("Missing credentials");
+        let followersCount: number;
+        let mediaCount: number;
+        if (platform === "INSTAGRAM") {
+          const resp = await axios.get(
+            `https://graph.facebook.com/v22.0/${profileId}`,
+            {
+              params: {
+                fields: "followers_count,media_count",
+                access_token: accessToken,
+              },
+            }
+          );
+          followersCount = resp.data.followers_count;
+          mediaCount = resp.data.media_count;
+        } else if (platform === "FACEBOOK") {
+          const resp = await axios.get(
+            `https://graph.facebook.com/v22.0/${profileId}`,
+            {
+              params: {
+                fields: "fan_count,posts.summary(true).limit(0)",
+                access_token: accessToken,
+              },
+            }
+          );
+          followersCount = resp.data.fan_count;
+          mediaCount = resp.data.posts?.summary?.total_count || 0;
+        } else {
+          continue; // unsupported platform
+        }
+        // @ts-ignore: accountAnalytics model will be available after Prisma migration
+        await prisma.accountAnalytics.create({
+          data: { socialAccountId: id, followersCount, mediaCount },
+        });
+        success++;
+      } catch (error) {
+        console.error(`Failed account insights for ${account.id}:`, error);
+        failed++;
+      }
+    }
+    return { total: accounts.length, success, failed };
   }
 }

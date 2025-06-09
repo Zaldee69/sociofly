@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { RealSocialAnalyticsService } from "../../../lib/services/social-analytics/real-analytics-service";
+import axios from "axios";
 
 export const realAnalyticsRouter = createTRPCRouter({
   /**
@@ -437,6 +438,83 @@ export const realAnalyticsRouter = createTRPCRouter({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to get collection stats",
           cause: error,
+        });
+      }
+    }),
+
+  /**
+   * Get account-level insights for a social account (followers, media count)
+   */
+  getAccountInsights: protectedProcedure
+    .input(z.object({ socialAccountId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      // Fetch social account credentials
+      const account = await ctx.prisma.socialAccount.findUnique({
+        where: { id: input.socialAccountId },
+        select: { accessToken: true, profileId: true, platform: true },
+      });
+
+      if (!account) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Social account not found",
+        });
+      }
+      const { accessToken, profileId, platform } = account;
+      if (!accessToken || !profileId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Missing credentials for this social account",
+        });
+      }
+
+      try {
+        let data: { followersCount: number; mediaCount: number };
+        if (platform === "INSTAGRAM") {
+          // Instagram business account metrics
+          const resp = await axios.get(
+            `https://graph.facebook.com/v22.0/${profileId}`,
+            {
+              params: {
+                fields: "followers_count,media_count",
+                access_token: accessToken,
+              },
+            }
+          );
+          data = {
+            followersCount: resp.data.followers_count,
+            mediaCount: resp.data.media_count,
+          };
+        } else if (platform === "FACEBOOK") {
+          // Facebook page metrics
+          const resp = await axios.get(
+            `https://graph.facebook.com/v22.0/${profileId}`,
+            {
+              params: {
+                fields: "fan_count,posts.summary(true).limit(0)",
+                access_token: accessToken,
+              },
+            }
+          );
+          data = {
+            followersCount: resp.data.fan_count,
+            mediaCount: resp.data.posts?.summary?.total_count || 0,
+          };
+        } else {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Unsupported platform for account insights",
+          });
+        }
+
+        return {
+          platform,
+          ...data,
+        };
+      } catch (error: any) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
         });
       }
     }),

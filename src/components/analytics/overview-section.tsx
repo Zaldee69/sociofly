@@ -10,18 +10,50 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const followersData = [
-  { name: "Jan", followers: 4000 },
-  { name: "Feb", followers: 4500 },
-  { name: "Mar", followers: 5100 },
-  { name: "Apr", followers: 5400 },
-  { name: "May", followers: 6200 },
-  { name: "Jun", followers: 6800 },
-  { name: "Jul", followers: 7400 },
-];
+interface OverviewSectionProps {
+  accountInsight?: {
+    totalFollowers?: number;
+    engagementRate?: number;
+    totalPosts?: number;
+    avgReachPerPost?: number;
+    followerGrowth?: Array<{ name: string; followers: number }>;
+  };
+  stats?: {
+    // Add fields based on getCollectionStats response
+  };
+  isLoading: boolean;
+}
 
-const OverviewSection: React.FC = () => {
+const OverviewSection: React.FC<OverviewSectionProps> = ({
+  accountInsight = {
+    totalFollowers: 0,
+    engagementRate: 0,
+    totalPosts: 0,
+    avgReachPerPost: 0,
+    followerGrowth: [],
+  },
+  stats,
+  isLoading,
+}) => {
+  if (isLoading) {
+    return (
+      <section id="overview" className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold">Overview</h2>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-[120px] w-full" />
+          ))}
+        </div>
+        <Skeleton className="h-[300px] w-full" />
+      </section>
+    );
+  }
+
   return (
     <section id="overview" className="space-y-6">
       <div>
@@ -40,7 +72,9 @@ const OverviewSection: React.FC = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">7,432</div>
+            <div className="text-2xl font-bold">
+              {(accountInsight.totalFollowers || 0).toLocaleString()}
+            </div>
             <p className="text-xs text-muted-foreground">
               +20.1% from last month
             </p>
@@ -55,7 +89,9 @@ const OverviewSection: React.FC = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">4.6%</div>
+            <div className="text-2xl font-bold">
+              {accountInsight.engagementRate || 0}%
+            </div>
             <p className="text-xs text-muted-foreground">
               +0.8% from last month
             </p>
@@ -83,7 +119,9 @@ const OverviewSection: React.FC = () => {
             </svg>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">249</div>
+            <div className="text-2xl font-bold">
+              {accountInsight.totalPosts || 0}
+            </div>
             <p className="text-xs text-muted-foreground">+14 from last month</p>
           </CardContent>
         </Card>
@@ -96,7 +134,9 @@ const OverviewSection: React.FC = () => {
             <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12.5K</div>
+            <div className="text-2xl font-bold">
+              {(accountInsight.avgReachPerPost || 0).toLocaleString()}
+            </div>
             <p className="text-xs text-muted-foreground">
               +10.2% from last month
             </p>
@@ -111,7 +151,7 @@ const OverviewSection: React.FC = () => {
         <CardContent>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={followersData}>
+              <AreaChart data={accountInsight.followerGrowth || []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />

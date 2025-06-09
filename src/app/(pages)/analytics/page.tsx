@@ -13,6 +13,7 @@ import PostTimeOptimizer from "@/components/analytics/post-time-optimizer";
 import { trpc } from "@/lib/trpc/client";
 import { useTeamContext } from "@/lib/contexts/team-context";
 import SentimentAnalysis from "@/components/analytics/sentiment-analysis";
+import { Loader2 } from "lucide-react";
 
 const Analytics: React.FC = () => {
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
@@ -27,6 +28,19 @@ const Analytics: React.FC = () => {
         enabled: !!currentTeamId,
         refetchOnWindowFocus: false,
       }
+    );
+
+  // Fetch account-level insights
+  const { data: accountInsight, isLoading: isLoadingAccountInsight } =
+    trpc.realAnalytics.getAccountInsights.useQuery(
+      { socialAccountId: selectedAccount! },
+      { enabled: !!selectedAccount, refetchOnWindowFocus: false }
+    );
+  // Fetch collection stats for metrics
+  const { data: stats, isLoading: isLoadingStats } =
+    trpc.realAnalytics.getCollectionStats.useQuery(
+      { teamId: currentTeamId!, days: 30 },
+      { enabled: !!currentTeamId, refetchOnWindowFocus: false }
     );
 
   useEffect(() => {
@@ -67,7 +81,53 @@ const Analytics: React.FC = () => {
               </p>
             </div>
 
-            <OverviewSection />
+            {/* Account-level Insights */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {isLoadingAccountInsight ? (
+                <div className="col-span-full flex justify-center py-6">
+                  <Loader2 className="animate-spin w-6 h-6 text-muted-foreground" />
+                </div>
+              ) : accountInsight ? (
+                <>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Followers</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        {accountInsight.followersCount.toLocaleString()}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Media Count</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        {accountInsight.mediaCount.toLocaleString()}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              ) : (
+                <div className="col-span-full text-center text-muted-foreground py-6">
+                  Select an account to view insights.
+                </div>
+              )}
+            </div>
+
+            <OverviewSection
+              accountInsight={{
+                totalFollowers: accountInsight?.followersCount,
+                totalPosts: accountInsight?.mediaCount,
+                engagementRate: 0, // Default value or fetch from API if available
+                avgReachPerPost: 0, // Default value or fetch from API if available
+                followerGrowth: [], // Default empty array or fetch from API
+              }}
+              stats={stats}
+              isLoading={isLoadingAccountInsight || isLoadingStats}
+            />
 
             <PostPerformanceSection />
 
