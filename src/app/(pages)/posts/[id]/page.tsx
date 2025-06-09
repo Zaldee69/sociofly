@@ -7,7 +7,6 @@ import {
   Calendar,
   Clock,
   Edit,
-  ExternalLink,
   Heart,
   MessageCircle,
   Share2,
@@ -31,8 +30,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
@@ -56,7 +53,6 @@ import { trpc } from "@/lib/trpc/client";
 import { useTeamContext } from "@/lib/contexts/team-context";
 import { format } from "date-fns";
 import { PostPreview } from "@/features/scheduling/components/post-calendar/post-dialog/components/post-preview";
-import { ApprovalStatusDisplay } from "@/features/scheduling/components/post-calendar/post-dialog/components/approval-status";
 import { DetailedApprovalStatus } from "@/features/approval/components/detailed-approval-status";
 import { AddPostDialog } from "@/features/scheduling/components/post-calendar/post-dialog";
 import { FileWithStablePreview } from "@/features/scheduling/components/post-calendar/post-dialog/hooks/use-media-files";
@@ -149,15 +145,18 @@ const MetricCard = ({
   trend?: "up" | "down" | "neutral";
 }) => (
   <div className="p-4 bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-200 hover:shadow-md min-h-[120px] flex flex-col justify-between">
-    <div className="flex items-start justify-between mb-2">
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        <div className="flex-shrink-0">{icon}</div>
+    <div className="items-start justify-between mb-2">
+      <div className="flex items-center gap-2 min-w-0 flex-1 justify-between">
         <span className="text-sm font-medium text-gray-600 truncate">
           {label}
         </span>
+        <div className="flex-shrink-0">{icon}</div>
+      </div>
+      <div className="text-xl xl:text-2xl font-bold text-gray-900 truncate">
+        {value}
       </div>
       {change && (
-        <div className="flex-shrink-0 ml-2">
+        <div className="flex-shrink-0">
           <span
             className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap ${
               trend === "up"
@@ -171,72 +170,6 @@ const MetricCard = ({
           </span>
         </div>
       )}
-    </div>
-    <div className="text-xl xl:text-2xl font-bold text-gray-900 truncate">
-      {value}
-    </div>
-  </div>
-);
-
-const DemographicChart = ({
-  data,
-  title,
-}: {
-  data: Array<{
-    range?: string;
-    type?: string;
-    country?: string;
-    percentage: number;
-  }>;
-  title: string;
-}) => (
-  <div className="space-y-2">
-    <h4 className="text-sm font-medium text-gray-700">{title}</h4>
-    <div className="space-y-1">
-      {data.map((item, index) => (
-        <div key={index} className="flex items-center justify-between text-xs">
-          <span className="text-gray-600">
-            {item.range || item.type || item.country}
-          </span>
-          <div className="flex items-center gap-2">
-            <div className="w-16 bg-gray-200 rounded-full h-1.5">
-              <div
-                className="bg-blue-500 h-1.5 rounded-full"
-                style={{ width: `${item.percentage}%` }}
-              ></div>
-            </div>
-            <span className="text-gray-900 font-medium w-8">
-              {item.percentage}%
-            </span>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const HistoricalChart = ({
-  data,
-}: {
-  data: Array<{ date: string; views: number; engagement: number }>;
-}) => (
-  <div className="space-y-2">
-    <h4 className="text-sm font-medium text-gray-700">7-Day Performance</h4>
-    <div className="grid grid-cols-7 gap-1">
-      {data.map((day, index) => (
-        <div key={index} className="text-center">
-          <div className="text-xs text-gray-500 mb-1">{day.date}</div>
-          <div className="bg-gray-200 rounded h-12 flex items-end justify-center">
-            <div
-              className="bg-blue-500 rounded-t w-full"
-              style={{
-                height: `${(day.views / Math.max(...data.map((d) => d.views))) * 100}%`,
-              }}
-            ></div>
-          </div>
-          <div className="text-xs text-gray-600 mt-1">{day.views}</div>
-        </div>
-      ))}
     </div>
   </div>
 );
@@ -860,7 +793,6 @@ export default function PostDetailPage() {
     data: analyticsData,
     isLoading: isAnalyticsLoading,
     error: analyticsError,
-    refetch: refetchAnalytics,
   } = trpc.post.getAnalytics.useQuery(
     { postId },
     {

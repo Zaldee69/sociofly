@@ -28,6 +28,7 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  BarChart,
 } from "recharts";
 import { toast } from "sonner";
 
@@ -493,8 +494,16 @@ const SentimentAnalysis = ({
                     neutral: { color: "#94a3b8", label: "Netral" },
                   }}
                 >
-                  <ResponsiveContainer>
-                    <Bar data={mockCompetitorData} barSize={40} dataKey="name">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={mockCompetitorData}
+                      margin={{
+                        top: 20,
+                        right: 30,
+                        left: 20,
+                        bottom: 5,
+                      }}
+                    >
                       <XAxis dataKey="name" />
                       <YAxis />
                       <CartesianGrid strokeDasharray="3 3" />
@@ -526,20 +535,26 @@ const SentimentAnalysis = ({
                         stackId="a"
                         fill="#22c55e"
                         name="Positif"
+                        isAnimationActive={false}
+                        barSize={40}
                       />
                       <Bar
                         dataKey="negative"
                         stackId="a"
                         fill="#ef4444"
                         name="Negatif"
+                        isAnimationActive={false}
+                        barSize={40}
                       />
                       <Bar
                         dataKey="neutral"
                         stackId="a"
                         fill="#94a3b8"
                         name="Netral"
+                        isAnimationActive={false}
+                        barSize={40}
                       />
-                    </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                 </ChartContainer>
               </div>
