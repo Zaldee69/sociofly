@@ -21,9 +21,20 @@ interface PostTimeOptimizerProps {
 
 interface DailyRecommendation {
   day: string;
-  time: string;
+  time: string | null;
   engagement: string;
   score: number;
+}
+
+interface HeatmapHour {
+  hour: number;
+  score: number;
+  formattedHour: string;
+}
+
+interface HeatmapDay {
+  day: string;
+  hours: HeatmapHour[];
 }
 
 const dayNames = [
@@ -39,6 +50,19 @@ const dayNames = [
 const formatHour = (hour: number) => {
   return `${hour.toString().padStart(2, "0")}:00`;
 };
+
+// Initialize 2D array for heatmap (7 days × 24 hours)
+const createEmptyHeatmap = () =>
+  Array(7)
+    .fill(null)
+    .map(() =>
+      Array(24)
+        .fill(0)
+        .map(() => ({
+          score: 0,
+          count: 0,
+        }))
+    );
 
 const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
   socialAccountId,
@@ -70,8 +94,8 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
       if (dayHotspots.length === 0) {
         return {
           day,
-          time: "00:00 - 01:00",
-          engagement: "rendah",
+          time: null,
+          engagement: "no_data",
           score: 0,
         };
       }
@@ -99,43 +123,51 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
     });
   }, [hotspots]);
 
-  // Generate heatmap data
-  const heatmapData = React.useMemo(() => {
-    if (!hotspots) return [];
-
-    return dayNames.map((day, dayIndex) => {
-      const dayHotspots = hotspots.filter((h) => h.dayOfWeek === dayIndex);
-      const hours = Array.from({ length: 24 }, (_, hour) => {
-        const hotspot = dayHotspots.find((h) => h.hourOfDay === hour);
-        return {
-          hour,
-          score: hotspot?.score || 0,
-        };
-      });
-
-      return {
-        day,
-        hours,
-      };
-    });
-  }, [hotspots]);
-
+  // Render a single cell in the heatmap
   const renderHeatmapCell = (score: number) => {
-    const intensity = Math.min(Math.max(score / 100, 0), 1);
-    const color = `rgba(34, 197, 94, ${intensity})`;
-    const textColor = intensity > 0.5 ? "text-white" : "text-foreground";
+    // Calculate color intensity based on engagement rate thresholds
+    const maxER = 5; // 5% is considered very high engagement
+    const intensity = Math.min(Math.max(score / maxER, 0), 1);
+
+    // Use a green gradient with better visibility
+    const color = `rgba(34, 197, 94, ${intensity * 0.9 + 0.1})`; // Minimum opacity of 0.1
+    const textColor = intensity > 0.5 ? "text-white" : "text-gray-700";
 
     return (
       <div
-        className={`h-12 flex items-center justify-center ${textColor}`}
+        className={`h-12 flex items-center justify-center ${textColor} transition-colors duration-200`}
         style={{ backgroundColor: color, minWidth: "64px" }}
       >
-        <span className="text-sm tabular-nums">
-          {score > 0 ? `${Math.round(score)}%` : "-"}
+        <span className="text-sm font-medium tabular-nums">
+          {score > 0 ? `${score}%` : "-"}
         </span>
       </div>
     );
   };
+
+  // Generate optimized heatmap data
+  const heatmapData = React.useMemo(() => {
+    if (!hotspots) return [];
+
+    // Initialize 2D array for heatmap
+    const heatmap = createEmptyHeatmap();
+
+    // Populate heatmap with scores
+    hotspots.forEach((spot) => {
+      heatmap[spot.dayOfWeek][spot.hourOfDay].score = spot.score;
+      heatmap[spot.dayOfWeek][spot.hourOfDay].count++;
+    });
+
+    // Convert to format needed for visualization
+    return dayNames.map((day, dayIndex) => ({
+      day,
+      hours: Array.from({ length: 24 }, (_, hour) => ({
+        hour,
+        score: Math.round(heatmap[dayIndex][hour].score * 10) / 10, // Round to 1 decimal
+        formattedHour: formatHour(hour),
+      })),
+    }));
+  }, [hotspots]);
 
   // Find the best day (only consider days with actual data)
   const bestTimeSlot = React.useMemo(() => {
@@ -156,79 +188,92 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
     return dailyRecommendations.some((rec) => rec.score > 0);
   }, [dailyRecommendations]);
 
+  // Calculate average engagement and difference
+  const averageEngagement = React.useMemo(
+    () => calculateAverageEngagement(hotspots),
+    [hotspots]
+  );
+
+  const engagementDifference = React.useMemo(() => {
+    if (!bestTimeSlot || bestTimeSlot.score === 0) return 0;
+    // Only calculate difference if we have meaningful data
+    if (bestTimeSlot.score < 1 || averageEngagement < 1) return 0;
+    return calculateEngagementDifference(bestTimeSlot.score, averageEngagement);
+  }, [bestTimeSlot, averageEngagement]);
+
   const renderTimeSlot = (rec: DailyRecommendation) => {
     const isActive = rec.score > 0;
-    const hasCustomTime = rec.time !== "00:00 - 01:00";
+    const isNoData = rec.engagement === "no_data";
 
     return (
       <div
         key={rec.day}
         className={`
-          group relative flex items-center justify-between p-4 rounded-xl transition-all duration-200
+          group relative flex items-center p-4 rounded-xl transition-all duration-200
           ${
-            isActive
-              ? "border bg-card hover:border-primary/20 hover:bg-primary/5"
-              : "border border-dashed bg-muted/30"
+            isNoData
+              ? "border border-dashed bg-muted/10"
+              : isActive
+                ? "border bg-card hover:border-primary/20 hover:bg-primary/5"
+                : "border border-dashed bg-muted/30"
           }
         `}
       >
         {/* Day Column */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center w-[180px]">
           <div className="flex flex-col">
             <span className="font-medium">{rec.day}</span>
             <span className="text-xs text-muted-foreground">
-              {isActive ? "Waktu optimal" : "Belum ada data"}
+              {isNoData ? "Belum ada data" : "Waktu optimal"}
             </span>
           </div>
         </div>
 
         {/* Time Column */}
-        <div className="flex-1 flex justify-center">
-          <div
-            className={`
-            flex items-center gap-2 px-4 py-1.5 rounded-full
-            ${hasCustomTime ? "bg-primary/5" : "bg-muted"}
-          `}
-          >
-            <Clock
-              className={`w-4 h-4 ${hasCustomTime ? "text-primary" : "text-muted-foreground"}`}
-            />
-            <span
-              className={
-                hasCustomTime
-                  ? "text-primary font-medium"
-                  : "text-muted-foreground"
-              }
+        <div className="flex-1 flex justify-center min-w-[200px]">
+          {isNoData ? (
+            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-muted/50">
+              <Clock className="w-4 h-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Menunggu analisis</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/5">
+              <Clock className="w-4 h-4 text-primary" />
+              <span className="text-primary font-medium">{rec.time}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Metrics Column */}
+        <div className="flex items-center gap-4 w-[240px] justify-end">
+          {isNoData ? (
+            <Badge
+              variant="outline"
+              className="font-normal text-muted-foreground min-w-[100px] justify-center"
             >
-              {rec.time}
+              Belum tersedia
+            </Badge>
+          ) : (
+            <Badge
+              variant={isActive ? "default" : "outline"}
+              className={`
+                capitalize font-normal min-w-[100px] justify-center
+                ${getEngagementBadgeClass(rec.engagement)}
+              `}
+            >
+              {rec.engagement}
+            </Badge>
+          )}
+          <div className="flex items-center gap-2 min-w-[80px] justify-end text-muted-foreground">
+            <Users className="w-4 h-4" />
+            <span className="tabular-nums">
+              {isNoData ? "-" : `${rec.score}%`}
             </span>
           </div>
         </div>
 
-        {/* Metrics Column */}
-        <div className="flex items-center gap-4">
-          <Badge
-            variant={isActive ? "default" : "outline"}
-            className={`
-              capitalize font-normal
-              ${getEngagementBadgeClass(rec.engagement)}
-            `}
-          >
-            {rec.engagement}
-          </Badge>
-          <div
-            className={`
-            flex items-center gap-2 min-w-[80px] justify-end
-            ${isActive ? "text-foreground" : "text-muted-foreground"}
-          `}
-          >
-            <Users className="w-4 h-4" />
-            <span>{isActive ? `${rec.score}%` : "-"}</span>
-          </div>
-        </div>
-
         {/* Hover Info */}
-        {isActive && (
+        {isActive && !isNoData && (
           <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
             <Button variant="ghost" size="sm" className="h-8">
               Detail
@@ -238,6 +283,96 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
       </div>
     );
   };
+
+  // Heatmap Modal Content
+  const renderHeatmapModal = () => (
+    <Dialog open={showHeatmap} onOpenChange={setShowHeatmap}>
+      <DialogContent className="min-w-[90vw] w-full max-h-[85vh] p-6 overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Detail Heatmap Engagement Audience</DialogTitle>
+          <p className="text-sm text-muted-foreground mt-2">
+            Persentase audience yang aktif berdasarkan hari dan jam
+          </p>
+        </DialogHeader>
+
+        <div className="mt-4 flex-1 min-h-0">
+          <div className="relative rounded-lg border shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <div className="inline-block min-w-full">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th
+                        scope="col"
+                        className="sticky left-0 z-20 bg-gray-50 py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 w-32 border-r"
+                      >
+                        Hari
+                      </th>
+                      <th
+                        scope="col"
+                        className="w-[calc(100%-8rem)] bg-gray-50"
+                      >
+                        <div className="flex">
+                          {Array.from({ length: 24 }, (_, i) => (
+                            <div
+                              key={i}
+                              className="w-16 p-0 text-center text-sm font-semibold text-gray-900"
+                            >
+                              <div className="px-2 py-3.5 tabular-nums">
+                                {formatHour(i)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {heatmapData.map((dayData: HeatmapDay) => (
+                      <tr key={dayData.day}>
+                        <td className="sticky left-0 z-10 bg-white whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 w-32 border-r">
+                          {dayData.day}
+                        </td>
+                        <td className="p-0">
+                          <div className="flex">
+                            {dayData.hours.map((hour: HeatmapHour) => (
+                              <div key={hour.hour} className="w-16">
+                                {renderHeatmapCell(hour.score)}
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t flex-shrink-0">
+          <div className="flex items-center gap-6 text-sm text-muted-foreground">
+            <span className="font-medium">Engagement Level:</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 bg-green-100 rounded"></div>
+                <span>{"< 2.5%"}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 bg-green-300 rounded"></div>
+                <span>{"2.5-3.5%"}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 bg-green-500 rounded"></div>
+                <span>{"> 3.5%"}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 
   if (isLoading) {
     return (
@@ -374,7 +509,10 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
                   <div className="flex items-center gap-2 text-green-700">
                     <TrendingUp className="w-4 h-4" />
                     <span className="text-sm font-medium">
-                      +30% Engagement Rate
+                      {engagementDifference > 0
+                        ? `+${engagementDifference}%`
+                        : `${engagementDifference}%`}{" "}
+                      Engagement Rate
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -433,90 +571,8 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
         </div>
       </div>
 
-      {/* Heatmap Modal */}
-      <Dialog open={showHeatmap} onOpenChange={setShowHeatmap}>
-        <DialogContent className="min-w-[90vw] w-full max-h-[85vh] p-6 overflow-hidden flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Detail Heatmap Engagement Audience</DialogTitle>
-          </DialogHeader>
-
-          <div className="mt-4 flex-1 min-h-0">
-            <div className="relative rounded-lg shadow overflow-hidden">
-              <div className="overflow-x-auto">
-                <div className="inline-block min-w-full">
-                  <table className="min-w-full divide-y divide-gray-300">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th
-                          scope="col"
-                          className="sticky left-0 z-20 bg-gray-50 py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 w-32 border-r"
-                        >
-                          Hari
-                        </th>
-                        <th
-                          scope="col"
-                          className="w-[calc(100%-8rem)] bg-gray-50"
-                        >
-                          <div className="flex">
-                            {Array.from({ length: 24 }, (_, i) => (
-                              <div
-                                key={i}
-                                className="w-16 p-0 text-center text-sm font-semibold text-gray-900"
-                              >
-                                <div className="px-2 py-3.5 tabular-nums">
-                                  {formatHour(i)}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 bg-white">
-                      {heatmapData.map((dayData) => (
-                        <tr key={dayData.day}>
-                          <td className="sticky left-0 z-10 bg-white whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 w-32 border-r">
-                            {dayData.day}
-                          </td>
-                          <td className="p-0">
-                            <div className="flex">
-                              {dayData.hours.map((hour, i) => (
-                                <div key={i} className="w-16">
-                                  {renderHeatmapCell(hour.score)}
-                                </div>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-4 border-t flex-shrink-0">
-            <div className="flex items-center gap-6 text-sm text-muted-foreground">
-              <span className="font-medium">Engagement Level:</span>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 bg-green-100 rounded"></div>
-                  <span>Rendah</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 bg-green-300 rounded"></div>
-                  <span>Sedang</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 bg-green-500 rounded"></div>
-                  <span>Tinggi</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Render heatmap modal */}
+      {renderHeatmapModal()}
     </div>
   );
 };
@@ -544,12 +600,19 @@ function findPeakPeriod(
   return { start: bestStart, end: bestEnd };
 }
 
-// Helper function to determine engagement level
+// Helper function to determine engagement level based on industry standards
 function getEngagementLevel(score: number): string {
-  if (score >= 75) return "sangat tinggi";
-  if (score >= 60) return "tinggi";
-  if (score >= 40) return "sedang";
-  return "rendah";
+  if (score === 0) return "no_data";
+  // Instagram average engagement rates:
+  // Micro (< 10k): 3.86%
+  // Small (10k-50k): 3.48%
+  // Medium (50k-100k): 2.71%
+  // Large (100k-1m): 2.37%
+  // Mega (1m+): 1.97%
+  if (score >= 5) return "sangat tinggi"; // Well above average
+  if (score >= 3.5) return "tinggi"; // Above average
+  if (score >= 2.5) return "sedang"; // Average
+  return "rendah"; // Below average
 }
 
 // Helper function to get badge class based on engagement level
@@ -561,9 +624,44 @@ function getEngagementBadgeClass(engagement: string): string {
       return "bg-emerald-100 text-emerald-800 border-emerald-200";
     case "sedang":
       return "bg-yellow-100 text-yellow-800 border-yellow-200";
+    case "no_data":
+      return "bg-gray-50 text-gray-600 border-gray-200";
     default:
       return "bg-red-50 text-red-800 border-red-100";
   }
+}
+
+// Helper function to calculate average engagement rate
+function calculateAverageEngagement(
+  hotspots: Array<{ score: number }> | undefined
+): number {
+  if (!hotspots || hotspots.length === 0) return 0;
+
+  // Filter out zero scores to get a more accurate average
+  const validHotspots = hotspots.filter((h) => h.score > 0);
+  if (validHotspots.length === 0) return 0;
+
+  // Calculate average engagement rate
+  const totalER = validHotspots.reduce((sum, h) => sum + h.score, 0);
+  return totalER / validHotspots.length;
+}
+
+// Helper function to calculate engagement rate difference
+function calculateEngagementDifference(
+  bestScore: number,
+  avgScore: number
+): number {
+  if (avgScore === 0 || bestScore === 0) return 0;
+
+  // Calculate percentage improvement in engagement rate
+  // Example: if best ER is 7.4% and avg ER is 3.7%
+  // improvement = (7.4 / 3.7 - 1) * 100 = 100% improvement
+  const improvement = (bestScore / avgScore - 1) * 100;
+
+  // Keep the improvement percentage within realistic bounds
+  // Most social media posts see 20-80% improvement in optimal times
+  // We'll cap at 100% to be conservative and realistic
+  return Math.min(Math.max(Math.round(improvement), 0), 100);
 }
 
 export default PostTimeOptimizer;
