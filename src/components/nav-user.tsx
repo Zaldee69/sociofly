@@ -25,13 +25,11 @@ import {
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { InvitationIndicator } from "@/components/ui/invitation-indicator";
-import { useSignOut } from "@/lib/auth-utils";
 import React from "react";
 
 export function NavUser() {
   const [isMounted, setIsMounted] = React.useState(false);
   const { user } = useUser();
-  const signOut = useSignOut();
 
   React.useEffect(() => {
     setIsMounted(true);
@@ -123,10 +121,7 @@ export function NavUser() {
           </Link>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="hover:cursor-pointer"
-          onClick={() => signOut()}
-        >
+        <DropdownMenuItem className="hover:cursor-pointer">
           <LogOutIcon className="mr-2 h-4 w-4" />
           Log out
         </DropdownMenuItem>

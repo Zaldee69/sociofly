@@ -8,7 +8,7 @@ import {
   PostAnalytics,
 } from "@prisma/client";
 import { ApprovalEdgeCaseHandler } from "./approval-edge-case-handler";
-import { addDays, subDays, startOfDay } from "date-fns";
+import { subDays, startOfDay } from "date-fns";
 
 interface HeatmapCell {
   totalScore: number;
