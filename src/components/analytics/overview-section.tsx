@@ -19,6 +19,10 @@ interface OverviewSectionProps {
     totalPosts?: number;
     avgReachPerPost?: number;
     followerGrowth?: Array<{ name: string; followers: number }>;
+    followersGrowthPercent?: number;
+    mediaGrowthPercent?: number;
+    engagementGrowthPercent?: number;
+    reachGrowthPercent?: number;
   };
   stats?: {
     // Add fields based on getCollectionStats response
@@ -33,6 +37,10 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
     totalPosts: 0,
     avgReachPerPost: 0,
     followerGrowth: [],
+    followersGrowthPercent: 0,
+    mediaGrowthPercent: 0,
+    engagementGrowthPercent: 0,
+    reachGrowthPercent: 0,
   },
   stats,
   isLoading,
@@ -76,7 +84,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
               {(accountInsight.totalFollowers || 0).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
-              +20.1% from last month
+              +{accountInsight.followersGrowthPercent || 0}% from last month
             </p>
           </CardContent>
         </Card>
@@ -93,7 +101,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
               {accountInsight.engagementRate || 0}%
             </div>
             <p className="text-xs text-muted-foreground">
-              +0.8% from last month
+              +{accountInsight.engagementGrowthPercent || 0}% from last month
             </p>
           </CardContent>
         </Card>
@@ -122,7 +130,9 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             <div className="text-2xl font-bold">
               {accountInsight.totalPosts || 0}
             </div>
-            <p className="text-xs text-muted-foreground">+14 from last month</p>
+            <p className="text-xs text-muted-foreground">
+              +{accountInsight.mediaGrowthPercent || 0}% from last month
+            </p>
           </CardContent>
         </Card>
 
@@ -135,10 +145,10 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(accountInsight.avgReachPerPost || 0).toLocaleString()}
+              {(accountInsight.avgReachPerPost || 0).toLocaleString()}%
             </div>
             <p className="text-xs text-muted-foreground">
-              +10.2% from last month
+              +{accountInsight.reachGrowthPercent || 0}% from last month
             </p>
           </CardContent>
         </Card>
@@ -148,7 +158,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
         <CardHeader>
           <CardTitle>Follower Growth</CardTitle>
         </CardHeader>
-        <CardContent>
+        {/* <CardContent>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={accountInsight.followerGrowth || []}>
@@ -166,7 +176,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </CardContent>
+        </CardContent> */}
       </Card>
     </section>
   );

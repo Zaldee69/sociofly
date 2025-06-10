@@ -358,7 +358,12 @@ export class FacebookAnalyticsClient {
       };
 
       if (since) {
-        params.since = Math.floor(since.getTime() / 1000);
+        const sinceTs = Math.floor(since.getTime() / 1000);
+        const nowTs = Math.floor(Date.now() / 1000);
+        const maxRange = 2592000; // 30 days in seconds
+        const clampedSince =
+          sinceTs < nowTs - maxRange ? nowTs - maxRange : sinceTs;
+        params.since = clampedSince;
       }
 
       const response = await this.httpClient.get(`/${pageId}/posts`, {

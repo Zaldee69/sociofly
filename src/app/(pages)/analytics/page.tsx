@@ -125,6 +125,12 @@ const Analytics: React.FC = () => {
                 engagementRate: accountInsight?.engagementRate,
                 avgReachPerPost: accountInsight?.avgReachPerPost,
                 followerGrowth: accountInsight?.followerGrowth as any,
+                followersGrowthPercent:
+                  accountInsight?.followersGrowthPercent || 0,
+                mediaGrowthPercent: accountInsight?.mediaGrowthPercent || 0,
+                engagementGrowthPercent:
+                  accountInsight?.engagementGrowthPercent || 0,
+                reachGrowthPercent: accountInsight?.reachGrowthPercent || 0,
               }}
               stats={stats}
               isLoading={isLoadingAccountInsight || isLoadingStats}

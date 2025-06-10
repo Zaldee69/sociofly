@@ -361,15 +361,26 @@ model PostAnalyticsDemographics {
 }
 
 model AccountAnalytics {
-  id              String        @id @default(cuid())
+  id              String   @id @default(cuid())
   socialAccountId String
-  recordedAt      DateTime      @default(now())
+  recordedAt      DateTime @default(now())
   followersCount  Int
   mediaCount      Int
-  engagementRate  Float         @default(0)
-  avgReachPerPost Int           @default(0)
+  engagementRate  Float    @default(0)
+  avgReachPerPost Int      @default(0)
   followerGrowth  Json
-  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  // New comparison fields
+  previousFollowersCount  Int?   @default(0)
+  previousMediaCount      Int?   @default(0)
+  previousEngagementRate  Float? @default(0)
+  previousAvgReachPerPost Int?   @default(0)
+  followersGrowthPercent  Float? @default(0)
+  mediaGrowthPercent      Float? @default(0)
+  engagementGrowthPercent Float? @default(0)
+  reachGrowthPercent      Float? @default(0)
+
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
 
   @@index([socialAccountId])
   @@index([recordedAt])

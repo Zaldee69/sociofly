@@ -3,6 +3,7 @@ import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { OnboardingStatus, Role, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
+import { SchedulerService } from "@/lib/services/scheduler.service";
 
 const onboardingSchema = z.object({
   userType: z.enum(["solo", "team"]),
@@ -233,7 +234,8 @@ export const onboardingRouter = createTRPCRouter({
         if (pagesData && pagesData.length > 0) {
           for (const page of pagesData) {
             try {
-              await ctx.prisma.socialAccount.create({
+              // After creating the social account, fetch initial insights
+              const socialAccount = await ctx.prisma.socialAccount.create({
                 data: {
                   platform: page.platform,
                   accessToken: page.accessToken,
@@ -246,6 +248,11 @@ export const onboardingRouter = createTRPCRouter({
               });
               console.log(
                 `Created social account: ${page.platform} - ${page.name}`
+              );
+
+              // Fetch initial insights for the newly created social account
+              await SchedulerService.fetchInitialAccountInsights(
+                socialAccount.id
               );
             } catch (error) {
               console.error(`Error creating social account:`, error);

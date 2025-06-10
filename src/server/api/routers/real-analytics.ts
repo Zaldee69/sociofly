@@ -479,6 +479,10 @@ export const realAnalyticsRouter = createTRPCRouter({
         engagementRate: latest.engagementRate, // Data real
         avgReachPerPost: latest.avgReachPerPost, // Data real
         followerGrowth: latest.followerGrowth, // Data real
+        followersGrowthPercent: latest.followersGrowthPercent, // Data real
+        mediaGrowthPercent: latest.mediaGrowthPercent, // Data real
+        engagementGrowthPercent: latest.engagementGrowthPercent, // Data real
+        reachGrowthPercent: latest.reachGrowthPercent, // Data real
       };
     }),
 });

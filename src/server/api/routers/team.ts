@@ -7,6 +7,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { Role, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
+import { SchedulerService } from "@/lib/services/scheduler.service";
 
 export const teamRouter = createTRPCRouter({
   // Get all teams user is a member of
@@ -773,7 +774,8 @@ export const teamRouter = createTRPCRouter({
         }
       }
 
-      return ctx.prisma.socialAccount.create({
+      // After creating the social account, fetch initial insights
+      const socialAccount = await ctx.prisma.socialAccount.create({
         data: {
           platform: input.platform,
           accessToken: input.accessToken,
@@ -794,6 +796,11 @@ export const teamRouter = createTRPCRouter({
           },
         },
       });
+
+      // Fetch initial insights for the newly created social account
+      await SchedulerService.fetchInitialAccountInsights(socialAccount.id);
+
+      return socialAccount;
     }),
 
   // Remove a social account
@@ -831,11 +838,23 @@ export const teamRouter = createTRPCRouter({
         });
       }
 
-      return ctx.prisma.socialAccount.delete({
+      // Before deleting the social account, delete related analytics data
+      await ctx.prisma.accountAnalytics.deleteMany({
+        where: {
+          socialAccountId: input.accountId,
+        },
+      });
+
+      // Now delete the social account
+      await ctx.prisma.socialAccount.delete({
         where: {
           id: input.accountId,
         },
       });
+
+      return {
+        success: true,
+      };
     }),
 
   // Update a team member's role
