@@ -145,11 +145,11 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
         </Card>
       </div>
 
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle>Follower Growth</CardTitle>
         </CardHeader>
-        {/* <CardContent>
+        <CardContent>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={accountInsight.followerGrowth || []}>
@@ -167,8 +167,8 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </CardContent> */}
-      </Card>
+        </CardContent>
+      </Card> */}
     </section>
   );
 };

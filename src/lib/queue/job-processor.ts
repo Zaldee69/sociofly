@@ -54,6 +54,8 @@ export class JobProcessor {
           data as SocialMediaSyncJobData
         );
 
+      case JobType.COLLECT_POSTS_ANALYTICS:
+
       default:
         throw new Error(`Unknown job type: ${jobType}`);
     }
@@ -65,13 +67,54 @@ export class JobProcessor {
   private static async processPublishPost(
     data: PublishPostJobData
   ): Promise<any> {
-    console.log(`📝 Publishing post ${data.postId} to ${data.platform}`);
-
-    if (!data.postId || !data.platform) {
-      throw new Error("Post ID and platform are required");
-    }
+    console.log(
+      `📝 Processing publish job with data:`,
+      JSON.stringify(data, null, 2)
+    );
 
     try {
+      // Handle batch processing mode for recurring cron jobs
+      if (data.postId === "batch_due_posts") {
+        console.log(`📋 Processing all due posts in batch mode`);
+        // Import SchedulerService here to avoid circular dependencies
+        const { SchedulerService } = await import(
+          "@/lib/services/scheduler.service"
+        );
+        const result = await SchedulerService.processDuePublications();
+
+        return {
+          action: "batch_due_posts",
+          result,
+        };
+      }
+
+      // Handle case where data is incomplete or from old recurring jobs
+      if (
+        !data.postId ||
+        !data.platform ||
+        data.postId === "undefined" ||
+        data.platform === "undefined"
+      ) {
+        console.warn(
+          `⚠️  Received incomplete job data, falling back to batch processing:`,
+          data
+        );
+        // Import SchedulerService here to avoid circular dependencies
+        const { SchedulerService } = await import(
+          "@/lib/services/scheduler.service"
+        );
+        const result = await SchedulerService.processDuePublications();
+
+        return {
+          action: "fallback_batch_processing",
+          originalData: data,
+          result,
+        };
+      }
+
+      // Individual post processing
+      console.log(`📝 Publishing post ${data.postId} to ${data.platform}`);
+
       // Use the refactored PostPublisherService for specific post publishing
       if (data.socialAccountId) {
         // Publish to specific platform
@@ -104,7 +147,7 @@ export class JobProcessor {
         };
       }
     } catch (error) {
-      console.error(`❌ Failed to publish post ${data.postId}:`, error);
+      console.error(`❌ Failed to process publish job:`, error);
       throw error;
     }
   }

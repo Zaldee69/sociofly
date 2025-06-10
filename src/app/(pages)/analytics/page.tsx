@@ -83,7 +83,7 @@ const Analytics: React.FC = () => {
             </div>
 
             {/* Account-level Insights */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {/* <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {isLoadingAccountInsight ? (
                 <div className="col-span-full flex justify-center py-6">
                   <Loader2 className="animate-spin w-6 h-6 text-muted-foreground" />
@@ -116,7 +116,7 @@ const Analytics: React.FC = () => {
                   Select an account to view insights.
                 </div>
               )}
-            </div>
+            </div> */}
 
             <OverviewSection
               accountInsight={{

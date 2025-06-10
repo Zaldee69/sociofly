@@ -53,7 +53,7 @@ export class CronManager {
       const jobConfigs: CronJobConfig[] = [
         {
           name: "publish_due_posts",
-          schedule: "*/5 * * * *", // Every 5 minutes
+          schedule: "*/1 * * * *", // Every 1 minute
           description: "Publish posts that are due for publication",
           enabled: process.env.CRON_PUBLISH_ENABLED !== "false",
           useQueue: this.useQueues,
@@ -176,7 +176,7 @@ export class CronManager {
 
     this.jobStatuses.set(config.name, true);
     console.log(
-      `🕒 Registered ${config.useQueue ? "queue" : "cron"} job: ${config.name} (${config.schedule}) - ${config.description}`
+      `🕒 Registered ${config.useQueue && this.queueManager ? "queue" : "cron"} job: ${config.name} (${config.schedule}) - ${config.description}`
     );
   }
 
@@ -189,21 +189,87 @@ export class CronManager {
     }
 
     try {
-      await this.queueManager.scheduleRecurringJob(
-        config.queueName,
-        config.jobType,
-        {
-          checkType: "quick" as any, // For health checks
-          olderThanDays: 30, // For cleanup jobs
-        } as any, // Temporary fix for type compatibility
-        config.schedule,
-        {
-          attempts: 3,
-          backoff: { type: "exponential", delay: 2000 },
-          removeOnComplete: 10,
-          removeOnFail: 5,
+      // For publish_due_posts, we should execute the scheduler service directly
+      // Instead of creating individual PUBLISH_POST jobs with incomplete data
+      if (config.name === "publish_due_posts") {
+        await this.queueManager.scheduleRecurringJob(
+          config.queueName,
+          config.jobType,
+          {
+            postId: "batch_due_posts", // Special identifier for batch processing
+            userId: "system",
+            platform: "all",
+            scheduledAt: new Date(),
+            content: {
+              text: `Batch processing of due posts (batch size: ${process.env.CRON_BATCH_SIZE || "3"})`,
+              hashtags: ["cron", "batch"],
+            },
+          },
+          config.schedule,
+          {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 2000 },
+            removeOnComplete: 10,
+            removeOnFail: 5,
+          }
+        );
+      } else {
+        // For other jobs, use appropriate job data
+        let jobData: any = {};
+
+        switch (config.jobType) {
+          case JobType.CHECK_EXPIRED_TOKENS:
+            jobData = {
+              userId: "system",
+              platform: "all",
+            };
+            break;
+          case JobType.SYSTEM_HEALTH_CHECK:
+            jobData = {
+              checkType: "quick",
+              alertThreshold: 70,
+            };
+            break;
+          case JobType.CLEANUP_OLD_LOGS:
+            jobData = {
+              olderThanDays: 30,
+              logType: "all",
+            };
+            break;
+          case JobType.ANALYZE_HOTSPOTS:
+            jobData = {
+              action: "analyze_all_accounts",
+            };
+            break;
+          case JobType.ANALYZE_ACCOUNT_INSIGHTS:
+            jobData = {
+              action: "fetch_all_insights",
+            };
+            break;
+          case JobType.COLLECT_POSTS_ANALYTICS:
+            jobData = {
+              action: "collect_analytics",
+            };
+            break;
+          default:
+            jobData = {
+              action: config.name,
+            };
         }
-      );
+
+        await this.queueManager.scheduleRecurringJob(
+          config.queueName,
+          config.jobType,
+          jobData,
+          config.schedule,
+          {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 2000 },
+            removeOnComplete: 10,
+            removeOnFail: 5,
+          }
+        );
+      }
 
       console.log(
         `📋 Scheduled queue job: ${config.name} in queue ${config.queueName}`

@@ -82,6 +82,39 @@ export interface SocialMediaSyncJobData {
   lastSyncAt?: Date;
 }
 
+export interface CollectPostsAnalyticsJobData {
+  userId?: string;
+  teamId?: string;
+  platform?: string;
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
+  postIds?: string[]; // Specific posts to analyze
+  syncType: "all" | "recent" | "specific";
+}
+
+export interface AnalyzeHotspotsJobData {
+  userId?: string;
+  teamId?: string;
+  socialAccountId?: string;
+  platform?: string;
+  analyzePeriod: "week" | "month" | "quarter";
+}
+
+export interface AnalyzeAccountInsightsJobData {
+  userId: string;
+  teamId?: string;
+  socialAccountId: string;
+  platform: string;
+  insightTypes: (
+    | "demographics"
+    | "engagement"
+    | "growth"
+    | "content_performance"
+  )[];
+}
+
 // Union type for all job data
 export type JobData =
   | PublishPostJobData
@@ -92,7 +125,10 @@ export type JobData =
   | SendNotificationJobData
   | ProcessWebhookJobData
   | GenerateReportJobData
-  | SocialMediaSyncJobData;
+  | SocialMediaSyncJobData
+  | CollectPostsAnalyticsJobData
+  | AnalyzeHotspotsJobData
+  | AnalyzeAccountInsightsJobData;
 
 // Job options interface
 export interface JobOptions {
