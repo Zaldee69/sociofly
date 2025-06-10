@@ -11,6 +11,7 @@ export enum JobType {
   SOCIAL_MEDIA_SYNC = "social_media_sync",
   ANALYZE_HOTSPOTS = "analyze_hotspots",
   ANALYZE_ACCOUNT_INSIGHTS = "analyze_account_insights",
+  COLLECT_POSTS_ANALYTICS = "collect_posts_analytics",
 }
 
 // Job data interfaces

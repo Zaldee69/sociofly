@@ -67,6 +67,10 @@ export class JobProcessor {
   ): Promise<any> {
     console.log(`📝 Publishing post ${data.postId} to ${data.platform}`);
 
+    if (!data.postId || !data.platform) {
+      throw new Error("Post ID and platform are required");
+    }
+
     try {
       // Use the refactored PostPublisherService for specific post publishing
       if (data.socialAccountId) {

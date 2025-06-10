@@ -4,6 +4,7 @@ import { JobType } from "@/lib/queue/job-types";
 import { SchedulerService } from "./scheduler.service";
 import { prisma } from "@/lib/prisma/client";
 import { checkRedisConnection } from "@/lib/queue/redis-connection";
+import { RealSocialAnalyticsService } from "./social-analytics/real-analytics-service";
 
 interface CronJobConfig {
   name: string;
@@ -119,6 +120,16 @@ export class CronManager {
           queueName: QueueManager.QUEUES.MAINTENANCE,
           jobType: JobType.ANALYZE_ACCOUNT_INSIGHTS,
           handler: this.handleAccountInsights,
+        },
+        {
+          name: "collect_analytics",
+          schedule: "0 6 * * *", // Daily at 6 AM
+          description: "Collect analytics for all posts",
+          enabled: process.env.CRON_COLLECT_ANALYTICS_ENABLED !== "false",
+          useQueue: this.useQueues,
+          queueName: QueueManager.QUEUES.MAINTENANCE,
+          jobType: JobType.COLLECT_POSTS_ANALYTICS,
+          handler: this.handleCollectPostsAnalytics,
         },
       ];
 
@@ -296,6 +307,11 @@ export class CronManager {
 
   private static async handleAccountInsights(): Promise<any> {
     return await SchedulerService.runAccountInsightsForAllAccounts();
+  }
+
+  private static async handleCollectPostsAnalytics(): Promise<any> {
+    const realAnalyticsService = new RealSocialAnalyticsService(prisma);
+    return await realAnalyticsService.scheduleAnalyticsCollection();
   }
 
   /**
@@ -505,6 +521,7 @@ export class CronManager {
       cleanup_old_logs: this.handleCleanupOldLogs,
       analyze_engagement_hotspots: this.handleAnalyzeHotspots,
       fetch_account_insights: this.handleAccountInsights,
+      collect_analytics: this.handleCollectPostsAnalytics,
     };
 
     const handler = jobHandlers[jobName];

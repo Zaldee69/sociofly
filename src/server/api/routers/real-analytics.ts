@@ -2,7 +2,6 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { RealSocialAnalyticsService } from "../../../lib/services/social-analytics/real-analytics-service";
-import axios from "axios";
 
 export const realAnalyticsRouter = createTRPCRouter({
   /**

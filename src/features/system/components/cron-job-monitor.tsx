@@ -235,6 +235,9 @@ export function CronJobMonitor() {
       system_health_check: "Monitor system health and log metrics",
       cleanup_old_logs: "Clean up old cron logs (keep last 30 days)",
       analyze_engagement_hotspots: "Analyze social media engagement hotspots",
+      fetch_account_insights:
+        "Fetch account-level insights for all social accounts",
+      collect_analytics: "Collect analytics for all posts",
     };
     return descriptions[jobName] || "Unknown job";
   };
@@ -248,6 +251,8 @@ export function CronJobMonitor() {
       system_health_check: "Every 15 minutes",
       cleanup_old_logs: "Weekly on Sunday at 3 AM",
       analyze_engagement_hotspots: "Daily at 4 AM",
+      fetch_account_insights: "Daily at 5 AM",
+      collect_analytics: "Daily at 6 AM",
     };
     return schedules[jobName] || "Unknown schedule";
   };

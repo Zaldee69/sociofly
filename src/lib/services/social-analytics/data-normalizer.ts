@@ -176,17 +176,6 @@ export class SocialMediaDataNormalizer {
     const engagementRate = reach > 0 ? (totalEngagement / reach) * 100 : 0;
     const roundedEngagementRate = Math.round(engagementRate * 100) / 100;
 
-    console.log(`📊 Instagram: Normalized data for ${mediaData.id}:`, {
-      views,
-      reach,
-      likes,
-      comments,
-      shares,
-      saves,
-      totalEngagement,
-      engagementRate: roundedEngagementRate,
-    });
-
     return {
       postId,
       platform: SocialPlatform.INSTAGRAM,
@@ -221,16 +210,6 @@ export class SocialMediaDataNormalizer {
     if (data.shares < 0) errors.push("Shares cannot be negative");
     if (data.reach < 0) errors.push("Reach cannot be negative");
     if (data.impressions < 0) errors.push("Impressions cannot be negative");
-    // if (data.engagement < 0 || data.engagement > 100) {
-    //   // Convert decimal engagement rate to percentage if needed
-    //   if (data.engagement <= 1) {
-    //     data.engagement = data.engagement * 100;
-    //   }
-    //   // If still invalid after conversion, report error
-    //   if (data.engagement < 0 || data.engagement > 100) {
-    //     errors.push("Engagement rate must be between 0 and 100");
-    //   }
-    // }
 
     // Logical validation
     if (data.reach > data.impressions && data.impressions > 0) {

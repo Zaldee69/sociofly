@@ -21,6 +21,7 @@ async function checkStatus() {
   try {
     console.log('\n🔍 Checking Queue Status...');
     const status = await execPromise(`curl -s "http://localhost:${PORT}/api/queue-manager?action=status&apiKey=${API_KEY}"`);
+    console.log(status)
     const statusData = JSON.parse(status);
     
     if (statusData.success) {
