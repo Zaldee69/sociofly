@@ -1,9 +1,9 @@
 #!/usr/bin/env tsx
 
-import { EnhancedCronManager } from "../src/lib/services/enhanced-cron-manager";
-import { QueueManager } from "../src/lib/queue/queue-manager";
-import { JobType } from "../src/lib/queue/job-types";
-import { checkRedisConnection } from "../src/lib/queue/redis-connection";
+import { CronManager } from "../../src/lib/services/cron-manager";
+import { QueueManager } from "../../src/lib/queue/queue-manager";
+import { JobType } from "../../src/lib/queue/job-types";
+import { checkRedisConnection } from "@/lib/queue/redis-connection";
 
 async function testBullMQIntegration() {
   console.log("🧪 Testing BullMQ Integration...\n");
@@ -22,21 +22,21 @@ async function testBullMQIntegration() {
 
     // Test 2: Initialize Enhanced Cron Manager
     console.log("2️⃣ Testing Enhanced Cron Manager Initialization...");
-    await EnhancedCronManager.initialize();
+    await CronManager.initialize();
     console.log("✅ Enhanced Cron Manager initialized successfully\n");
 
     // Test 3: Check Enhanced Status
     console.log("3️⃣ Testing Enhanced Status...");
-    const status = await EnhancedCronManager.getEnhancedStatus();
+    const status = await CronManager.getStatus();
     console.log("📊 Enhanced Status:", JSON.stringify(status, null, 2));
     console.log("✅ Status retrieved successfully\n");
 
-    if (redisAvailable && EnhancedCronManager.isUsingQueues()) {
+    if (redisAvailable && CronManager.isUsingQueues()) {
       console.log("🚀 Redis available - Testing BullMQ features...\n");
 
       // Test 4: Queue Manager Access
       console.log("4️⃣ Testing Queue Manager Access...");
-      const queueManager = EnhancedCronManager.getQueueManager();
+      const queueManager = CronManager.getQueueManager();
 
       if (queueManager) {
         console.log("✅ Queue Manager accessible");
@@ -55,7 +55,7 @@ async function testBullMQIntegration() {
 
         // Test Post Publishing Job
         console.log("📝 Queuing Post Publishing Job...");
-        await EnhancedCronManager.queueJob(
+        await CronManager.queueJob(
           QueueManager.QUEUES.SCHEDULER,
           JobType.PUBLISH_POST,
           {
@@ -78,7 +78,7 @@ async function testBullMQIntegration() {
 
         // Test Health Check Job
         console.log("🏥 Queuing Health Check Job...");
-        await EnhancedCronManager.queueJob(
+        await CronManager.queueJob(
           QueueManager.QUEUES.MAINTENANCE,
           JobType.SYSTEM_HEALTH_CHECK,
           {
@@ -94,7 +94,7 @@ async function testBullMQIntegration() {
 
         // Test Notification Job
         console.log("📧 Queuing Notification Job...");
-        await EnhancedCronManager.queueJob(
+        await CronManager.queueJob(
           QueueManager.QUEUES.NOTIFICATIONS,
           JobType.SEND_NOTIFICATION,
           {
@@ -117,7 +117,7 @@ async function testBullMQIntegration() {
 
         // Test Cleanup Job
         console.log("🧹 Queuing Cleanup Job...");
-        await EnhancedCronManager.queueJob(
+        await CronManager.queueJob(
           QueueManager.QUEUES.MAINTENANCE,
           JobType.CLEANUP_OLD_LOGS,
           {
@@ -183,7 +183,7 @@ async function testBullMQIntegration() {
 
     // Test 9: Final Status Check
     console.log("\n9️⃣ Final Status Check...");
-    const finalStatus = await EnhancedCronManager.getEnhancedStatus();
+    const finalStatus = await CronManager.getStatus();
     console.log("📊 Final Enhanced Status:");
     console.log(`   - Initialized: ${finalStatus.initialized}`);
     console.log(`   - Using Queues: ${finalStatus.useQueues}`);
@@ -203,10 +203,10 @@ async function testBullMQIntegration() {
     console.log("\n🎉 BullMQ Integration Test Summary:");
     console.log(`   - Redis Available: ${redisAvailable ? "Yes" : "No"}`);
     console.log(
-      `   - BullMQ Active: ${EnhancedCronManager.isUsingQueues() ? "Yes" : "No"}`
+      `   - BullMQ Active: ${CronManager.isUsingQueues() ? "Yes" : "No"}`
     );
     console.log(
-      `   - Fallback Mode: ${!EnhancedCronManager.isUsingQueues() ? "Yes (node-cron only)" : "No"}`
+      `   - Fallback Mode: ${!CronManager.isUsingQueues() ? "Yes (node-cron only)" : "No"}`
     );
     console.log(`   - Enhanced Cron Manager: Working`);
     console.log(

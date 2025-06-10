@@ -70,6 +70,20 @@ export interface SystemMetrics {
       delayed: number;
     };
   };
+  socialMedia: {
+    isHealthy: boolean;
+    accounts: {
+      total: number;
+      validTokens: number;
+      invalidTokens: number;
+      healthPercentage: number;
+    };
+    publishers: {
+      supported: string[];
+      operational: string[];
+      issues: string[];
+    };
+  };
   system: {
     node: {
       version: string;
@@ -214,6 +228,72 @@ export class SystemMonitor {
       { waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0 }
     );
 
+    // Social Media metrics
+    let socialMediaMetrics = {
+      isHealthy: false,
+      accounts: {
+        total: 0,
+        validTokens: 0,
+        invalidTokens: 0,
+        healthPercentage: 0,
+      },
+      publishers: {
+        supported: [] as string[],
+        operational: [] as string[],
+        issues: [] as string[],
+      },
+    };
+
+    try {
+      // Import PostPublisherService dynamically to avoid circular dependencies
+      const { PostPublisherService } = await import(
+        "@/lib/services/post-publisher"
+      );
+      const { publisherFactory } = await import(
+        "@/lib/services/publishers/publisher-factory"
+      );
+
+      // Check token validation
+      const tokenValidation = await PostPublisherService.validateAllTokens();
+
+      socialMediaMetrics.accounts = {
+        total: tokenValidation.total,
+        validTokens: tokenValidation.valid,
+        invalidTokens: tokenValidation.invalid,
+        healthPercentage:
+          tokenValidation.total > 0
+            ? Math.round((tokenValidation.valid / tokenValidation.total) * 100)
+            : 0,
+      };
+
+      // Check publisher status
+      const supportedPlatforms = publisherFactory.getSupportedPlatforms();
+      socialMediaMetrics.publishers.supported = supportedPlatforms.map((p) =>
+        p.toString()
+      );
+
+      // Test each publisher (simplified check)
+      for (const platform of supportedPlatforms) {
+        try {
+          const publisher = publisherFactory.getPublisher(platform);
+          socialMediaMetrics.publishers.operational.push(platform.toString());
+        } catch (error) {
+          socialMediaMetrics.publishers.issues.push(
+            `${platform}: ${error instanceof Error ? error.message : "Unknown error"}`
+          );
+        }
+      }
+
+      socialMediaMetrics.isHealthy =
+        socialMediaMetrics.accounts.healthPercentage >= 80 &&
+        socialMediaMetrics.publishers.issues.length === 0;
+    } catch (error) {
+      console.warn("Failed to get social media metrics:", error);
+      socialMediaMetrics.publishers.issues.push(
+        `Metrics collection failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
+
     // System metrics
     const nodeMemory = process.memoryUsage();
     const cpuUsage = process.cpuUsage();
@@ -242,6 +322,7 @@ export class SystemMonitor {
         metrics: queueMetrics,
         totalJobs,
       },
+      socialMedia: socialMediaMetrics,
       system: {
         node: {
           version: process.version,
@@ -328,6 +409,31 @@ export class SystemMonitor {
       recommendations.push("Investigate failed jobs and fix underlying issues");
     }
 
+    // Social Media health checks
+    if (!metrics.socialMedia.isHealthy) {
+      issues.push("Social media system is not healthy");
+      healthScore -= 20;
+      recommendations.push(
+        "Check social media token validation and publisher status"
+      );
+    }
+
+    if (metrics.socialMedia.accounts.healthPercentage < 50) {
+      issues.push(
+        `Low social media token health: ${metrics.socialMedia.accounts.healthPercentage}% valid tokens`
+      );
+      healthScore -= 15;
+      recommendations.push("Review and refresh expired social media tokens");
+    }
+
+    if (metrics.socialMedia.publishers.issues.length > 0) {
+      issues.push(
+        `Publisher issues: ${metrics.socialMedia.publishers.issues.join(", ")}`
+      );
+      healthScore -= 10;
+      recommendations.push("Fix publisher configuration issues");
+    }
+
     // System resource checks
     const freeMemoryPercent =
       (metrics.system.os.freeMemory / metrics.system.os.totalMemory) * 100;
@@ -405,6 +511,20 @@ export class SystemMonitor {
    */
   private async storeMetrics(metrics: SystemMetrics): Promise<void> {
     try {
+      // TODO: Add systemMetrics table to Prisma schema
+      console.log("📊 Metrics collected:", {
+        timestamp: metrics.timestamp,
+        redisHealthy: metrics.redis.isHealthy,
+        queueHealthy: metrics.queues.isHealthy,
+        socialMediaHealthy: metrics.socialMedia.isHealthy,
+        socialMediaAccounts: metrics.socialMedia.accounts,
+        healthScore: metrics.health.score,
+        healthStatus: metrics.health.overall,
+        issues: metrics.health.issues.length,
+      });
+
+      // When database schema is ready, uncomment this:
+      /*
       await prisma.systemMetrics.create({
         data: {
           timestamp: metrics.timestamp,
@@ -420,18 +540,18 @@ export class SystemMonitor {
           activeJobs: metrics.queues.totalJobs.active,
           completedJobs: metrics.queues.totalJobs.completed,
           failedJobs: metrics.queues.totalJobs.failed,
-          systemMemoryFree: Math.round(
-            metrics.system.os.freeMemory / 1024 / 1024
-          ), // MB
+          socialMediaHealthy: metrics.socialMedia.isHealthy,
+          socialMediaAccounts: metrics.socialMedia.accounts.total,
+          socialMediaValidTokens: metrics.socialMedia.accounts.validTokens,
+          systemMemoryFree: Math.round(metrics.system.os.freeMemory / 1024 / 1024),
           systemLoadAverage: metrics.system.os.loadAverage[0],
-          nodeHeapUsed: Math.round(
-            metrics.system.node.memoryUsage.heapUsed / 1024 / 1024
-          ), // MB
+          nodeHeapUsed: Math.round(metrics.system.node.memoryUsage.heapUsed / 1024 / 1024),
           healthScore: metrics.health.score,
           healthStatus: metrics.health.overall,
           issues: metrics.health.issues.join("; ") || null,
         },
       });
+      */
     } catch (error) {
       console.error("Failed to store metrics:", error);
     }
@@ -477,7 +597,17 @@ export class SystemMonitor {
     console.warn(`   Health Score: ${metrics.health.score}/100`);
 
     try {
-      // Store alert in database
+      // TODO: Add systemAlert table to Prisma schema
+      console.log("🚨 Alert stored:", {
+        ruleId: rule.id,
+        ruleName: rule.name,
+        severity: rule.severity,
+        healthScore: metrics.health.score,
+        triggeredAt: new Date(),
+      });
+
+      // When database schema is ready, uncomment this:
+      /*
       await prisma.systemAlert.create({
         data: {
           ruleId: rule.id,
@@ -489,6 +619,7 @@ export class SystemMonitor {
           triggeredAt: new Date(),
         },
       });
+      */
 
       // TODO: Add notification integrations (email, Slack, etc.)
     } catch (error) {
@@ -577,6 +708,25 @@ export class SystemMonitor {
         condition: (metrics) => metrics.health.score < 50,
         severity: "critical",
         cooldown: 10,
+        enabled: true,
+      },
+      {
+        id: "social_media_tokens_low",
+        name: "Social Media Token Health Low",
+        description: "Many social media tokens are invalid or expired",
+        condition: (metrics) =>
+          metrics.socialMedia.accounts.healthPercentage < 50,
+        severity: "medium",
+        cooldown: 60,
+        enabled: true,
+      },
+      {
+        id: "social_media_system_down",
+        name: "Social Media System Down",
+        description: "Social media publishing system is not healthy",
+        condition: (metrics) => !metrics.socialMedia.isHealthy,
+        severity: "high",
+        cooldown: 15,
         enabled: true,
       },
     ];

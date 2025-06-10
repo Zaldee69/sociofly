@@ -4,11 +4,11 @@ import {
   checkRedisConnection,
   getRedisClusterStatus,
   getRedisPerformanceMetrics,
-} from "../src/lib/queue/redis-cluster-connection";
-import { SystemMonitor } from "../src/lib/monitoring/system-monitor";
-import { WorkerAutoScaler } from "../src/lib/scaling/worker-autoscaler";
-import { QueueManager } from "../src/lib/queue/queue-manager";
-import { JobType } from "../src/lib/queue/job-types";
+} from "@/lib/queue/redis-cluster-connection";
+import { SystemMonitor } from "@/lib/monitoring/system-monitor";
+import { WorkerAutoScaler } from "@/lib/scaling/worker-autoscaler";
+import { QueueManager } from "@/lib/queue/queue-manager";
+import { JobType } from "@/lib/queue/job-types";
 
 async function testRedisCluster() {
   console.log("🧪 Testing Redis Cluster Integration...\n");

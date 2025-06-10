@@ -68,18 +68,37 @@ export class JobProcessor {
     console.log(`📝 Publishing post ${data.postId} to ${data.platform}`);
 
     try {
-      // Use existing scheduler service to publish post
-      const result = await SchedulerService.processDuePublications();
+      // Use the refactored PostPublisherService for specific post publishing
+      if (data.socialAccountId) {
+        // Publish to specific platform
+        const result = await PostPublisherService.publishToSocialMedia(
+          data.postId,
+          data.socialAccountId
+        );
 
-      // You can add more specific logic here for individual post publishing
-      // For now, we'll use the existing bulk processing logic
+        return {
+          postId: data.postId,
+          platform: data.platform,
+          socialAccountId: data.socialAccountId,
+          status: result.success ? "published" : "failed",
+          result,
+        };
+      } else {
+        // Publish to all platforms for this post
+        const results = await PostPublisherService.publishToAllPlatforms(
+          data.postId
+        );
+        const successCount = results.filter((r) => r.success).length;
 
-      return {
-        postId: data.postId,
-        platform: data.platform,
-        status: "published",
-        result,
-      };
+        return {
+          postId: data.postId,
+          platform: data.platform,
+          status: successCount > 0 ? "published" : "failed",
+          results,
+          successCount,
+          totalCount: results.length,
+        };
+      }
     } catch (error) {
       console.error(`❌ Failed to publish post ${data.postId}:`, error);
       throw error;
@@ -122,12 +141,21 @@ export class JobProcessor {
     console.log(`🔐 Checking expired tokens`);
 
     try {
-      const result = await SchedulerService.checkExpiredTokens();
+      // Use both the old method and new token validation
+      const schedulerResult = await SchedulerService.checkExpiredTokens();
+      const validationResult = await PostPublisherService.validateAllTokens();
 
       return {
         userId: data.userId,
         platform: data.platform,
-        result,
+        schedulerResult,
+        validationResult,
+        summary: {
+          totalAccounts: validationResult.total,
+          validTokens: validationResult.valid,
+          invalidTokens: validationResult.invalid,
+          expiredFromScheduler: schedulerResult,
+        },
       };
     } catch (error) {
       console.error(`❌ Failed to check expired tokens:`, error);

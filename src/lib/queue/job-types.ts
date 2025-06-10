@@ -19,6 +19,7 @@ export interface PublishPostJobData {
   userId: string;
   platform: string;
   scheduledAt: Date;
+  socialAccountId?: string; // Optional: if specified, publish only to this account
   content: {
     text?: string;
     media?: string[];

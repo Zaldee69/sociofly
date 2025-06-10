@@ -1,24 +1,16 @@
 import { FacebookAdsApi, User, Page } from "facebook-nodejs-business-sdk";
-import { SocialAccount, SocialPlatform } from "@prisma/client";
+import { SocialPlatform } from "@prisma/client";
 import { prisma } from "@/lib/prisma/client";
+import { BasePublisher } from "./base-publisher";
+import { SocialAccountWithRelations, PublishResult } from "./types";
 
-export interface PublishResult {
-  success: boolean;
-  error?: string;
-  platformPostId?: string;
-  platform: SocialPlatform;
-}
+export class FacebookPublisher extends BasePublisher {
+  readonly platform = SocialPlatform.FACEBOOK;
 
-export interface SocialAccountWithRelations extends SocialAccount {
-  platform: SocialPlatform;
-  accessToken: string;
-}
-
-export class FacebookPublisher {
   /**
-   * Static publish method to match SocialMediaPublisher interface
+   * Publish method implementation for SocialMediaPublisher interface
    */
-  static async publish(
+  async publish(
     socialAccount: SocialAccountWithRelations,
     content: string,
     mediaUrls: string[] = []
@@ -29,7 +21,7 @@ export class FacebookPublisher {
   /**
    * Validate Facebook access token
    */
-  static async validateToken(
+  async validateToken(
     socialAccount: SocialAccountWithRelations
   ): Promise<boolean> {
     try {
@@ -46,7 +38,7 @@ export class FacebookPublisher {
   /**
    * Get token type (USER or PAGE) and basic info
    */
-  static async getTokenInfo(accessToken: string): Promise<{
+  async getTokenInfo(accessToken: string): Promise<{
     type: "USER" | "PAGE";
     id: string;
     name: string;
@@ -75,7 +67,7 @@ export class FacebookPublisher {
   /**
    * Get token permissions
    */
-  static async getTokenPermissions(accessToken: string): Promise<string[]> {
+  async getTokenPermissions(accessToken: string): Promise<string[]> {
     try {
       FacebookAdsApi.init(accessToken);
       const user = new User("me");
@@ -101,9 +93,8 @@ export class FacebookPublisher {
 
   /**
    * Validate Page token and get Page information
-   * Specifically for Page Access Tokens stored in database
    */
-  static async validatePageToken(
+  async validatePageToken(
     accessToken: string,
     pageId: string
   ): Promise<{
@@ -119,7 +110,6 @@ export class FacebookPublisher {
       FacebookAdsApi.init(accessToken);
       const page = new Page(pageId);
 
-      // Try to read page information
       const pageInfo = await page.read(["id", "name", "category"]);
 
       return {
@@ -148,7 +138,7 @@ export class FacebookPublisher {
   /**
    * Publish content to Facebook
    */
-  static async publishToFacebook(
+  private async publishToFacebook(
     socialAccount: SocialAccountWithRelations,
     content: string,
     mediaUrls: string[] = []
@@ -157,11 +147,9 @@ export class FacebookPublisher {
       // Validate token first
       const isTokenValid = await this.validateToken(socialAccount);
       if (!isTokenValid) {
-        return {
-          success: false,
-          error: "Facebook access token is invalid or expired",
-          platform: SocialPlatform.FACEBOOK,
-        };
+        return this.createErrorResult(
+          "Facebook access token is invalid or expired"
+        );
       }
 
       // Initialize Facebook API
@@ -176,36 +164,27 @@ export class FacebookPublisher {
         postId = await this.publishToProfile(content, mediaUrls);
       }
 
-      return {
-        success: true,
-        platformPostId: postId,
-        platform: SocialPlatform.FACEBOOK,
-      };
+      return this.createSuccessResult(postId);
     } catch (error) {
       console.error("Error publishing to Facebook:", error);
 
       // Check if error is due to expired/invalid token
       if (this.isTokenError(error)) {
-        return {
-          success: false,
-          error: "Facebook access token expired or invalid",
-          platform: SocialPlatform.FACEBOOK,
-        };
+        return this.createErrorResult(
+          "Facebook access token expired or invalid"
+        );
       }
 
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown Facebook error",
-        platform: SocialPlatform.FACEBOOK,
-      };
+      return this.createErrorResult(
+        error instanceof Error ? error.message : "Unknown Facebook error"
+      );
     }
   }
 
   /**
    * Publish to Facebook Page
    */
-  private static async publishToPage(
+  private async publishToPage(
     socialAccount: SocialAccountWithRelations,
     content: string,
     mediaUrls: string[]
@@ -297,7 +276,7 @@ export class FacebookPublisher {
   /**
    * Publish to User Profile (personal timeline)
    */
-  private static async publishToProfile(
+  private async publishToProfile(
     content: string,
     mediaUrls: string[]
   ): Promise<string> {
@@ -326,35 +305,9 @@ export class FacebookPublisher {
   }
 
   /**
-   * Check if error is related to token issues
-   */
-  private static isTokenError(error: any): boolean {
-    if (!error) return false;
-
-    const errorMessage = error.message?.toLowerCase() || "";
-    const errorCode = error.code;
-
-    // Common Facebook token error codes and messages
-    const tokenErrorCodes = [190, 463, 467, 102];
-    const tokenErrorMessages = [
-      "access_token",
-      "token",
-      "expired",
-      "invalid",
-      "permissions",
-      "authorization",
-    ];
-
-    return (
-      tokenErrorCodes.includes(errorCode) ||
-      tokenErrorMessages.some((msg) => errorMessage.includes(msg))
-    );
-  }
-
-  /**
    * Refresh page access token if needed
    */
-  static async refreshPageToken(
+  async refreshPageToken(
     socialAccount: SocialAccountWithRelations
   ): Promise<string | null> {
     try {

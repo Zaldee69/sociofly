@@ -13,7 +13,7 @@
     "test": "vitest",
     "test:cron": "npx tsx scripts/debug/test-cron.ts",
     "test:bullmq": "npx tsx scripts/debug/test-bullmq.ts",
-    "test:cluster": "ts-node scripts/debug/test-cluster.ts",
+    "test:cluster": "npx tsx scripts/debug/test-cluster.ts",
     "test:integration": "npx tsx scripts/debug/test-integration.ts",
     "test:facebook": "npx tsx scripts/debug/test-facebook-api.ts",
     "test:instagram": "npx tsx scripts/debug/test-instagram-api.ts",
