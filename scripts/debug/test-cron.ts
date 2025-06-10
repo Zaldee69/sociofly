@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
-import { CronManager } from "../src/lib/services/cron-manager";
-import { SchedulerService } from "../src/lib/services/scheduler.service";
+import { CronManager } from "../../src/lib/services/cron-manager";
+import { SchedulerService } from "../../src/lib/services/scheduler.service";
 
 async function testCronJobs() {
   console.log("🧪 Testing Cron Job System...\n");

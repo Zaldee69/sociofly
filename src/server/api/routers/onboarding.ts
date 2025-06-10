@@ -254,6 +254,7 @@ export const onboardingRouter = createTRPCRouter({
               await SchedulerService.fetchInitialAccountInsights(
                 socialAccount.id
               );
+              await SchedulerService.fetchInitialHeatmapData(socialAccount.id);
             } catch (error) {
               console.error(`Error creating social account:`, error);
               continue;

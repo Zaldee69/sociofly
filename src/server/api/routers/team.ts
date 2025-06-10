@@ -799,6 +799,7 @@ export const teamRouter = createTRPCRouter({
 
       // Fetch initial insights for the newly created social account
       await SchedulerService.fetchInitialAccountInsights(socialAccount.id);
+      await SchedulerService.fetchInitialHeatmapData(socialAccount.id);
 
       return socialAccount;
     }),

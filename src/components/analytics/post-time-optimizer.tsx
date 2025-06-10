@@ -69,7 +69,6 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
   teamId,
 }) => {
   const [showHeatmap, setShowHeatmap] = React.useState(false);
-  const [selectedDay, setSelectedDay] = React.useState<string | null>(null);
 
   // Fetch hotspot data using tRPC
   const { data: hotspots, isLoading } = trpc.hotspots.getHotspots.useQuery({
@@ -181,11 +180,6 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
       (best, current) => (current.score > best.score ? current : best),
       validRecommendations[0]
     );
-  }, [dailyRecommendations]);
-
-  // Check if we have any valid data
-  const hasValidData = React.useMemo(() => {
-    return dailyRecommendations.some((rec) => rec.score > 0);
   }, [dailyRecommendations]);
 
   // Calculate average engagement and difference

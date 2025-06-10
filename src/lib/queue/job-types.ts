@@ -9,6 +9,8 @@ export enum JobType {
   PROCESS_WEBHOOK = "process_webhook",
   GENERATE_REPORT = "generate_report",
   SOCIAL_MEDIA_SYNC = "social_media_sync",
+  ANALYZE_HOTSPOTS = "analyze_hotspots",
+  ANALYZE_ACCOUNT_INSIGHTS = "analyze_account_insights",
 }
 
 // Job data interfaces

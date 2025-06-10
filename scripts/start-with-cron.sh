@@ -31,7 +31,7 @@ initialize_cron() {
         # Check status
         status=$(curl -s "localhost:3000/api/cron-manager?action=status&apiKey=test-scheduler-key" 2>/dev/null)
         running_count=$(echo "$status" | grep -o '"running":true' | wc -l)
-        echo "📊 Running jobs: $running_count/5"
+        echo "📊 Running jobs: $running_count/7"
         
         return 0
     else

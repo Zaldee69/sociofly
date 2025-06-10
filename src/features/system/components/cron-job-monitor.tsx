@@ -68,27 +68,53 @@ export function CronJobMonitor() {
 
       if (response.ok) {
         const data = await response.json();
-        setJobStatus(data.result);
+        // The API returns jobs in data.result.cronJobs array
+        const result = data.result;
+        if (result && Array.isArray(result.cronJobs)) {
+          setJobStatus(result.cronJobs);
+        } else if (Array.isArray(result)) {
+          // Fallback: if result is directly an array
+          setJobStatus(result);
+        } else {
+          console.warn("API returned unexpected format:", result);
+          setJobStatus([]); // Fallback to empty array
+        }
+      } else {
+        console.error("Failed to fetch job status:", response.status);
+        setJobStatus([]); // Fallback to empty array on error
       }
     } catch (error) {
       console.error("Error fetching job status:", error);
+      setJobStatus([]); // Fallback to empty array on error
     }
   };
 
-  // Fetch cron job statistics
+  // Fetch cron job statistics from actual job logs
   const fetchJobStats = async (hours: number = 24) => {
     try {
       const response = await fetch(
-        `/api/cron-manager?action=stats&hours=${hours}&apiKey=${apiKey}`
+        `/api/cron-manager?action=job_logs&apiKey=${apiKey}`
       );
 
       if (response.ok) {
         const data = await response.json();
+        // The job_logs endpoint returns the data in the correct format already
         setJobStats(data.result);
+        setLastUpdated(new Date());
+      } else {
+        const errorText = await response.text();
+        console.error(
+          `Failed to fetch job stats (${response.status}):`,
+          errorText
+        );
+
+        // For now, don't fail completely - just skip stats
+        setJobStats(null);
         setLastUpdated(new Date());
       }
     } catch (error) {
       console.error("Error fetching job stats:", error);
+      setJobStats(null);
     }
   };
 
@@ -109,9 +135,14 @@ export function CronJobMonitor() {
       });
 
       if (response.ok) {
+        const data = await response.json();
+        console.log(`✅ Job ${jobName} triggered successfully:`, data.result);
         await fetchJobStats(); // Refresh stats after triggering
       } else {
-        console.error("Failed to trigger job");
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Unknown error" }));
+        console.error(`❌ Failed to trigger job ${jobName}:`, errorData);
       }
     } catch (error) {
       console.error("Error triggering job:", error);
@@ -181,9 +212,12 @@ export function CronJobMonitor() {
     }
   };
 
-  const runningJobs = jobStatus.filter((job) => job.running).length;
-  const totalJobs = jobStatus.length;
+  // Ensure jobStatus is always an array before using array methods
+  const safeJobStatus = Array.isArray(jobStatus) ? jobStatus : [];
+  const runningJobs = safeJobStatus.filter((job) => job.running).length;
+  const totalJobs = safeJobStatus.length;
   const allJobsStopped = totalJobs > 0 && runningJobs === 0;
+  const noJobsExist = totalJobs === 0;
 
   // Auto-refresh every minute
   useEffect(() => {
@@ -238,6 +272,50 @@ export function CronJobMonitor() {
 
   return (
     <div className="space-y-6">
+      {/* Alert for no jobs exist */}
+      {noJobsExist && (
+        <Alert className="border-blue-200 bg-blue-50">
+          <AlertTriangle className="h-4 w-4 text-blue-600" />
+          <AlertTitle className="text-blue-800">
+            🚀 No Cron Jobs Found
+          </AlertTitle>
+          <AlertDescription className="text-blue-700">
+            No cron jobs have been initialized yet. Click the button below to
+            set up all automated jobs for post scheduling, system monitoring,
+            and maintenance tasks.
+            <div className="mt-3 flex gap-2">
+              <Button
+                onClick={restartAllJobs}
+                disabled={isRestarting}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {isRestarting ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-2 animate-spin" />
+                    Initializing...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-3 w-3 mr-2" />
+                    Initialize All Jobs
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={refreshData}
+                variant="outline"
+                size="sm"
+                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+              >
+                <RefreshCw className="h-3 w-3 mr-2" />
+                Refresh
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Alert for all jobs stopped */}
       {allJobsStopped && (
         <Alert className="border-red-200 bg-red-50">
@@ -312,7 +390,7 @@ export function CronJobMonitor() {
                   {runningJobs}/{totalJobs} jobs running
                 </span>
               </div>
-              {jobStats && (
+              {jobStats?.totalLogs !== undefined && (
                 <div className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-blue-600" />
                   <span className="text-sm">
@@ -323,12 +401,16 @@ export function CronJobMonitor() {
               )}
             </div>
             <div className="flex gap-2">
-              {allJobsStopped && (
+              {(allJobsStopped || noJobsExist) && (
                 <Button
                   onClick={restartAllJobs}
                   disabled={isRestarting}
                   size="sm"
-                  className="bg-green-600 hover:bg-green-700"
+                  className={cn(
+                    noJobsExist
+                      ? "bg-blue-600 hover:bg-blue-700"
+                      : "bg-green-600 hover:bg-green-700"
+                  )}
                 >
                   {isRestarting ? (
                     <RefreshCw className="h-4 w-4 animate-spin" />
@@ -356,7 +438,7 @@ export function CronJobMonitor() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {jobStatus.map((job) => {
+              {safeJobStatus.map((job) => {
                 const stats = jobStats?.jobs[job.name];
 
                 // Calculate success rate based on completed jobs only (success + error)
@@ -535,13 +617,13 @@ export function CronJobMonitor() {
       )}
 
       {/* Alerts */}
-      {jobStatus.some((job) => !job.running) && (
+      {safeJobStatus.some((job) => !job.running) && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Jobs Not Running</AlertTitle>
           <AlertDescription>
             Some cron jobs are not running:{" "}
-            {jobStatus
+            {safeJobStatus
               .filter((job) => !job.running)
               .map((job) => job.name)
               .join(", ")}

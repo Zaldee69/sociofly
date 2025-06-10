@@ -17,6 +17,11 @@ interface HeatmapCell {
 
 type Heatmap = Map<number, Map<number, HeatmapCell>>;
 
+// Format dates properly for Instagram API (YYYY-MM-DD format)
+const formatDateForAPI = (date: Date): string => {
+  return date.toISOString().split("T")[0];
+};
+
 export class SchedulerService {
   /**
    * Checks for and publishes all posts that are due to be published
@@ -579,11 +584,6 @@ export class SchedulerService {
 
       // Use transaction to update all hotspots atomically
       await prisma.$transaction([
-        // Delete existing hotspots for this account
-        prisma.engagementHotspot.deleteMany({
-          where: { socialAccountId },
-        }),
-        // Insert new hotspots
         prisma.engagementHotspot.createMany({
           data: hotspots,
         }),
@@ -811,140 +811,485 @@ export class SchedulerService {
     success: number;
     failed: number;
   }> {
+    console.log("🚀 Starting account insights collection for all accounts...");
+
     // Fetch all social accounts with credentials
     const accounts = await prisma.socialAccount.findMany({
-      select: { id: true, accessToken: true, profileId: true, platform: true },
+      select: {
+        id: true,
+        accessToken: true,
+        profileId: true,
+        platform: true,
+      },
     });
+
+    console.log(`📊 Found ${accounts.length} social accounts to process`);
+
     let success = 0;
     let failed = 0;
+
     for (const account of accounts) {
       try {
         const { id, accessToken, profileId, platform } = account;
-        if (!accessToken || !profileId) throw new Error("Missing credentials");
-        const threeMonthsAgo = subDays(startOfDay(new Date()), 90);
+        console.log(`📈 Processing account: ${platform} (${id})`);
 
-        // Initialize counts with defaults to avoid uninitialized errors
-        let followersCount = 0;
-        let mediaCount = 0;
-        let engagementRate = 0;
-        let avgReachPerPost = 0;
+        if (!accessToken || !profileId) {
+          throw new Error("Missing credentials");
+        }
+
+        // --- IMPROVED DATE RANGE LOGIC (Same as fetchInitialAccountInsights) ---
+        const yesterday = subDays(new Date(), 1);
+        yesterday.setHours(23, 59, 59, 999);
+
+        // Current period: Last 29 days ending yesterday (Instagram API limitation)
+        const currentPeriodStart = subDays(yesterday, 28); // 29 days total including yesterday
+        currentPeriodStart.setHours(0, 0, 0, 0);
+
+        // Previous period: 29 days before the current period
+        const previousPeriodEnd = subDays(currentPeriodStart, 1);
+        previousPeriodEnd.setHours(23, 59, 59, 999);
+        const previousPeriodStart = subDays(previousPeriodEnd, 28); // 29 days total
+        previousPeriodStart.setHours(0, 0, 0, 0);
+
+        // Initialize current and previous data
+        let currentData = {
+          followersCount: 0,
+          mediaCount: 0,
+          engagementRate: 0,
+          avgReachPerPost: 0,
+        };
+
+        let previousData = {
+          followersCount: 0,
+          mediaCount: 0,
+          engagementRate: 0,
+          avgReachPerPost: 0,
+        };
+
         let followerGrowth: Array<{ date: Date; value: number }> = [];
+        let currentPeriodPosts: any[] = [];
 
         if (platform === "INSTAGRAM") {
-          const [basicResp, insightsResp] = await Promise.all([
-            axios.get(`https://graph.facebook.com/v22.0/${profileId}`, {
+          console.log(
+            `📱 Fetching Instagram insights for profileId: ${profileId}`
+          );
+          console.log(
+            `📅 Date range: ${formatDateForAPI(currentPeriodStart)} to ${formatDateForAPI(yesterday)} (29 days)`
+          );
+
+          // Get current basic account info
+          const basicResp = await axios.get(
+            `https://graph.facebook.com/v22.0/${profileId}`,
+            {
               params: {
                 fields: "followers_count,media_count",
                 access_token: accessToken,
               },
-            }),
-            axios.get(
-              `https://graph.facebook.com/v22.0/${profileId}/insights`,
-              {
-                params: {
-                  metric: "reach,follower_count",
-                  period: "day",
-                  since: threeMonthsAgo.toISOString(),
-                  access_token: accessToken,
-                },
-              }
-            ),
-          ]);
+            }
+          );
+
+          // Get current period media posts
+          const currentMediaResp = await axios.get(
+            `https://graph.facebook.com/v22.0/${profileId}/media`,
+            {
+              params: {
+                fields: "id,like_count,comments_count,timestamp",
+                limit: 50,
+                access_token: accessToken,
+              },
+            }
+          );
+
+          // Get current period insights
+          const currentInsightsResp = await axios.get(
+            `https://graph.facebook.com/v22.0/${profileId}/insights`,
+            {
+              params: {
+                metric: "reach,follower_count",
+                period: "day",
+                since: formatDateForAPI(currentPeriodStart),
+                until: formatDateForAPI(yesterday),
+                access_token: accessToken,
+              },
+            }
+          );
+
+          // Get previous period insights (if available)
+          let previousInsightsData: any[] = [];
+          const twentyNineDaysAgo = subDays(new Date(), 29);
+          if (previousPeriodStart >= twentyNineDaysAgo) {
+            try {
+              const previousInsightsResp = await axios.get(
+                `https://graph.facebook.com/v22.0/${profileId}/insights`,
+                {
+                  params: {
+                    metric: "reach,follower_count",
+                    period: "day",
+                    since: formatDateForAPI(previousPeriodStart),
+                    until: formatDateForAPI(previousPeriodEnd),
+                    access_token: accessToken,
+                  },
+                }
+              );
+              previousInsightsData = previousInsightsResp.data.data || [];
+            } catch (prevError) {
+              console.warn(
+                `⚠️ Could not fetch previous period insights for ${id}, will estimate:`,
+                prevError
+              );
+            }
+          }
+
           const basicData = basicResp.data;
-          const insightsData = insightsResp.data.data;
-          followersCount = basicData.followers_count;
-          mediaCount = basicData.media_count;
-          const eng = insightsData.find((d: any) => d.name === "engagement");
-          const reach = insightsData.find((d: any) => d.name === "reach");
-          const growth = insightsData.find(
+          const currentMediaData = currentMediaResp.data.data || [];
+          const currentInsightsData = currentInsightsResp.data.data || [];
+
+          // Filter posts for current period
+          currentPeriodPosts = currentMediaData.filter((post: any) => {
+            const postDate = new Date(post.timestamp);
+            return postDate >= currentPeriodStart && postDate <= yesterday;
+          });
+
+          // Current data
+          currentData.followersCount = basicData.followers_count || 0;
+          currentData.mediaCount = basicData.media_count || 0;
+
+          // Calculate current engagement rate
+          if (currentPeriodPosts.length > 0 && currentData.followersCount > 0) {
+            const totalEngagement = currentPeriodPosts.reduce(
+              (sum: number, post: any) => {
+                const likes = post.like_count || 0;
+                const comments = post.comments_count || 0;
+                return sum + likes + comments;
+              },
+              0
+            );
+
+            const avgEngagementPerPost =
+              totalEngagement / currentPeriodPosts.length;
+            currentData.engagementRate = parseFloat(
+              (
+                (avgEngagementPerPost / currentData.followersCount) *
+                100
+              ).toFixed(2)
+            );
+          }
+
+          // Calculate current average reach
+          const currentReach = currentInsightsData.find(
+            (d: any) => d.name === "reach"
+          );
+          if (
+            currentReach &&
+            currentReach.values &&
+            currentReach.values.length > 0
+          ) {
+            const totalReach = currentReach.values.reduce(
+              (sum: number, v: any) => sum + (v.value || 0),
+              0
+            );
+            currentData.avgReachPerPost =
+              currentPeriodPosts.length > 0
+                ? Math.round(totalReach / currentPeriodPosts.length)
+                : Math.round(
+                    totalReach / Math.max(1, currentReach.values.length)
+                  );
+          }
+
+          // Process previous period data if available
+          if (previousInsightsData.length > 0) {
+            const previousReach = previousInsightsData.find(
+              (d: any) => d.name === "reach"
+            );
+            if (
+              previousReach &&
+              previousReach.values &&
+              previousReach.values.length > 0
+            ) {
+              const totalReach = previousReach.values.reduce(
+                (sum: number, v: any) => sum + (v.value || 0),
+                0
+              );
+              previousData.avgReachPerPost = Math.round(
+                totalReach / Math.max(1, previousReach.values.length)
+              );
+            }
+
+            const previousFollowerCount = previousInsightsData.find(
+              (d: any) => d.name === "follower_count"
+            );
+            if (
+              previousFollowerCount &&
+              previousFollowerCount.values &&
+              previousFollowerCount.values.length > 0
+            ) {
+              previousData.followersCount =
+                previousFollowerCount.values[0].value || 0;
+            }
+
+            const previousPeriodPostCount = Math.floor(
+              currentPeriodPosts.length * 0.8
+            );
+            previousData.mediaCount = Math.max(
+              0,
+              currentData.mediaCount - currentPeriodPosts.length
+            );
+
+            if (
+              previousData.followersCount > 0 &&
+              previousPeriodPostCount > 0
+            ) {
+              const estimatedPreviousEngagement =
+                currentData.engagementRate * 0.9;
+              previousData.engagementRate = parseFloat(
+                estimatedPreviousEngagement.toFixed(2)
+              );
+            }
+          } else {
+            // Estimate previous data when we can't fetch it
+            const currentFollowerData = currentInsightsData.find(
+              (d: any) => d.name === "follower_count"
+            );
+            if (
+              currentFollowerData &&
+              currentFollowerData.values &&
+              currentFollowerData.values.length > 0
+            ) {
+              const sortedValues = currentFollowerData.values.sort(
+                (a: any, b: any) =>
+                  new Date(a.end_time).getTime() -
+                  new Date(b.end_time).getTime()
+              );
+              previousData.followersCount =
+                sortedValues[0].value || currentData.followersCount;
+            } else {
+              previousData.followersCount = Math.max(
+                0,
+                Math.floor(currentData.followersCount * 0.95)
+              );
+            }
+
+            const estimatedPostsInPreviousPeriod = Math.floor(
+              currentPeriodPosts.length * 0.8
+            );
+            previousData.mediaCount = Math.max(
+              0,
+              currentData.mediaCount -
+                currentPeriodPosts.length -
+                estimatedPostsInPreviousPeriod
+            );
+
+            previousData.avgReachPerPost = Math.max(
+              1,
+              Math.round(currentData.avgReachPerPost * 0.85)
+            );
+            previousData.engagementRate = parseFloat(
+              (currentData.engagementRate * 0.9).toFixed(2)
+            );
+          }
+
+          // Get follower growth for chart
+          const followerCountData = currentInsightsData.find(
             (d: any) => d.name === "follower_count"
           );
-          engagementRate =
-            eng && basicData.followers_count
-              ? parseFloat(
-                  (
-                    (eng.values[0].value / basicData.followers_count) *
-                    100
-                  ).toFixed(2)
-                )
-              : 0;
-          avgReachPerPost =
-            reach && basicData.media_count
-              ? Math.round(reach.values[0].value / basicData.media_count)
-              : 0;
-          followerGrowth = growth
-            ? growth.values.map((v: any) => ({
+          if (followerCountData && followerCountData.values) {
+            followerGrowth = followerCountData.values
+              .map((v: any) => ({
                 date: new Date(v.end_time),
-                value: v.value,
+                value: v.value || 0,
               }))
-            : [];
+              .sort((a: any, b: any) => a.date.getTime() - b.date.getTime());
+          }
         } else if (platform === "FACEBOOK") {
-          const [basicResp, insightsResp] = await Promise.all([
-            axios.get(`https://graph.facebook.com/v22.0/${profileId}`, {
+          console.log(
+            `📘 Fetching Facebook insights for profileId: ${profileId}`
+          );
+
+          // Get current basic account info
+          const basicResp = await axios.get(
+            `https://graph.facebook.com/v22.0/${profileId}`,
+            {
               params: {
                 fields: "fan_count,posts.summary(true).limit(0)",
                 access_token: accessToken,
               },
-            }),
-            axios.get(
-              `https://graph.facebook.com/v22.0/${profileId}/insights`,
-              {
-                params: {
-                  metric: "page_engaged_users,page_impressions",
-                  period: "day",
-                  since: threeMonthsAgo.toISOString(),
-                  access_token: accessToken,
-                },
-              }
-            ),
-          ]);
+            }
+          );
+
+          // Get current period insights
+          const currentInsightsResp = await axios.get(
+            `https://graph.facebook.com/v22.0/${profileId}/insights`,
+            {
+              params: {
+                metric: "page_engaged_users,page_impressions",
+                period: "day",
+                since: formatDateForAPI(currentPeriodStart),
+                until: formatDateForAPI(yesterday),
+                access_token: accessToken,
+              },
+            }
+          );
+
           const basicData = basicResp.data;
-          const insightsData = insightsResp.data.data;
-          followersCount = basicData.fan_count;
-          mediaCount = basicData.posts?.summary?.total_count || 0;
-          const engUser = insightsData.find(
+          const currentInsightsData = currentInsightsResp.data.data || [];
+
+          currentData.followersCount = basicData.fan_count || 0;
+          currentData.mediaCount = basicData.posts?.summary?.total_count || 0;
+
+          const engUser = currentInsightsData.find(
             (d: any) => d.name === "page_engaged_users"
           );
-          const impressions = insightsData.find(
+          const impressions = currentInsightsData.find(
             (d: any) => d.name === "page_impressions"
           );
-          engagementRate =
-            engUser && basicData.fan_count
-              ? parseFloat(
-                  (
-                    (engUser.values[0].value / basicData.fan_count) *
-                    100
-                  ).toFixed(2)
-                )
-              : 0;
-          avgReachPerPost =
-            impressions && basicData.posts?.summary?.total_count
-              ? Math.round(
-                  impressions.values[0].value /
-                    basicData.posts.summary.total_count
-                )
-              : 0;
-          followerGrowth = [];
+
+          if (
+            engUser &&
+            engUser.values &&
+            engUser.values.length > 0 &&
+            currentData.followersCount > 0
+          ) {
+            const totalEngagement = engUser.values.reduce(
+              (sum: number, v: any) => sum + (v.value || 0),
+              0
+            );
+            const avgEngagementPerDay = totalEngagement / engUser.values.length;
+            currentData.engagementRate = parseFloat(
+              (
+                (avgEngagementPerDay / currentData.followersCount) *
+                100
+              ).toFixed(2)
+            );
+          }
+
+          if (
+            impressions &&
+            impressions.values &&
+            impressions.values.length > 0
+          ) {
+            const totalImpressions = impressions.values.reduce(
+              (sum: number, v: any) => sum + (v.value || 0),
+              0
+            );
+            currentData.avgReachPerPost =
+              currentData.mediaCount > 0
+                ? Math.round(totalImpressions / currentData.mediaCount)
+                : Math.round(
+                    totalImpressions / Math.max(1, impressions.values.length)
+                  );
+          }
+
+          // Estimate previous data for Facebook (simplified)
+          previousData.followersCount = Math.max(
+            0,
+            Math.floor(currentData.followersCount * 0.95)
+          );
+          previousData.mediaCount = Math.max(
+            0,
+            Math.floor(currentData.mediaCount * 0.9)
+          );
+          previousData.engagementRate = parseFloat(
+            (currentData.engagementRate * 0.9).toFixed(2)
+          );
+          previousData.avgReachPerPost = Math.max(
+            1,
+            Math.round(currentData.avgReachPerPost * 0.85)
+          );
         } else {
-          continue; // unsupported platform
+          console.log(`⚠️ Skipping unsupported platform: ${platform}`);
+          continue;
         }
-        // @ts-ignore: accountAnalytics model will be available after Prisma migration
+
+        // Calculate percentage changes
+        const calculatePercentageChange = (
+          current: number,
+          previous: number
+        ): number => {
+          if (previous === 0) return current > 0 ? 100 : 0;
+          return parseFloat(
+            (((current - previous) / previous) * 100).toFixed(1)
+          );
+        };
+
+        const metrics = {
+          followersCount: currentData.followersCount,
+          followersGrowth: calculatePercentageChange(
+            currentData.followersCount,
+            previousData.followersCount
+          ),
+          mediaCount: currentData.mediaCount,
+          mediaGrowth: calculatePercentageChange(
+            currentData.mediaCount,
+            previousData.mediaCount
+          ),
+          engagementRate: currentData.engagementRate,
+          engagementGrowth: calculatePercentageChange(
+            currentData.engagementRate,
+            previousData.engagementRate
+          ),
+          avgReachPerPost: currentData.avgReachPerPost,
+          reachGrowth: calculatePercentageChange(
+            currentData.avgReachPerPost,
+            previousData.avgReachPerPost
+          ),
+        };
+
+        // Store the comprehensive insights in the database
         await prisma.accountAnalytics.create({
           data: {
             socialAccountId: id,
-            followersCount,
-            mediaCount,
-            engagementRate,
-            avgReachPerPost,
+            followersCount: metrics.followersCount,
+            mediaCount: metrics.mediaCount,
+            engagementRate: metrics.engagementRate,
+            avgReachPerPost: metrics.avgReachPerPost,
             followerGrowth: JSON.stringify(followerGrowth),
+            // Store comparison data
+            previousFollowersCount: previousData.followersCount,
+            previousMediaCount: previousData.mediaCount,
+            previousEngagementRate: previousData.engagementRate,
+            previousAvgReachPerPost: previousData.avgReachPerPost,
+            engagementGrowthPercent: metrics.engagementGrowth,
+            reachGrowthPercent: metrics.reachGrowth,
+            mediaGrowthPercent: metrics.mediaGrowth,
+            followersGrowthPercent: metrics.followersGrowth,
           },
         });
+
+        console.log(`✅ Successfully processed account ${id}:`, {
+          platform: platform,
+          current: currentData,
+          previous: previousData,
+          growth: {
+            followers: `${metrics.followersGrowth > 0 ? "+" : ""}${metrics.followersGrowth}%`,
+            posts: `${metrics.mediaGrowth > 0 ? "+" : ""}${metrics.mediaGrowth}%`,
+            engagement: `${metrics.engagementGrowth > 0 ? "+" : ""}${metrics.engagementGrowth}%`,
+            reach: `${metrics.reachGrowth > 0 ? "+" : ""}${metrics.reachGrowth}%`,
+          },
+          dataPoints: followerGrowth.length,
+          periodInfo: {
+            currentPeriodPosts: currentPeriodPosts.length,
+            currentPeriodStart: formatDateForAPI(currentPeriodStart),
+            currentPeriodEnd: formatDateForAPI(yesterday),
+          },
+        });
+
         success++;
-      } catch (error) {
-        console.error(`Failed account insights for ${account.id}:`, error);
+      } catch (error: any) {
+        console.error(`❌ Failed account insights for ${account.id}:`, error);
+        if (axios.isAxiosError(error) && error.response) {
+          console.error(`API Error:`, {
+            status: error.response.status,
+            data: error.response.data,
+            url: error.config?.url,
+          });
+        }
         failed++;
       }
     }
+
+    console.log(
+      `🎯 Account insights collection completed: ${success}/${accounts.length} successful, ${failed} failed`
+    );
     return { total: accounts.length, success, failed };
   }
 
@@ -1000,261 +1345,247 @@ export class SchedulerService {
 
       let followerGrowth: Array<{ date: Date; value: number }> = [];
 
-      // Format dates properly for Instagram API (YYYY-MM-DD format)
-      const formatDateForAPI = (date: Date): string => {
-        return date.toISOString().split("T")[0];
-      };
-
       // Prepare scoped variable for post filtering
       let currentPeriodPosts: any[] = [];
 
-      if (platform === "INSTAGRAM") {
-        console.log(`Fetching Instagram insights for profileId: ${profileId}`);
-        console.log(
-          `Date range: ${formatDateForAPI(currentPeriodStart)} to ${formatDateForAPI(yesterday)} (29 days)`
-        );
+      console.log(`Fetching ${platform} insights for profileId: ${profileId}`);
+      console.log(
+        `Date range: ${formatDateForAPI(currentPeriodStart)} to ${formatDateForAPI(yesterday)} (29 days)`
+      );
 
-        // Get current basic account info
-        const basicResp = await axios.get(
-          `https://graph.facebook.com/v22.0/${profileId}`,
-          {
-            params: {
-              fields: "followers_count,media_count",
-              access_token: accessToken,
-            },
-          }
-        );
-
-        // Get current period media posts
-        const currentMediaResp = await axios.get(
-          `https://graph.facebook.com/v22.0/${profileId}/media`,
-          {
-            params: {
-              fields: "id,like_count,comments_count,timestamp",
-              limit: 50,
-              access_token: accessToken,
-            },
-          }
-        );
-
-        // Get current period insights - Fixed: Use correct date format and metric names
-        const currentInsightsResp = await axios.get(
-          `https://graph.facebook.com/v22.0/${profileId}/insights`,
-          {
-            params: {
-              metric: "reach,follower_count", // Use follower_count, not page_fans
-              period: "day",
-              since: formatDateForAPI(currentPeriodStart),
-              until: formatDateForAPI(yesterday),
-              access_token: accessToken,
-            },
-          }
-        );
-
-        // Get previous period insights - Limited to 30 days max
-        // Note: We can only get follower_count for the last 30 days, so we'll estimate previous data
-        let previousInsightsData: any[] = [];
-
-        // Only fetch previous insights if the previous period is within the 29-day limit
-        const twentyNineDaysAgo = subDays(new Date(), 29);
-        if (previousPeriodStart >= twentyNineDaysAgo) {
-          try {
-            const previousInsightsResp = await axios.get(
-              `https://graph.facebook.com/v22.0/${profileId}/insights`,
-              {
-                params: {
-                  metric: "reach,follower_count",
-                  period: "day",
-                  since: formatDateForAPI(previousPeriodStart),
-                  until: formatDateForAPI(previousPeriodEnd),
-                  access_token: accessToken,
-                },
-              }
-            );
-            previousInsightsData = previousInsightsResp.data.data || [];
-          } catch (prevError) {
-            console.warn(
-              "Could not fetch previous period insights, will estimate:",
-              prevError
-            );
-          }
+      // Get current basic account info
+      const basicResp = await axios.get(
+        `https://graph.facebook.com/v22.0/${profileId}`,
+        {
+          params: {
+            fields: "followers_count,media_count",
+            access_token: accessToken,
+          },
         }
+      );
 
-        const basicData = basicResp.data;
-        const currentMediaData = currentMediaResp.data.data || [];
-        const currentInsightsData = currentInsightsResp.data.data || [];
+      // Get current period media posts
+      const currentMediaResp = await axios.get(
+        `https://graph.facebook.com/v22.0/${profileId}/media`,
+        {
+          params: {
+            fields: "id,like_count,comments_count,timestamp",
+            limit: 50,
+            access_token: accessToken,
+          },
+        }
+      );
 
-        // Move filter here so it's defined before use
-        currentPeriodPosts = currentMediaData.filter((post: any) => {
-          const postDate = new Date(post.timestamp);
-          return postDate >= currentPeriodStart && postDate <= yesterday;
-        });
+      // Get current period insights - Fixed: Use correct date format and metric names
+      const currentInsightsResp = await axios.get(
+        `https://graph.facebook.com/v22.0/${profileId}/insights`,
+        {
+          params: {
+            metric: "reach,follower_count", // Use follower_count, not page_fans
+            period: "day",
+            since: formatDateForAPI(currentPeriodStart),
+            until: formatDateForAPI(yesterday),
+            access_token: accessToken,
+          },
+        }
+      );
 
-        // Current data
-        currentData.followersCount = basicData.followers_count || 0;
-        currentData.mediaCount = basicData.media_count || 0;
+      // Get previous period insights - Limited to 30 days max
+      // Note: We can only get follower_count for the last 30 days, so we'll estimate previous data
+      let previousInsightsData: any[] = [];
 
-        // Calculate current engagement rate
-        if (currentPeriodPosts.length > 0 && currentData.followersCount > 0) {
-          const totalEngagement = currentPeriodPosts.reduce(
-            (sum: number, post: any) => {
-              const likes = post.like_count || 0;
-              const comments = post.comments_count || 0;
-              return sum + likes + comments;
-            },
-            0
+      // Only fetch previous insights if the previous period is within the 29-day limit
+      const twentyNineDaysAgo = subDays(new Date(), 29);
+      if (previousPeriodStart >= twentyNineDaysAgo) {
+        try {
+          const previousInsightsResp = await axios.get(
+            `https://graph.facebook.com/v22.0/${profileId}/insights`,
+            {
+              params: {
+                metric: "reach,follower_count",
+                period: "day",
+                since: formatDateForAPI(previousPeriodStart),
+                until: formatDateForAPI(previousPeriodEnd),
+                access_token: accessToken,
+              },
+            }
           );
-
-          const avgEngagementPerPost =
-            totalEngagement / currentPeriodPosts.length;
-          currentData.engagementRate = parseFloat(
-            ((avgEngagementPerPost / currentData.followersCount) * 100).toFixed(
-              2
-            )
+          previousInsightsData = previousInsightsResp.data.data || [];
+        } catch (prevError) {
+          console.warn(
+            "Could not fetch previous period insights, will estimate:",
+            prevError
           );
         }
+      }
 
-        // Calculate current average reach (Instagram uses 'reach', not 'page_impressions')
-        const currentReach = currentInsightsData.find(
+      const basicData = basicResp.data;
+      const currentMediaData = currentMediaResp.data.data || [];
+      const currentInsightsData = currentInsightsResp.data.data || [];
+
+      // Move filter here so it's defined before use
+      currentPeriodPosts = currentMediaData.filter((post: any) => {
+        const postDate = new Date(post.timestamp);
+        return postDate >= currentPeriodStart && postDate <= yesterday;
+      });
+
+      // Current data
+      currentData.followersCount = basicData.followers_count || 0;
+      currentData.mediaCount = basicData.media_count || 0;
+
+      // Calculate current engagement rate
+      if (currentPeriodPosts.length > 0 && currentData.followersCount > 0) {
+        const totalEngagement = currentPeriodPosts.reduce(
+          (sum: number, post: any) => {
+            const likes = post.like_count || 0;
+            const comments = post.comments_count || 0;
+            return sum + likes + comments;
+          },
+          0
+        );
+
+        const avgEngagementPerPost =
+          totalEngagement / currentPeriodPosts.length;
+        currentData.engagementRate = parseFloat(
+          ((avgEngagementPerPost / currentData.followersCount) * 100).toFixed(2)
+        );
+      }
+
+      // Calculate current average reach (Instagram uses 'reach', not 'page_impressions')
+      const currentReach = currentInsightsData.find(
+        (d: any) => d.name === "reach"
+      );
+      if (
+        currentReach &&
+        currentReach.values &&
+        currentReach.values.length > 0
+      ) {
+        const totalReach = currentReach.values.reduce(
+          (sum: number, v: any) => sum + (v.value || 0),
+          0
+        );
+        currentData.avgReachPerPost =
+          currentPeriodPosts.length > 0
+            ? Math.round(totalReach / currentPeriodPosts.length)
+            : Math.round(totalReach / Math.max(1, currentReach.values.length));
+      }
+
+      // Process previous period data if available
+      if (previousInsightsData.length > 0) {
+        const previousReach = previousInsightsData.find(
           (d: any) => d.name === "reach"
         );
         if (
-          currentReach &&
-          currentReach.values &&
-          currentReach.values.length > 0
+          previousReach &&
+          previousReach.values &&
+          previousReach.values.length > 0
         ) {
-          const totalReach = currentReach.values.reduce(
+          const totalReach = previousReach.values.reduce(
             (sum: number, v: any) => sum + (v.value || 0),
             0
           );
-          currentData.avgReachPerPost =
-            currentPeriodPosts.length > 0
-              ? Math.round(totalReach / currentPeriodPosts.length)
-              : Math.round(
-                  totalReach / Math.max(1, currentReach.values.length)
-                );
-        }
-
-        // Process previous period data if available
-        if (previousInsightsData.length > 0) {
-          const previousReach = previousInsightsData.find(
-            (d: any) => d.name === "reach"
-          );
-          if (
-            previousReach &&
-            previousReach.values &&
-            previousReach.values.length > 0
-          ) {
-            const totalReach = previousReach.values.reduce(
-              (sum: number, v: any) => sum + (v.value || 0),
-              0
-            );
-            previousData.avgReachPerPost = Math.round(
-              totalReach / Math.max(1, previousReach.values.length)
-            );
-          }
-
-          // Get previous follower count from the earliest data point in previous period
-          const previousFollowerCount = previousInsightsData.find(
-            (d: any) => d.name === "follower_count"
-          );
-          if (
-            previousFollowerCount &&
-            previousFollowerCount.values &&
-            previousFollowerCount.values.length > 0
-          ) {
-            // Use the first value from the previous period (earliest date)
-            previousData.followersCount =
-              previousFollowerCount.values[0].value || 0;
-          }
-
-          // Calculate previous engagement rate with proper media count estimation
-          const previousPeriodPostCount = Math.floor(
-            currentPeriodPosts.length * 0.8
-          ); // More realistic estimate
-          previousData.mediaCount = Math.max(
-            0,
-            currentData.mediaCount - currentPeriodPosts.length
-          );
-
-          // Estimate previous engagement rate based on typical patterns
-          if (previousData.followersCount > 0 && previousPeriodPostCount > 0) {
-            // Assume similar engagement pattern but slightly lower
-            const estimatedPreviousEngagement =
-              currentData.engagementRate * 0.9;
-            previousData.engagementRate = parseFloat(
-              estimatedPreviousEngagement.toFixed(2)
-            );
-          }
-        } else {
-          // Estimate previous data when we can't fetch it
-          const currentFollowerData = currentInsightsData.find(
-            (d: any) => d.name === "follower_count"
-          );
-          if (
-            currentFollowerData &&
-            currentFollowerData.values &&
-            currentFollowerData.values.length > 0
-          ) {
-            // Use the earliest follower count from current period as baseline
-            const sortedValues = currentFollowerData.values.sort(
-              (a: any, b: any) =>
-                new Date(a.end_time).getTime() - new Date(b.end_time).getTime()
-            );
-            previousData.followersCount =
-              sortedValues[0].value || currentData.followersCount;
-          } else {
-            // If no follower data available, estimate a slightly lower count
-            previousData.followersCount = Math.max(
-              0,
-              Math.floor(currentData.followersCount * 0.95)
-            );
-          }
-
-          // More realistic previous media count estimation
-          const estimatedPostsInPreviousPeriod = Math.floor(
-            currentPeriodPosts.length * 0.8
-          );
-          previousData.mediaCount = Math.max(
-            0,
-            currentData.mediaCount -
-              currentPeriodPosts.length -
-              estimatedPostsInPreviousPeriod
-          );
-
-          // Estimate other previous metrics more realistically
-          previousData.avgReachPerPost = Math.max(
-            1,
-            Math.round(currentData.avgReachPerPost * 0.85)
-          );
-          previousData.engagementRate = parseFloat(
-            (currentData.engagementRate * 0.9).toFixed(2)
+          previousData.avgReachPerPost = Math.round(
+            totalReach / Math.max(1, previousReach.values.length)
           );
         }
 
-        // Get follower growth for chart
-        const followerCountData = currentInsightsData.find(
+        // Get previous follower count from the earliest data point in previous period
+        const previousFollowerCount = previousInsightsData.find(
           (d: any) => d.name === "follower_count"
         );
-        if (followerCountData && followerCountData.values) {
-          followerGrowth = followerCountData.values
-            .map((v: any) => ({
-              date: new Date(v.end_time),
-              value: v.value || 0,
-            }))
-            .sort((a: any, b: any) => a.date.getTime() - b.date.getTime());
+        if (
+          previousFollowerCount &&
+          previousFollowerCount.values &&
+          previousFollowerCount.values.length > 0
+        ) {
+          // Use the first value from the previous period (earliest date)
+          previousData.followersCount =
+            previousFollowerCount.values[0].value || 0;
         }
 
-        console.log(
-          "Debug - Current insights data:",
-          currentInsightsData.map((d: any) => ({
-            name: d.name,
-            valueCount: d.values?.length,
-          }))
+        // Calculate previous engagement rate with proper media count estimation
+        const previousPeriodPostCount = Math.floor(
+          currentPeriodPosts.length * 0.8
+        ); // More realistic estimate
+        previousData.mediaCount = Math.max(
+          0,
+          currentData.mediaCount - currentPeriodPosts.length
         );
+
+        // Estimate previous engagement rate based on typical patterns
+        if (previousData.followersCount > 0 && previousPeriodPostCount > 0) {
+          // Assume similar engagement pattern but slightly lower
+          const estimatedPreviousEngagement = currentData.engagementRate * 0.9;
+          previousData.engagementRate = parseFloat(
+            estimatedPreviousEngagement.toFixed(2)
+          );
+        }
       } else {
-        throw new Error("Unsupported platform");
+        // Estimate previous data when we can't fetch it
+        const currentFollowerData = currentInsightsData.find(
+          (d: any) => d.name === "follower_count"
+        );
+        if (
+          currentFollowerData &&
+          currentFollowerData.values &&
+          currentFollowerData.values.length > 0
+        ) {
+          // Use the earliest follower count from current period as baseline
+          const sortedValues = currentFollowerData.values.sort(
+            (a: any, b: any) =>
+              new Date(a.end_time).getTime() - new Date(b.end_time).getTime()
+          );
+          previousData.followersCount =
+            sortedValues[0].value || currentData.followersCount;
+        } else {
+          // If no follower data available, estimate a slightly lower count
+          previousData.followersCount = Math.max(
+            0,
+            Math.floor(currentData.followersCount * 0.95)
+          );
+        }
+
+        // More realistic previous media count estimation
+        const estimatedPostsInPreviousPeriod = Math.floor(
+          currentPeriodPosts.length * 0.8
+        );
+        previousData.mediaCount = Math.max(
+          0,
+          currentData.mediaCount -
+            currentPeriodPosts.length -
+            estimatedPostsInPreviousPeriod
+        );
+
+        // Estimate other previous metrics more realistically
+        previousData.avgReachPerPost = Math.max(
+          1,
+          Math.round(currentData.avgReachPerPost * 0.85)
+        );
+        previousData.engagementRate = parseFloat(
+          (currentData.engagementRate * 0.9).toFixed(2)
+        );
       }
+
+      // Get follower growth for chart
+      const followerCountData = currentInsightsData.find(
+        (d: any) => d.name === "follower_count"
+      );
+      if (followerCountData && followerCountData.values) {
+        followerGrowth = followerCountData.values
+          .map((v: any) => ({
+            date: new Date(v.end_time),
+            value: v.value || 0,
+          }))
+          .sort((a: any, b: any) => a.date.getTime() - b.date.getTime());
+      }
+
+      console.log(
+        "Debug - Current insights data:",
+        currentInsightsData.map((d: any) => ({
+          name: d.name,
+          valueCount: d.values?.length,
+        }))
+      );
 
       // Calculate percentage changes
       const calculatePercentageChange = (
@@ -1340,5 +1671,359 @@ export class SchedulerService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Fetch initial heatmap data when a social account is connected
+   */
+  static async fetchInitialHeatmapData(socialAccountId: string): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    try {
+      console.log(
+        `🔥 Fetching initial heatmap data for account: ${socialAccountId}`
+      );
+
+      // Fetch the social account details
+      const account = await prisma.socialAccount.findUnique({
+        where: { id: socialAccountId },
+        select: { accessToken: true, profileId: true, platform: true },
+      });
+
+      if (!account || !account.accessToken || !account.profileId) {
+        throw new Error("Missing credentials or account not found");
+      }
+
+      const { accessToken, profileId, platform } = account;
+
+      // Date range: Last 30 days for comprehensive analysis
+      const endDate = new Date();
+      const startDate = subDays(endDate, 30);
+
+      let posts: any[] = [];
+      let engagementData: Array<{
+        timestamp: Date;
+        engagement: number;
+        reach?: number;
+        impressions?: number;
+      }> = [];
+
+      if (platform === "INSTAGRAM") {
+        console.log(
+          `📱 Fetching Instagram posts and insights for profileId: ${profileId}`
+        );
+
+        // Get recent media posts (last 30 days)
+        const mediaResp = await axios.get(
+          `https://graph.facebook.com/v22.0/${profileId}/media`,
+          {
+            params: {
+              fields:
+                "id,caption,timestamp,like_count,comments_count,media_type,media_url",
+              limit: 100, // Get more posts for better analysis
+              access_token: accessToken,
+            },
+          }
+        );
+
+        posts = mediaResp.data.data || [];
+
+        // Filter posts within our date range
+        const filteredPosts = posts.filter((post: any) => {
+          const postDate = new Date(post.timestamp);
+          return postDate >= startDate && postDate <= endDate;
+        });
+
+        console.log(
+          `📊 Found ${filteredPosts.length} posts in the last 30 days`
+        );
+
+        // Get detailed insights for each post
+        for (const post of filteredPosts.slice(0, 50)) {
+          // Limit to 50 posts to avoid rate limits
+          try {
+            const insightsResp = await axios.get(
+              `https://graph.facebook.com/v22.0/${post.id}/insights`,
+              {
+                params: {
+                  metric: "likes,comments,shares,saved,reach",
+                  period: "lifetime", // Required parameter for post insights
+                  access_token: accessToken,
+                },
+              }
+            );
+
+            const insights = insightsResp.data.data || [];
+            // Calculate total engagement from individual metrics
+            const likes =
+              insights.find((i: any) => i.name === "likes")?.values[0]?.value ||
+              0;
+            const comments =
+              insights.find((i: any) => i.name === "comments")?.values[0]
+                ?.value || 0;
+            const shares =
+              insights.find((i: any) => i.name === "shares")?.values[0]
+                ?.value || 0;
+            const saved =
+              insights.find((i: any) => i.name === "saved")?.values[0]?.value ||
+              0;
+            const engagement = likes + comments + shares + saved; // Total engagement
+            const reach =
+              insights.find((i: any) => i.name === "reach")?.values[0]?.value ||
+              0;
+
+            engagementData.push({
+              timestamp: new Date(post.timestamp),
+              engagement: engagement || post.like_count + post.comments_count, // Fallback to basic engagement
+              reach,
+            });
+
+            // Small delay to respect rate limits
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          } catch (error: any) {
+            console.warn(
+              `⚠️ Could not fetch insights for post ${post.id}, using basic metrics`
+            );
+
+            // Use basic engagement metrics as fallback
+            engagementData.push({
+              timestamp: new Date(post.timestamp),
+              engagement: (post.like_count || 0) + (post.comments_count || 0),
+              reach: 0,
+            });
+          }
+        }
+      } else if (platform === "FACEBOOK") {
+        console.log(`📘 Fetching Facebook posts for profileId: ${profileId}`);
+
+        // Get recent posts
+        const postsResp = await axios.get(
+          `https://graph.facebook.com/v22.0/${profileId}/posts`,
+          {
+            params: {
+              fields:
+                "id,message,created_time,reactions.summary(true),comments.summary(true),shares",
+              limit: 50,
+              since: Math.floor(startDate.getTime() / 1000),
+              until: Math.floor(endDate.getTime() / 1000),
+              access_token: accessToken,
+            },
+          }
+        );
+
+        posts = postsResp.data.data || [];
+        console.log(
+          `📊 Found ${posts.length} Facebook posts in the last 30 days`
+        );
+
+        // Process Facebook engagement data
+        engagementData = posts.map((post: any) => {
+          const reactions = post.reactions?.summary?.total_count || 0;
+          const comments = post.comments?.summary?.total_count || 0;
+          const shares = post.shares?.count || 0;
+
+          return {
+            timestamp: new Date(post.created_time),
+            engagement: reactions + comments + shares,
+            reach: 0, // Facebook post insights require additional API calls
+          };
+        });
+      } else {
+        throw new Error(`Unsupported platform: ${platform}`);
+      }
+
+      // Analyze engagement patterns
+      const heatmapData = this.analyzeEngagementPatterns(engagementData);
+
+      // Ambil teamId dari socialAccount
+      const teamId = (
+        await prisma.socialAccount.findUnique({
+          where: { id: socialAccountId },
+          select: { teamId: true },
+        })
+      )?.teamId;
+      if (!teamId) throw new Error("teamId not found for this social account");
+
+      // Siapkan data untuk createMany
+      const hotspotRows: Array<{
+        socialAccountId: string;
+        teamId: string;
+        dayOfWeek: number;
+        hourOfDay: number;
+        score: number;
+      }> = [];
+      // heatmapData.hourlyData: Array<{ hour: number, totalEngagement: number, postCount: number, avgEngagement: number }>
+      // heatmapData.weeklyData: Array<{ day: string, dayIndex: number, ... }>
+      for (let day = 0; day < 7; day++) {
+        for (let hour = 0; hour < 24; hour++) {
+          // Skor: gunakan avgEngagement dari hourlyData (per jam), atau bisa juga gabungan dengan weeklyData jika ingin
+          const hourData = heatmapData.hourlyData[hour];
+          // Jika ingin lebih spesifik, bisa juga gunakan kombinasi day & hour dari data mentah
+          const score = hourData?.avgEngagement ?? 0;
+          hotspotRows.push({
+            socialAccountId,
+            teamId,
+            dayOfWeek: day,
+            hourOfDay: hour,
+            score,
+          });
+        }
+      }
+      // Hapus data lama, lalu insert batch baru
+      await prisma.engagementHotspot.deleteMany({ where: { socialAccountId } });
+      await prisma.engagementHotspot.createMany({ data: hotspotRows });
+
+      console.log(
+        `✅ Successfully created initial heatmap for account ${socialAccountId}`
+      );
+      console.log(`📈 Analysis summary:`, {
+        totalPosts: engagementData.length,
+        peakHour: heatmapData.peakHours[0],
+        bestDay: heatmapData.weeklyData.reduce((best: any, day: any) =>
+          day.avgEngagement > best.avgEngagement ? day : best
+        ).day,
+        dateRange: `${formatDateForAPI(startDate)} to ${formatDateForAPI(endDate)}`,
+      });
+
+      return {
+        success: true,
+        data: {
+          heatmapData: heatmapData.hourlyData,
+          weeklyData: heatmapData.weeklyData,
+          peakHours: heatmapData.peakHours,
+          bestPostingTimes: heatmapData.bestPostingTimes,
+          totalPosts: engagementData.length,
+          dateRange: { start: startDate, end: endDate },
+        },
+      };
+    } catch (error) {
+      console.error(
+        `❌ Error fetching initial heatmap data for ${socialAccountId}:`,
+        error
+      );
+
+      if (axios.isAxiosError(error) && error.response) {
+        console.error(`API Error:`, {
+          status: error.response.status,
+          data: error.response.data,
+          url: error.config?.url,
+        });
+      }
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Analyze engagement patterns from post data
+   */
+  private static analyzeEngagementPatterns(
+    engagementData: Array<{
+      timestamp: Date;
+      engagement: number;
+      reach?: number;
+      impressions?: number;
+    }>
+  ) {
+    // Initialize hourly data (0-23 hours)
+    const hourlyData = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      totalEngagement: 0,
+      postCount: 0,
+      avgEngagement: 0,
+    }));
+
+    // Initialize weekly data (0-6 days, 0 = Sunday)
+    const weeklyData = Array.from({ length: 7 }, (_, day) => ({
+      day: [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ][day],
+      dayIndex: day,
+      totalEngagement: 0,
+      postCount: 0,
+      avgEngagement: 0,
+    }));
+
+    // Process each engagement data point
+    engagementData.forEach(({ timestamp, engagement }) => {
+      const hour = timestamp.getHours();
+      const dayOfWeek = timestamp.getDay();
+
+      // Update hourly data
+      hourlyData[hour].totalEngagement += engagement;
+      hourlyData[hour].postCount += 1;
+
+      // Update weekly data
+      weeklyData[dayOfWeek].totalEngagement += engagement;
+      weeklyData[dayOfWeek].postCount += 1;
+    });
+
+    // Calculate averages
+    hourlyData.forEach((data) => {
+      data.avgEngagement =
+        data.postCount > 0 ? data.totalEngagement / data.postCount : 0;
+    });
+
+    weeklyData.forEach((data) => {
+      data.avgEngagement =
+        data.postCount > 0 ? data.totalEngagement / data.postCount : 0;
+    });
+
+    // Find peak hours (top 3 hours with highest average engagement)
+    const peakHours = hourlyData
+      .filter((data) => data.postCount > 0)
+      .sort((a, b) => b.avgEngagement - a.avgEngagement)
+      .slice(0, 3)
+      .map((data) => ({
+        hour: data.hour,
+        timeLabel: `${data.hour.toString().padStart(2, "0")}:00`,
+        avgEngagement: Math.round(data.avgEngagement),
+        postCount: data.postCount,
+      }));
+
+    // Find best posting times (combining day and hour with good engagement)
+    const bestPostingTimes = [];
+    const threshold = Math.max(1, Math.ceil(engagementData.length / 20)); // At least 5% of total posts
+
+    for (const hourData of hourlyData) {
+      if (hourData.postCount >= threshold && hourData.avgEngagement > 0) {
+        for (const dayData of weeklyData) {
+          if (dayData.postCount >= threshold && dayData.avgEngagement > 0) {
+            const combinedScore =
+              (hourData.avgEngagement + dayData.avgEngagement) / 2;
+            bestPostingTimes.push({
+              day: dayData.day,
+              hour: hourData.hour,
+              timeLabel: `${dayData.day} ${hourData.hour.toString().padStart(2, "0")}:00`,
+              score: Math.round(combinedScore),
+              hourEngagement: Math.round(hourData.avgEngagement),
+              dayEngagement: Math.round(dayData.avgEngagement),
+            });
+          }
+        }
+      }
+    }
+
+    // Sort and limit best posting times
+    bestPostingTimes.sort((a, b) => b.score - a.score);
+    const topPostingTimes = bestPostingTimes.slice(0, 10);
+
+    return {
+      hourlyData,
+      weeklyData,
+      peakHours,
+      bestPostingTimes: topPostingTimes,
+    };
   }
 }
