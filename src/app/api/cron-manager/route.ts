@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { CronManager } from "@/lib/services/cron-manager";
+import { EnhancedCronManager } from "@/lib/services/cron-manager";
 import { QueueManager } from "@/lib/queue/queue-manager";
 import { JobType } from "@/lib/queue/job-types";
 
@@ -24,7 +24,12 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        await CronManager.queueJob(queueName, jobType, data || {}, options);
+        await EnhancedCronManager.queueJob(
+          queueName,
+          jobType,
+          data || {},
+          options
+        );
         result = { message: `Job ${jobType} queued successfully` };
         break;
 
@@ -35,7 +40,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        const queueManager = CronManager.getQueueManager();
+        const queueManager = EnhancedCronManager.getQueueManager();
         if (!queueManager) {
           return NextResponse.json(
             { error: "Queue manager not available" },
@@ -53,7 +58,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        const resumeQueueManager = CronManager.getQueueManager();
+        const resumeQueueManager = EnhancedCronManager.getQueueManager();
         if (!resumeQueueManager) {
           return NextResponse.json(
             { error: "Queue manager not available" },
@@ -71,7 +76,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        const cleanQueueManager = CronManager.getQueueManager();
+        const cleanQueueManager = EnhancedCronManager.getQueueManager();
         if (!cleanQueueManager) {
           return NextResponse.json(
             { error: "Queue manager not available" },
@@ -85,12 +90,12 @@ export async function POST(request: Request) {
         break;
 
       case "initialize":
-        await CronManager.initialize();
+        await EnhancedCronManager.initialize();
         result = { message: "Enhanced Cron Manager initialized" };
         break;
 
       case "stop_all":
-        await CronManager.stopAll();
+        await EnhancedCronManager.stopAll();
         result = { message: "All jobs stopped" };
         break;
 
@@ -102,7 +107,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        await CronManager.queueJob(
+        await EnhancedCronManager.queueJob(
           QueueManager.QUEUES.SCHEDULER,
           JobType.PUBLISH_POST,
           {
@@ -122,7 +127,7 @@ export async function POST(request: Request) {
         break;
 
       case "schedule_health_check":
-        await CronManager.queueJob(
+        await EnhancedCronManager.queueJob(
           QueueManager.QUEUES.MAINTENANCE,
           JobType.SYSTEM_HEALTH_CHECK,
           {
@@ -144,7 +149,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        await CronManager.queueJob(
+        await EnhancedCronManager.queueJob(
           QueueManager.QUEUES.NOTIFICATIONS,
           JobType.SEND_NOTIFICATION,
           {
@@ -170,7 +175,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        result = await CronManager.triggerJob(body.jobName);
+        result = await EnhancedCronManager.triggerJob(body.jobName);
         break;
 
       case "start":
@@ -180,7 +185,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        result = await CronManager.startJob(body.jobName);
+        result = await EnhancedCronManager.startJob(body.jobName);
         break;
 
       case "stop":
@@ -190,7 +195,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        result = await CronManager.stopJob(body.jobName);
+        result = await EnhancedCronManager.stopJob(body.jobName);
         break;
 
       default:
@@ -226,11 +231,11 @@ export async function GET(request: Request) {
 
     switch (action) {
       case "status":
-        result = await CronManager.getStatus();
+        result = await EnhancedCronManager.getStatus();
         break;
 
       case "queue_metrics":
-        const queueManager = CronManager.getQueueManager();
+        const queueManager = EnhancedCronManager.getQueueManager();
         if (!queueManager) {
           // Return empty metrics when queue manager is not available (Redis not connected)
           result = {};
@@ -248,12 +253,12 @@ export async function GET(request: Request) {
         result = {
           queues: Object.values(QueueManager.QUEUES),
           jobTypes: Object.values(JobType),
-          isUsingQueues: CronManager.isUsingQueues(),
+          isUsingQueues: EnhancedCronManager.isUsingQueues(),
         };
         break;
 
       case "job_logs":
-        result = await CronManager.getJobLogs();
+        result = await EnhancedCronManager.getJobLogs();
         break;
 
       default:

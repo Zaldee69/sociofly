@@ -1,235 +1,232 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env ts-node
 
-import { CronManager } from "../../src/lib/services/cron-manager";
+/**
+ * Test BullMQ Queue System (Redis-Only)
+ *
+ * This script tests the BullMQ queue functionality
+ * Usage: npx tsx scripts/debug/test-bullmq.ts
+ */
+
 import { QueueManager } from "../../src/lib/queue/queue-manager";
+import { EnhancedCronManager } from "../../src/lib/services/cron-manager";
 import { JobType } from "../../src/lib/queue/job-types";
-import { checkRedisConnection } from "@/lib/queue/redis-connection";
 
-async function testBullMQIntegration() {
-  console.log("🧪 Testing BullMQ Integration...\n");
+console.log("🧪 Testing BullMQ Queue System (Redis-Only)");
+console.log("=".repeat(50));
+
+async function testRedisAvailability() {
+  console.log("\n1️⃣  Testing Redis Availability...");
 
   try {
-    // Test 1: Check Redis Connection
-    console.log("1️⃣ Testing Redis Connection...");
-    const redisAvailable = await checkRedisConnection();
-
-    if (redisAvailable) {
-      console.log("✅ Redis connection successful");
-    } else {
-      console.log("⚠️  Redis not available - testing will use fallback mode");
-    }
-    console.log("");
-
-    // Test 2: Initialize Enhanced Cron Manager
-    console.log("2️⃣ Testing Enhanced Cron Manager Initialization...");
-    await CronManager.initialize();
-    console.log("✅ Enhanced Cron Manager initialized successfully\n");
-
-    // Test 3: Check Enhanced Status
-    console.log("3️⃣ Testing Enhanced Status...");
-    const status = await CronManager.getStatus();
-    console.log("📊 Enhanced Status:", JSON.stringify(status, null, 2));
-    console.log("✅ Status retrieved successfully\n");
-
-    if (redisAvailable && CronManager.isUsingQueues()) {
-      console.log("🚀 Redis available - Testing BullMQ features...\n");
-
-      // Test 4: Queue Manager Access
-      console.log("4️⃣ Testing Queue Manager Access...");
-      const queueManager = CronManager.getQueueManager();
-
-      if (queueManager) {
-        console.log("✅ Queue Manager accessible");
-
-        // Test 5: Get All Queue Metrics
-        console.log("\n5️⃣ Testing Queue Metrics...");
-        const allMetrics = await queueManager.getAllQueueMetrics();
-        console.log(
-          "📈 All Queue Metrics:",
-          JSON.stringify(allMetrics, null, 2)
-        );
-        console.log("✅ Queue metrics retrieved successfully");
-
-        // Test 6: Queue Different Job Types
-        console.log("\n6️⃣ Testing Job Queuing...");
-
-        // Test Post Publishing Job
-        console.log("📝 Queuing Post Publishing Job...");
-        await CronManager.queueJob(
-          QueueManager.QUEUES.SCHEDULER,
-          JobType.PUBLISH_POST,
-          {
-            postId: "test_post_123",
-            userId: "test_user_456",
-            platform: "facebook",
-            scheduledAt: new Date(),
-            content: {
-              text: "Test post from BullMQ integration test!",
-              hashtags: ["#test", "#bullmq", "#scheduler"],
-            },
-          },
-          {
-            delay: 5000, // 5 seconds delay
-            attempts: 3,
-            priority: 5,
-          }
-        );
-        console.log("✅ Post publishing job queued");
-
-        // Test Health Check Job
-        console.log("🏥 Queuing Health Check Job...");
-        await CronManager.queueJob(
-          QueueManager.QUEUES.MAINTENANCE,
-          JobType.SYSTEM_HEALTH_CHECK,
-          {
-            checkType: "quick",
-            alertThreshold: 70,
-          },
-          {
-            priority: 8,
-            attempts: 2,
-          }
-        );
-        console.log("✅ Health check job queued");
-
-        // Test Notification Job
-        console.log("📧 Queuing Notification Job...");
-        await CronManager.queueJob(
-          QueueManager.QUEUES.NOTIFICATIONS,
-          JobType.SEND_NOTIFICATION,
-          {
-            userId: "test_user_456",
-            type: "email",
-            template: "test_notification",
-            data: {
-              message: "BullMQ integration test notification",
-              timestamp: new Date().toISOString(),
-            },
-            priority: "high",
-          },
-          {
-            delay: 2000, // 2 seconds delay
-            priority: 7,
-            attempts: 3,
-          }
-        );
-        console.log("✅ Notification job queued");
-
-        // Test Cleanup Job
-        console.log("🧹 Queuing Cleanup Job...");
-        await CronManager.queueJob(
-          QueueManager.QUEUES.MAINTENANCE,
-          JobType.CLEANUP_OLD_LOGS,
-          {
-            olderThanDays: 30,
-            logType: "all",
-          },
-          {
-            priority: 1,
-            attempts: 2,
-          }
-        );
-        console.log("✅ Cleanup job queued");
-
-        console.log("\n✅ All job types queued successfully!");
-
-        // Test 7: Wait and Check Job Processing
-        console.log("\n7️⃣ Waiting for job processing...");
-        console.log("⏳ Waiting 10 seconds for jobs to process...");
-
-        await new Promise((resolve) => setTimeout(resolve, 10000));
-
-        // Check metrics after job processing
-        console.log("\n📊 Checking metrics after job processing...");
-        const metricsAfter = await queueManager.getAllQueueMetrics();
-        console.log(
-          "📈 Updated Queue Metrics:",
-          JSON.stringify(metricsAfter, null, 2)
-        );
-
-        // Test 8: Queue Management Operations
-        console.log("\n8️⃣ Testing Queue Management Operations...");
-
-        // Pause and resume a queue
-        console.log("⏸️  Testing queue pause...");
-        await queueManager.pauseQueue(QueueManager.QUEUES.NOTIFICATIONS);
-        console.log("✅ Queue paused");
-
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        console.log("▶️  Testing queue resume...");
-        await queueManager.resumeQueue(QueueManager.QUEUES.NOTIFICATIONS);
-        console.log("✅ Queue resumed");
-
-        // Clean completed jobs
-        console.log("🧹 Testing queue cleanup...");
-        await queueManager.cleanQueue(
-          QueueManager.QUEUES.SCHEDULER,
-          "completed",
-          1000
-        );
-        console.log("✅ Queue cleaned");
-
-        console.log(
-          "\n✅ All queue management operations tested successfully!"
-        );
-      } else {
-        console.log("❌ Queue Manager not accessible");
-      }
-    } else {
-      console.log("⚠️  BullMQ features not available (Redis not connected)");
-      console.log("   Only node-cron features will be tested.");
+    const manager = EnhancedCronManager.getRedisManager();
+    if (!manager) {
+      throw new Error("Redis manager not initialized");
     }
 
-    // Test 9: Final Status Check
-    console.log("\n9️⃣ Final Status Check...");
-    const finalStatus = await CronManager.getStatus();
-    console.log("📊 Final Enhanced Status:");
-    console.log(`   - Initialized: ${finalStatus.initialized}`);
-    console.log(`   - Using Queues: ${finalStatus.useQueues}`);
-    console.log(`   - Total Jobs: ${finalStatus.totalJobs}`);
-    console.log(`   - Running Jobs: ${finalStatus.runningJobs}`);
-    console.log(`   - Cron Jobs: ${finalStatus.cronJobs.length}`);
-
-    if (finalStatus.queueMetrics) {
-      const totalQueueJobs = Object.values(finalStatus.queueMetrics).reduce(
-        (total: number, metrics: any) =>
-          total + metrics.waiting + metrics.active + metrics.completed,
-        0
+    const isAvailable = manager.isAvailable();
+    if (!isAvailable) {
+      throw new Error(
+        "Redis is not available - this system requires Redis to function"
       );
-      console.log(`   - Total Queue Jobs Processed: ${totalQueueJobs}`);
     }
 
-    console.log("\n🎉 BullMQ Integration Test Summary:");
-    console.log(`   - Redis Available: ${redisAvailable ? "Yes" : "No"}`);
-    console.log(
-      `   - BullMQ Active: ${CronManager.isUsingQueues() ? "Yes" : "No"}`
-    );
-    console.log(
-      `   - Fallback Mode: ${!CronManager.isUsingQueues() ? "Yes (node-cron only)" : "No"}`
-    );
-    console.log(`   - Enhanced Cron Manager: Working`);
-    console.log(
-      `   - Job Queuing: ${redisAvailable ? "Working" : "Fallback (disabled)"}`
-    );
-    console.log("   - All tests PASSED ✅\n");
+    console.log("✅ Redis is available and ready");
+    return true;
   } catch (error) {
-    console.error("❌ Error during BullMQ integration test:", error);
-    process.exit(1);
+    console.error("❌ Redis availability test failed:", error);
+    return false;
   }
 }
 
-// Run the test
+async function testQueueInitialization() {
+  console.log("\n2️⃣  Testing Queue Initialization...");
+
+  try {
+    await EnhancedCronManager.initialize();
+    console.log("✅ Enhanced Cron Manager initialized successfully");
+
+    const queueManager = EnhancedCronManager.getQueueManager();
+    if (!queueManager) {
+      throw new Error("Queue manager not available");
+    }
+
+    console.log("✅ Queue manager is ready");
+    return true;
+  } catch (error) {
+    console.error("❌ Queue initialization failed:", error);
+    return false;
+  }
+}
+
+async function testJobExecution() {
+  console.log("\n3️⃣  Testing Job Execution...");
+
+  try {
+    const result = await EnhancedCronManager.triggerJob("system_health_check");
+    console.log("✅ Job triggered successfully:", result);
+
+    // Wait a bit and check status
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const status = await EnhancedCronManager.getStatus();
+    console.log("✅ System status:", {
+      initialized: status.initialized,
+      usingQueues: status.useQueues,
+      redisAvailable: status.redisAvailable,
+      queueManagerReady: status.queueManagerReady,
+    });
+
+    return true;
+  } catch (error) {
+    console.error("❌ Job execution test failed:", error);
+    return false;
+  }
+}
+
+async function testQueueMetrics() {
+  console.log("\n4️⃣  Testing Queue Metrics...");
+
+  try {
+    const queueManager = EnhancedCronManager.getQueueManager();
+    if (!queueManager) {
+      throw new Error("Queue manager not available");
+    }
+
+    const metrics = await queueManager.getAllQueueMetrics();
+    console.log("✅ Queue metrics retrieved:", Object.keys(metrics));
+
+    // Display queue status
+    Object.entries(metrics).forEach(
+      ([queueName, queueMetrics]: [string, any]) => {
+        console.log(
+          `   ${queueName}: ${queueMetrics.waiting} waiting, ${queueMetrics.active} active, ${queueMetrics.completed} completed`
+        );
+      }
+    );
+
+    return true;
+  } catch (error) {
+    console.error("❌ Queue metrics test failed:", error);
+    return false;
+  }
+}
+
+async function testJobScheduling() {
+  console.log("\n5️⃣  Testing Job Scheduling...");
+
+  try {
+    const queueManager = EnhancedCronManager.getQueueManager();
+    if (!queueManager) {
+      throw new Error("Queue manager not available");
+    }
+
+    // Test different job types
+    const testJobs = [
+      { queueName: "scheduler", jobType: JobType.SYSTEM_HEALTH_CHECK },
+      { queueName: "maintenance", jobType: JobType.CLEANUP_OLD_LOGS },
+    ];
+
+    for (const { queueName, jobType } of testJobs) {
+      const job = await queueManager.addJob(
+        queueName,
+        jobType,
+        { userId: "test-user", platform: "all" },
+        { priority: 1 }
+      );
+      console.log(
+        `✅ Job ${jobType} scheduled successfully with ID: ${job.id}`
+      );
+    }
+
+    return true;
+  } catch (error) {
+    console.error("❌ Job scheduling test failed:", error);
+    return false;
+  }
+}
+
+async function runTests() {
+  const results = {
+    redisAvailable: false,
+    queueInitialized: false,
+    jobExecution: false,
+    queueMetrics: false,
+    jobScheduling: false,
+  };
+
+  console.log("🔍 Running Redis-Only BullMQ Tests...\n");
+
+  // Test Redis availability first
+  results.redisAvailable = await testRedisAvailability();
+  if (!results.redisAvailable) {
+    console.log(
+      "\n❌ Redis is not available. This system requires Redis to function."
+    );
+    console.log("💡 Please start Redis server:");
+    console.log("   brew services start redis");
+    console.log("   # or");
+    console.log("   redis-server");
+    return results;
+  }
+
+  // Run other tests
+  results.queueInitialized = await testQueueInitialization();
+  if (results.queueInitialized) {
+    results.jobExecution = await testJobExecution();
+    results.queueMetrics = await testQueueMetrics();
+    results.jobScheduling = await testJobScheduling();
+  }
+
+  // Print summary
+  console.log("\n" + "=".repeat(50));
+  console.log("📊 TEST SUMMARY");
+  console.log("=".repeat(50));
+
+  const testResults = [
+    { name: "Redis Available", status: results.redisAvailable },
+    { name: "Queue Initialized", status: results.queueInitialized },
+    { name: "Job Execution", status: results.jobExecution },
+    { name: "Queue Metrics", status: results.queueMetrics },
+    { name: "Job Scheduling", status: results.jobScheduling },
+  ];
+
+  testResults.forEach(({ name, status }) => {
+    console.log(`${status ? "✅" : "❌"} ${name}`);
+  });
+
+  const passedTests = testResults.filter((t) => t.status).length;
+  const totalTests = testResults.length;
+
+  console.log(`\n🎯 Results: ${passedTests}/${totalTests} tests passed`);
+
+  if (passedTests === totalTests) {
+    console.log("🎉 All tests passed! Redis-only system is working correctly.");
+  } else {
+    console.log(
+      "⚠️  Some tests failed. Check Redis connection and configuration."
+    );
+  }
+
+  // Cleanup
+  try {
+    await EnhancedCronManager.shutdown();
+    console.log("✅ Cleanup completed");
+  } catch (error) {
+    console.error("⚠️  Cleanup error:", error);
+  }
+
+  return results;
+}
+
+// Run tests
 if (require.main === module) {
-  testBullMQIntegration()
-    .then(() => {
-      console.log("✅ BullMQ integration test completed successfully!");
-      process.exit(0);
+  runTests()
+    .then((results) => {
+      const allPassed = Object.values(results).every(Boolean);
+      process.exit(allPassed ? 0 : 1);
     })
     .catch((error) => {
-      console.error("❌ BullMQ integration test failed:", error);
+      console.error("❌ Test execution failed:", error);
       process.exit(1);
     });
 }
-
-export { testBullMQIntegration };

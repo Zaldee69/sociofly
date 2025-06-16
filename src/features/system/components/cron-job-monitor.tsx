@@ -237,7 +237,7 @@ export function CronJobMonitor() {
       analyze_engagement_hotspots: "Analyze social media engagement hotspots",
       fetch_account_insights:
         "Fetch account-level insights for all social accounts",
-      collect_analytics: "Collect analytics for all posts",
+      collect_posts_analytics: "Collect analytics for all posts",
     };
     return descriptions[jobName] || "Unknown job";
   };
@@ -252,7 +252,7 @@ export function CronJobMonitor() {
       cleanup_old_logs: "Weekly on Sunday at 3 AM",
       analyze_engagement_hotspots: "Daily at 4 AM",
       fetch_account_insights: "Daily at 5 AM",
-      collect_analytics: "Daily at 6 AM",
+      collect_posts_analytics: "Daily at 6 AM",
     };
     return schedules[jobName] || "Unknown schedule";
   };

@@ -1,6 +1,4 @@
 import { JobType, JobData } from "./job-types";
-import { SchedulerService } from "@/lib/services/scheduler.service";
-import { PostPublisherService } from "@/lib/services/post-publisher";
 import type {
   PublishPostJobData,
   ProcessApprovalJobData,
@@ -11,6 +9,8 @@ import type {
   ProcessWebhookJobData,
   GenerateReportJobData,
   SocialMediaSyncJobData,
+  CollectPostsAnalyticsJobData,
+  AnalyzeHotspotsJobData,
 } from "./job-types";
 
 export class JobProcessor {
@@ -20,10 +20,10 @@ export class JobProcessor {
   public static async process(jobType: JobType, data: JobData): Promise<any> {
     switch (jobType) {
       case JobType.PUBLISH_POST:
-        return await this.processPublishPost(data as PublishPostJobData);
+        return await this.processPublishDuePosts();
 
       case JobType.PROCESS_APPROVAL:
-        return await this.processApproval(data as ProcessApprovalJobData);
+        return await this.processApprovalEdgeCases();
 
       case JobType.CHECK_EXPIRED_TOKENS:
         return await this.processCheckExpiredTokens(
@@ -31,9 +31,7 @@ export class JobProcessor {
         );
 
       case JobType.SYSTEM_HEALTH_CHECK:
-        return await this.processSystemHealthCheck(
-          data as SystemHealthCheckJobData
-        );
+        return await this.processSystemHealthCheck();
 
       case JobType.CLEANUP_OLD_LOGS:
         return await this.processCleanupOldLogs(data as CleanupOldLogsJobData);
@@ -55,6 +53,13 @@ export class JobProcessor {
         );
 
       case JobType.COLLECT_POSTS_ANALYTICS:
+        return await this.processCollectPostsAnalytics();
+
+      case JobType.ANALYZE_HOTSPOTS:
+        return await this.processAnalyzeHotspots();
+
+      case JobType.ANALYZE_ACCOUNT_INSIGHTS:
+        return await this.processAnalyzeAccountInsights();
 
       default:
         throw new Error(`Unknown job type: ${jobType}`);
@@ -64,90 +69,20 @@ export class JobProcessor {
   /**
    * Process publish post job
    */
-  private static async processPublishPost(
-    data: PublishPostJobData
-  ): Promise<any> {
-    console.log(
-      `📝 Processing publish job with data:`,
-      JSON.stringify(data, null, 2)
-    );
+  private static async processPublishDuePosts(): Promise<any> {
+    console.log(`📋 Processing due posts publication...`);
 
     try {
-      // Handle batch processing mode for recurring cron jobs
-      if (data.postId === "batch_due_posts") {
-        console.log(`📋 Processing all due posts in batch mode`);
-        // Import SchedulerService here to avoid circular dependencies
-        const { SchedulerService } = await import(
-          "@/lib/services/scheduler.service"
-        );
-        const result = await SchedulerService.processDuePublications();
+      // Use dynamic import to avoid circular dependencies
+      const { SchedulerService } = await import(
+        "@/lib/services/scheduler.service"
+      );
+      const result = await SchedulerService.processDuePublications();
 
-        return {
-          action: "batch_due_posts",
-          result,
-        };
-      }
-
-      // Handle case where data is incomplete or from old recurring jobs
-      if (
-        !data.postId ||
-        !data.platform ||
-        data.postId === "undefined" ||
-        data.platform === "undefined"
-      ) {
-        console.warn(
-          `⚠️  Received incomplete job data, falling back to batch processing:`,
-          data
-        );
-        // Import SchedulerService here to avoid circular dependencies
-        const { SchedulerService } = await import(
-          "@/lib/services/scheduler.service"
-        );
-        const result = await SchedulerService.processDuePublications();
-
-        return {
-          action: "fallback_batch_processing",
-          originalData: data,
-          result,
-        };
-      }
-
-      // Individual post processing
-      console.log(`📝 Publishing post ${data.postId} to ${data.platform}`);
-
-      // Use the refactored PostPublisherService for specific post publishing
-      if (data.socialAccountId) {
-        // Publish to specific platform
-        const result = await PostPublisherService.publishToSocialMedia(
-          data.postId,
-          data.socialAccountId
-        );
-
-        return {
-          postId: data.postId,
-          platform: data.platform,
-          socialAccountId: data.socialAccountId,
-          status: result.success ? "published" : "failed",
-          result,
-        };
-      } else {
-        // Publish to all platforms for this post
-        const results = await PostPublisherService.publishToAllPlatforms(
-          data.postId
-        );
-        const successCount = results.filter((r) => r.success).length;
-
-        return {
-          postId: data.postId,
-          platform: data.platform,
-          status: successCount > 0 ? "published" : "failed",
-          results,
-          successCount,
-          totalCount: results.length,
-        };
-      }
+      console.log(`✅ Due posts processing completed:`, result);
+      return result;
     } catch (error) {
-      console.error(`❌ Failed to process publish job:`, error);
+      console.error(`❌ Failed to process due posts:`, error);
       throw error;
     }
   }
@@ -155,26 +90,20 @@ export class JobProcessor {
   /**
    * Process approval job
    */
-  private static async processApproval(
-    data: ProcessApprovalJobData
-  ): Promise<any> {
-    console.log(`📋 Processing approval for post ${data.postId}`);
+  private static async processApprovalEdgeCases(): Promise<any> {
+    console.log(`📋 Processing approval edge cases...`);
 
     try {
-      // Use existing approval system logic
+      // Use dynamic import to avoid circular dependencies
+      const { SchedulerService } = await import(
+        "@/lib/services/scheduler.service"
+      );
       const result = await SchedulerService.processApprovalEdgeCases();
 
-      return {
-        postId: data.postId,
-        action: data.action,
-        approverUserId: data.approverUserId,
-        result,
-      };
+      console.log(`✅ Approval edge cases processing completed:`, result);
+      return result;
     } catch (error) {
-      console.error(
-        `❌ Failed to process approval for post ${data.postId}:`,
-        error
-      );
+      console.error(`❌ Failed to process approval edge cases:`, error);
       throw error;
     }
   }
@@ -188,6 +117,14 @@ export class JobProcessor {
     console.log(`🔐 Checking expired tokens`);
 
     try {
+      // Use dynamic imports to avoid circular dependencies
+      const { SchedulerService } = await import(
+        "@/lib/services/scheduler.service"
+      );
+      const { PostPublisherService } = await import(
+        "@/lib/services/post-publisher"
+      );
+
       // Use both the old method and new token validation
       const schedulerResult = await SchedulerService.checkExpiredTokens();
       const validationResult = await PostPublisherService.validateAllTokens();
@@ -213,27 +150,18 @@ export class JobProcessor {
   /**
    * Process system health check
    */
-  private static async processSystemHealthCheck(
-    data: SystemHealthCheckJobData
-  ): Promise<any> {
-    console.log(`🏥 Running system health check (${data.checkType})`);
+  private static async processSystemHealthCheck(): Promise<any> {
+    console.log(`🏥 Running system health check...`);
 
     try {
+      // Use dynamic import to avoid circular dependencies
+      const { SchedulerService } = await import(
+        "@/lib/services/scheduler.service"
+      );
       const result = await SchedulerService.getApprovalSystemHealth();
 
-      // If health score is below threshold, trigger alerts
-      if (data.alertThreshold && result.healthScore < data.alertThreshold) {
-        console.warn(
-          `⚠️  System health below threshold: ${result.healthScore}/${data.alertThreshold}`
-        );
-        // Here you could trigger notification jobs for alerts
-      }
-
-      return {
-        checkType: data.checkType,
-        healthScore: result.healthScore,
-        result,
-      };
+      console.log(`✅ System health check completed:`, result);
+      return result;
     } catch (error) {
       console.error(`❌ Failed to run system health check:`, error);
       throw error;
@@ -376,6 +304,63 @@ export class JobProcessor {
       };
     } catch (error) {
       console.error(`❌ Failed to sync social media:`, error);
+      throw error;
+    }
+  }
+
+  private static async processAnalyzeHotspots(): Promise<any> {
+    console.log(`📊 Running hotspot analysis for all accounts...`);
+
+    try {
+      // Use dynamic import to avoid circular dependencies
+      const { SchedulerService } = await import(
+        "@/lib/services/scheduler.service"
+      );
+      const result = await SchedulerService.runHotspotAnalysisForAllAccounts();
+
+      console.log(`✅ Hotspot analysis completed:`, result);
+      return result;
+    } catch (error) {
+      console.error(`❌ Failed to run hotspot analysis:`, error);
+      throw error;
+    }
+  }
+
+  private static async processCollectPostsAnalytics(): Promise<any> {
+    console.log(`📈 Collecting posts analytics...`);
+
+    try {
+      // Use dynamic imports to avoid circular dependencies
+      const { prisma } = await import("@/lib/prisma/client");
+      const { RealSocialAnalyticsService } = await import(
+        "@/lib/services/social-analytics/real-analytics-service"
+      );
+
+      const realAnalyticsService = new RealSocialAnalyticsService(prisma);
+      const result = await realAnalyticsService.scheduleAnalyticsCollection();
+
+      console.log(`✅ Posts analytics collection completed:`, result);
+      return result;
+    } catch (error) {
+      console.error(`❌ Failed to collect posts analytics:`, error);
+      throw error;
+    }
+  }
+
+  private static async processAnalyzeAccountInsights(): Promise<any> {
+    console.log(`📊 Running account insights analysis for all accounts...`);
+
+    try {
+      // Use dynamic import to avoid circular dependencies
+      const { SchedulerService } = await import(
+        "@/lib/services/scheduler.service"
+      );
+      const result = await SchedulerService.runAccountInsightsForAllAccounts();
+
+      console.log(`✅ Account insights analysis completed:`, result);
+      return result;
+    } catch (error) {
+      console.error(`❌ Failed to run account insights analysis:`, error);
       throw error;
     }
   }

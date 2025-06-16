@@ -1,15 +1,15 @@
 #!/usr/bin/env ts-node
 
 /**
- * Cron Performance Monitor
+ * Redis Job Performance Monitor
  *
- * Monitor cron job performance and provide optimization recommendations
- * Usage: npx tsx scripts/monitor-cron-performance.ts
+ * Monitor Redis-based job performance and provide optimization recommendations
+ * Usage: npx tsx scripts/monitor-redis-performance.ts
  */
 
 import { prisma } from "../src/lib/prisma/client";
 
-interface CronPerformanceMetrics {
+interface JobPerformanceMetrics {
   jobName: string;
   totalRuns: number;
   successRate: number;
@@ -19,8 +19,8 @@ interface CronPerformanceMetrics {
   performance: "excellent" | "good" | "poor" | "critical";
 }
 
-async function analyzeCronPerformance() {
-  console.log("📊 Cron Job Performance Analysis\n");
+async function analyzeJobPerformance() {
+  console.log("📊 Redis Job Performance Analysis\n");
 
   try {
     // Get performance data for the last 24 hours
@@ -38,7 +38,7 @@ async function analyzeCronPerformance() {
     });
 
     if (cronLogs.length === 0) {
-      console.log("ℹ️  No cron job logs found in the last 24 hours");
+      console.log("ℹ️  No job logs found in the last 24 hours");
       return;
     }
 
@@ -54,7 +54,7 @@ async function analyzeCronPerformance() {
       {} as Record<string, typeof cronLogs>
     );
 
-    const metrics: CronPerformanceMetrics[] = [];
+    const metrics: JobPerformanceMetrics[] = [];
 
     // Analyze each job type
     for (const [jobName, logs] of Object.entries(jobGroups)) {
@@ -86,7 +86,7 @@ async function analyzeCronPerformance() {
         .filter((message): message is string => message !== null);
 
       // Determine performance rating
-      let performance: CronPerformanceMetrics["performance"] = "excellent";
+      let performance: JobPerformanceMetrics["performance"] = "excellent";
       if (successRate < 50) performance = "critical";
       else if (successRate < 80) performance = "poor";
       else if (successRate < 95) performance = "good";
@@ -145,10 +145,13 @@ async function analyzeCronPerformance() {
       metrics.length;
 
     console.log("\n" + "─".repeat(80));
-    console.log("🏥 SYSTEM HEALTH SUMMARY");
+    console.log("🏥 REDIS JOB SYSTEM HEALTH");
     console.log("─".repeat(80));
     console.log(`Overall Success Rate: ${overallSuccessRate.toFixed(1)}%`);
     console.log(`Average Execution Time: ${avgExecutionTime.toFixed(0)}ms`);
+
+    // Check Redis status
+    await checkRedisStatus();
 
     // Recommendations
     console.log("\n💡 OPTIMIZATION RECOMMENDATIONS:");
@@ -157,16 +160,16 @@ async function analyzeCronPerformance() {
     const publishMetric = metrics.find((m) => m.jobName.includes("publish"));
     if (publishMetric) {
       if (publishMetric.averageExecutionTime > 10000) {
-        console.log("🔧 PUBLISH OPTIMIZATION:");
-        console.log("   • Reduce CRON_BATCH_SIZE (current default: 10)");
-        console.log("   • Consider parallel processing optimization");
-        console.log("   • Check database query performance");
+        console.log("🔧 PUBLISH JOB OPTIMIZATION:");
+        console.log("   • Consider reducing batch size in Redis jobs");
+        console.log("   • Check Redis memory usage and optimization");
+        console.log("   • Optimize database queries in job processors");
       }
 
       if (publishMetric.totalRuns > 100) {
         console.log("⚡ HIGH FREQUENCY PUBLISHING:");
-        console.log("   • Current: Every 1 minute (optimized)");
-        console.log("   • Consider queue-based approach for high volume");
+        console.log("   • Current: Redis BullMQ handles scheduling");
+        console.log("   • Consider Redis clustering for high volume");
       }
     }
 
@@ -191,112 +194,72 @@ async function analyzeCronPerformance() {
       });
     }
 
-    // Environment recommendations
-    console.log("\n⚙️  ENVIRONMENT CONFIGURATION:");
-    console.log("   # Add to your .env file for performance tuning:");
-    console.log(
-      "   CRON_BATCH_SIZE=5          # Reduce if system is overloaded"
+    // Redis-specific recommendations
+    console.log("\n⚙️  REDIS CONFIGURATION:");
+    console.log("   # Redis optimization for job performance:");
+    console.log("   redis-cli config set maxmemory-policy allkeys-lru");
+    console.log("   redis-cli config set timeout 300");
+    console.log("   # Monitor Redis memory:");
+    console.log("   redis-cli info memory");
+  } catch (error) {
+    console.error("❌ Error analyzing job performance:", error);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+async function checkRedisStatus() {
+  try {
+    const response = await fetch(
+      "http://localhost:3000/api/cron-manager?action=status&apiKey=test-scheduler-key"
     );
-    console.log("   CRON_PUBLISH_ENABLED=true  # Disable to stop publishing");
-    console.log(
-      "   CRON_HEALTH_CHECK_ENABLED=false  # Disable non-critical checks"
-    );
+    const data = await response.json();
 
-    // Recent batch performance
-    const batchLogs = cronLogs.filter(
-      (log) => log.name === "publish_due_posts_batch"
-    );
-    if (batchLogs.length > 0) {
-      console.log("\n📦 BATCH PROCESSING ANALYSIS:");
-      console.log("─".repeat(50));
+    if (data.success) {
+      const status = data.result;
+      console.log("\n🗄️  REDIS STATUS:");
+      console.log(`   Connected: ${status.redisAvailable ? "✅" : "❌"}`);
+      console.log(
+        `   Queue Manager: ${status.queueManagerReady ? "✅" : "❌"}`
+      );
+      console.log(
+        `   Jobs Running: ${status.cronJobs?.filter((j: any) => j.running).length || 0}/7`
+      );
 
-      const recentBatches = batchLogs.slice(0, 10);
-      let totalProcessed = 0;
-      let totalSuccess = 0;
-      let totalFailed = 0;
-
-      recentBatches.forEach((log) => {
-        if (log.message) {
-          // Parse batch info from message: "Batch processed X posts: Y success, Z failed, A skipped"
-          const processedMatch = log.message.match(/processed (\d+) posts/);
-          const successMatch = log.message.match(/(\d+) success/);
-          const failedMatch = log.message.match(/(\d+) failed/);
-
-          if (processedMatch) totalProcessed += parseInt(processedMatch[1]);
-          if (successMatch) totalSuccess += parseInt(successMatch[1]);
-          if (failedMatch) totalFailed += parseInt(failedMatch[1]);
-        }
-      });
-
-      if (totalProcessed > 0) {
-        console.log(`Last 10 batches: ${totalProcessed} posts processed`);
-        console.log(`Success: ${totalSuccess}, Failed: ${totalFailed}`);
+      if (status.redisInfo) {
         console.log(
-          `Batch Success Rate: ${((totalSuccess / totalProcessed) * 100).toFixed(1)}%`
+          `   Host: ${status.redisInfo.host}:${status.redisInfo.port}`
         );
-      } else {
-        console.log("No batch data available to analyze");
+        console.log(
+          `   Cluster Mode: ${status.redisInfo.isCluster ? "Yes" : "No"}`
+        );
+      }
+
+      if (status.queueMetrics) {
+        console.log("\n📊 QUEUE METRICS:");
+        Object.entries(status.queueMetrics).forEach(
+          ([queueName, metrics]: [string, any]) => {
+            console.log(
+              `   ${queueName}: ${metrics.waiting} waiting, ${metrics.active} active, ${metrics.completed} completed, ${metrics.failed} failed`
+            );
+          }
+        );
       }
     }
   } catch (error) {
-    console.error("❌ Error analyzing cron performance:", error);
+    console.log("⚠️  Could not fetch Redis status from API");
   }
 }
 
-// Check for high-load situations
-async function checkSystemLoad() {
-  console.log("\n🔍 SYSTEM LOAD CHECK:");
-  console.log("─".repeat(40));
-
-  try {
-    // Check pending posts
-    const pendingPosts = await prisma.post.count({
-      where: {
-        status: "SCHEDULED",
-        scheduledAt: {
-          lte: new Date(),
-        },
-      },
-    });
-
-    console.log(`Pending Posts: ${pendingPosts}`);
-
-    if (pendingPosts > 100) {
-      console.log("⚠️  HIGH LOAD: Consider increasing batch size or frequency");
-    } else if (pendingPosts > 50) {
-      console.log("🟡 MODERATE LOAD: Monitor performance");
-    } else {
-      console.log("✅ NORMAL LOAD: System operating efficiently");
-    }
-
-    // Check recent cron activity
-    const recentActivity = await prisma.cronLog.count({
-      where: {
-        executedAt: {
-          gte: new Date(Date.now() - 5 * 60 * 1000), // Last 5 minutes
-        },
-      },
-    });
-
-    console.log(
-      `Recent Activity: ${recentActivity} cron executions in last 5 minutes`
-    );
-
-    if (recentActivity > 20) {
-      console.log("⚠️  HIGH ACTIVITY: Cron jobs running frequently");
-    }
-  } catch (error) {
-    console.error("❌ Error checking system load:", error);
-  }
-}
-
-// Command line arguments
-const args = process.argv.slice(2);
-
+// Run the analysis
 if (require.main === module) {
-  analyzeCronPerformance()
-    .then(() => checkSystemLoad())
-    .catch(console.error);
+  analyzeJobPerformance()
+    .then(() => {
+      console.log("\n✅ Analysis complete");
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error("❌ Analysis failed:", error);
+      process.exit(1);
+    });
 }
-
-export { analyzeCronPerformance, checkSystemLoad };

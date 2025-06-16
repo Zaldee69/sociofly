@@ -583,7 +583,13 @@ export class SchedulerService {
       }
 
       // Use transaction to update all hotspots atomically
+      // First delete existing hotspots for this account, then create new ones
       await prisma.$transaction([
+        prisma.engagementHotspot.deleteMany({
+          where: {
+            socialAccountId,
+          },
+        }),
         prisma.engagementHotspot.createMany({
           data: hotspots,
         }),

@@ -1,462 +1,611 @@
-import * as cron from "node-cron";
+// enhanced-cron-manager.ts - Redis Queue Only Manager
 import { QueueManager } from "@/lib/queue/queue-manager";
 import { JobType } from "@/lib/queue/job-types";
+import { JOB_CONSTANTS } from "@/lib/queue/job-constants";
 import { SchedulerService } from "./scheduler.service";
 import { prisma } from "@/lib/prisma/client";
-import { checkRedisConnection } from "@/lib/queue/redis-connection";
-import { RealSocialAnalyticsService } from "./social-analytics/real-analytics-service";
+import { UnifiedRedisManager } from "./unified-redis-manager";
 
 interface CronJobConfig {
   name: string;
   schedule: string;
   description: string;
   enabled: boolean;
-  useQueue: boolean; // Whether to use BullMQ for this job
-  queueName?: string;
-  jobType?: JobType;
-  handler: () => Promise<any>;
+  queueName: string;
+  jobType: JobType;
+  jobData: any;
+  priority?: number;
 }
 
-export class CronManager {
-  private static cronJobs: Map<string, cron.ScheduledTask> = new Map();
-  private static jobStatuses: Map<string, boolean> = new Map();
-  private static queueManager: QueueManager | null = null;
+export class EnhancedCronManager {
+  private static instance: EnhancedCronManager;
   private static isInitialized = false;
+  private static queueManager: QueueManager | null = null;
+  private static redisManager: UnifiedRedisManager | null = null;
   private static useQueues = false;
 
+  private constructor() {}
+
+  public static getInstance(): EnhancedCronManager {
+    if (!EnhancedCronManager.instance) {
+      EnhancedCronManager.instance = new EnhancedCronManager();
+    }
+    return EnhancedCronManager.instance;
+  }
+
   /**
-   * Initialize cron manager with both node-cron and BullMQ
+   * Initialize enhanced cron manager
    */
-  static async initialize(): Promise<void> {
+  public static async initialize(): Promise<void> {
     if (this.isInitialized) {
-      console.log("⚠️  Cron Manager already initialized");
+      console.log("⚠️  Enhanced Cron Manager already initialized");
       return;
     }
 
-    console.log("🚀 Initializing Cron Manager...");
+    console.log("🚀 Initializing Enhanced Cron Manager (Redis Queue Only)...");
 
     try {
-      // Check if Redis is available for BullMQ
-      const redisAvailable = await checkRedisConnection();
+      // Initialize Redis connection
+      this.redisManager = UnifiedRedisManager.getInstance();
+      await this.redisManager.initialize();
 
-      if (redisAvailable) {
-        console.log("✅ Redis available - Initializing BullMQ...");
-        this.queueManager = QueueManager.getInstance();
-        await this.queueManager.initialize();
-        this.useQueues = true;
-      } else {
-        console.log("⚠️  Redis not available - Using node-cron only");
-        this.useQueues = false;
+      // Ensure Redis is available - no fallback mode
+      if (!this.redisManager.isAvailable()) {
+        throw new Error(
+          "Redis is required for job scheduling. Please ensure Redis is running."
+        );
       }
 
-      // Initialize job configurations
-      const jobConfigs: CronJobConfig[] = [
-        {
-          name: "publish_due_posts",
-          schedule: "*/1 * * * *", // Every 1 minute
-          description: "Publish posts that are due for publication",
-          enabled: process.env.CRON_PUBLISH_ENABLED !== "false",
-          useQueue: this.useQueues,
-          queueName: QueueManager.QUEUES.SCHEDULER,
-          jobType: JobType.PUBLISH_POST,
-          handler: this.handlePublishDuePosts,
-        },
-        {
-          name: "process_edge_cases",
-          schedule: "0 */1 * * *", // Every hour
-          description: "Process approval system edge cases",
-          enabled: process.env.CRON_EDGE_CASES_ENABLED !== "false",
-          useQueue: this.useQueues,
-          queueName: QueueManager.QUEUES.HIGH_PRIORITY,
-          jobType: JobType.PROCESS_APPROVAL,
-          handler: this.handleProcessEdgeCases,
-        },
-        {
-          name: "check_expired_tokens",
-          schedule: "0 2 * * *", // Daily at 2 AM
-          description: "Check for expired social account tokens",
-          enabled: process.env.CRON_TOKEN_CHECK_ENABLED !== "false",
-          useQueue: this.useQueues,
-          queueName: QueueManager.QUEUES.MAINTENANCE,
-          jobType: JobType.CHECK_EXPIRED_TOKENS,
-          handler: this.handleCheckExpiredTokens,
-        },
-        {
-          name: "system_health_check",
-          schedule: "*/15 * * * *", // Every 15 minutes
-          description: "Monitor system health and log metrics",
-          enabled: process.env.CRON_HEALTH_CHECK_ENABLED !== "false",
-          useQueue: this.useQueues,
-          queueName: QueueManager.QUEUES.MAINTENANCE,
-          jobType: JobType.SYSTEM_HEALTH_CHECK,
-          handler: this.handleSystemHealthCheck,
-        },
-        {
-          name: "cleanup_old_logs",
-          schedule: "0 3 * * 0", // Weekly on Sunday at 3 AM
-          description: "Clean up old cron logs (keep last 30 days)",
-          enabled: process.env.CRON_CLEANUP_ENABLED !== "false",
-          useQueue: this.useQueues,
-          queueName: QueueManager.QUEUES.MAINTENANCE,
-          jobType: JobType.CLEANUP_OLD_LOGS,
-          handler: this.handleCleanupOldLogs,
-        },
-        {
-          name: "analyze_engagement_hotspots",
-          schedule: "0 4 * * *", // Daily at 4 AM
-          description: "Analyze social media engagement hotspots",
-          enabled: process.env.CRON_HOTSPOT_ANALYSIS_ENABLED !== "false",
-          useQueue: this.useQueues,
-          queueName: QueueManager.QUEUES.MAINTENANCE,
-          jobType: JobType.ANALYZE_HOTSPOTS,
-          handler: this.handleAnalyzeHotspots,
-        },
-        {
-          name: "fetch_account_insights",
-          schedule: "0 5 * * *", // Daily at 5 AM
-          description: "Fetch account-level insights for all social accounts",
-          enabled: process.env.CRON_ACCOUNT_INSIGHTS_ENABLED !== "false",
-          useQueue: this.useQueues,
-          queueName: QueueManager.QUEUES.MAINTENANCE,
-          jobType: JobType.ANALYZE_ACCOUNT_INSIGHTS,
-          handler: this.handleAccountInsights,
-        },
-        {
-          name: "collect_analytics",
-          schedule: "0 6 * * *", // Daily at 6 AM
-          description: "Collect analytics for all posts",
-          enabled: process.env.CRON_COLLECT_ANALYTICS_ENABLED !== "false",
-          useQueue: this.useQueues,
-          queueName: QueueManager.QUEUES.MAINTENANCE,
-          jobType: JobType.COLLECT_POSTS_ANALYTICS,
-          handler: this.handleCollectPostsAnalytics,
-        },
-      ];
+      console.log("✅ Redis available - Initializing QueueManager...");
+      this.queueManager = QueueManager.getInstance();
+      await this.queueManager.initialize();
+      this.useQueues = true;
 
-      // Register and start jobs
-      for (const config of jobConfigs) {
-        if (config.enabled) {
-          this.registerJob(config);
-        } else {
-          console.log(`⏸️  Skipping disabled job: ${config.name}`);
-        }
-      }
+      // Setup job configurations (Queue-only)
+      await this.setupJobs();
 
       this.isInitialized = true;
-      console.log("✅ Cron Manager initialized successfully");
+      console.log(
+        "✅ Enhanced Cron Manager initialized successfully (Redis Queue Only)"
+      );
 
-      // Log startup
       await this.logActivity(
         "enhanced_cron_manager_started",
         "SUCCESS",
-        `Cron Manager initialized with ${this.useQueues ? "BullMQ" : "node-cron only"}`
+        `Enhanced Cron Manager initialized with Redis BullMQ only`
       );
     } catch (error) {
-      console.error("❌ Failed to initialize Cron Manager:", error);
+      console.error("❌ Failed to initialize Enhanced Cron Manager:", error);
       throw error;
     }
   }
 
   /**
-   * Register and start a cron job
+   * Setup all job configurations
    */
-  private static registerJob(config: CronJobConfig): void {
-    if (
-      config.useQueue &&
-      this.queueManager &&
-      config.queueName &&
-      config.jobType
-    ) {
-      // Use BullMQ for job scheduling
-      this.scheduleQueueJob(config);
-    } else {
-      // Fall back to node-cron
-      this.scheduleNodeCronJob(config);
-    }
-
-    this.jobStatuses.set(config.name, true);
-    console.log(
-      `🕒 Registered ${config.useQueue && this.queueManager ? "queue" : "cron"} job: ${config.name} (${config.schedule}) - ${config.description}`
-    );
-  }
-
-  /**
-   * Schedule job using BullMQ
-   */
-  private static async scheduleQueueJob(config: CronJobConfig): Promise<void> {
-    if (!this.queueManager || !config.queueName || !config.jobType) {
-      return;
-    }
-
-    try {
-      // For publish_due_posts, we should execute the scheduler service directly
-      // Instead of creating individual PUBLISH_POST jobs with incomplete data
-      if (config.name === "publish_due_posts") {
-        await this.queueManager.scheduleRecurringJob(
-          config.queueName,
-          config.jobType,
-          {
-            postId: "batch_due_posts", // Special identifier for batch processing
-            userId: "system",
-            platform: "all",
-            scheduledAt: new Date(),
-            content: {
-              text: `Batch processing of due posts (batch size: ${process.env.CRON_BATCH_SIZE || "3"})`,
-              hashtags: ["cron", "batch"],
-            },
-          },
-          config.schedule,
-          {
-            attempts: 3,
-            backoff: { type: "exponential", delay: 2000 },
-            removeOnComplete: 10,
-            removeOnFail: 5,
-          }
-        );
-      } else {
-        // For other jobs, use appropriate job data
-        let jobData: any = {};
-
-        switch (config.jobType) {
-          case JobType.CHECK_EXPIRED_TOKENS:
-            jobData = {
-              userId: "system",
-              platform: "all",
-            };
-            break;
-          case JobType.SYSTEM_HEALTH_CHECK:
-            jobData = {
-              checkType: "quick",
-              alertThreshold: 70,
-            };
-            break;
-          case JobType.CLEANUP_OLD_LOGS:
-            jobData = {
-              olderThanDays: 30,
-              logType: "all",
-            };
-            break;
-          case JobType.ANALYZE_HOTSPOTS:
-            jobData = {
-              action: "analyze_all_accounts",
-            };
-            break;
-          case JobType.ANALYZE_ACCOUNT_INSIGHTS:
-            jobData = {
-              action: "fetch_all_insights",
-            };
-            break;
-          case JobType.COLLECT_POSTS_ANALYTICS:
-            jobData = {
-              action: "collect_analytics",
-            };
-            break;
-          default:
-            jobData = {
-              action: config.name,
-            };
-        }
-
-        await this.queueManager.scheduleRecurringJob(
-          config.queueName,
-          config.jobType,
-          jobData,
-          config.schedule,
-          {
-            attempts: 3,
-            backoff: { type: "exponential", delay: 2000 },
-            removeOnComplete: 10,
-            removeOnFail: 5,
-          }
-        );
-      }
-
-      console.log(
-        `📋 Scheduled queue job: ${config.name} in queue ${config.queueName}`
-      );
-    } catch (error) {
-      console.error(`❌ Failed to schedule queue job ${config.name}:`, error);
-      // Fall back to node-cron
-      this.scheduleNodeCronJob(config);
-    }
-  }
-
-  /**
-   * Schedule job using node-cron
-   */
-  private static scheduleNodeCronJob(config: CronJobConfig): void {
-    const task = cron.schedule(
-      config.schedule,
-      async () => {
-        await this.executeJob(config);
-      },
+  private static async setupJobs(): Promise<void> {
+    const jobConfigs: CronJobConfig[] = [
       {
-        timezone: process.env.TZ || "Asia/Jakarta",
-      }
-    );
-
-    this.cronJobs.set(config.name, task);
-    console.log(`⏰ Scheduled cron job: ${config.name}`);
-  }
-
-  /**
-   * Execute a job with error handling and logging
-   */
-  private static async executeJob(config: CronJobConfig): Promise<void> {
-    const startTime = Date.now();
-    console.log(`🚀 Executing job: ${config.name}`);
-
-    try {
-      await this.logActivity(
-        config.name,
-        "STARTED",
-        `Job ${config.name} started`
-      );
-
-      const executionTime = Date.now() - startTime;
-
-      console.log(`✅ Completed job: ${config.name} (${executionTime}ms)`);
-
-      await this.logActivity(
-        config.name,
-        "SUCCESS",
-        `Job ${config.name} completed successfully in ${executionTime}ms`
-      );
-    } catch (error) {
-      console.error(`❌ Error in job ${config.name}:`, error);
-
-      await this.logActivity(
-        config.name,
-        "ERROR",
-        `Job ${config.name} failed: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-  }
-
-  /**
-   * Job Handlers (same as original CronManager)
-   */
-  private static async handlePublishDuePosts(): Promise<any> {
-    return await SchedulerService.processDuePublications();
-  }
-
-  private static async handleProcessEdgeCases(): Promise<any> {
-    return await SchedulerService.processApprovalEdgeCases();
-  }
-
-  private static async handleCheckExpiredTokens(): Promise<any> {
-    return await SchedulerService.checkExpiredTokens();
-  }
-
-  private static async handleSystemHealthCheck(): Promise<any> {
-    return await SchedulerService.getApprovalSystemHealth();
-  }
-
-  private static async handleCleanupOldLogs(): Promise<any> {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 30);
-
-    const result = await prisma.cronLog.deleteMany({
-      where: {
-        executedAt: {
-          lt: cutoffDate,
+        name: "publish_due_posts",
+        schedule: "*/1 * * * *", // Every 1 minute
+        description: "Publish posts that are due for publication",
+        enabled: process.env.CRON_PUBLISH_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.SCHEDULER,
+        jobType: JobType.PUBLISH_POST,
+        priority: 5, // High priority
+        jobData: {
+          postId: JOB_CONSTANTS.SPECIAL_POST_IDS.BATCH_DUE_POSTS,
+          userId: "system",
+          platform: "all",
+          scheduledAt: new Date(),
+          content: {
+            text: "Batch processing of due posts",
+            hashtags: ["#cron", "#batch"],
+          },
         },
       },
-    });
+      {
+        name: "check_expired_tokens",
+        schedule: "0 2 * * *", // Daily at 2 AM
+        description: "Check for expired social account tokens",
+        enabled: process.env.CRON_TOKEN_CHECK_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.MAINTENANCE,
+        jobType: JobType.CHECK_EXPIRED_TOKENS,
+        jobData: {
+          userId: "system",
+          platform: "all",
+        },
+      },
+      {
+        name: "system_health_check",
+        schedule: "*/15 * * * *", // Every 15 minutes
+        description: "Monitor system health and log metrics",
+        enabled: process.env.CRON_HEALTH_CHECK_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.MAINTENANCE,
+        jobType: JobType.SYSTEM_HEALTH_CHECK,
+        jobData: {
+          checkType: JOB_CONSTANTS.HEALTH_CHECK_TYPES.QUICK,
+          alertThreshold: 70,
+        },
+      },
+      {
+        name: "cleanup_old_logs",
+        schedule: "0 3 * * 0", // Weekly on Sunday at 3 AM
+        description: "Clean up old cron logs (keep last 30 days)",
+        enabled: process.env.CRON_CLEANUP_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.MAINTENANCE,
+        jobType: JobType.CLEANUP_OLD_LOGS,
+        jobData: {
+          olderThanDays: JOB_CONSTANTS.CLEANUP_CONFIG.LOG_CLEANUP_DAYS,
+          logType: JOB_CONSTANTS.LOG_TYPES.ALL,
+        },
+      },
+      {
+        name: "analyze_engagement_hotspots",
+        schedule: "0 4 * * *", // Daily at 4 AM
+        description: "Analyze social media engagement hotspots",
+        enabled: process.env.CRON_HOTSPOT_ANALYSIS_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
+        jobType: JobType.ANALYZE_HOTSPOTS,
+        jobData: {
+          analyzePeriod: "week",
+          userId: "system",
+        },
+      },
+      {
+        name: "fetch_account_insights",
+        schedule: "0 5 * * *", // Daily at 5 AM
+        description: "Fetch account-level insights for all social accounts",
+        enabled: process.env.CRON_ACCOUNT_INSIGHTS_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
+        jobType: JobType.ANALYZE_ACCOUNT_INSIGHTS,
+        jobData: {
+          userId: "system",
+          socialAccountId: "system", // Will be processed for all accounts
+          platform: "all",
+          insightTypes: [
+            "demographics",
+            "engagement",
+            "growth",
+            "content_performance",
+          ],
+        },
+      },
+      {
+        name: "collect_posts_analytics",
+        schedule: "0 6 * * *", // Daily at 6 AM
+        description: "Collect analytics for all posts",
+        enabled: process.env.CRON_COLLECT_ANALYTICS_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
+        jobType: JobType.COLLECT_POSTS_ANALYTICS,
+        jobData: {
+          syncType: JOB_CONSTANTS.SYNC_TYPES.RECENT,
+          userId: "system",
+        },
+      },
+    ];
 
-    return { deletedCount: result.count, cutoffDate };
-  }
-
-  private static async handleAnalyzeHotspots(): Promise<any> {
-    return await SchedulerService.runHotspotAnalysisForAllAccounts();
-  }
-
-  private static async handleAccountInsights(): Promise<any> {
-    return await SchedulerService.runAccountInsightsForAllAccounts();
-  }
-
-  private static async handleCollectPostsAnalytics(): Promise<any> {
-    const realAnalyticsService = new RealSocialAnalyticsService(prisma);
-    return await realAnalyticsService.scheduleAnalyticsCollection();
+    // Register enabled jobs
+    for (const config of jobConfigs) {
+      if (config.enabled) {
+        await this.registerJob(config);
+      } else {
+        console.log(`⏸️  Skipping disabled job: ${config.name}`);
+      }
+    }
   }
 
   /**
-   * Queue a one-time job
+   * Register a job (queue-only, no fallback)
    */
-  static async queueJob(
-    queueName: string,
-    jobType: JobType,
-    data: any,
-    options?: any
-  ): Promise<void> {
-    if (!this.useQueues || !this.queueManager) {
-      throw new Error("Queue system not available. Redis connection required.");
-    }
-
+  private static async registerJob(config: CronJobConfig): Promise<void> {
     try {
-      const job = await this.queueManager.addJob(
-        queueName,
-        jobType,
-        data,
-        options
+      if (!this.queueManager) {
+        throw new Error("Queue Manager not available. Redis is required.");
+      }
+
+      // ✅ Use BullMQ for job scheduling only
+      await this.scheduleQueueJob(config);
+      console.log(
+        `📋 Registered queue job: ${config.name} (${config.schedule})`
       );
-      console.log(`📤 Queued job: ${jobType} (ID: ${job.id})`);
     } catch (error) {
-      console.error(`❌ Failed to queue job ${jobType}:`, error);
-      throw error;
+      console.error(`❌ Failed to register job ${config.name}:`, error);
+      throw error; // Don't fallback, throw error instead
     }
   }
 
   /**
-   * Get enhanced status including both cron jobs and queues
+   * Schedule job using QueueManager (BullMQ)
    */
-  static async getStatus(): Promise<any> {
-    const cronStatus = Array.from(this.jobStatuses.entries()).map(
-      ([name, running]) => ({
-        name,
-        running,
-        type: "cron",
-      })
-    );
+  private static async scheduleQueueJob(config: CronJobConfig): Promise<void> {
+    if (!this.queueManager) {
+      throw new Error("QueueManager not available");
+    }
 
-    let queueMetrics = {};
-    if (this.useQueues && this.queueManager) {
+    // Validate job data before scheduling
+    // const validation = JobValidator.validateJobData(
+    //   config.jobType,
+    //   config.jobData
+    // );
+    // if (!validation.isValid) {
+    //   throw new Error(
+    //     `Job validation failed for ${config.name}: ${validation.errors.join(", ")}`
+    //   );
+    // }
+
+    await this.queueManager.scheduleRecurringJob(
+      config.queueName,
+      config.jobType,
+      config.jobData,
+      config.schedule,
+      {
+        attempts: JOB_CONSTANTS.RETRY_CONFIG.DEFAULT_ATTEMPTS,
+        backoff: {
+          type: "exponential",
+          delay: JOB_CONSTANTS.RETRY_CONFIG.EXPONENTIAL_DELAY,
+        },
+        removeOnComplete: JOB_CONSTANTS.CLEANUP_CONFIG.KEEP_COMPLETED,
+        removeOnFail: JOB_CONSTANTS.CLEANUP_CONFIG.KEEP_FAILED,
+        priority: config.priority || 1,
+      }
+    );
+  }
+
+  /**
+   * Get comprehensive status (queue only)
+   */
+  public static async getStatus(): Promise<any> {
+    const status = {
+      initialized: this.isInitialized,
+      useQueues: this.useQueues,
+      redisAvailable: this.redisManager?.isAvailable() || false,
+      queueManagerReady: this.queueManager?.isReady() || false,
+      queueMetrics: {},
+      redisInfo: this.redisManager?.getConnectionInfo() || null,
+      cronJobs: [] as Array<{ name: string; running: boolean }>, // Add cronJobs array for frontend
+    };
+
+    if (this.queueManager) {
       try {
-        queueMetrics = await this.queueManager.getAllQueueMetrics();
+        status.queueMetrics = await this.queueManager.getAllQueueMetrics();
       } catch (error) {
         console.error("Failed to get queue metrics:", error);
       }
     }
 
+    // Add job status information for frontend (queue-based only)
+    const availableJobs = this.getAvailableJobs();
+    status.cronJobs = availableJobs.map((jobName) => ({
+      name: jobName,
+      running: (this.isInitialized && this.queueManager?.isReady()) || false,
+    }));
+
+    return status;
+  }
+
+  /**
+   * Manually trigger a job
+   */
+  public static async triggerJob(jobName: string, jobData?: any): Promise<any> {
+    console.log(`🔥 Manually triggering job: ${jobName}`);
+
+    if (!this.queueManager) {
+      throw new Error(
+        "Queue Manager not available. Redis is required for job execution."
+      );
+    }
+
+    // Use queue for immediate execution
+    const queueName = this.getQueueNameForJob(jobName);
+    const jobType = this.getJobTypeForJob(jobName);
+
+    if (!queueName || !jobType) {
+      throw new Error(`Unknown job configuration for: ${jobName}`);
+    }
+
+    const job = await this.queueManager.addJob(
+      queueName,
+      jobType,
+      jobData || this.getDefaultJobData(jobType),
+      { priority: 10 } // High priority for manual triggers
+    );
+
     return {
-      initialized: this.isInitialized,
-      useQueues: this.useQueues,
-      cronJobs: cronStatus,
-      queueMetrics,
-      totalJobs: cronStatus.length,
-      runningJobs: cronStatus.filter((job) => job.running).length,
+      message: `Job ${jobName} queued successfully`,
+      jobId: job.id,
+      queueName,
+      jobType,
     };
   }
 
   /**
-   * Stop all jobs and cleanup
+   * Get job logs and statistics
    */
-  static async stopAll(): Promise<void> {
-    console.log("🛑 Stopping all jobs...");
+  public static async getJobLogs(hours: number = 24): Promise<any> {
+    try {
+      const timeAgo = new Date();
+      timeAgo.setHours(timeAgo.getHours() - hours);
 
-    // Stop cron jobs
-    for (const [name, task] of this.cronJobs) {
-      task.stop();
-      this.jobStatuses.set(name, false);
+      const logs = await prisma.cronLog.findMany({
+        where: {
+          executedAt: {
+            gte: timeAgo,
+          },
+        },
+        orderBy: {
+          executedAt: "desc",
+        },
+      });
+
+      // Group logs by job name and calculate stats
+      const jobStats: Record<string, any> = {};
+
+      logs.forEach((log) => {
+        // Remove 'enhanced_' or 'queue_' prefix from the name
+        const jobName = log.name.replace(/^(enhanced_|queue_)/, "");
+
+        if (!jobStats[jobName]) {
+          jobStats[jobName] = {
+            total: 0,
+            success: 0,
+            error: 0,
+            started: 0,
+            lastRun: null,
+            lastStatus: null,
+          };
+        }
+
+        jobStats[jobName].total++;
+
+        switch (log.status) {
+          case "SUCCESS":
+            jobStats[jobName].success++;
+            if (
+              !jobStats[jobName].lastRun ||
+              log.executedAt > jobStats[jobName].lastRun
+            ) {
+              jobStats[jobName].lastRun = log.executedAt;
+              jobStats[jobName].lastStatus = "SUCCESS";
+            }
+            break;
+          case "ERROR":
+            jobStats[jobName].error++;
+            jobStats[jobName].lastStatus = "ERROR";
+            break;
+          case "STARTED":
+            jobStats[jobName].started++;
+            break;
+        }
+      });
+
+      return {
+        period: `Last ${hours} hours`,
+        totalLogs: logs.length,
+        jobs: jobStats,
+        recentLogs: logs.slice(0, 10), // Last 10 logs
+      };
+    } catch (error) {
+      console.error("Error fetching job logs:", error);
+      return {
+        period: `Last ${hours} hours`,
+        totalLogs: 0,
+        jobs: {},
+        recentLogs: [],
+      };
     }
+  }
+
+  /**
+   * Pause a specific job (queue only)
+   */
+  public static async pauseJob(jobName: string): Promise<any> {
+    if (!this.queueManager) {
+      throw new Error("Queue Manager not available. Redis is required.");
+    }
+
+    const queueName = this.getQueueNameForJob(jobName);
+    if (!queueName) {
+      throw new Error(`Queue configuration not found for job: ${jobName}`);
+    }
+
+    await this.queueManager.pauseQueue(queueName);
+    return { message: `Queue ${queueName} paused` };
+  }
+
+  /**
+   * Resume a specific job (queue only)
+   */
+  public static async resumeJob(jobName: string): Promise<any> {
+    if (!this.queueManager) {
+      throw new Error("Queue Manager not available. Redis is required.");
+    }
+
+    const queueName = this.getQueueNameForJob(jobName);
+    if (!queueName) {
+      throw new Error(`Queue configuration not found for job: ${jobName}`);
+    }
+
+    await this.queueManager.resumeQueue(queueName);
+    return { message: `Queue ${queueName} resumed` };
+  }
+
+  /**
+   * Get Redis performance metrics
+   */
+  public static async getRedisMetrics(): Promise<any> {
+    if (!this.redisManager) {
+      return { error: "Redis manager not available" };
+    }
+
+    try {
+      const metrics = await this.redisManager.getPerformanceMetrics();
+      const connectionInfo = this.redisManager.getConnectionInfo();
+
+      return {
+        connectionInfo,
+        performance: metrics,
+        isAvailable: this.redisManager.isAvailable(),
+        healthCheck: await this.redisManager.healthCheck(),
+      };
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : "Unknown error",
+        isAvailable: false,
+        healthCheck: false,
+      };
+    }
+  }
+
+  /**
+   * Clean up old queue jobs
+   */
+  public static async cleanupQueues(
+    olderThanMs: number = JOB_CONSTANTS.CLEANUP_CONFIG.DEFAULT_CLEANUP_AGE_MS
+  ): Promise<any> {
+    if (!this.useQueues || !this.queueManager) {
+      return { error: "Queue system not available" };
+    }
+
+    const results = [];
+    const queueNames = Object.values(QueueManager.QUEUES);
+
+    for (const queueName of queueNames) {
+      try {
+        await this.queueManager.cleanQueue(queueName, "completed", olderThanMs);
+        await this.queueManager.cleanQueue(queueName, "failed", olderThanMs);
+        results.push({ queue: queueName, status: "cleaned" });
+      } catch (error) {
+        results.push({
+          queue: queueName,
+          status: "error",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+
+    return { results, cleanedAge: olderThanMs };
+  }
+
+  /**
+   * Graceful shutdown (queue only)
+   */
+  public static async shutdown(): Promise<void> {
+    console.log("🛑 Shutting down Enhanced Cron Manager (Queue Only)...");
 
     // Shutdown queue manager
     if (this.queueManager) {
       await this.queueManager.shutdown();
+      this.queueManager = null;
+    }
+
+    // Shutdown Redis manager
+    if (this.redisManager) {
+      await this.redisManager.shutdown();
+      this.redisManager = null;
     }
 
     this.isInitialized = false;
-    console.log("✅ All jobs stopped");
+    this.useQueues = false;
+    console.log("✅ Enhanced Cron Manager shutdown complete");
+  }
+
+  /**
+   * Helper methods
+   */
+  private static getQueueNameForJob(jobName: string): string | null {
+    const mapping: { [key: string]: string } = {
+      publish_due_posts: QueueManager.QUEUES.SCHEDULER,
+      check_expired_tokens: QueueManager.QUEUES.MAINTENANCE,
+      system_health_check: QueueManager.QUEUES.MAINTENANCE,
+      cleanup_old_logs: QueueManager.QUEUES.MAINTENANCE,
+      analyze_engagement_hotspots: QueueManager.QUEUES.SOCIAL_SYNC,
+      fetch_account_insights: QueueManager.QUEUES.SOCIAL_SYNC,
+      collect_posts_analytics: QueueManager.QUEUES.SOCIAL_SYNC,
+    };
+    return mapping[jobName] || null;
+  }
+
+  private static getJobTypeForJob(jobName: string): JobType | null {
+    const mapping: { [key: string]: JobType } = {
+      publish_due_posts: JobType.PUBLISH_POST,
+      check_expired_tokens: JobType.CHECK_EXPIRED_TOKENS,
+      system_health_check: JobType.SYSTEM_HEALTH_CHECK,
+      cleanup_old_logs: JobType.CLEANUP_OLD_LOGS,
+      analyze_engagement_hotspots: JobType.ANALYZE_HOTSPOTS,
+      fetch_account_insights: JobType.ANALYZE_ACCOUNT_INSIGHTS,
+      collect_posts_analytics: JobType.COLLECT_POSTS_ANALYTICS,
+    };
+    return mapping[jobName] || null;
+  }
+
+  private static getDefaultJobData(jobType: JobType): any {
+    // Return appropriate default job data based on job type
+    switch (jobType) {
+      case JobType.PUBLISH_POST:
+        return {
+          postId: JOB_CONSTANTS.SPECIAL_POST_IDS.BATCH_DUE_POSTS,
+          userId: "system",
+          platform: "all",
+          scheduledAt: new Date(),
+          content: { text: "Manual trigger batch processing" },
+        };
+      case JobType.CHECK_EXPIRED_TOKENS:
+        return { userId: "system", platform: "all" };
+      case JobType.SYSTEM_HEALTH_CHECK:
+        return {
+          checkType: JOB_CONSTANTS.HEALTH_CHECK_TYPES.QUICK,
+          alertThreshold: 70,
+        };
+      case JobType.CLEANUP_OLD_LOGS:
+        return {
+          olderThanDays: JOB_CONSTANTS.CLEANUP_CONFIG.LOG_CLEANUP_DAYS,
+          logType: JOB_CONSTANTS.LOG_TYPES.ALL,
+        };
+      case JobType.ANALYZE_HOTSPOTS:
+        return {
+          analyzePeriod: "week",
+          userId: "system",
+        };
+      case JobType.ANALYZE_ACCOUNT_INSIGHTS:
+        return {
+          userId: "system",
+          socialAccountId: "system",
+          platform: "all",
+          insightTypes: [
+            "demographics",
+            "engagement",
+            "growth",
+            "content_performance",
+          ],
+        };
+      case JobType.COLLECT_POSTS_ANALYTICS:
+        return {
+          syncType: JOB_CONSTANTS.SYNC_TYPES.RECENT,
+          userId: "system",
+        };
+      default:
+        return { userId: "system" };
+    }
+  }
+
+  private static getJobConfig(jobName: string): CronJobConfig | null {
+    const queueName = this.getQueueNameForJob(jobName);
+    const jobType = this.getJobTypeForJob(jobName);
+
+    if (!queueName || !jobType) {
+      return null;
+    }
+
+    return {
+      name: jobName,
+      schedule: "* * * * *", // Will be overridden for manual execution
+      description: `Manual execution of ${jobName}`,
+      enabled: true,
+      queueName,
+      jobType,
+      jobData: this.getDefaultJobData(jobType),
+    };
   }
 
   /**
@@ -481,195 +630,99 @@ export class CronManager {
   }
 
   /**
+   * Get Redis manager instance
+   */
+  public static getRedisManager(): UnifiedRedisManager | null {
+    return this.redisManager;
+  }
+
+  /**
    * Get queue manager instance
    */
-  static getQueueManager(): QueueManager | null {
+  public static getQueueManager(): QueueManager | null {
     return this.queueManager;
   }
 
   /**
-   * Check if using queues
+   * Check if system is using queues (always true now)
    */
-  static isUsingQueues(): boolean {
+  public static isUsingQueues(): boolean {
     return this.useQueues;
   }
 
   /**
-   * Get job execution logs for stats
+   * Queue a job directly (used by API)
    */
-  static async getJobLogs(): Promise<any> {
-    try {
-      // Get logs from the last 24 hours
-      const oneDayAgo = new Date();
-      oneDayAgo.setHours(oneDayAgo.getHours() - 24);
-
-      const logs = await prisma.cronLog.findMany({
-        where: {
-          executedAt: {
-            gte: oneDayAgo,
-          },
-        },
-        orderBy: {
-          executedAt: "desc",
-        },
-      });
-
-      // Group logs by job name and calculate stats
-      const jobStats: Record<string, any> = {};
-
-      logs.forEach((log) => {
-        // Remove 'enhanced_' prefix from the name
-        const jobName = log.name.replace(/^enhanced_/, "");
-
-        if (!jobStats[jobName]) {
-          jobStats[jobName] = {
-            total: 0,
-            success: 0,
-            error: 0,
-            warning: 0,
-            started: 0,
-            lastRun: null,
-          };
-        }
-
-        jobStats[jobName].total++;
-
-        switch (log.status) {
-          case "SUCCESS":
-            jobStats[jobName].success++;
-            // Update last successful run
-            if (
-              !jobStats[jobName].lastRun ||
-              log.executedAt > jobStats[jobName].lastRun
-            ) {
-              jobStats[jobName].lastRun = log.executedAt;
-            }
-            break;
-          case "ERROR":
-            jobStats[jobName].error++;
-            break;
-          case "WARNING":
-            jobStats[jobName].warning++;
-            break;
-          case "STARTED":
-            jobStats[jobName].started++;
-            break;
-        }
-      });
-
-      return {
-        period: "Last 24 hours",
-        totalLogs: logs.length,
-        jobs: jobStats,
-      };
-    } catch (error) {
-      console.error("Error fetching job logs:", error);
-      return {
-        period: "Last 24 hours",
-        totalLogs: 0,
-        jobs: {},
-      };
+  public static async queueJob(
+    queueName: string,
+    jobType: JobType,
+    jobData: any,
+    options?: any
+  ): Promise<any> {
+    if (!this.useQueues || !this.queueManager) {
+      throw new Error("Queue system not available");
     }
+
+    return await this.queueManager.addJob(queueName, jobType, jobData, options);
   }
 
   /**
-   * Manually trigger a specific job
+   * Stop all jobs (queue only)
    */
-  static async triggerJob(jobName: string): Promise<any> {
-    console.log(`🔥 Manually triggering job: ${jobName}`);
+  public static async stopAll(): Promise<void> {
+    console.log("⏹️ Stopping all jobs (queue only)...");
 
-    // Job configurations mapping
-    const jobHandlers: { [key: string]: () => Promise<any> } = {
-      publish_due_posts: this.handlePublishDuePosts,
-      process_edge_cases: this.handleProcessEdgeCases,
-      check_expired_tokens: this.handleCheckExpiredTokens,
-      system_health_check: this.handleSystemHealthCheck,
-      cleanup_old_logs: this.handleCleanupOldLogs,
-      analyze_engagement_hotspots: this.handleAnalyzeHotspots,
-      fetch_account_insights: this.handleAccountInsights,
-      collect_analytics: this.handleCollectPostsAnalytics,
-    };
-
-    const handler = jobHandlers[jobName];
-    if (!handler) {
-      throw new Error(`Unknown job: ${jobName}`);
+    if (!this.queueManager) {
+      throw new Error("Queue Manager not available. Redis is required.");
     }
 
-    const startTime = Date.now();
-    try {
-      await this.logActivity(
-        jobName,
-        "STARTED",
-        `Job ${jobName} manually triggered`
-      );
-
-      const result = await handler.call(this);
-      const executionTime = Date.now() - startTime;
-
-      await this.logActivity(
-        jobName,
-        "SUCCESS",
-        `Job ${jobName} completed successfully in ${executionTime}ms (manual trigger)`
-      );
-
-      return {
-        message: `Job ${jobName} executed successfully`,
-        executionTime,
-        result,
-      };
-    } catch (error) {
-      const executionTime = Date.now() - startTime;
-      await this.logActivity(
-        jobName,
-        "ERROR",
-        `Job ${jobName} failed: ${error instanceof Error ? error.message : String(error)} (manual trigger)`
-      );
-
-      throw new Error(
-        `Job ${jobName} failed: ${error instanceof Error ? error.message : String(error)}`
-      );
+    // Pause all queues
+    const queueNames = Object.values(QueueManager.QUEUES);
+    for (const queueName of queueNames) {
+      try {
+        await this.queueManager.pauseQueue(queueName);
+        console.log(`⏸️ Paused queue: ${queueName}`);
+      } catch (error) {
+        console.error(`Failed to pause queue ${queueName}:`, error);
+      }
     }
+
+    console.log("✅ All jobs stopped");
   }
 
   /**
-   * Start a specific cron job
+   * Start a specific job
    */
-  static async startJob(jobName: string): Promise<any> {
-    const task = this.cronJobs.get(jobName);
-    if (!task) {
-      throw new Error(`Job ${jobName} not found`);
-    }
-
-    task.start();
-    this.jobStatuses.set(jobName, true);
-
-    await this.logActivity(
-      jobName,
-      "STARTED",
-      `Job ${jobName} started manually`
-    );
-
-    return { message: `Job ${jobName} started` };
+  public static async startJob(jobName: string): Promise<any> {
+    return await this.resumeJob(jobName);
   }
 
   /**
-   * Stop a specific cron job
+   * Stop a specific job
    */
-  static async stopJob(jobName: string): Promise<any> {
-    const task = this.cronJobs.get(jobName);
-    if (!task) {
-      throw new Error(`Job ${jobName} not found`);
-    }
+  public static async stopJob(jobName: string): Promise<any> {
+    return await this.pauseJob(jobName);
+  }
 
-    task.stop();
-    this.jobStatuses.set(jobName, false);
+  /**
+   * Get available job names
+   */
+  public static getAvailableJobs(): string[] {
+    return [
+      "publish_due_posts",
+      "check_expired_tokens",
+      "system_health_check",
+      "cleanup_old_logs",
+      "analyze_engagement_hotspots",
+      "fetch_account_insights",
+      "collect_posts_analytics",
+    ];
+  }
 
-    await this.logActivity(
-      jobName,
-      "STOPPED",
-      `Job ${jobName} stopped manually`
-    );
-
-    return { message: `Job ${jobName} stopped` };
+  /**
+   * Validate job name
+   */
+  public static isValidJobName(jobName: string): boolean {
+    return this.getAvailableJobs().includes(jobName);
   }
 }

@@ -1,5 +1,5 @@
 import { Queue, Worker, Job } from "bullmq";
-import { redisConnectionOptions } from "./redis-connection";
+import { UnifiedRedisManager } from "@/lib/services/unified-redis-manager";
 import {
   JobType,
   JobData,
@@ -15,6 +15,7 @@ export class QueueManager {
   private queues: Map<string, Queue> = new Map();
   private workers: Map<string, Worker> = new Map();
   private isInitialized = false;
+  private redisManager: UnifiedRedisManager | null = null;
 
   // Queue names
   public static readonly QUEUES = {
@@ -48,6 +49,14 @@ export class QueueManager {
     console.log("🚀 Initializing BullMQ Queue Manager...");
 
     try {
+      // Get Redis manager instance
+      this.redisManager = UnifiedRedisManager.getInstance();
+
+      // Ensure Redis is available
+      if (!this.redisManager.isAvailable()) {
+        throw new Error("Redis is not available for Queue Manager");
+      }
+
       // Create queues
       await this.createQueues();
 
@@ -70,6 +79,16 @@ export class QueueManager {
   }
 
   /**
+   * Get Redis connection options for BullMQ
+   */
+  private getRedisConnectionOptions(): any {
+    if (!this.redisManager) {
+      throw new Error("Redis manager not initialized");
+    }
+    return this.redisManager.getConnectionOptions();
+  }
+
+  /**
    * Create all queues
    */
   private async createQueues(): Promise<void> {
@@ -85,7 +104,7 @@ export class QueueManager {
 
     for (const config of queueConfigs) {
       const queue = new Queue(config.name, {
-        connection: redisConnectionOptions,
+        connection: this.getRedisConnectionOptions(),
         defaultJobOptions: {
           removeOnComplete: 50, // Keep last 50 completed jobs
           removeOnFail: 20, // Keep last 20 failed jobs
@@ -123,7 +142,7 @@ export class QueueManager {
           return await this.processJob(job);
         },
         {
-          connection: redisConnectionOptions,
+          connection: this.getRedisConnectionOptions(),
           concurrency: config.concurrency,
         }
       );
