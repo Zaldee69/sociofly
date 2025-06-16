@@ -54,7 +54,6 @@ const data = [
 ];
 
 export function AppSidebar({ children }: { children: React.ReactNode }) {
-  const appName = "My Scheduler App";
   const pathname = usePathname();
 
   return (

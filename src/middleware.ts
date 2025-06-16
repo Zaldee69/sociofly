@@ -27,8 +27,20 @@ export default clerkMiddleware(async (auth, req) => {
 
     // Cek apakah rute memerlukan autentikasi
     if (!isPublicRoute(req)) {
-      // Protect the route and redirect unauth users to sign-in
-      await auth.protect();
+      // Check if user is authenticated
+      const { userId } = await auth();
+
+      if (!userId) {
+        // Handle unauthenticated users
+        if (req.nextUrl.pathname.startsWith("/api/")) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        // Redirect to sign-in for non-API routes
+        const signInUrl = new URL("/sign-in", req.url);
+        signInUrl.searchParams.set("redirect_url", req.url);
+        return NextResponse.redirect(signInUrl);
+      }
     }
 
     // Add security headers
