@@ -77,7 +77,7 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
   };
 
   return (
-    <div className="w-46 border-r h-screen flex flex-col sticky top-0">
+    <div className="w-46 border-r sticky top-16 h-[calc(100vh-4rem)] flex flex-col bg-background p-4">
       <div className="pb-4">
         <h3 className="font-semibold text-sm text-gray-900 mb-3">
           Social Media Accounts

@@ -16,7 +16,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SidebarMenuButton } from "./ui/sidebar";
+import { Button } from "@/components/ui/button";
 
 interface Team {
   id: string;
@@ -37,46 +37,45 @@ export function TeamSwitcher() {
   // Prevent hydration mismatch by showing consistent state until mounted
   if (!isMounted) {
     return (
-      <SidebarMenuButton
-        size="lg"
-        className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+      <Button
+        variant="ghost"
+        className="flex items-center gap-2 h-9 px-2"
+        disabled
       >
-        <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-          <AudioWaveform className="size-4" />
+        <div className="flex aspect-square size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <AudioWaveform className="size-3" />
         </div>
-        <div className="grid flex-1 text-left text-sm leading-tight">
-          <span className="truncate font-semibold">Loading...</span>
-          <span className="truncate text-xs"></span>
+        <div className="hidden md:grid text-left text-sm leading-tight">
+          <span className="truncate font-medium text-xs">Loading...</span>
         </div>
-        <ChevronsUpDown className="ml-auto" />
-      </SidebarMenuButton>
+        <ChevronsUpDown className="ml-auto h-3 w-3" />
+      </Button>
     );
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <SidebarMenuButton
-          size="lg"
-          className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+        <Button
+          variant="ghost"
+          className="flex items-center gap-2 h-9 px-2 hover:bg-accent hover:text-accent-foreground"
         >
-          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-            <AudioWaveform className="size-4" />
+          <div className="flex aspect-square size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <AudioWaveform className="size-3" />
           </div>
-          <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-semibold">
+          <div className="hidden md:grid text-left text-sm leading-tight">
+            <span className="truncate font-medium text-xs">
               {isLoading ? "Loading..." : currentTeam?.name || "Select Team"}
             </span>
-            <span className="truncate text-xs">{currentTeam?.role || ""}</span>
           </div>
-          <ChevronsUpDown className="ml-auto" />
-        </SidebarMenuButton>
+          <ChevronsUpDown className="ml-auto h-3 w-3" />
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+        className="w-56 rounded-lg"
         align="start"
         side="bottom"
-        sideOffset={4}
+        sideOffset={8}
       >
         <DropdownMenuLabel className="text-xs text-muted-foreground">
           Teams
