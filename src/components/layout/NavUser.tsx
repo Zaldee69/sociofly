@@ -34,9 +34,15 @@ interface NavUserProps {
 }
 
 export function NavUser({ variant = "default" }: NavUserProps) {
+  const [isMounted, setIsMounted] = React.useState(false);
   const { user } = useUser();
 
-  if (!user) {
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!isMounted || !user) {
     return null;
   }
 

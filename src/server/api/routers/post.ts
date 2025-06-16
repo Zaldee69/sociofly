@@ -355,6 +355,9 @@ export const postRouter = createTRPCRouter({
       // Periksa apakah post ada dan pengguna memiliki akses
       const post = await ctx.prisma.post.findUnique({
         where: { id },
+        include: {
+          postSocialAccounts: true,
+        },
       });
 
       if (!post) {
@@ -381,12 +384,36 @@ export const postRouter = createTRPCRouter({
         });
       }
 
+      // If this is a scheduled post, we need to handle job cleanup
+      // Note: Since we use cron-based scheduling (not individual job scheduling),
+      // the post will simply be skipped in the next cron run when it's not found
+      if (post.status === "SCHEDULED") {
+        console.log(
+          `🗑️  Deleting scheduled post: ${id} (scheduled for ${post.scheduledAt})`
+        );
+        console.log(`   Post will be automatically skipped in next cron run`);
+
+        // Log the deletion for audit purposes
+        await ctx.prisma.cronLog.create({
+          data: {
+            name: "post_deleted_before_publish",
+            status: "INFO",
+            message: `Scheduled post ${id} deleted before publication (was scheduled for ${post.scheduledAt})`,
+            executedAt: new Date(),
+          },
+        });
+      }
+
       // Hapus post dan semua relasi (PostSocialAccount akan dihapus secara cascade)
       await ctx.prisma.post.delete({
         where: { id },
       });
 
-      return { success: true };
+      return {
+        success: true,
+        wasScheduled: post.status === "SCHEDULED",
+        scheduledAt: post.scheduledAt,
+      };
     }),
 
   // Publish post secara manual

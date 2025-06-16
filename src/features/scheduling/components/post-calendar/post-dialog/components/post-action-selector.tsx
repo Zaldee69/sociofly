@@ -63,6 +63,27 @@ const resubmitAction: TAction = {
   loadingText: "Resubmitting for review...",
 };
 
+const retryActions: TAction[] = [
+  {
+    value: PostAction.PUBLISH_NOW,
+    title: "Retry Publish",
+    description: "Retry publishing this failed post immediately",
+    loadingText: "Retrying publish...",
+  },
+  {
+    value: PostAction.SCHEDULE,
+    title: "Reschedule",
+    description: "Reschedule this failed post for later",
+    loadingText: "Rescheduling post...",
+  },
+  {
+    value: PostAction.SAVE_AS_DRAFT,
+    title: "Save as Draft",
+    description: "Save this failed post as draft for editing",
+    loadingText: "Saving as draft...",
+  },
+];
+
 interface PostActionSelectorProps {
   currentAction: PostAction;
   isUploading: boolean;
@@ -83,8 +104,9 @@ export function PostActionSelector({
   // Check if post is rejected
   const { isRejected } = usePostApprovalStatus(postId || "");
 
-  // Check if post is published
+  // Check if post is published or failed
   const isPublished = postStatus === "PUBLISHED";
+  const isFailed = postStatus === "FAILED";
 
   // If post is published, show read-only status
   if (isPublished) {
@@ -101,13 +123,17 @@ export function PostActionSelector({
     );
   }
 
-  // If post is rejected, show resubmit action as primary
+  // Determine which actions to show based on post status
   const actions = isRejected
     ? [resubmitAction, ...normalActions]
-    : normalActions;
+    : isFailed
+      ? retryActions
+      : normalActions;
   const defaultAction = isRejected
     ? resubmitAction
-    : actions.find((a) => a.value === currentAction);
+    : isFailed
+      ? retryActions[0] // Default to "Retry Publish" for failed posts
+      : actions.find((a) => a.value === currentAction);
 
   const handleActionSelect = (actionValue: string) => {
     if (actionValue === "RESUBMIT") {
@@ -124,6 +150,9 @@ export function PostActionSelector({
     if (isRejected) {
       return resubmitAction.loadingText;
     }
+    if (isFailed) {
+      return retryActions[0].loadingText;
+    }
     const action = actions.find((a) => a.value === currentAction);
     return action?.loadingText || "Processing...";
   };
@@ -137,12 +166,16 @@ export function PostActionSelector({
         disabled={isUploading}
       >
         {isUploading && <Loader2 className="w-4 h-4 animate-spin" />}
-        {isRejected && !isUploading && <RefreshCw className="w-4 h-4" />}
+        {(isRejected || isFailed) && !isUploading && (
+          <RefreshCw className="w-4 h-4" />
+        )}
         {isUploading
           ? getLoadingText()
           : isRejected
             ? resubmitAction.title
-            : defaultAction?.title}
+            : isFailed
+              ? retryActions[0].title
+              : defaultAction?.title}
       </button>
       <Popover open={isOpenPopover} onOpenChange={setIsOpenPopover}>
         <PopoverTrigger asChild>

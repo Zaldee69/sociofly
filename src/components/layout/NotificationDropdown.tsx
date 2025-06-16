@@ -63,8 +63,27 @@ const mockNotifications = [
 ];
 
 export function NotificationDropdown() {
+  const [isMounted, setIsMounted] = React.useState(false);
   const [notifications, setNotifications] = React.useState(mockNotifications);
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Prevent hydration mismatch by showing consistent state until mounted
+  if (!isMounted) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-9 w-9 relative hover:bg-slate-100"
+        disabled
+      >
+        <Bell className="h-4 w-4 text-slate-600" />
+      </Button>
+    );
+  }
 
   const handleMarkAsRead = (notificationId: string) => {
     setNotifications((prev) =>

@@ -119,6 +119,23 @@ export function usePostSubmit({
     },
   });
 
+  // Add delete mutation
+  const deletePostMutation = trpc.post.delete.useMutation({
+    onSuccess: () => {
+      console.log("Post deleted successfully");
+      toast.success("Post deleted successfully!");
+      // Signal to parent to refresh data by calling onSave with null
+      // This will trigger the calendar to refresh its data
+      onSave?.(null);
+      form.reset();
+      onClose();
+    },
+    onError: (error) => {
+      console.error("Error deleting post:", error);
+      toast.error(`Failed to delete post: ${error.message}`);
+    },
+  });
+
   const { startUpload } = useUploadThing("mediaUploader", {
     onClientUploadComplete: (res) => {
       if (!res) return;
@@ -342,6 +359,14 @@ export function usePostSubmit({
     }
   };
 
+  const handleDelete = async (postId: string) => {
+    try {
+      await deletePostMutation.mutateAsync({ id: postId });
+    } catch (error) {
+      console.error("Error deleting post:", error);
+    }
+  };
+
   return {
     isUploading:
       isUploading ||
@@ -349,7 +374,9 @@ export function usePostSubmit({
       resubmitPostMutation.isPending ||
       submitForApprovalMutation.isPending ||
       createPostMutation.isPending ||
-      publishNowMutation.isPending,
+      publishNowMutation.isPending ||
+      deletePostMutation.isPending,
     handleSubmit,
+    handleDelete,
   };
 }

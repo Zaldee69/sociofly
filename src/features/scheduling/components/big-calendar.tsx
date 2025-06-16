@@ -84,6 +84,7 @@ const mapToCalendarPosts = (apiPosts: any[] | undefined): CalendarPost[] => {
 
 export default function Component() {
   const { currentTeamId } = useTeamContext();
+  const utils = api.useContext();
 
   const { data: posts, isLoading: isPostsLoading } = api.post.getAll.useQuery({
     teamId: currentTeamId!,
@@ -180,17 +181,18 @@ export default function Component() {
   }
 
   const handlePostAdd = (post: CalendarPost) => {
-    // setPosts([...posts, post]);
+    // Invalidate and refetch posts data to get the latest from server
+    utils.post.getAll.invalidate({ teamId: currentTeamId! });
   };
 
   const handlePostUpdate = (updatedPost: CalendarPost) => {
-    // setPosts(
-    //   posts.map((post) => (post.id === updatedPost.id ? updatedPost : post))
-    // );
+    // Invalidate and refetch posts data to get the latest from server
+    utils.post.getAll.invalidate({ teamId: currentTeamId! });
   };
 
   const handlePostDelete = (postId: string) => {
-    // setPosts(posts.filter((post) => post.id !== postId));
+    // Invalidate and refetch posts data to get the latest from server
+    utils.post.getAll.invalidate({ teamId: currentTeamId! });
   };
 
   return (

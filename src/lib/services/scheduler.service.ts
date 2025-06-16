@@ -108,6 +108,13 @@ export class SchedulerService {
         `📋 Processing ${duePosts.length} of ${totalDue} due posts (batch size: ${BATCH_SIZE})`
       );
 
+      // Log if there are any posts that were scheduled but no longer exist
+      if (totalDue > duePosts.length) {
+        console.log(
+          `ℹ️  Note: ${totalDue - duePosts.length} scheduled posts may have been deleted or are being rate-limited`
+        );
+      }
+
       // Track results
       let successCount = 0;
       let failedCount = 0;

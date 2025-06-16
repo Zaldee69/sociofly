@@ -9,6 +9,7 @@ import {
   Facebook,
   ExternalLink,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { PostStatus } from "@prisma/client";
 import { useRouter } from "next/navigation";
@@ -104,7 +105,7 @@ export function AddPostDialog({
   // Custom hooks
   const { selectedFiles, handleFileSelect, removeFile, reorderFiles } =
     useMediaFiles(form);
-  const { isUploading, handleSubmit } = usePostSubmit({
+  const { isUploading, handleSubmit, handleDelete } = usePostSubmit({
     form,
     teamId: currentTeamId,
     selectedFiles,
@@ -462,15 +463,40 @@ export function AddPostDialog({
                   )}
 
                 <DialogFooter className="mt-4 !justify-between">
-                  <DialogClose asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={isUploading}
-                    >
-                      {isReadOnly ? "Close" : "Cancel"}
-                    </Button>
-                  </DialogClose>
+                  <div className="flex gap-2">
+                    <DialogClose asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isUploading}
+                      >
+                        {isReadOnly ? "Close" : "Cancel"}
+                      </Button>
+                    </DialogClose>
+
+                    {/* Delete button - only show for existing posts */}
+                    {post?.id && isReadOnly && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        disabled={isUploading}
+                        onClick={() => {
+                          if (
+                            confirm(
+                              "Are you sure you want to delete this post?"
+                            )
+                          ) {
+                            handleDelete(post.id);
+                          }
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </Button>
+                    )}
+                  </div>
 
                   {!isReadOnly && (
                     <div className="flex gap-2">

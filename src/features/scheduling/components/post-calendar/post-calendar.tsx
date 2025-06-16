@@ -151,8 +151,18 @@ export function PostCalendar({
     setIsPostDialogOpen(true);
   };
 
-  const handlePostSave = (post: CalendarPost) => {
-    if (post.id) {
+  const handlePostSave = (post: CalendarPost | null) => {
+    if (post === null) {
+      // This indicates a delete operation or need to refresh data
+      // Trigger refresh by calling the appropriate handler
+      if (selectedPost?.id) {
+        onPostDelete?.(selectedPost.id);
+      } else {
+        // General refresh - could be from any operation that needs data refresh
+        onPostUpdate?.(selectedPost!);
+      }
+    } else if (post.id && selectedPost?.id) {
+      // This is an update operation
       onPostUpdate?.(post);
       // Show toast notification when an event is updated
       toast(`Event "${post.content}" updated`, {
@@ -160,9 +170,10 @@ export function PostCalendar({
         position: "bottom-left",
       });
     } else {
+      // This is a create operation
       onPostAdd?.({
         ...post,
-        id: Math.random().toString(36).substring(2, 11),
+        id: post.id || Math.random().toString(36).substring(2, 11),
       });
       // Show toast notification when an event is added
       toast(`Event "${post.content}" added`, {
