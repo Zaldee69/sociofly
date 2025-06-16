@@ -327,7 +327,7 @@ export class EnhancedCronManager {
       const timeAgo = new Date();
       timeAgo.setHours(timeAgo.getHours() - hours);
 
-      const logs = await prisma.cronLog.findMany({
+      const logs = await prisma.taskLog.findMany({
         where: {
           executedAt: {
             gte: timeAgo,
@@ -617,7 +617,7 @@ export class EnhancedCronManager {
     message: string
   ): Promise<void> {
     try {
-      await prisma.cronLog.create({
+      await prisma.taskLog.create({
         data: {
           name: `enhanced_${name}`,
           status,

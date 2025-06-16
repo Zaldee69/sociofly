@@ -46,7 +46,7 @@ export const hotspotsRouter = createTRPCRouter({
       })
     )
     .query(async ({ ctx, input }) => {
-      const lastLog = await ctx.prisma.cronLog.findFirst({
+      const lastLog = await ctx.prisma.taskLog.findFirst({
         where: {
           name: "analyze_hotspots",
           message: {

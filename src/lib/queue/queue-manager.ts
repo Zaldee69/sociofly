@@ -382,7 +382,7 @@ export class QueueManager {
     data?: any
   ): Promise<void> {
     try {
-      await prisma.cronLog.create({
+      await prisma.taskLog.create({
         data: {
           name: `queue_${jobName}`,
           status,

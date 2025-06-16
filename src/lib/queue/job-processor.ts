@@ -183,7 +183,7 @@ export class JobProcessor {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - data.olderThanDays);
 
-      const deleteResult = await prisma.cronLog.deleteMany({
+      const deleteResult = await prisma.taskLog.deleteMany({
         where: {
           executedAt: {
             lt: cutoffDate,

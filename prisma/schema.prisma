@@ -159,7 +159,7 @@ model Hashtag {
   @@index([frequency])
 }
 
-model CronLog {
+model TaskLog {
   id         String   @id @default(cuid())
   name       String
   status     String

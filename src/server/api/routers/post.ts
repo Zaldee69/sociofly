@@ -394,7 +394,7 @@ export const postRouter = createTRPCRouter({
         console.log(`   Post will be automatically skipped in next cron run`);
 
         // Log the deletion for audit purposes
-        await ctx.prisma.cronLog.create({
+        await ctx.prisma.taskLog.create({
           data: {
             name: "post_deleted_before_publish",
             status: "INFO",

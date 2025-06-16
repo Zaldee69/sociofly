@@ -239,7 +239,7 @@ export class SchedulerService {
           message: `Batch processed ${duePosts.length} posts: ${successCount} success, ${failedCount} failed, ${skippedCount} skipped, ${rateLimitedCount} rate_limited. ${totalDue - duePosts.length} remaining. Data: ${JSON.stringify(batchData)}`,
         };
 
-        await prisma.cronLog.create({ data: logData });
+        await prisma.taskLog.create({ data: logData });
       }
 
       return {
@@ -254,7 +254,7 @@ export class SchedulerService {
       console.error("❌ Error in processDuePublications:", error);
 
       // Log the overall error
-      await prisma.cronLog.create({
+      await prisma.taskLog.create({
         data: {
           name: "publish_due_posts_error",
           status: "ERROR",
@@ -302,7 +302,7 @@ export class SchedulerService {
 
       // For now, we'll just log it
       if (expiredAccounts.length > 0) {
-        await prisma.cronLog.create({
+        await prisma.taskLog.create({
           data: {
             name: "check_expired_tokens",
             status: "INFO",
@@ -315,7 +315,7 @@ export class SchedulerService {
     } catch (error) {
       console.error("Error checking expired tokens:", error);
 
-      await prisma.cronLog.create({
+      await prisma.taskLog.create({
         data: {
           name: "check_expired_tokens",
           status: "ERROR",
@@ -346,7 +346,7 @@ export class SchedulerService {
       const totalIssues = 0;
 
       // Log the results
-      await prisma.cronLog.create({
+      await prisma.taskLog.create({
         data: {
           name: "process_approval_edge_cases",
           status: "SUCCESS",
@@ -365,7 +365,7 @@ export class SchedulerService {
     } catch (error) {
       console.error("Error in processApprovalEdgeCases:", error);
 
-      await prisma.cronLog.create({
+      await prisma.taskLog.create({
         data: {
           name: "process_approval_edge_cases",
           status: "ERROR",
@@ -490,7 +490,7 @@ export class SchedulerService {
 
       if (!socialAccount) {
         console.error(`Social account ${socialAccountId} not found`);
-        await prisma.cronLog.create({
+        await prisma.taskLog.create({
           data: {
             name: "smart_scheduler_analysis",
             status: "ERROR",
@@ -589,7 +589,7 @@ export class SchedulerService {
       const executionTime = Date.now() - startTime;
 
       // Log success with more detailed information
-      await prisma.cronLog.create({
+      await prisma.taskLog.create({
         data: {
           name: "smart_scheduler_analysis",
           status: "SUCCESS",
@@ -611,7 +611,7 @@ export class SchedulerService {
       console.error("Error analyzing hotspots:", error);
 
       // Log error with execution details
-      await prisma.cronLog.create({
+      await prisma.taskLog.create({
         data: {
           name: "smart_scheduler_analysis",
           status: "ERROR",
@@ -738,7 +738,7 @@ export class SchedulerService {
       const executionTime = Date.now() - startTime;
 
       // Log overall results
-      await prisma.cronLog.create({
+      await prisma.taskLog.create({
         data: {
           name: "smart_scheduler_batch_analysis",
           status: failedCount === 0 ? "SUCCESS" : "PARTIAL",
@@ -776,7 +776,7 @@ export class SchedulerService {
       console.error("❌ Error in batch hotspot analysis:", error);
 
       // Log the overall error
-      await prisma.cronLog.create({
+      await prisma.taskLog.create({
         data: {
           name: "smart_scheduler_batch_analysis",
           status: "ERROR",
