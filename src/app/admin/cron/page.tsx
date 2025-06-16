@@ -1,4 +1,5 @@
 import { CronJobMonitor } from "@/features/system";
+import { JobExecutionMonitor } from "@/components/debug/job-execution-monitor";
 
 export default function CronJobsPage() {
   return (
@@ -11,6 +12,9 @@ export default function CronJobsPage() {
       </div>
 
       <CronJobMonitor />
+
+      {/* Real-time job execution monitor */}
+      <JobExecutionMonitor />
     </div>
   );
 }

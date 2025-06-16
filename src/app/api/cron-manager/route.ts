@@ -89,6 +89,58 @@ export async function POST(request: Request) {
         result = { message: `Queue ${queueName} cleaned` };
         break;
 
+      case "restart_workers":
+        const restartQueueManager = EnhancedCronManager.getQueueManager();
+        if (!restartQueueManager) {
+          return NextResponse.json(
+            { error: "Queue manager not available" },
+            { status: 503 }
+          );
+        }
+
+        // Restart all workers
+        await restartQueueManager.shutdown();
+        await restartQueueManager.initialize();
+        result = { message: "All workers restarted successfully" };
+        break;
+
+      case "force_process_job":
+        if (!body.jobId || !queueName) {
+          return NextResponse.json(
+            { error: "Job ID and queue name required" },
+            { status: 400 }
+          );
+        }
+        const forceQueueManager = EnhancedCronManager.getQueueManager();
+        if (!forceQueueManager) {
+          return NextResponse.json(
+            { error: "Queue manager not available" },
+            { status: 503 }
+          );
+        }
+
+        // Force process a specific job
+        const queue = forceQueueManager.getQueue(queueName);
+        if (!queue) {
+          return NextResponse.json(
+            { error: `Queue ${queueName} not found` },
+            { status: 404 }
+          );
+        }
+
+        const job = await queue.getJob(body.jobId);
+        if (!job) {
+          return NextResponse.json(
+            { error: `Job ${body.jobId} not found` },
+            { status: 404 }
+          );
+        }
+
+        // Retry the job
+        await job.retry();
+        result = { message: `Job ${body.jobId} forced to retry` };
+        break;
+
       case "initialize":
         await EnhancedCronManager.initialize();
         result = { message: "Enhanced Cron Manager initialized" };
@@ -245,6 +297,77 @@ export async function GET(request: Request) {
             result = await queueManager.getQueueMetrics(queueName);
           } else {
             result = await queueManager.getAllQueueMetrics();
+          }
+        }
+        break;
+
+      case "worker_status":
+        const workerQueueManager = EnhancedCronManager.getQueueManager();
+        if (!workerQueueManager) {
+          result = { error: "Queue manager not available" };
+        } else {
+          // Get worker status for all queues
+          const workerStatus: Record<string, any> = {};
+          for (const queueName of Object.values(QueueManager.QUEUES)) {
+            const worker = workerQueueManager.getWorker(queueName);
+            if (worker) {
+              workerStatus[queueName] = {
+                isRunning: worker.isRunning(),
+                isPaused: worker.isPaused(),
+                concurrency: worker.opts.concurrency,
+                name: worker.name,
+              };
+            } else {
+              workerStatus[queueName] = {
+                isRunning: false,
+                isPaused: false,
+                concurrency: 0,
+                name: queueName,
+                error: "Worker not found",
+              };
+            }
+          }
+          result = workerStatus;
+        }
+        break;
+
+      case "job_details":
+        const jobId = searchParams.get("jobId");
+        const queueNameParam = searchParams.get("queueName");
+        if (!jobId || !queueNameParam) {
+          return NextResponse.json(
+            { error: "Job ID and queue name required" },
+            { status: 400 }
+          );
+        }
+
+        const detailQueueManager = EnhancedCronManager.getQueueManager();
+        if (!detailQueueManager) {
+          result = { error: "Queue manager not available" };
+        } else {
+          const queue = detailQueueManager.getQueue(queueNameParam);
+          if (!queue) {
+            result = { error: `Queue ${queueNameParam} not found` };
+          } else {
+            const job = await queue.getJob(jobId);
+            if (!job) {
+              result = { error: `Job ${jobId} not found` };
+            } else {
+              result = {
+                id: job.id,
+                name: job.name,
+                data: job.data,
+                opts: job.opts,
+                progress: job.progress,
+                returnvalue: job.returnvalue,
+                failedReason: job.failedReason,
+                processedOn: job.processedOn,
+                finishedOn: job.finishedOn,
+                timestamp: job.timestamp,
+                attemptsMade: job.attemptsMade,
+                delay: job.delay,
+              };
+            }
           }
         }
         break;
