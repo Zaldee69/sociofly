@@ -39,16 +39,16 @@ export function TeamSwitcher() {
     return (
       <Button
         variant="ghost"
-        className="flex items-center gap-2 h-9 px-2"
+        className="flex items-center gap-2 h-9 px-3 w-full sm:w-auto justify-start hover:bg-slate-100"
         disabled
       >
         <div className="flex aspect-square size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
           <AudioWaveform className="size-3" />
         </div>
-        <div className="hidden md:grid text-left text-sm leading-tight">
+        <div className="grid text-left text-sm leading-tight min-w-0 flex-1">
           <span className="truncate font-medium text-xs">Loading...</span>
         </div>
-        <ChevronsUpDown className="ml-auto h-3 w-3" />
+        <ChevronsUpDown className="ml-auto h-3 w-3 shrink-0" />
       </Button>
     );
   }
@@ -58,17 +58,20 @@ export function TeamSwitcher() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="flex items-center gap-2 h-9 px-2 hover:bg-accent hover:text-accent-foreground"
+          className="flex items-center gap-2 h-9 px-3 w-full sm:w-auto justify-start hover:bg-slate-100 hover:text-slate-900"
         >
           <div className="flex aspect-square size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <AudioWaveform className="size-3" />
           </div>
-          <div className="hidden md:grid text-left text-sm leading-tight">
+          <div className="grid text-left text-sm leading-tight min-w-0 flex-1">
             <span className="truncate font-medium text-xs">
               {isLoading ? "Loading..." : currentTeam?.name || "Select Team"}
             </span>
+            <span className="truncate text-xs text-muted-foreground">
+              {currentTeam?.role || ""}
+            </span>
           </div>
-          <ChevronsUpDown className="ml-auto h-3 w-3" />
+          <ChevronsUpDown className="ml-auto h-3 w-3 shrink-0" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -95,7 +98,12 @@ export function TeamSwitcher() {
               <div className="flex size-6 items-center justify-center rounded-sm border">
                 <AudioWaveform className="size-4 shrink-0" />
               </div>
-              {team.name}
+              <div className="grid text-left text-sm leading-tight min-w-0 flex-1">
+                <span className="truncate font-medium">{team.name}</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  {team.role}
+                </span>
+              </div>
               <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
             </DropdownMenuItem>
           ))
