@@ -4,7 +4,7 @@
 echo "🚀 Starting development server with Redis job scheduler..."
 
 # Set environment variables
-export ENABLE_CRON_JOBS=true
+export ENABLE_SCHEDULED_JOBS=true
 export CRON_API_KEY=test-scheduler-key
 export NEXT_PUBLIC_CRON_API_KEY=test-scheduler-key
 export TZ=Asia/Jakarta

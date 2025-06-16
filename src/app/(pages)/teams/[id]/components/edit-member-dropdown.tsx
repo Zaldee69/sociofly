@@ -48,15 +48,16 @@ export function EditMemberDropdown({
   const [isRemoving, setIsRemoving] = useState(false);
 
   const { data: availablePermissions } =
-    trpc.permission.getAllPermissionCodes.useQuery();
+    trpc.permission.getAllPermissions.useQuery();
 
   // Grouped permissions based on prefix
   const groupedPermissions = React.useMemo(() => {
     if (!availablePermissions) return {};
 
     const groups: Record<string, string[]> = {};
+    const permissionValues = Object.values(availablePermissions);
 
-    availablePermissions.forEach((perm) => {
+    permissionValues.forEach((perm: string) => {
       const parts = perm.split(".");
       if (parts.length === 2) {
         const category = parts[0];

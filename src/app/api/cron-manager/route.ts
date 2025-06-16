@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { EnhancedCronManager } from "@/lib/services/cron-manager";
+import { JobSchedulerManager } from "@/lib/services/cron-manager";
 import { QueueManager } from "@/lib/queue/queue-manager";
 import { JobType } from "@/lib/queue/job-types";
 
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        await EnhancedCronManager.queueJob(
+        await JobSchedulerManager.queueJob(
           queueName,
           jobType,
           data || {},
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        const queueManager = EnhancedCronManager.getQueueManager();
+        const queueManager = JobSchedulerManager.getQueueManager();
         if (!queueManager) {
           return NextResponse.json(
             { error: "Queue manager not available" },
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        const resumeQueueManager = EnhancedCronManager.getQueueManager();
+        const resumeQueueManager = JobSchedulerManager.getQueueManager();
         if (!resumeQueueManager) {
           return NextResponse.json(
             { error: "Queue manager not available" },
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        const cleanQueueManager = EnhancedCronManager.getQueueManager();
+        const cleanQueueManager = JobSchedulerManager.getQueueManager();
         if (!cleanQueueManager) {
           return NextResponse.json(
             { error: "Queue manager not available" },
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
         break;
 
       case "restart_workers":
-        const restartQueueManager = EnhancedCronManager.getQueueManager();
+        const restartQueueManager = JobSchedulerManager.getQueueManager();
         if (!restartQueueManager) {
           return NextResponse.json(
             { error: "Queue manager not available" },
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        const forceQueueManager = EnhancedCronManager.getQueueManager();
+        const forceQueueManager = JobSchedulerManager.getQueueManager();
         if (!forceQueueManager) {
           return NextResponse.json(
             { error: "Queue manager not available" },
@@ -142,12 +142,55 @@ export async function POST(request: Request) {
         break;
 
       case "initialize":
-        await EnhancedCronManager.initialize();
-        result = { message: "Enhanced Cron Manager initialized" };
+        // Force initialize the job scheduler system
+        try {
+          await JobSchedulerManager.initialize();
+          result = { message: "Job scheduler initialized successfully" };
+        } catch (error) {
+          return NextResponse.json(
+            {
+              error: "Failed to initialize job scheduler",
+              details: error instanceof Error ? error.message : "Unknown error",
+            },
+            { status: 500 }
+          );
+        }
+        break;
+
+      case "system_recovery":
+        // Comprehensive system recovery
+        try {
+          // Step 1: Shutdown existing connections
+          await JobSchedulerManager.shutdown();
+
+          // Step 2: Wait a moment for cleanup
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+
+          // Step 3: Re-initialize everything
+          await JobSchedulerManager.initialize();
+
+          result = {
+            message: "System recovery completed successfully",
+            steps: [
+              "Shutdown existing connections",
+              "Cleanup completed",
+              "Re-initialized job scheduler",
+              "System ready for operations",
+            ],
+          };
+        } catch (error) {
+          return NextResponse.json(
+            {
+              error: "System recovery failed",
+              details: error instanceof Error ? error.message : "Unknown error",
+            },
+            { status: 500 }
+          );
+        }
         break;
 
       case "stop_all":
-        await EnhancedCronManager.stopAll();
+        await JobSchedulerManager.shutdown();
         result = { message: "All jobs stopped" };
         break;
 
@@ -159,7 +202,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        await EnhancedCronManager.queueJob(
+        await JobSchedulerManager.queueJob(
           QueueManager.QUEUES.SCHEDULER,
           JobType.PUBLISH_POST,
           {
@@ -179,7 +222,7 @@ export async function POST(request: Request) {
         break;
 
       case "schedule_health_check":
-        await EnhancedCronManager.queueJob(
+        await JobSchedulerManager.queueJob(
           QueueManager.QUEUES.MAINTENANCE,
           JobType.SYSTEM_HEALTH_CHECK,
           {
@@ -201,7 +244,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        await EnhancedCronManager.queueJob(
+        await JobSchedulerManager.queueJob(
           QueueManager.QUEUES.NOTIFICATIONS,
           JobType.SEND_NOTIFICATION,
           {
@@ -227,7 +270,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        result = await EnhancedCronManager.triggerJob(body.jobName);
+        result = await JobSchedulerManager.triggerJob(body.jobName);
         break;
 
       case "start":
@@ -237,7 +280,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        result = await EnhancedCronManager.startJob(body.jobName);
+        result = await JobSchedulerManager.startJob(body.jobName);
         break;
 
       case "stop":
@@ -247,7 +290,7 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-        result = await EnhancedCronManager.stopJob(body.jobName);
+        result = await JobSchedulerManager.stopJob(body.jobName);
         break;
 
       default:
@@ -268,120 +311,64 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const action = searchParams.get("action");
+  const apiKey = searchParams.get("apiKey");
+
+  // Simple API key validation
+  if (apiKey !== "test-scheduler-key") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let result;
+
   try {
-    const { searchParams } = new URL(request.url);
-    const action = searchParams.get("action");
-    const apiKey = searchParams.get("apiKey");
-
-    // Basic auth check
-    const validApiKey = process.env.CRON_API_KEY || "test-scheduler-key";
-    if (apiKey !== validApiKey) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    let result;
-
     switch (action) {
       case "status":
-        result = await EnhancedCronManager.getStatus();
+        result = await JobSchedulerManager.getStatus();
+        break;
+
+      case "job_history":
+        const hours = parseInt(searchParams.get("hours") || "24");
+        result = await JobSchedulerManager.getJobHistory(hours);
         break;
 
       case "queue_metrics":
-        const queueManager = EnhancedCronManager.getQueueManager();
+        const queueManager = JobSchedulerManager.getQueueManager();
         if (!queueManager) {
-          // Return empty metrics when queue manager is not available (Redis not connected)
-          result = {};
-        } else {
-          const queueName = searchParams.get("queueName");
-          if (queueName) {
-            result = await queueManager.getQueueMetrics(queueName);
-          } else {
-            result = await queueManager.getAllQueueMetrics();
-          }
+          return NextResponse.json(
+            { error: "Queue manager not available" },
+            { status: 503 }
+          );
         }
-        break;
-
-      case "worker_status":
-        const workerQueueManager = EnhancedCronManager.getQueueManager();
-        if (!workerQueueManager) {
-          result = { error: "Queue manager not available" };
-        } else {
-          // Get worker status for all queues
-          const workerStatus: Record<string, any> = {};
-          for (const queueName of Object.values(QueueManager.QUEUES)) {
-            const worker = workerQueueManager.getWorker(queueName);
-            if (worker) {
-              workerStatus[queueName] = {
-                isRunning: worker.isRunning(),
-                isPaused: worker.isPaused(),
-                concurrency: worker.opts.concurrency,
-                name: worker.name,
-              };
-            } else {
-              workerStatus[queueName] = {
-                isRunning: false,
-                isPaused: false,
-                concurrency: 0,
-                name: queueName,
-                error: "Worker not found",
-              };
-            }
-          }
-          result = workerStatus;
-        }
+        result = await queueManager.getAllQueueMetrics();
         break;
 
       case "job_details":
         const jobId = searchParams.get("jobId");
-        const queueNameParam = searchParams.get("queueName");
-        if (!jobId || !queueNameParam) {
+        const queueName = searchParams.get("queueName");
+
+        if (!jobId || !queueName) {
           return NextResponse.json(
             { error: "Job ID and queue name required" },
             { status: 400 }
           );
         }
 
-        const detailQueueManager = EnhancedCronManager.getQueueManager();
-        if (!detailQueueManager) {
-          result = { error: "Queue manager not available" };
-        } else {
-          const queue = detailQueueManager.getQueue(queueNameParam);
-          if (!queue) {
-            result = { error: `Queue ${queueNameParam} not found` };
-          } else {
-            const job = await queue.getJob(jobId);
-            if (!job) {
-              result = { error: `Job ${jobId} not found` };
-            } else {
-              result = {
-                id: job.id,
-                name: job.name,
-                data: job.data,
-                opts: job.opts,
-                progress: job.progress,
-                returnvalue: job.returnvalue,
-                failedReason: job.failedReason,
-                processedOn: job.processedOn,
-                finishedOn: job.finishedOn,
-                timestamp: job.timestamp,
-                attemptsMade: job.attemptsMade,
-                delay: job.delay,
-              };
-            }
-          }
+        const detailsQueueManager = JobSchedulerManager.getQueueManager();
+        if (!detailsQueueManager) {
+          return NextResponse.json(
+            { error: "Queue manager not available" },
+            { status: 503 }
+          );
         }
+
+        result = await detailsQueueManager.getJobDetails(queueName, jobId);
         break;
 
-      case "available_queues":
-        result = {
-          queues: Object.values(QueueManager.QUEUES),
-          jobTypes: Object.values(JobType),
-          isUsingQueues: EnhancedCronManager.isUsingQueues(),
-        };
-        break;
-
-      case "job_logs":
-        result = await EnhancedCronManager.getJobLogs();
+      case "logs":
+        const logHours = parseInt(searchParams.get("hours") || "24");
+        result = await JobSchedulerManager.getJobLogs(logHours);
         break;
 
       default:
@@ -390,10 +377,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, result });
   } catch (error) {
-    console.error("Error in queue manager API route:", error);
+    console.error(`Error in GET /api/cron-manager (${action}):`, error);
     return NextResponse.json(
       {
-        error: "Server error",
+        error: "Internal server error",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }

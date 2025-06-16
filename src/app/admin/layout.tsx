@@ -14,7 +14,7 @@ const navigation = [
     icon: FileText,
   },
   {
-    name: "Cron Jobs",
+    name: "Job Scheduler",
     href: "/admin/cron",
     icon: Activity,
   },

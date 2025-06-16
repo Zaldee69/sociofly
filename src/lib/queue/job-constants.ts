@@ -18,10 +18,12 @@ export const JOB_CONSTANTS = {
 
   // Job cleanup settings
   CLEANUP_CONFIG: {
-    KEEP_COMPLETED: 50,
-    KEEP_FAILED: 20,
+    KEEP_COMPLETED: 100,
+    KEEP_FAILED: 50,
     DEFAULT_CLEANUP_AGE_MS: 3600000, // 1 hour
     LOG_CLEANUP_DAYS: 30,
+    METRICS_RETENTION_HOURS: 24,
+    DASHBOARD_REFRESH_INTERVAL: 30000,
   },
 
   // Queue concurrency settings

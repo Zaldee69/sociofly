@@ -12,7 +12,41 @@ const nextConfig: NextConfig = {
     ],
     formats: ["image/avif", "image/webp"],
   },
-  experimental: {},
+  experimental: {
+    serverComponentsExternalPackages: ["bullmq"],
+  },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Exclude server-only packages from client bundle
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        child_process: false,
+        path: false,
+        os: false,
+        crypto: false,
+        stream: false,
+        util: false,
+        url: false,
+        zlib: false,
+        http: false,
+        https: false,
+        assert: false,
+        buffer: false,
+        events: false,
+      };
+
+      // Ignore server-only modules in client bundle
+      config.externals = config.externals || [];
+      config.externals.push({
+        bullmq: "commonjs bullmq",
+        ioredis: "commonjs ioredis",
+      });
+    }
+    return config;
+  },
   poweredByHeader: false,
   headers: async () => {
     return [

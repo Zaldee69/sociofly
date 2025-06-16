@@ -23,7 +23,8 @@ import {
 } from "@dnd-kit/core";
 import { addMinutes, differenceInMinutes } from "date-fns";
 import { CalendarPost } from "./types";
-import { PostItem } from "./post-item";
+import { PostItem } from "./post-calendar/post-item";
+import { CalendarPost as PostCalendarPost } from "./post-calendar/types";
 
 // Define the context type
 type CalendarDndContextType = {
@@ -151,7 +152,9 @@ export function CalendarDndProvider({
     setActivePost(calendarPost);
     setActiveId(active.id);
     setActiveView(view);
-    setCurrentTime(new Date(calendarPost.start));
+    setCurrentTime(
+      new Date((calendarPost as any).scheduledAt || (calendarPost as any).start)
+    );
     setIsMultiDay(postIsMultiDay || false);
     setMultiDayWidth(postMultiDayWidth || null);
     setDragHandlePosition(postDragHandlePosition || null);
@@ -287,8 +290,12 @@ export function CalendarDndProvider({
       }
 
       // Calculate new end time based on the original duration
-      const originalStart = new Date(calendarPost.start);
-      const originalEnd = new Date(calendarPost.end);
+      const originalStart = new Date(
+        (calendarPost as any).scheduledAt || (calendarPost as any).start
+      );
+      const originalEnd = new Date(
+        (calendarPost as any).end || addMinutes(originalStart, 30)
+      );
       const durationMinutes = differenceInMinutes(originalEnd, originalStart);
       const newEnd = addMinutes(newStart, durationMinutes);
 
@@ -306,7 +313,7 @@ export function CalendarDndProvider({
           ...calendarPost,
           start: newStart,
           end: newEnd,
-        });
+        } as CalendarPost);
       }
     } catch (error) {
       console.error("Error in drag end handler:", error);
@@ -356,13 +363,26 @@ export function CalendarDndProvider({
               }}
             >
               <PostItem
-                post={activePost}
+                post={
+                  {
+                    id: activePost.id,
+                    postSocialAccounts: [],
+                    content:
+                      (activePost as any).title ||
+                      (activePost as any).description ||
+                      (activePost as any).content ||
+                      "",
+                    scheduledAt:
+                      (activePost as any).scheduledAt ||
+                      (activePost as any).start,
+                    status: "SCHEDULED" as const,
+                    mediaUrls: [],
+                  } as PostCalendarPost
+                }
                 view={activeView}
                 isDragging={true}
                 showTime={activeView !== "month"}
                 currentTime={currentTime || undefined}
-                isFirstDay={dragHandlePosition?.data?.isFirstDay !== false}
-                isLastDay={dragHandlePosition?.data?.isLastDay !== false}
               />
             </div>
           )}

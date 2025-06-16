@@ -39,7 +39,7 @@ export function MemberPermissionEditor({
   // Get user's permission overrides
   const { data: userOverrides, isLoading: isLoadingOverrides } =
     trpc.permission.getUserOverrides.useQuery(
-      { organizationId, membershipId },
+      { teamId: organizationId, membershipId },
       {
         enabled: !!organizationId && !!membershipId,
       }
@@ -50,7 +50,7 @@ export function MemberPermissionEditor({
     onSuccess: () => {
       toast.success("Permission granted successfully");
       void utils.permission.getUserOverrides.invalidate({
-        organizationId,
+        teamId: organizationId,
         membershipId,
       });
       // Also refresh the members list
@@ -69,7 +69,7 @@ export function MemberPermissionEditor({
     onSuccess: () => {
       toast.success("Permission denied successfully");
       void utils.permission.getUserOverrides.invalidate({
-        organizationId,
+        teamId: organizationId,
         membershipId,
       });
       // Also refresh the members list
@@ -88,7 +88,7 @@ export function MemberPermissionEditor({
     onSuccess: () => {
       toast.success("Permission reset to default");
       void utils.permission.getUserOverrides.invalidate({
-        organizationId,
+        teamId: organizationId,
         membershipId,
       });
       // Also refresh the members list
@@ -146,20 +146,20 @@ export function MemberPermissionEditor({
     // Send mutation based on selected value
     if (status === "grant") {
       grantMutation.mutate({
-        organizationId,
+        teamId: organizationId,
         membershipId,
         permissionCode,
       });
     } else if (status === "deny") {
       denyMutation.mutate({
-        organizationId,
+        teamId: organizationId,
         membershipId,
         permissionCode,
       });
     } else {
       // "inherit" => revoke all overrides
       revokeMutation.mutate({
-        organizationId,
+        teamId: organizationId,
         membershipId,
         permissionCode,
       });

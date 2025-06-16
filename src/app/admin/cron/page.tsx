@@ -1,20 +1,16 @@
-import { CronJobMonitor } from "@/features/system";
-import { JobExecutionMonitor } from "@/components/debug/job-execution-monitor";
+import { JobSchedulerMonitor } from "@/features/system/components/cron-job-monitor";
 
-export default function CronJobsPage() {
+export default function JobSchedulerPage() {
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Cron Jobs Management</h1>
+    <div className="flex-1 space-y-8 p-8 pt-6">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">Job Scheduler Dashboard</h1>
         <p className="text-muted-foreground">
-          Monitor, control, and manage automated background jobs.
+          Monitor and manage scheduled jobs, queue metrics, and system health
         </p>
       </div>
 
-      <CronJobMonitor />
-
-      {/* Real-time job execution monitor */}
-      <JobExecutionMonitor />
+      <JobSchedulerMonitor />
     </div>
   );
 }

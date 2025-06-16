@@ -1,4 +1,4 @@
-// enhanced-cron-manager.ts - Redis Queue Only Manager
+// job-scheduler.ts - Redis Queue Job Scheduler Manager
 import { QueueManager } from "@/lib/queue/queue-manager";
 import { JobType } from "@/lib/queue/job-types";
 import { JOB_CONSTANTS } from "@/lib/queue/job-constants";
@@ -6,7 +6,7 @@ import { SchedulerService } from "./scheduler.service";
 import { prisma } from "@/lib/prisma/client";
 import { UnifiedRedisManager } from "./unified-redis-manager";
 
-interface CronJobConfig {
+interface ScheduledJobConfig {
   name: string;
   schedule: string;
   description: string;
@@ -17,8 +17,8 @@ interface CronJobConfig {
   priority?: number;
 }
 
-export class EnhancedCronManager {
-  private static instance: EnhancedCronManager;
+export class JobSchedulerManager {
+  private static instance: JobSchedulerManager;
   private static isInitialized = false;
   private static queueManager: QueueManager | null = null;
   private static redisManager: UnifiedRedisManager | null = null;
@@ -26,23 +26,23 @@ export class EnhancedCronManager {
 
   private constructor() {}
 
-  public static getInstance(): EnhancedCronManager {
-    if (!EnhancedCronManager.instance) {
-      EnhancedCronManager.instance = new EnhancedCronManager();
+  public static getInstance(): JobSchedulerManager {
+    if (!JobSchedulerManager.instance) {
+      JobSchedulerManager.instance = new JobSchedulerManager();
     }
-    return EnhancedCronManager.instance;
+    return JobSchedulerManager.instance;
   }
 
   /**
-   * Initialize enhanced cron manager
+   * Initialize job scheduler manager
    */
   public static async initialize(): Promise<void> {
     if (this.isInitialized) {
-      console.log("⚠️  Enhanced Cron Manager already initialized");
+      console.log("⚠️  Job Scheduler Manager already initialized");
       return;
     }
 
-    console.log("🚀 Initializing Enhanced Cron Manager (Redis Queue Only)...");
+    console.log("🚀 Initializing Job Scheduler Manager (Redis Queue Only)...");
 
     try {
       // Initialize Redis connection
@@ -66,16 +66,16 @@ export class EnhancedCronManager {
 
       this.isInitialized = true;
       console.log(
-        "✅ Enhanced Cron Manager initialized successfully (Redis Queue Only)"
+        "✅ Job Scheduler Manager initialized successfully (Redis Queue Only)"
       );
 
       await this.logActivity(
-        "enhanced_cron_manager_started",
+        "job_scheduler_manager_started",
         "SUCCESS",
-        `Enhanced Cron Manager initialized with Redis BullMQ only`
+        `Job Scheduler Manager initialized with Redis BullMQ only`
       );
     } catch (error) {
-      console.error("❌ Failed to initialize Enhanced Cron Manager:", error);
+      console.error("❌ Failed to initialize Job Scheduler Manager:", error);
       throw error;
     }
   }
@@ -84,7 +84,7 @@ export class EnhancedCronManager {
    * Setup all job configurations
    */
   private static async setupJobs(): Promise<void> {
-    const jobConfigs: CronJobConfig[] = [
+    const jobConfigs: ScheduledJobConfig[] = [
       {
         name: "publish_due_posts",
         schedule: "*/1 * * * *", // Every 1 minute
@@ -198,7 +198,7 @@ export class EnhancedCronManager {
   /**
    * Register a job (queue-only, no fallback)
    */
-  private static async registerJob(config: CronJobConfig): Promise<void> {
+  private static async registerJob(config: ScheduledJobConfig): Promise<void> {
     try {
       if (!this.queueManager) {
         throw new Error("Queue Manager not available. Redis is required.");
@@ -218,7 +218,9 @@ export class EnhancedCronManager {
   /**
    * Schedule job using QueueManager (BullMQ)
    */
-  private static async scheduleQueueJob(config: CronJobConfig): Promise<void> {
+  private static async scheduleQueueJob(
+    config: ScheduledJobConfig
+  ): Promise<void> {
     if (!this.queueManager) {
       throw new Error("QueueManager not available");
     }
@@ -253,7 +255,7 @@ export class EnhancedCronManager {
   }
 
   /**
-   * Get comprehensive status (queue only)
+   * Get comprehensive status (queue only) with enhanced metrics
    */
   public static async getStatus(): Promise<any> {
     const status = {
@@ -263,12 +265,49 @@ export class EnhancedCronManager {
       queueManagerReady: this.queueManager?.isReady() || false,
       queueMetrics: {},
       redisInfo: this.redisManager?.getConnectionInfo() || null,
-      cronJobs: [] as Array<{ name: string; running: boolean }>, // Add cronJobs array for frontend
+      scheduledJobs: [] as Array<{ name: string; running: boolean }>,
+      cronJobs: [] as Array<{ name: string; running: boolean }>, // Legacy field for backward compatibility
+      // Enhanced metrics for better tracking
+      systemHealth: {
+        totalJobs: 0,
+        completedJobs: 0,
+        failedJobs: 0,
+        activeJobs: 0,
+        waitingJobs: 0,
+        successRate: 0,
+        lastUpdated: new Date().toISOString(),
+      },
     };
 
     if (this.queueManager) {
       try {
-        status.queueMetrics = await this.queueManager.getAllQueueMetrics();
+        const queueMetrics = await this.queueManager.getAllQueueMetrics();
+        status.queueMetrics = queueMetrics;
+
+        // Calculate enhanced system health metrics
+        let totalCompleted = 0;
+        let totalFailed = 0;
+        let totalActive = 0;
+        let totalWaiting = 0;
+
+        Object.values(queueMetrics).forEach((metrics: any) => {
+          totalCompleted += metrics.completed || 0;
+          totalFailed += metrics.failed || 0;
+          totalActive += metrics.active || 0;
+          totalWaiting += metrics.waiting || 0;
+        });
+
+        const totalJobs = totalCompleted + totalFailed;
+        status.systemHealth = {
+          totalJobs,
+          completedJobs: totalCompleted,
+          failedJobs: totalFailed,
+          activeJobs: totalActive,
+          waitingJobs: totalWaiting,
+          successRate:
+            totalJobs > 0 ? Math.round((totalCompleted / totalJobs) * 100) : 0,
+          lastUpdated: new Date().toISOString(),
+        };
       } catch (error) {
         console.error("Failed to get queue metrics:", error);
       }
@@ -276,12 +315,58 @@ export class EnhancedCronManager {
 
     // Add job status information for frontend (queue-based only)
     const availableJobs = this.getAvailableJobs();
-    status.cronJobs = availableJobs.map((jobName) => ({
+    const jobStatusArray = availableJobs.map((jobName) => ({
       name: jobName,
       running: (this.isInitialized && this.queueManager?.isReady()) || false,
     }));
 
+    status.scheduledJobs = jobStatusArray;
+    status.cronJobs = jobStatusArray; // Legacy field for backward compatibility
+
     return status;
+  }
+
+  /**
+   * Get detailed job execution history with better persistence
+   */
+  public static async getJobHistory(hours: number = 24): Promise<any> {
+    try {
+      // Get both queue metrics and database logs for comprehensive history
+      const queueMetrics = this.queueManager
+        ? await this.queueManager.getAllQueueMetrics()
+        : {};
+      const databaseLogs = await this.getJobLogs(hours);
+
+      // Combine queue metrics with database logs for complete picture
+      const combinedHistory = {
+        period: `Last ${hours} hours`,
+        queueMetrics,
+        databaseLogs,
+        summary: {
+          totalQueueJobs: Object.values(queueMetrics).reduce(
+            (sum: number, queue: any) =>
+              sum + (queue.completed || 0) + (queue.failed || 0),
+            0
+          ),
+          totalDatabaseLogs: databaseLogs.totalLogs,
+          lastUpdated: new Date().toISOString(),
+        },
+      };
+
+      return combinedHistory;
+    } catch (error) {
+      console.error("Error fetching job history:", error);
+      return {
+        period: `Last ${hours} hours`,
+        queueMetrics: {},
+        databaseLogs: { totalLogs: 0, jobs: {}, recentLogs: [] },
+        summary: {
+          totalQueueJobs: 0,
+          totalDatabaseLogs: 0,
+          lastUpdated: new Date().toISOString(),
+        },
+      };
+    }
   }
 
   /**
@@ -491,7 +576,7 @@ export class EnhancedCronManager {
    * Graceful shutdown (queue only)
    */
   public static async shutdown(): Promise<void> {
-    console.log("🛑 Shutting down Enhanced Cron Manager (Queue Only)...");
+    console.log("🛑 Shutting down Job Scheduler Manager (Queue Only)...");
 
     // Shutdown queue manager
     if (this.queueManager) {
@@ -507,7 +592,7 @@ export class EnhancedCronManager {
 
     this.isInitialized = false;
     this.useQueues = false;
-    console.log("✅ Enhanced Cron Manager shutdown complete");
+    console.log("✅ Job Scheduler Manager shutdown complete");
   }
 
   /**
@@ -589,7 +674,7 @@ export class EnhancedCronManager {
     }
   }
 
-  private static getJobConfig(jobName: string): CronJobConfig | null {
+  private static getJobConfig(jobName: string): ScheduledJobConfig | null {
     const queueName = this.getQueueNameForJob(jobName);
     const jobType = this.getJobTypeForJob(jobName);
 
@@ -726,3 +811,6 @@ export class EnhancedCronManager {
     return this.getAvailableJobs().includes(jobName);
   }
 }
+
+// Legacy export for backward compatibility
+export const EnhancedCronManager = JobSchedulerManager;

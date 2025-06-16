@@ -205,7 +205,7 @@ export class PostPublisherService {
   }
 
   /**
-   * Schedule a post for future publishing (used by cron jobs)
+   * Schedule a post for future publishing (used by job scheduler)
    */
   public static async schedulePost(postId: string): Promise<boolean> {
     try {

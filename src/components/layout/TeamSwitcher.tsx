@@ -16,7 +16,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SidebarMenuButton } from "./ui/sidebar";
+import { SidebarMenuButton } from "@/components/ui/sidebar";
 
 export function TeamSwitcher() {
   const { currentTeamId, setCurrentTeamId, isLoading } = useTeamContext();

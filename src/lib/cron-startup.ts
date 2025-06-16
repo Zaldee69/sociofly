@@ -1,62 +1,67 @@
-import { CronManager } from "./services/cron-manager";
+import { JobSchedulerManager } from "./services/cron-manager";
 import { checkRedisConnection } from "./queue/redis-connection";
 
 /**
- * Initialize enhanced cron jobs with BullMQ integration
+ * Initialize job scheduler with BullMQ integration
  * This should be called once when the server starts
  */
-export async function initializeEnhancedCronJobs(): Promise<void> {
-  // Only initialize cron jobs in production or when explicitly enabled
-  const shouldRunCron =
+export async function initializeJobScheduler(): Promise<void> {
+  // Only initialize scheduled jobs in production or when explicitly enabled
+  const shouldRunScheduler =
     process.env.NODE_ENV === "production" ||
-    process.env.ENABLE_CRON_JOBS === "true";
+    process.env.ENABLE_SCHEDULED_JOBS === "true";
 
-  if (!shouldRunCron) {
-    console.log("🕒 Enhanced cron jobs disabled for development mode");
+  if (!shouldRunScheduler) {
+    console.log("🕒 Scheduled jobs disabled for development mode");
     console.log(
-      "   Set ENABLE_CRON_JOBS=true to enable cron jobs in development"
+      "   Set ENABLE_SCHEDULED_JOBS=true to enable scheduled jobs in development"
     );
     return;
   }
 
   try {
-    console.log("🚀 Starting enhanced cron job initialization...");
+    console.log("🚀 Starting job scheduler initialization...");
 
     // Check Redis connection first
     const redisAvailable = await checkRedisConnection();
 
     if (redisAvailable) {
-      console.log("✅ Redis available - Full BullMQ + node-cron integration");
+      console.log("✅ Redis available - Full BullMQ job scheduling");
     } else {
-      console.log("⚠️  Redis not available - Using node-cron fallback only");
+      console.log("⚠️  Redis not available - Job scheduling requires Redis");
+      return;
     }
 
-    await CronManager.initialize();
-    console.log("✅ Enhanced cron jobs initialized successfully");
+    await JobSchedulerManager.initialize();
+    console.log("✅ Job scheduler initialized successfully");
 
     // Log system configuration
-    const status = await CronManager.getStatus();
+    const status = await JobSchedulerManager.getStatus();
     console.log(`📊 System Status:
-      - Total Jobs: ${status.totalJobs}
-      - Running Jobs: ${status.runningJobs}
-      - Using Queues: ${status.useQueues ? "Yes" : "No"}
-      - Queue System: ${status.useQueues ? "BullMQ + Redis" : "node-cron only"}
+      - Total Jobs: ${status.scheduledJobs?.length || 0}
+      - Running Jobs: ${status.scheduledJobs?.filter((job: any) => job.running).length || 0}
+      - Using Queues: ${status.queueManagerReady ? "Yes" : "No"}
+      - Queue System: ${status.queueManagerReady ? "BullMQ + Redis" : "Unavailable"}
     `);
   } catch (error) {
-    console.error("❌ Failed to initialize enhanced cron jobs:", error);
+    console.error("❌ Failed to initialize job scheduler:", error);
     // Don't throw error to prevent app startup failure
   }
 }
 
 /**
- * Graceful shutdown for enhanced cron system
+ * Graceful shutdown for job scheduler
  */
-export async function shutdownEnhancedCronJobs(): Promise<void> {
+export async function shutdownJobScheduler(): Promise<void> {
   try {
-    console.log("🛑 Shutting down enhanced cron system...");
-    await CronManager.stopAll();
-    console.log("✅ Enhanced cron system shutdown complete");
+    console.log("🛑 Shutting down job scheduler...");
+    await JobSchedulerManager.shutdown();
+    console.log("✅ Job scheduler shutdown complete");
   } catch (error) {
-    console.error("❌ Error during enhanced cron shutdown:", error);
+    console.error("❌ Error during job scheduler shutdown:", error);
   }
 }
+
+// Legacy function names for backward compatibility
+export const initializeEnhancedCronJobs = initializeJobScheduler;
+export const shutdownEnhancedCronJobs = shutdownJobScheduler;

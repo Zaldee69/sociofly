@@ -252,7 +252,7 @@ export default async function AdminPage() {
             <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
               <CardContent className="p-4 text-center">
                 <CheckCircle className="h-8 w-8 mx-auto mb-2 text-green-600" />
-                <p className="text-sm font-medium">Cron Jobs</p>
+                <p className="text-sm font-medium">Scheduled Jobs</p>
               </CardContent>
             </Card>
           </Link>

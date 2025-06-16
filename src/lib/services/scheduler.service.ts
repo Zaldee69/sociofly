@@ -25,7 +25,7 @@ const formatDateForAPI = (date: Date): string => {
 export class SchedulerService {
   /**
    * Checks for and publishes all posts that are due to be published
-   * This should be called by a cron job on a regular interval (every 1 minute)
+   * This should be called by the job scheduler on a regular interval (every 1 minute)
    * Optimized for performance with batching and parallel processing
    */
   static async processDuePublications(): Promise<{
@@ -277,7 +277,7 @@ export class SchedulerService {
 
   /**
    * Checks for social accounts with expired tokens and marks them as needing reauthorization
-   * This should be called by a cron job on a daily basis
+   * This should be called by the job scheduler on a daily basis
    */
   static async checkExpiredTokens(): Promise<number> {
     try {
@@ -331,7 +331,7 @@ export class SchedulerService {
 
   /**
    * Process all approval edge cases
-   * This should be called by a cron job every hour to handle various edge cases
+   * This should be called by the job scheduler every hour to handle various edge cases
    */
   static async processApprovalEdgeCases(): Promise<{
     totalIssues: number;
@@ -476,7 +476,7 @@ export class SchedulerService {
 
   /**
    * Analyzes historical post data to identify optimal posting times
-   * This should be called by a cron job every 24 hours
+   * This should be called by the job scheduler every 24 hours
    */
   static async analyzeAndStoreHotspots(socialAccountId: string): Promise<void> {
     const startTime = Date.now();
@@ -666,7 +666,7 @@ export class SchedulerService {
 
   /**
    * Runs hotspot analysis for all active social accounts
-   * This should be called by a cron job every 24 hours
+   * This should be called by the job scheduler every 24 hours
    */
   static async runHotspotAnalysisForAllAccounts(): Promise<{
     success: number;
@@ -801,7 +801,7 @@ export class SchedulerService {
 
   /**
    * Fetch and store account-level insights (followers, media count) for all social accounts.
-   * Should be called by a cron job daily.
+   * Should be called by the job scheduler daily.
    */
   static async runAccountInsightsForAllAccounts(): Promise<{
     total: number;

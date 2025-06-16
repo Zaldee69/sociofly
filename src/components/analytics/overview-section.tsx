@@ -15,9 +15,7 @@ interface OverviewSectionProps {
     engagementGrowthPercent?: number;
     reachGrowthPercent?: number;
   };
-  stats?: {
-    // Add fields based on getCollectionStats response
-  };
+  stats?: Record<string, unknown>;
   isLoading: boolean;
 }
 

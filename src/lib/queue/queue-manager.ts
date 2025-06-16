@@ -106,8 +106,8 @@ export class QueueManager {
       const queue = new Queue(config.name, {
         connection: this.getRedisConnectionOptions(),
         defaultJobOptions: {
-          removeOnComplete: 50, // Keep last 50 completed jobs
-          removeOnFail: 20, // Keep last 20 failed jobs
+          removeOnComplete: 100,
+          removeOnFail: 50,
           attempts: 3,
           backoff: {
             type: "exponential",
@@ -408,6 +408,36 @@ export class QueueManager {
    */
   public getWorker(queueName: string): Worker | undefined {
     return this.workers.get(queueName);
+  }
+
+  /**
+   * Get job details
+   */
+  public async getJobDetails(queueName: string, jobId: string): Promise<any> {
+    const queue = this.queues.get(queueName);
+    if (!queue) {
+      throw new Error(`Queue not found: ${queueName}`);
+    }
+
+    const job = await queue.getJob(jobId);
+    if (!job) {
+      throw new Error(`Job ${jobId} not found in queue ${queueName}`);
+    }
+
+    return {
+      id: job.id,
+      name: job.name,
+      data: job.data,
+      opts: job.opts,
+      progress: job.progress,
+      returnvalue: job.returnvalue,
+      failedReason: job.failedReason,
+      processedOn: job.processedOn,
+      finishedOn: job.finishedOn,
+      timestamp: job.timestamp,
+      attemptsMade: job.attemptsMade,
+      delay: job.delay,
+    };
   }
 
   /**
