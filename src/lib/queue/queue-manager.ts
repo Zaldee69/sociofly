@@ -113,6 +113,7 @@ export class QueueManager {
             type: "exponential",
             delay: 2000,
           },
+          delay: 0,
         },
       });
 
@@ -144,6 +145,8 @@ export class QueueManager {
         {
           connection: this.getRedisConnectionOptions(),
           concurrency: config.concurrency,
+          maxStalledCount: 3,
+          stalledInterval: 30000,
         }
       );
 

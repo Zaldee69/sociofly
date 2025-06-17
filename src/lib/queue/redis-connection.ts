@@ -41,6 +41,10 @@ export const redisConnectionOptions = {
   db: redisConfig.db,
   maxRetriesPerRequest: null,
   retryDelayOnFailover: redisConfig.retryDelayOnFailover,
+  connectTimeout: 10000,
+  lazyConnect: true,
+  keepAlive: 30000,
+  family: 4,
 };
 
 // Health check function

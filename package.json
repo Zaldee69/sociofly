@@ -14,6 +14,8 @@
     "test:redis": "npx tsx scripts/debug/test-redis.ts",
     "test:bullmq": "npx tsx scripts/debug/test-bullmq.ts",
     "test:cluster": "npx tsx scripts/debug/test-cluster.ts",
+    "redis:diagnostics": "npx tsx scripts/debug/redis-diagnostics.ts",
+    "redis:monitor": "./scripts/monitor-redis-locks.sh",
     "seed:hashtags": "npx tsx src/features/social/scripts/seed-hashtags.ts",
     "seed:permissions": "npx tsx src/server/permissions/seed/seed-role-permissions.ts",
     "analytics:collect": "npx tsx scripts/collect-analytics.ts",

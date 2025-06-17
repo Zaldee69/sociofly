@@ -1,12 +1,18 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { toast } from "sonner";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -26,26 +32,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Activity,
-  CheckCircle2,
-  XCircle,
-  Clock,
   RefreshCw,
+  Download,
   Search,
   Filter,
-  Download,
-  BarChart3,
-  TrendingUp,
-  AlertTriangle,
   Eye,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Activity,
   FileText,
-  Timer,
-  Target,
   Database,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 
+// Types
 interface JobExecutionLog {
   jobId: string;
   jobName: string;
@@ -70,39 +72,14 @@ interface LogFilters {
   dateFilter: "all" | "today" | "week" | "month";
 }
 
-interface LogAnalytics {
-  totalExecutions: number;
-  successRate: number;
-  avgExecutionTime: number;
-  totalExecutionTime: number;
-  errorRate: number;
-  mostActiveJob: string;
-  slowestJob: string;
-  fastestJob: string;
-  peakHour: string;
-  statusDistribution: { [key: string]: number };
-  jobTypeDistribution: { [key: string]: number };
-  queueDistribution: { [key: string]: number };
-  recentTrends: Array<{
-    period: string;
-    executions: number;
-    success: number;
-    failed: number;
-    avgTime: number;
-  }>;
-  performanceMetrics: {
-    p50: number;
-    p90: number;
-    p95: number;
-    p99: number;
-  };
-}
-
 export function ExecutionLogsAdvanced() {
   const [logs, setLogs] = useState<JobExecutionLog[]>([]);
-  const [filteredLogs, setFilteredLogs] = useState<JobExecutionLog[]>([]);
-  const [analytics, setAnalytics] = useState<LogAnalytics | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isBackgroundLoading, setIsBackgroundLoading] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [isAutoRefresh, setIsAutoRefresh] = useState(true);
+  const [newLogsCount, setNewLogsCount] = useState(0);
+  const [refreshInterval, setRefreshInterval] = useState(10000); // Start with 10 seconds
   const [filters, setFilters] = useState<LogFilters>({
     search: "",
     status: [],
@@ -113,9 +90,6 @@ export function ExecutionLogsAdvanced() {
     sortOrder: "desc",
     dateFilter: "week",
   });
-  const [selectedView, setSelectedView] = useState<"logs" | "analytics">(
-    "logs"
-  );
 
   const apiKey = process.env.NEXT_PUBLIC_CRON_API_KEY || "test-scheduler-key";
 
@@ -141,10 +115,15 @@ export function ExecutionLogsAdvanced() {
     }
   };
 
-  // Load logs from multiple sources
-  const loadLogs = async () => {
+  // Load logs from multiple sources with optimized loading states
+  const loadLogs = async (isManualRefresh = false) => {
     try {
-      setIsLoading(true);
+      // Use different loading states for manual vs auto refresh
+      if (isManualRefresh) {
+        setIsLoading(true);
+      } else {
+        setIsBackgroundLoading(true);
+      }
 
       // Get database logs
       const response = await fetch(
@@ -206,13 +185,56 @@ export function ExecutionLogsAdvanced() {
           (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
         );
 
-        setLogs(sortedLogs);
+        // Only update if data actually changed (prevent unnecessary re-renders)
+        setLogs((prevLogs) => {
+          const hasChanged =
+            JSON.stringify(prevLogs.map((l) => l.jobId)) !==
+            JSON.stringify(sortedLogs.map((l) => l.jobId));
+
+          if (hasChanged) {
+            return sortedLogs;
+          }
+          return prevLogs;
+        });
+
+        setLastUpdate(new Date());
+
+        // Update localStorage with new data (only if changed)
+        try {
+          const existingLocal = getLocalExecutionLogs();
+          const newLocalLogs = [...existingLocal];
+
+          // Add new database logs to localStorage (avoid duplicates)
+          convertedLogs.forEach((dbLog) => {
+            const exists = newLocalLogs.some(
+              (localLog) => localLog.jobId === dbLog.jobId
+            );
+            if (!exists) {
+              newLocalLogs.push(dbLog);
+            }
+          });
+
+          // Keep only recent logs (last 1000 entries)
+          const recentLogs = newLocalLogs
+            .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+            .slice(0, 1000);
+
+          localStorage.setItem(
+            "job-execution-logs",
+            JSON.stringify(recentLogs)
+          );
+        } catch (error) {
+          console.warn("Failed to update localStorage:", error);
+        }
       }
     } catch (error) {
       console.error("Failed to load logs:", error);
-      toast.error("Failed to load execution logs");
+      if (isManualRefresh) {
+        toast.error("Failed to load execution logs");
+      }
     } finally {
       setIsLoading(false);
+      setIsBackgroundLoading(false);
     }
   };
 
@@ -292,175 +314,74 @@ export function ExecutionLogsAdvanced() {
     }
   };
 
-  // Calculate analytics
-  const calculateAnalytics = (logs: JobExecutionLog[]): LogAnalytics => {
-    if (logs.length === 0) {
-      return {
-        totalExecutions: 0,
-        successRate: 0,
-        avgExecutionTime: 0,
-        totalExecutionTime: 0,
-        errorRate: 0,
-        mostActiveJob: "",
-        slowestJob: "",
-        fastestJob: "",
-        peakHour: "",
-        statusDistribution: {},
-        jobTypeDistribution: {},
-        queueDistribution: {},
-        recentTrends: [],
-        performanceMetrics: { p50: 0, p90: 0, p95: 0, p99: 0 },
-      };
-    }
+  // Simulate new log entries for real-time demo
+  const simulateNewLogs = () => {
+    const jobNames = [
+      "Email Notification",
+      "Data Backup",
+      "Report Generation",
+      "Image Processing",
+      "Database Cleanup",
+      "Cache Refresh",
+      "User Sync",
+      "Analytics Update",
+      "File Upload",
+      "API Sync",
+    ];
 
-    const totalExecutions = logs.length;
-    const completedLogs = logs.filter((log) => log.status === "completed");
-    const failedLogs = logs.filter((log) => log.status === "failed");
-    const successRate = (completedLogs.length / totalExecutions) * 100;
-    const errorRate = (failedLogs.length / totalExecutions) * 100;
+    const statuses: JobExecutionLog["status"][] = [
+      "completed",
+      "failed",
+      "processing",
+      "queued",
+    ];
+    const queueNames = [
+      "notifications",
+      "system",
+      "reports",
+      "media",
+      "database",
+    ];
 
-    // Execution times
-    const executionTimes = logs
-      .filter((log) => log.executionTime && log.executionTime > 0)
-      .map((log) => log.executionTime!);
-
-    const avgExecutionTime =
-      executionTimes.length > 0
-        ? executionTimes.reduce((sum, time) => sum + time, 0) /
-          executionTimes.length
-        : 0;
-
-    const totalExecutionTime = executionTimes.reduce(
-      (sum, time) => sum + time,
-      0
-    );
-
-    // Performance percentiles
-    const sortedTimes = [...executionTimes].sort((a, b) => a - b);
-    const performanceMetrics = {
-      p50: sortedTimes[Math.floor(sortedTimes.length * 0.5)] || 0,
-      p90: sortedTimes[Math.floor(sortedTimes.length * 0.9)] || 0,
-      p95: sortedTimes[Math.floor(sortedTimes.length * 0.95)] || 0,
-      p99: sortedTimes[Math.floor(sortedTimes.length * 0.99)] || 0,
+    const newLog: JobExecutionLog = {
+      jobId: `live-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      jobName: jobNames[Math.floor(Math.random() * jobNames.length)],
+      status: statuses[Math.floor(Math.random() * statuses.length)],
+      timestamp: new Date(),
+      queueName: queueNames[Math.floor(Math.random() * queueNames.length)],
+      executionTime: Math.floor(Math.random() * 5000) + 100,
+      priority: Math.floor(Math.random() * 10) + 1,
+      attempts: Math.floor(Math.random() * 3) + 1,
+      error: Math.random() < 0.3 ? "Random error for demo" : undefined,
+      data: { demo: true, timestamp: Date.now() },
     };
 
-    // Job statistics
-    const jobCounts = logs.reduce(
-      (acc, log) => {
-        acc[log.jobName] = (acc[log.jobName] || 0) + 1;
-        return acc;
-      },
-      {} as { [key: string]: number }
-    );
+    // Add to current logs
+    setLogs((prevLogs) => {
+      const updatedLogs = [newLog, ...prevLogs].slice(0, 1000); // Keep last 1000
 
-    const mostActiveJob =
-      Object.entries(jobCounts).sort(([, a], [, b]) => b - a)[0]?.[0] || "";
+      // Update localStorage
+      try {
+        localStorage.setItem("job-execution-logs", JSON.stringify(updatedLogs));
+      } catch (error) {
+        console.warn("Failed to update localStorage with new log:", error);
+      }
 
-    // Find slowest and fastest jobs
-    const jobTimes = logs.reduce(
-      (acc, log) => {
-        if (log.executionTime) {
-          if (!acc[log.jobName]) acc[log.jobName] = [];
-          acc[log.jobName].push(log.executionTime);
-        }
-        return acc;
-      },
-      {} as { [key: string]: number[] }
-    );
+      return updatedLogs;
+    });
 
-    const jobAvgTimes = Object.entries(jobTimes).map(([job, times]) => ({
-      job,
-      avgTime: times.reduce((sum, time) => sum + time, 0) / times.length,
-    }));
+    setLastUpdate(new Date());
+    setNewLogsCount((prev) => prev + 1);
 
-    const slowestJob =
-      jobAvgTimes.sort((a, b) => b.avgTime - a.avgTime)[0]?.job || "";
-    const fastestJob =
-      jobAvgTimes.sort((a, b) => a.avgTime - b.avgTime)[0]?.job || "";
-
-    // Status distribution
-    const statusDistribution = logs.reduce(
-      (acc, log) => {
-        acc[log.status] = (acc[log.status] || 0) + 1;
-        return acc;
-      },
-      {} as { [key: string]: number }
-    );
-
-    // Queue distribution
-    const queueDistribution = logs.reduce(
-      (acc, log) => {
-        const queue = log.queueName || "unknown";
-        acc[queue] = (acc[queue] || 0) + 1;
-        return acc;
-      },
-      {} as { [key: string]: number }
-    );
-
-    // Peak hour analysis
-    const hourCounts = logs.reduce(
-      (acc, log) => {
-        const hour = log.timestamp.getHours();
-        acc[hour] = (acc[hour] || 0) + 1;
-        return acc;
-      },
-      {} as { [key: number]: number }
-    );
-
-    const peakHour =
-      Object.entries(hourCounts).sort(([, a], [, b]) => b - a)[0]?.[0] || "";
-
-    // Recent trends (last 7 days)
-    const recentTrends = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dayLogs = logs.filter(
-        (log) => log.timestamp.toDateString() === date.toDateString()
-      );
-      const success = dayLogs.filter(
-        (log) => log.status === "completed"
-      ).length;
-      const failed = dayLogs.filter((log) => log.status === "failed").length;
-      const times = dayLogs
-        .filter((log) => log.executionTime)
-        .map((log) => log.executionTime!);
-      const avgTime =
-        times.length > 0
-          ? times.reduce((sum, time) => sum + time, 0) / times.length
-          : 0;
-
-      return {
-        period: date.toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        }),
-        executions: dayLogs.length,
-        success,
-        failed,
-        avgTime,
-      };
-    }).reverse();
-
-    return {
-      totalExecutions,
-      successRate,
-      avgExecutionTime,
-      totalExecutionTime,
-      errorRate,
-      mostActiveJob,
-      slowestJob,
-      fastestJob,
-      peakHour: peakHour ? `${peakHour}:00` : "",
-      statusDistribution,
-      jobTypeDistribution: jobCounts,
-      queueDistribution,
-      recentTrends,
-      performanceMetrics,
-    };
+    // Show subtle toast notification for new log (less intrusive)
+    toast.success(`${newLog.jobName} - ${newLog.status}`, {
+      duration: 2000,
+      position: "bottom-right",
+    });
   };
 
-  // Apply filters
-  const applyFilters = useMemo(() => {
+  // Apply filters with memoization
+  const applyFilters = useCallback(() => {
     let filtered = [...logs];
 
     // Date filter
@@ -545,19 +466,54 @@ export function ExecutionLogsAdvanced() {
     return filtered;
   }, [logs, filters]);
 
-  // Update filtered logs and analytics
-  useEffect(() => {
-    setFilteredLogs(applyFilters);
-    setAnalytics(calculateAnalytics(applyFilters));
-  }, [applyFilters]);
+  // Get filtered logs with memoization
+  const filteredLogs = useMemo(() => applyFilters(), [applyFilters]);
 
-  // Load logs on mount
+  // Load logs on mount and set up optimized real-time updates
   useEffect(() => {
     initializeSampleData(); // Initialize sample data if needed
-    loadLogs();
-    const interval = setInterval(loadLogs, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
+    loadLogs(true); // Initial load with loading state
+
+    // Set up adaptive auto-refresh
+    let interval: NodeJS.Timeout;
+    if (isAutoRefresh) {
+      interval = setInterval(() => {
+        loadLogs(false); // Background refresh without loading state
+      }, refreshInterval);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isAutoRefresh, refreshInterval]);
+
+  // Add visibility change listener for real-time updates when tab becomes active
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isAutoRefresh) {
+        loadLogs(false); // Background refresh when tab becomes visible
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [isAutoRefresh]);
+
+  // Simulate new logs periodically for demo (remove in production)
+  useEffect(() => {
+    if (isAutoRefresh && refreshInterval <= 10000) {
+      // Only simulate if refresh is frequent
+      const simulationInterval = setInterval(() => {
+        // 20% chance to add a new log every 20 seconds (less frequent)
+        if (Math.random() < 0.2) {
+          simulateNewLogs();
+        }
+      }, 20000);
+
+      return () => clearInterval(simulationInterval);
+    }
+  }, [isAutoRefresh, refreshInterval]);
 
   // Get unique values for filters
   const uniqueJobNames = [...new Set(logs.map((log) => log.jobName))];
@@ -612,7 +568,7 @@ export function ExecutionLogsAdvanced() {
       case "queued":
         return <Clock className="h-4 w-4 text-blue-500" />;
       case "processing":
-        return <RefreshCw className="h-4 w-4 text-yellow-500 animate-spin" />;
+        return <Clock className="h-4 w-4 text-yellow-500 animate-spin" />;
       case "completed":
         return <CheckCircle2 className="h-4 w-4 text-green-500" />;
       case "failed":
@@ -639,514 +595,592 @@ export function ExecutionLogsAdvanced() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Execution Logs & Analytics</h2>
-          <p className="text-muted-foreground">
-            Comprehensive job execution monitoring with advanced filtering and
-            analytics
-          </p>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Activity className="h-6 w-6 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">
+                Execution Logs
+              </h1>
+              <p className="text-muted-foreground">
+                Real-time job execution monitoring and analytics
+              </p>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadLogs}
-            disabled={isLoading}
-          >
-            <RefreshCw
-              className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
-            />
-            Refresh
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuLabel>Export Format</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => exportLogs("json")}>
-                <FileText className="h-4 w-4 mr-2" />
-                JSON
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportLogs("csv")}>
-                <Database className="h-4 w-4 mr-2" />
-                CSV
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+
+        {/* Status Bar */}
+        <Card className="lg:w-auto w-full">
+          <CardContent className="py-0">
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              {/* Live Status */}
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                    isAutoRefresh
+                      ? isBackgroundLoading
+                        ? "bg-blue-500 animate-pulse shadow-lg shadow-blue-500/50"
+                        : "bg-green-500 shadow-lg shadow-green-500/50"
+                      : "bg-gray-400"
+                  }`}
+                />
+                <span className="font-semibold">
+                  {isAutoRefresh ? "Live" : "Paused"}
+                </span>
+                <Badge variant="secondary" className="text-xs">
+                  {refreshInterval / 1000}s
+                </Badge>
+              </div>
+
+              {/* Last Update */}
+              {lastUpdate && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  <span className="text-xs">
+                    {lastUpdate.toLocaleTimeString()}
+                  </span>
+                </div>
+              )}
+
+              {/* New Logs Counter */}
+              {newLogsCount > 0 && (
+                <Badge className="bg-blue-500 hover:bg-blue-600 animate-bounce">
+                  +{newLogsCount} new
+                </Badge>
+              )}
+
+              {/* Sync Indicator */}
+              {isBackgroundLoading && (
+                <div className="flex items-center gap-1 text-blue-600">
+                  <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs font-medium">Syncing</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Tabs */}
-      <Tabs
-        value={selectedView}
-        onValueChange={(value) => setSelectedView(value as any)}
-      >
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="logs" className="flex items-center gap-2">
-            <Eye className="h-4 w-4" />
-            Execution Logs
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Analytics
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="logs" className="space-y-4">
-          {/* Filters */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Filter className="h-5 w-5" />
-                Filters
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Search */}
-                <div className="space-y-2">
-                  <Label>Search</Label>
-                  <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search jobs, queues, errors..."
-                      value={filters.search}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          search: e.target.value,
-                        }))
-                      }
-                      className="pl-8"
-                    />
-                  </div>
-                </div>
-
-                {/* Date Filter */}
-                <div className="space-y-2">
-                  <Label>Time Period</Label>
-                  <Select
-                    value={filters.dateFilter}
-                    onValueChange={(value) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        dateFilter: value as any,
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Time</SelectItem>
-                      <SelectItem value="today">Today</SelectItem>
-                      <SelectItem value="week">Last 7 Days</SelectItem>
-                      <SelectItem value="month">Last 30 Days</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Status Filter */}
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Select
-                    value={
-                      filters.status.length === 0
-                        ? "all"
-                        : filters.status.join(",")
-                    }
-                    onValueChange={(value) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        status: value === "all" ? [] : value.split(","),
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="All statuses" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All statuses</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                      <SelectItem value="processing">Processing</SelectItem>
-                      <SelectItem value="queued">Queued</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Sort */}
-                <div className="space-y-2">
-                  <Label>Sort By</Label>
-                  <Select
-                    value={`${filters.sortBy}-${filters.sortOrder}`}
-                    onValueChange={(value) => {
-                      const [sortBy, sortOrder] = value.split("-");
-                      setFilters((prev) => ({
-                        ...prev,
-                        sortBy: sortBy as any,
-                        sortOrder: sortOrder as any,
-                      }));
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="timestamp-desc">
-                        Newest First
-                      </SelectItem>
-                      <SelectItem value="timestamp-asc">
-                        Oldest First
-                      </SelectItem>
-                      <SelectItem value="executionTime-desc">
-                        Slowest First
-                      </SelectItem>
-                      <SelectItem value="executionTime-asc">
-                        Fastest First
-                      </SelectItem>
-                      <SelectItem value="jobName-asc">Job Name A-Z</SelectItem>
-                      <SelectItem value="jobName-desc">Job Name Z-A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+      {/* Controls */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Refresh Interval */}
+              <div className="flex items-center gap-2">
+                <Label className="text-sm font-medium hidden sm:block">
+                  Interval:
+                </Label>
+                <Select
+                  value={refreshInterval.toString()}
+                  onValueChange={(value) => setRefreshInterval(parseInt(value))}
+                >
+                  <SelectTrigger className="w-16 sm:w-20 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5000">5s</SelectItem>
+                    <SelectItem value="10000">10s</SelectItem>
+                    <SelectItem value="30000">30s</SelectItem>
+                    <SelectItem value="60000">1m</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="errors-only"
-                    checked={filters.showOnlyErrors}
-                    onCheckedChange={(checked) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        showOnlyErrors: !!checked,
-                      }))
-                    }
-                  />
-                  <Label htmlFor="errors-only">Show only errors</Label>
-                </div>
+              {/* Live Controls */}
+              <Button
+                variant={isAutoRefresh ? "default" : "outline"}
+                size="sm"
+                onClick={() => setIsAutoRefresh(!isAutoRefresh)}
+                className={
+                  isAutoRefresh
+                    ? "bg-green-600 hover:bg-green-700 text-white"
+                    : "border-green-200 text-green-700 hover:bg-green-50"
+                }
+              >
+                {isAutoRefresh ? (
+                  <>
+                    <div className="w-2 h-2 bg-white rounded-full mr-2" />
+                    <span className="hidden sm:inline">Live</span>
+                    <span className="sm:hidden">●</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full mr-2" />
+                    <span className="hidden sm:inline">Paused</span>
+                    <span className="sm:hidden">⏸</span>
+                  </>
+                )}
+              </Button>
+            </div>
 
-                <Separator orientation="vertical" className="h-4" />
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Manual Refresh */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  loadLogs(true);
+                  setNewLogsCount(0);
+                }}
+                disabled={isLoading}
+                className="hover:bg-blue-50 hover:border-blue-200"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 sm:mr-2 ${isLoading ? "animate-spin" : ""}`}
+                />
+                <span className="hidden sm:inline">Refresh</span>
+              </Button>
 
-                <div className="text-sm text-muted-foreground">
-                  Showing {filteredLogs.length} of {logs.length} logs
-                </div>
+              {/* Test Log */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={simulateNewLogs}
+                className="text-purple-600 border-purple-200 hover:bg-purple-50"
+              >
+                <div className="w-2 h-2 bg-purple-500 rounded-full sm:mr-2" />
+                <span className="hidden sm:inline">Add Test</span>
+              </Button>
+
+              {/* Export */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="hover:bg-gray-50"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Export Format</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => exportLogs("json")}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportLogs("csv")}>
+                    <Database className="h-4 w-4 mr-2" />
+                    CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Stats */}
+      {logs.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
               </div>
-            </CardContent>
+              <div>
+                <p className="text-2xl font-bold text-green-600">
+                  {logs.filter((log) => log.status === "completed").length}
+                </p>
+                <p className="text-xs text-muted-foreground">Completed</p>
+              </div>
+            </div>
           </Card>
+          <Card className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <XCircle className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-red-600">
+                  {logs.filter((log) => log.status === "failed").length}
+                </p>
+                <p className="text-xs text-muted-foreground">Failed</p>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <Clock className="h-5 w-5 text-yellow-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-yellow-600">
+                  {logs.filter((log) => log.status === "processing").length}
+                </p>
+                <p className="text-xs text-muted-foreground">Processing</p>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Activity className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-blue-600">
+                  {logs.length}
+                </p>
+                <p className="text-xs text-muted-foreground">Total</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
 
-          {/* Logs List */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Execution Logs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-                  Loading logs...
-                </div>
-              ) : filteredLogs.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="font-medium">No logs found</p>
-                  <p className="text-sm">Try adjusting your filters</p>
-                </div>
-              ) : (
-                <ScrollArea className="h-96">
-                  <div className="space-y-2">
-                    {filteredLogs.map((log) => (
-                      <div
-                        key={log.jobId}
-                        className="flex items-start gap-3 p-4 rounded-lg border bg-card/50 hover:bg-card/80 transition-colors"
-                      >
-                        {getStatusIcon(log.status)}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="font-medium truncate">
-                              {log.jobName}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-xs border",
-                                getStatusColor(log.status)
+      {/* Filters */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Filter className="h-5 w-5 text-blue-600" />
+              Filters & Search
+            </CardTitle>
+            <Badge variant="outline" className="text-xs">
+              {filteredLogs.length} of {logs.length} logs
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search jobs, queues, errors..."
+              value={filters.search}
+              onChange={(e) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  search: e.target.value,
+                }))
+              }
+              className="pl-10 h-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors"
+            />
+          </div>
+
+          {/* Filter Controls */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Time Period */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-gray-600">
+                Time Period
+              </Label>
+              <Select
+                value={filters.dateFilter}
+                onValueChange={(value) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    dateFilter: value as any,
+                  }))
+                }
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">Last 7 Days</SelectItem>
+                  <SelectItem value="month">Last 30 Days</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status Filter */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-gray-600">
+                Status
+              </Label>
+              <Select
+                value={
+                  filters.status.length === 0 ? "all" : filters.status.join(",")
+                }
+                onValueChange={(value) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    status: value === "all" ? [] : value.split(","),
+                  }))
+                }
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="completed">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full" />
+                      Completed
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="failed">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-red-500 rounded-full" />
+                      Failed
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="processing">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full" />
+                      Processing
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="queued">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                      Queued
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Sort */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-gray-600">
+                Sort By
+              </Label>
+              <Select
+                value={`${filters.sortBy}-${filters.sortOrder}`}
+                onValueChange={(value) => {
+                  const [sortBy, sortOrder] = value.split("-");
+                  setFilters((prev) => ({
+                    ...prev,
+                    sortBy: sortBy as any,
+                    sortOrder: sortOrder as any,
+                  }));
+                }}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="timestamp-desc">Newest First</SelectItem>
+                  <SelectItem value="timestamp-asc">Oldest First</SelectItem>
+                  <SelectItem value="executionTime-desc">
+                    Slowest First
+                  </SelectItem>
+                  <SelectItem value="executionTime-asc">
+                    Fastest First
+                  </SelectItem>
+                  <SelectItem value="jobName-asc">Job Name A-Z</SelectItem>
+                  <SelectItem value="jobName-desc">Job Name Z-A</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Error Filter */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-gray-600">
+                Filter
+              </Label>
+              <div className="flex items-center h-9 px-3 border rounded-md bg-gray-50/50">
+                <Checkbox
+                  id="errors-only"
+                  checked={filters.showOnlyErrors}
+                  onCheckedChange={(checked) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      showOnlyErrors: !!checked,
+                    }))
+                  }
+                />
+                <Label
+                  htmlFor="errors-only"
+                  className="ml-2 text-sm cursor-pointer"
+                >
+                  Errors only
+                </Label>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Logs List */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-3 bg-gradient-to-r from-gray-50 to-gray-100/50">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <div className="p-1.5 bg-blue-100 rounded-md">
+                <Eye className="h-4 w-4 text-blue-600" />
+              </div>
+              Execution Logs
+            </CardTitle>
+            {filteredLogs.length > 0 && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Latest:</span>
+                <span className="font-mono text-xs">
+                  {filteredLogs[0]?.timestamp.toLocaleTimeString()}
+                </span>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center space-y-3">
+                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-blue-500" />
+                <p className="text-sm text-muted-foreground">
+                  Loading execution logs...
+                </p>
+              </div>
+            </div>
+          ) : filteredLogs.length === 0 ? (
+            <div className="text-center py-12 px-6">
+              <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <Activity className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                No logs found
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Try adjusting your filters or time period
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFilters({
+                    search: "",
+                    status: [],
+                    jobNames: [],
+                    queueNames: [],
+                    showOnlyErrors: false,
+                    sortBy: "timestamp",
+                    sortOrder: "desc",
+                    dateFilter: "week",
+                  });
+                }}
+              >
+                Reset Filters
+              </Button>
+            </div>
+          ) : (
+            <div className="max-h-[600px] overflow-y-auto">
+              <div className="divide-y divide-gray-100">
+                {filteredLogs.map((log, index) => {
+                  const isNewLog =
+                    log.jobId.startsWith("live-") &&
+                    new Date().getTime() - log.timestamp.getTime() < 15000;
+
+                  return (
+                    <div
+                      key={log.jobId}
+                      className={`group relative p-4 hover:bg-gray-50/80 transition-all duration-200 ${
+                        isNewLog
+                          ? "bg-blue-50/60 border-l-4 border-l-blue-400"
+                          : index === 0
+                            ? "bg-gray-50/30"
+                            : ""
+                      }`}
+                    >
+                      {/* New Log Indicator */}
+                      {isNewLog && (
+                        <div className="absolute top-2 right-2">
+                          <Badge className="bg-blue-500 text-white text-xs animate-pulse">
+                            NEW
+                          </Badge>
+                        </div>
+                      )}
+
+                      <div className="flex items-start gap-4">
+                        {/* Status Icon */}
+                        <div className="flex-shrink-0 mt-0.5">
+                          {getStatusIcon(log.status)}
+                        </div>
+
+                        {/* Main Content */}
+                        <div className="flex-1 min-w-0 space-y-2">
+                          {/* Header Row */}
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <h4 className="font-semibold text-gray-900 truncate">
+                                {log.jobName}
+                              </h4>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-xs font-medium flex-shrink-0",
+                                  getStatusColor(log.status)
+                                )}
+                              >
+                                {log.status}
+                              </Badge>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {log.executionTime && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs bg-gray-100 text-gray-700"
+                                >
+                                  {log.executionTime > 1000
+                                    ? `${(log.executionTime / 1000).toFixed(1)}s`
+                                    : `${log.executionTime.toFixed(0)}ms`}
+                                </Badge>
                               )}
-                            >
-                              {log.status}
-                            </Badge>
-                            {log.executionTime && (
-                              <Badge variant="secondary" className="text-xs">
-                                {log.executionTime > 1000
-                                  ? `${(log.executionTime / 1000).toFixed(1)}s`
-                                  : `${log.executionTime.toFixed(0)}ms`}
-                              </Badge>
-                            )}
-                            {log.priority && (
-                              <Badge variant="outline" className="text-xs">
-                                P{log.priority}
-                              </Badge>
-                            )}
+                              {log.priority && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs border-gray-300"
+                                >
+                                  P{log.priority}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground mb-1">
-                            <span>{log.timestamp.toLocaleString()}</span>
+                          {/* Metadata Row */}
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3 w-3 flex-shrink-0" />
+                              <span className="font-mono">
+                                {log.timestamp.toLocaleString()}
+                              </span>
+                            </div>
                             {log.queueName && (
-                              <span>Queue: {log.queueName}</span>
+                              <div className="flex items-center gap-1">
+                                <Database className="h-3 w-3 flex-shrink-0" />
+                                <span>{log.queueName}</span>
+                              </div>
                             )}
                             {log.attempts && log.attempts > 1 && (
-                              <span>Attempts: {log.attempts}</span>
+                              <div className="flex items-center gap-1">
+                                <RefreshCw className="h-3 w-3 flex-shrink-0" />
+                                <span>{log.attempts} attempts</span>
+                              </div>
                             )}
                           </div>
 
+                          {/* Error Message */}
                           {log.error && (
-                            <div className="flex items-center gap-1 text-xs text-red-600 mt-2">
-                              <AlertTriangle className="h-3 w-3" />
-                              <span className="truncate">{log.error}</span>
+                            <div className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                              <AlertTriangle className="h-3 w-3 text-red-500 mt-0.5 flex-shrink-0" />
+                              <span className="text-xs text-red-700 break-words">
+                                {log.error}
+                              </span>
                             </div>
                           )}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="analytics" className="space-y-6">
-          {analytics && (
-            <>
-              {/* Summary Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="border-l-4 border-l-blue-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-muted-foreground">
-                          Total Executions
-                        </p>
-                        <p className="text-3xl font-bold text-blue-600">
-                          {analytics.totalExecutions}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-blue-100 rounded-xl">
-                        <Activity className="h-7 w-7 text-blue-600" />
-                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-green-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-muted-foreground">
-                          Success Rate
-                        </p>
-                        <p className="text-3xl font-bold text-green-600">
-                          {analytics.successRate.toFixed(1)}%
-                        </p>
-                      </div>
-                      <div className="p-3 bg-green-100 rounded-xl">
-                        <TrendingUp className="h-7 w-7 text-green-600" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-orange-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-muted-foreground">
-                          Avg Duration
-                        </p>
-                        <p className="text-3xl font-bold text-orange-600">
-                          {analytics.avgExecutionTime > 1000
-                            ? `${(analytics.avgExecutionTime / 1000).toFixed(1)}s`
-                            : `${analytics.avgExecutionTime.toFixed(0)}ms`}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-orange-100 rounded-xl">
-                        <Timer className="h-7 w-7 text-orange-600" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-red-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-muted-foreground">
-                          Error Rate
-                        </p>
-                        <p className="text-3xl font-bold text-red-600">
-                          {analytics.errorRate.toFixed(1)}%
-                        </p>
-                      </div>
-                      <div className="p-3 bg-red-100 rounded-xl">
-                        <AlertTriangle className="h-7 w-7 text-red-600" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                  );
+                })}
               </div>
-
-              {/* Performance Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Performance Percentiles</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">
-                          P50 (Median)
-                        </span>
-                        <span className="text-sm">
-                          {analytics.performanceMetrics.p50 > 1000
-                            ? `${(analytics.performanceMetrics.p50 / 1000).toFixed(1)}s`
-                            : `${analytics.performanceMetrics.p50.toFixed(0)}ms`}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">P90</span>
-                        <span className="text-sm">
-                          {analytics.performanceMetrics.p90 > 1000
-                            ? `${(analytics.performanceMetrics.p90 / 1000).toFixed(1)}s`
-                            : `${analytics.performanceMetrics.p90.toFixed(0)}ms`}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">P95</span>
-                        <span className="text-sm">
-                          {analytics.performanceMetrics.p95 > 1000
-                            ? `${(analytics.performanceMetrics.p95 / 1000).toFixed(1)}s`
-                            : `${analytics.performanceMetrics.p95.toFixed(0)}ms`}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">P99</span>
-                        <span className="text-sm">
-                          {analytics.performanceMetrics.p99 > 1000
-                            ? `${(analytics.performanceMetrics.p99 / 1000).toFixed(1)}s`
-                            : `${analytics.performanceMetrics.p99.toFixed(0)}ms`}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Key Insights</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div>
-                        <span className="text-sm font-medium">
-                          Most Active Job
-                        </span>
-                        <p className="text-sm text-muted-foreground">
-                          {analytics.mostActiveJob || "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium">Slowest Job</span>
-                        <p className="text-sm text-muted-foreground">
-                          {analytics.slowestJob || "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium">Fastest Job</span>
-                        <p className="text-sm text-muted-foreground">
-                          {analytics.fastestJob || "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium">Peak Hour</span>
-                        <p className="text-sm text-muted-foreground">
-                          {analytics.peakHour || "N/A"}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Status Distribution */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Status Distribution</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {Object.entries(analytics.statusDistribution).map(
-                      ([status, count]) => (
-                        <div
-                          key={status}
-                          className="text-center p-4 border rounded-lg"
-                        >
-                          <div className="text-2xl font-bold mb-1">{count}</div>
-                          <div className="text-sm text-muted-foreground capitalize">
-                            {status}
-                          </div>
-                        </div>
-                      )
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Recent Trends */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Trends (Last 7 Days)</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {analytics.recentTrends.map((trend) => (
-                      <div
-                        key={trend.period}
-                        className="flex items-center justify-between p-3 border rounded-lg"
-                      >
-                        <div className="font-medium">{trend.period}</div>
-                        <div className="flex items-center gap-4 text-sm">
-                          <span className="text-green-600">
-                            {trend.success} success
-                          </span>
-                          <span className="text-red-600">
-                            {trend.failed} failed
-                          </span>
-                          <span className="text-muted-foreground">
-                            Avg:{" "}
-                            {trend.avgTime > 1000
-                              ? `${(trend.avgTime / 1000).toFixed(1)}s`
-                              : `${trend.avgTime.toFixed(0)}ms`}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </>
+            </div>
           )}
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }
