@@ -2,7 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   images: {
     domains: [
       "localhost",
@@ -12,9 +11,7 @@ const nextConfig: NextConfig = {
     ],
     formats: ["image/avif", "image/webp"],
   },
-  experimental: {
-    serverComponentsExternalPackages: ["bullmq"],
-  },
+  serverExternalPackages: ["bullmq"],
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Exclude server-only packages from client bundle
