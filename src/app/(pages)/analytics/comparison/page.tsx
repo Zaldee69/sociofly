@@ -267,7 +267,7 @@ export default function AnalyticsComparisonPage() {
           <TabsContent value="overview" className="space-y-6">
             {growthData && (
               <GrowthComparisonCards
-                data={growthData}
+                data={growthData as any}
                 isLoading={isLoadingGrowth}
               />
             )}

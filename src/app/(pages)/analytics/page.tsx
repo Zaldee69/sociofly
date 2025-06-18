@@ -33,6 +33,7 @@ import LinkAnalytics from "@/components/analytics/link-analytics";
 import SentimentAnalysis from "@/components/analytics/sentiment-analysis";
 import PostTimeOptimizer from "@/components/analytics/post-time-optimizer";
 import CompetitorBenchmarking from "@/components/analytics/competitor-benchmarking";
+import { GrowthComparisonCards } from "@/components/analytics/growth-comparison-cards";
 import { trpc } from "@/lib/trpc/client";
 import { useTeamContext } from "@/lib/contexts/team-context";
 import { Loader2 } from "lucide-react";
@@ -46,6 +47,8 @@ const Analytics: React.FC = () => {
   const [activeSection, setActiveSection] = useState("overview");
   const [isCollecting, setIsCollecting] = useState(false);
   const [isMainNavbarHidden, setIsMainNavbarHidden] = useState(false);
+  const [isManualNavigation, setIsManualNavigation] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const { currentTeamId } = useTeamContext();
 
@@ -67,7 +70,7 @@ const Analytics: React.FC = () => {
     }
   }, [socialAccounts, selectedAccount]);
 
-  // Handle scroll to hide/show main navbar
+  // Handle scroll to hide/show main navbar and detect active section
   useEffect(() => {
     let ticking = false;
 
@@ -119,6 +122,54 @@ const Analytics: React.FC = () => {
             setIsMainNavbarHidden(true);
           }
 
+          // Detect active section
+          const sections = [
+            "overview",
+            "comparison",
+            "posts",
+            "stories",
+            "audience",
+            "hashtags",
+            "links",
+            "sentiment",
+            "optimization",
+            "competitors",
+            "custom-reports",
+          ];
+
+          const headerHeight = isMainNavbarHidden ? 80 : 144; // Analytics header height
+          const offset = headerHeight + 20; // Smaller buffer for more accurate detection
+
+          let newActiveSection = activeSection;
+          let minDistance = Infinity;
+
+          // Find the section that is closest to the top of the viewport
+          for (const sectionId of sections) {
+            const element = document.getElementById(sectionId);
+            if (element) {
+              const rect = element.getBoundingClientRect();
+              const elementTop = rect.top;
+              const elementBottom = rect.bottom;
+
+              // Check if section is visible in viewport
+              if (elementBottom > 0 && elementTop < window.innerHeight) {
+                // Calculate distance from the offset point
+                const distanceFromOffset = Math.abs(elementTop - offset);
+
+                // If this section is closer to the offset than previous ones
+                if (distanceFromOffset < minDistance) {
+                  minDistance = distanceFromOffset;
+                  newActiveSection = sectionId;
+                }
+              }
+            }
+          }
+
+          // Only update if there's a change and it's not manual navigation
+          if (newActiveSection !== activeSection && !isManualNavigation) {
+            setActiveSection(newActiveSection);
+          }
+
           ticking = false;
         });
         ticking = true;
@@ -133,22 +184,33 @@ const Analytics: React.FC = () => {
     return () => {
       window.removeEventListener("scroll", handleScroll);
     };
-  }, []);
+  }, [activeSection, isMainNavbarHidden, isManualNavigation]);
 
   // Fetch account-level insights
   const {
     data: accountInsight,
     isLoading: isLoadingAccountInsight,
+    isFetching: isFetchingAccountInsight,
     refetch: refetchInsights,
   } = trpc.realAnalytics.getAccountInsights.useQuery(
     { socialAccountId: selectedAccount },
-    { enabled: !!selectedAccount, refetchOnWindowFocus: false }
+    {
+      enabled: !!selectedAccount,
+      refetchOnWindowFocus: false,
+      refetchInterval: 30000, // Auto-refresh every 30 seconds
+      staleTime: 25000, // Consider data stale after 25 seconds
+    }
   );
   // Fetch collection stats for metrics
   const { data: stats, isLoading: isLoadingStats } =
     trpc.realAnalytics.getCollectionStats.useQuery(
       { teamId: currentTeamId!, days: 30 },
-      { enabled: !!currentTeamId, refetchOnWindowFocus: false }
+      {
+        enabled: !!currentTeamId,
+        refetchOnWindowFocus: false,
+        refetchInterval: 60000, // Auto-refresh every 60 seconds
+        staleTime: 55000, // Consider data stale after 55 seconds
+      }
     );
 
   // Fetch collection status for selected account
@@ -159,6 +221,18 @@ const Analytics: React.FC = () => {
         enabled: !!selectedAccount,
         refetchOnWindowFocus: false,
         refetchInterval: 10000, // Refetch every 10 seconds to check status
+      }
+    );
+
+  // Fetch growth comparison data
+  const { data: growthData, isLoading: isLoadingGrowth } =
+    trpc.analyticsComparison.getGrowthSummary.useQuery(
+      { socialAccountId: selectedAccount },
+      {
+        enabled: !!selectedAccount,
+        refetchOnWindowFocus: false,
+        refetchInterval: 45000, // Auto-refresh every 45 seconds
+        staleTime: 40000, // Consider data stale after 40 seconds
       }
     );
 
@@ -193,6 +267,17 @@ const Analytics: React.FC = () => {
   const handleAccountChange = (accountId: string, platform: string) => {
     setSelectedAccount(accountId);
     setSelectedPlatform(platform);
+  };
+
+  const handleNavigateToSection = (sectionId: string) => {
+    // Set manual navigation flag to prevent scroll detection interference
+    setIsManualNavigation(true);
+    setActiveSection(sectionId);
+
+    // Reset manual navigation flag after scroll animation completes
+    setTimeout(() => {
+      setIsManualNavigation(false);
+    }, 1000); // Give enough time for smooth scroll to complete
   };
 
   return (
@@ -267,6 +352,18 @@ const Analytics: React.FC = () => {
                 </Card>
               )}
 
+              {/* Auto-refresh Indicator */}
+              {isFetchingAccountInsight && !isLoadingAccountInsight && (
+                <Card className="px-3 py-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <RefreshCw className="h-3 w-3 animate-spin text-blue-500" />
+                    <span className="text-muted-foreground">
+                      Refreshing data...
+                    </span>
+                  </div>
+                </Card>
+              )}
+
               {/* Trigger Collection Button */}
               <Button
                 onClick={handleTriggerCollection}
@@ -315,43 +412,128 @@ const Analytics: React.FC = () => {
               socialAccounts={socialAccounts || []}
               isLoading={isLoadingSocialAccount}
               selectedAccount={selectedAccount}
-              onSelectAccount={(accountId) =>
-                handleAccountChange(accountId, selectedPlatform)
-              }
+              onSelectAccount={(accountId) => {
+                const account = socialAccounts?.find(
+                  (acc) => acc.id === accountId
+                );
+                if (account) {
+                  handleAccountChange(accountId, account.platform);
+                }
+              }}
               activeSection={activeSection}
-              onNavigateToSection={setActiveSection}
+              onNavigateToSection={handleNavigateToSection}
+              disableTransition={isManualNavigation}
             />
           </div>
 
           {/* Main Content */}
           <div className="flex-1 px-6 py-6 overflow-x-hidden">
-            {/* Loading State */}
-            {isLoadingAccountInsight ||
-              (isLoadingStats && selectedAccount && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <Card key={i}>
-                        <CardHeader className="pb-3">
-                          <Skeleton className="h-4 w-24" />
-                        </CardHeader>
-                        <CardContent>
-                          <Skeleton className="h-8 w-16 mb-2" />
-                          <Skeleton className="h-3 w-20" />
-                        </CardContent>
-                      </Card>
-                    ))}
+            {/* Unified Loading State */}
+            {(isLoadingSocialAccount ||
+              (isLoadingAccountInsight && selectedAccount) ||
+              (isLoadingStats && selectedAccount)) && (
+              <div className="space-y-8">
+                {/* Loading Header */}
+                <div className="text-center py-8">
+                  <div className="flex items-center justify-center space-x-3 mb-4">
+                    <div className="relative">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <div className="absolute inset-0 h-8 w-8 rounded-full border-2 border-primary/20"></div>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-foreground">
+                        {isLoadingSocialAccount
+                          ? "Loading Your Accounts"
+                          : "Loading Analytics Data"}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {isLoadingSocialAccount
+                          ? "Fetching your connected social media accounts..."
+                          : "Fetching insights for your selected account..."}
+                      </p>
+                    </div>
                   </div>
-                  <Card>
-                    <CardHeader>
-                      <Skeleton className="h-6 w-48" />
-                    </CardHeader>
-                    <CardContent>
-                      <Skeleton className="h-64 w-full" />
-                    </CardContent>
-                  </Card>
                 </div>
-              ))}
+
+                {/* Show skeleton only when loading analytics data */}
+                {!isLoadingSocialAccount &&
+                  (isLoadingAccountInsight || isLoadingStats) && (
+                    <div className="space-y-8">
+                      {/* Overview Section Skeleton */}
+                      <div className="space-y-6">
+                        <div className="flex items-center space-x-2">
+                          <Skeleton className="h-6 w-6 rounded" />
+                          <Skeleton className="h-6 w-32" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                          {Array.from({ length: 4 }).map((_, i) => (
+                            <Card key={i} className="relative overflow-hidden">
+                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer"></div>
+                              <CardHeader className="pb-3">
+                                <div className="flex items-center justify-between">
+                                  <Skeleton className="h-4 w-24" />
+                                  <Skeleton className="h-4 w-4 rounded" />
+                                </div>
+                              </CardHeader>
+                              <CardContent>
+                                <Skeleton className="h-8 w-20 mb-3" />
+                                <div className="space-y-2">
+                                  <Skeleton className="h-3 w-16" />
+                                  <Skeleton className="h-2 w-full" />
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Comparison Section Skeleton */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Skeleton className="h-5 w-5 rounded" />
+                            <Skeleton className="h-6 w-40" />
+                          </div>
+                          <Skeleton className="h-8 w-32" />
+                        </div>
+                        <Card className="relative overflow-hidden">
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer"></div>
+                          <CardContent className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                              {Array.from({ length: 4 }).map((_, i) => (
+                                <div key={i} className="space-y-3">
+                                  <Skeleton className="h-16 w-full" />
+                                  <Skeleton className="h-4 w-3/4" />
+                                  <Skeleton className="h-3 w-1/2" />
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* Additional Sections Skeleton */}
+                      <div className="grid gap-6 md:grid-cols-2">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <Card key={i} className="relative overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer"></div>
+                            <CardHeader>
+                              <Skeleton className="h-6 w-32" />
+                            </CardHeader>
+                            <CardContent>
+                              <Skeleton className="h-32 w-full mb-4" />
+                              <div className="space-y-2">
+                                <Skeleton className="h-3 w-full" />
+                                <Skeleton className="h-3 w-3/4" />
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+              </div>
+            )}
 
             {/* Collection Status Info */}
             {!isLoadingAccountInsight &&
@@ -451,27 +633,43 @@ const Analytics: React.FC = () => {
                 {/* Comparison Section */}
                 <section id="comparison" className="scroll-mt-24">
                   <div className="bg-white rounded-lg border p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <TrendingUp className="h-5 w-5 text-blue-600" />
-                      <h2 className="text-xl font-semibold">
-                        Growth Comparison
-                      </h2>
-                    </div>
-                    <div className="text-center py-12">
-                      <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium mb-2">
-                        Analytics Comparison
-                      </h3>
-                      <p className="text-muted-foreground mb-4">
-                        Compare performance metrics and track growth trends over
-                        time
-                      </p>
-                      <Button asChild>
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5 text-blue-600" />
+                        <h2 className="text-xl font-semibold">
+                          Growth Comparison
+                        </h2>
+                      </div>
+                      <Button variant="outline" size="sm" asChild>
                         <Link href="/analytics/comparison">
-                          View Detailed Comparison
+                          View Detailed Analysis
                         </Link>
                       </Button>
                     </div>
+                    {isLoadingGrowth ? (
+                      <div className="text-center py-8">
+                        <div className="flex items-center justify-center space-x-2">
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          <span>Loading growth comparison...</span>
+                        </div>
+                      </div>
+                    ) : growthData ? (
+                      <GrowthComparisonCards
+                        data={growthData as any}
+                        isLoading={false}
+                      />
+                    ) : (
+                      <div className="text-center py-8">
+                        <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                        <h3 className="text-lg font-medium mb-2">
+                          No Growth Data Available
+                        </h3>
+                        <p className="text-muted-foreground mb-4">
+                          Growth comparison data will appear here once analytics
+                          are collected
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </section>
 
@@ -550,21 +748,74 @@ const Analytics: React.FC = () => {
               </div>
             )}
 
-            {/* No Account Selected State */}
-            {!selectedAccount && !isLoadingAccountInsight && (
-              <div className="flex items-center justify-center h-96">
-                <div className="text-center">
-                  <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">
-                    Pilih Akun untuk Melihat Analytics
-                  </h3>
-                  <p className="text-muted-foreground">
-                    Pilih akun media sosial untuk melihat data analytics dan
-                    insights
-                  </p>
+            {/* No Account Selected State - Only show when accounts loaded but none selected */}
+            {!selectedAccount &&
+              !isLoadingSocialAccount &&
+              !isLoadingAccountInsight &&
+              socialAccounts &&
+              socialAccounts.length > 0 && (
+                <div className="flex items-center justify-center min-h-[60vh]">
+                  <div className="text-center max-w-md mx-auto">
+                    <div className="relative mb-8">
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-600 rounded-full blur-3xl opacity-20 animate-pulse"></div>
+                      <BarChart3 className="h-20 w-20 mx-auto text-primary relative z-10" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4 text-foreground">
+                      Welcome to Analytics Dashboard
+                    </h3>
+                    <p className="text-muted-foreground mb-6 leading-relaxed">
+                      Get powerful insights into your social media performance.
+                      Select a social media account from the sidebar to start
+                      exploring your analytics data and audience insights.
+                    </p>
+                    <div className="grid grid-cols-1 gap-4 text-sm">
+                      <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Real-time data updates</span>
+                      </div>
+                      <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <span>Comprehensive performance metrics</span>
+                      </div>
+                      <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                        <span>Growth tracking & comparisons</span>
+                      </div>
+                    </div>
+                    <div className="mt-8 p-4 bg-muted/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-2">
+                        👈 Select from {socialAccounts.length} connected account
+                        {socialAccounts.length > 1 ? "s" : ""}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+
+            {/* No Social Accounts Found State */}
+            {!isLoadingSocialAccount &&
+              socialAccounts &&
+              socialAccounts.length === 0 && (
+                <div className="flex items-center justify-center min-h-[60vh]">
+                  <div className="text-center max-w-md mx-auto">
+                    <div className="relative mb-8">
+                      <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-red-600 rounded-full blur-3xl opacity-20 animate-pulse"></div>
+                      <Users className="h-20 w-20 mx-auto text-orange-500 relative z-10" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4 text-foreground">
+                      No Social Accounts Connected
+                    </h3>
+                    <p className="text-muted-foreground mb-6 leading-relaxed">
+                      You need to connect at least one social media account to
+                      view analytics. Head to the onboarding or settings to
+                      connect your accounts.
+                    </p>
+                    <Button asChild className="mt-4">
+                      <Link href="/onboarding">Connect Social Accounts</Link>
+                    </Button>
+                  </div>
+                </div>
+              )}
           </div>
         </div>
       </div>

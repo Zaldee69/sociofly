@@ -38,6 +38,7 @@ interface AnalyticsSidebarProps {
   onSelectAccount: (accountId: string) => void;
   activeSection: string | null;
   onNavigateToSection: (sectionId: string) => void;
+  disableTransition?: boolean;
 }
 
 // Updated navigation links with new sections and icons
@@ -131,6 +132,7 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
   onSelectAccount,
   activeSection,
   onNavigateToSection,
+  disableTransition = false,
 }) => {
   const handleSectionClick = (sectionId: string) => {
     const element = document.getElementById(sectionId);
@@ -145,12 +147,6 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
     (acc) => acc.id === selectedAccount
   );
   const selectedPlatform = selectedAccountData?.platform;
-
-  // Filter navigation links based on platform
-  const filteredNavigationLinks = navigationLinks.filter((link) => {
-    if (!link.platforms) return true; // Show all links that don't have platform restrictions
-    return selectedPlatform && link.platforms.includes(selectedPlatform);
-  });
 
   return (
     <div
@@ -234,37 +230,119 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
           style={{ maxHeight: "calc(100% - 60px)" }}
         >
           <div className="space-y-1 pb-6">
-            {selectedAccount ? (
-              filteredNavigationLinks.map((link) => (
+            {/* Always show navigation links, but disable when no account selected */}
+            {navigationLinks.map((link) => {
+              // Show all links when no account selected, or filter by platform when account selected
+              const shouldShow =
+                !selectedAccount ||
+                !link.platforms ||
+                (selectedPlatform && link.platforms.includes(selectedPlatform));
+
+              if (!shouldShow) return null;
+
+              const isDisabled = !selectedAccount;
+
+              return (
                 <Button
                   key={link.targetId}
                   variant={
-                    activeSection === link.targetId ? "default" : "ghost"
+                    activeSection === link.targetId && !isDisabled
+                      ? "default"
+                      : "ghost"
                   }
                   size="sm"
+                  disabled={isDisabled}
                   className={cn(
                     "w-full justify-start text-left h-auto p-3",
-                    activeSection === link.targetId &&
-                      "bg-primary text-primary-foreground font-medium",
-                    activeSection !== link.targetId && "hover:bg-transparent"
+                    !disableTransition &&
+                      "transition-all duration-300 ease-in-out",
+                    !isDisabled &&
+                      activeSection === link.targetId &&
+                      "bg-primary text-primary-foreground font-medium shadow-md",
+                    !isDisabled &&
+                      activeSection === link.targetId &&
+                      !disableTransition &&
+                      "transform scale-[1.02]",
+                    !isDisabled &&
+                      activeSection !== link.targetId &&
+                      "hover:bg-accent hover:text-accent-foreground",
+                    !isDisabled &&
+                      activeSection !== link.targetId &&
+                      !disableTransition &&
+                      "hover:scale-[1.01] hover:shadow-sm",
+                    isDisabled &&
+                      "opacity-50 cursor-not-allowed hover:bg-transparent"
                   )}
-                  onClick={() => handleSectionClick(link.targetId)}
+                  onClick={() =>
+                    !isDisabled && handleSectionClick(link.targetId)
+                  }
                 >
                   <div className="flex items-center gap-3 w-full">
-                    <div className="flex-shrink-0">{link.icon}</div>
+                    <div
+                      className={cn(
+                        "flex-shrink-0",
+                        !disableTransition &&
+                          !isDisabled &&
+                          "transition-transform duration-200 ease-in-out",
+                        !isDisabled &&
+                          activeSection === link.targetId &&
+                          !disableTransition &&
+                          "scale-110"
+                      )}
+                    >
+                      {link.icon}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium">{link.label}</div>
-                      <div className="text-xs text-muted-foreground truncate">
+                      <div
+                        className={cn(
+                          "text-sm",
+                          !disableTransition &&
+                            !isDisabled &&
+                            "transition-all duration-200 ease-in-out",
+                          !isDisabled && activeSection === link.targetId
+                            ? "font-semibold"
+                            : "font-medium"
+                        )}
+                      >
+                        {link.label}
+                      </div>
+                      <div
+                        className={cn(
+                          "text-xs truncate",
+                          !disableTransition &&
+                            !isDisabled &&
+                            "transition-colors duration-200 ease-in-out",
+                          !isDisabled && activeSection === link.targetId
+                            ? "text-primary-foreground/80"
+                            : "text-muted-foreground"
+                        )}
+                      >
                         {link.description}
                       </div>
                     </div>
+                    {!isDisabled && activeSection === link.targetId && (
+                      <div
+                        className={cn(
+                          "flex-shrink-0",
+                          !disableTransition &&
+                            "animate-in slide-in-from-right-2 duration-200"
+                        )}
+                      >
+                        <div className="w-2 h-2 bg-primary-foreground rounded-full"></div>
+                      </div>
+                    )}
                   </div>
                 </Button>
-              ))
-            ) : (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                Select an account to view analytics sections
+              );
+            })}
+
+            {/* Helper text when no account selected */}
+            {!selectedAccount && (
+              <div className="mt-6 p-3 bg-muted/30 rounded-lg">
+                <div className="text-center text-xs text-muted-foreground">
+                  <Users className="h-4 w-4 mx-auto mb-1 opacity-60" />
+                  Select an account above to enable analytics sections
+                </div>
               </div>
             )}
           </div>
