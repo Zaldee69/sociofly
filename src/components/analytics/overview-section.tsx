@@ -179,13 +179,6 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             <div className="text-2xl font-bold">
               {(accountInsight.totalFollowers || 0).toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {accountInsight.followersGrowthPercent &&
-              accountInsight.followersGrowthPercent > 0
-                ? "+"
-                : ""}
-              {accountInsight.followersGrowthPercent || 0}% from last month
-            </p>
           </CardContent>
         </Card>
 
@@ -205,9 +198,6 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
                 {engagementBadge.label}
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground">
-              (Likes + Comments + Shares) ÷ Reach
-            </p>
           </CardContent>
         </Card>
 
@@ -220,13 +210,6 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             <div className="text-2xl font-bold">
               {(accountInsight.totalReach || 0).toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {accountInsight.reachGrowthPercent &&
-              accountInsight.reachGrowthPercent > 0
-                ? "+"
-                : ""}
-              {accountInsight.reachGrowthPercent || 0}% from last month
-            </p>
           </CardContent>
         </Card>
 
@@ -239,13 +222,6 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             <div className="text-2xl font-bold">
               {accountInsight.totalPosts || 0}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {accountInsight.mediaGrowthPercent &&
-              accountInsight.mediaGrowthPercent > 0
-                ? "+"
-                : ""}
-              {accountInsight.mediaGrowthPercent || 0}% from last month
-            </p>
           </CardContent>
         </Card>
       </div>
@@ -343,14 +319,6 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
           <CardContent>
             <div className="text-2xl font-bold">
               {(accountInsight.totalClicks || 0).toLocaleString()}
-            </div>
-            <div className="text-xs text-muted-foreground space-y-1">
-              {accountInsight.bioLinkClicks && (
-                <div>Bio: {accountInsight.bioLinkClicks.toLocaleString()}</div>
-              )}
-              <div>
-                CTR: {(accountInsight.avgClickThroughRate || 0).toFixed(2)}%
-              </div>
             </div>
           </CardContent>
         </Card>

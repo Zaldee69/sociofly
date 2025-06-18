@@ -896,6 +896,16 @@ export class JobProcessor {
 
         console.log(`📊 Full data being saved to database:`, dataToSave);
 
+        // Calculate comparison fields before saving
+        const { AnalyticsComparisonService } = await import(
+          "@/lib/services/analytics-comparison.service"
+        );
+        const comparisonService = new AnalyticsComparisonService(prisma);
+        await comparisonService.updateComparisonFields(
+          socialAccountId,
+          dataToSave
+        );
+
         await prisma.accountAnalytics.create({
           data: {
             socialAccountId,

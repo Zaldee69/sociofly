@@ -16,8 +16,12 @@ import {
   Calendar,
   Settings,
   PlayCircle,
+  MessageSquare,
+  Target,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 import AnalyticsSidebar from "@/components/analytics/analytics-sidebar";
 import OverviewSection from "@/components/analytics/overview-section";
@@ -41,6 +45,7 @@ const Analytics: React.FC = () => {
   const [selectedPlatform, setSelectedPlatform] = useState<string>("INSTAGRAM");
   const [activeSection, setActiveSection] = useState("overview");
   const [isCollecting, setIsCollecting] = useState(false);
+  const [isMainNavbarHidden, setIsMainNavbarHidden] = useState(false);
 
   const { currentTeamId } = useTeamContext();
 
@@ -61,6 +66,74 @@ const Analytics: React.FC = () => {
       setSelectedPlatform(firstAccount.platform);
     }
   }, [socialAccounts, selectedAccount]);
+
+  // Handle scroll to hide/show main navbar
+  useEffect(() => {
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const currentScrollY = window.scrollY;
+          const analyticsHeader = document.getElementById("analytics-header");
+          const mainNavbar = document.querySelector(
+            "[data-main-navbar]"
+          ) as HTMLElement;
+
+          // Show main navbar only when at the very top (0-20px)
+          // Hide main navbar when scrolled down
+          if (currentScrollY <= 20) {
+            // At the very top - show main navbar
+            if (mainNavbar) {
+              mainNavbar.style.transform = "translateY(0)";
+              mainNavbar.style.transition = "transform 0.3s ease-in-out";
+            }
+            if (analyticsHeader) {
+              analyticsHeader.style.top = "64px"; // Height of main navbar
+            }
+            // Update sidebar position and height
+            document.documentElement.style.setProperty(
+              "--sidebar-top",
+              "calc(64px + 80px)"
+            );
+            document.documentElement.style.setProperty(
+              "--sidebar-height",
+              "calc(100vh - 144px)"
+            );
+            setIsMainNavbarHidden(false);
+          } else {
+            // Scrolled down - hide main navbar
+            if (mainNavbar) {
+              mainNavbar.style.transform = "translateY(-100%)";
+              mainNavbar.style.transition = "transform 0.3s ease-in-out";
+            }
+            if (analyticsHeader) {
+              analyticsHeader.style.top = "0px";
+            }
+            // Update sidebar position and height
+            document.documentElement.style.setProperty("--sidebar-top", "80px");
+            document.documentElement.style.setProperty(
+              "--sidebar-height",
+              "calc(100vh - 80px)"
+            );
+            setIsMainNavbarHidden(true);
+          }
+
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    // Run on mount to set initial state
+    handleScroll();
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
   // Fetch account-level insights
   const {
@@ -122,149 +195,16 @@ const Analytics: React.FC = () => {
     setSelectedPlatform(platform);
   };
 
-  const renderActiveSection = () => {
-    if (!selectedAccount) {
-      return (
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">
-              Pilih Akun untuk Melihat Analytics
-            </h3>
-            <p className="text-muted-foreground">
-              Pilih akun media sosial untuk melihat data analytics dan insights
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    switch (activeSection) {
-      case "overview":
-        return (
-          <OverviewSection
-            accountInsight={{
-              // Basic metrics
-              totalFollowers:
-                accountInsight?.totalFollowers ||
-                accountInsight?.followersCount,
-              totalPosts:
-                accountInsight?.totalPosts || accountInsight?.mediaCount,
-
-              // Engagement metrics (comprehensive)
-              totalLikes: accountInsight?.totalLikes,
-              totalReactions: 0, // Facebook reactions (not implemented yet)
-              totalComments: accountInsight?.totalComments,
-              totalShares: accountInsight?.totalShares,
-              totalSaves: accountInsight?.totalSaves,
-              totalClicks: accountInsight?.totalClicks,
-
-              // Reach & Impressions
-              totalReach: accountInsight?.totalReach,
-              totalImpressions: accountInsight?.totalImpressions,
-              avgReachPerPost: accountInsight?.avgReachPerPost,
-
-              // Calculated metrics
-              engagementRate: accountInsight?.engagementRate,
-              avgEngagementPerPost: accountInsight?.avgEngagementPerPost,
-              avgClickThroughRate: accountInsight?.avgClickThroughRate,
-
-              // Growth metrics
-              followerGrowth: accountInsight?.followerGrowth as any,
-              followersGrowthPercent:
-                accountInsight?.followersGrowthPercent || 0,
-              mediaGrowthPercent: accountInsight?.mediaGrowthPercent || 0,
-              engagementGrowthPercent:
-                accountInsight?.engagementGrowthPercent || 0,
-              reachGrowthPercent: accountInsight?.reachGrowthPercent || 0,
-
-              // Platform specific
-              platform: selectedPlatform as "INSTAGRAM" | "FACEBOOK",
-              bioLinkClicks: accountInsight?.bioLinkClicks,
-              storyViews: accountInsight?.storyViews,
-              profileVisits: accountInsight?.profileVisits,
-            }}
-            stats={stats}
-            isLoading={isLoadingAccountInsight || isLoadingStats}
-          />
-        );
-      case "posts":
-        return <PostPerformance />;
-      case "stories":
-        return selectedPlatform === "INSTAGRAM" ? (
-          <StoriesPerformance />
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            Stories analytics hanya tersedia untuk Instagram
-          </div>
-        );
-      case "audience":
-        return <AudienceInsights />;
-      case "hashtags":
-        return selectedPlatform === "INSTAGRAM" ? (
-          <HashtagAnalytics />
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            Hashtag analytics hanya tersedia untuk Instagram
-          </div>
-        );
-      case "links":
-        return <LinkAnalytics />;
-      default:
-        return (
-          <OverviewSection
-            accountInsight={{
-              // Basic metrics
-              totalFollowers:
-                accountInsight?.totalFollowers ||
-                accountInsight?.followersCount,
-              totalPosts:
-                accountInsight?.totalPosts || accountInsight?.mediaCount,
-
-              // Engagement metrics (comprehensive)
-              totalLikes: accountInsight?.totalLikes,
-              totalReactions: 0, // Facebook reactions (not implemented yet)
-              totalComments: accountInsight?.totalComments,
-              totalShares: accountInsight?.totalShares,
-              totalSaves: accountInsight?.totalSaves,
-              totalClicks: accountInsight?.totalClicks,
-
-              // Reach & Impressions
-              totalReach: accountInsight?.totalReach,
-              totalImpressions: accountInsight?.totalImpressions,
-              avgReachPerPost: accountInsight?.avgReachPerPost,
-
-              // Calculated metrics
-              engagementRate: accountInsight?.engagementRate,
-              avgEngagementPerPost: accountInsight?.avgEngagementPerPost,
-              avgClickThroughRate: accountInsight?.avgClickThroughRate,
-
-              // Growth metrics
-              followerGrowth: accountInsight?.followerGrowth as any,
-              followersGrowthPercent:
-                accountInsight?.followersGrowthPercent || 0,
-              mediaGrowthPercent: accountInsight?.mediaGrowthPercent || 0,
-              engagementGrowthPercent:
-                accountInsight?.engagementGrowthPercent || 0,
-              reachGrowthPercent: accountInsight?.reachGrowthPercent || 0,
-
-              // Platform specific
-              platform: selectedPlatform as "INSTAGRAM" | "FACEBOOK",
-              bioLinkClicks: accountInsight?.bioLinkClicks,
-              storyViews: accountInsight?.storyViews,
-              profileVisits: accountInsight?.profileVisits,
-            }}
-            stats={stats}
-            isLoading={isLoadingAccountInsight || isLoadingStats}
-          />
-        );
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-background">
+    <div
+      className="min-h-screen bg-background"
+      style={{ scrollBehavior: "smooth" }}
+    >
       {/* Header */}
-      <div className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-40">
+      <div
+        className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-40 transition-transform duration-300"
+        id="analytics-header"
+      >
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -367,8 +307,8 @@ const Analytics: React.FC = () => {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex gap-6">
+      <div className="w-full">
+        <div className="flex">
           {/* Sidebar */}
           <div className="w-64 flex-shrink-0">
             <AnalyticsSidebar
@@ -384,7 +324,7 @@ const Analytics: React.FC = () => {
           </div>
 
           {/* Main Content */}
-          <div className="flex-1">
+          <div className="flex-1 px-6 py-6 overflow-x-hidden">
             {/* Loading State */}
             {isLoadingAccountInsight ||
               (isLoadingStats && selectedAccount && (
@@ -452,9 +392,178 @@ const Analytics: React.FC = () => {
                 </>
               )}
 
-            {/* Content */}
-            {!isLoadingAccountInsight && (
-              <div className="space-y-6">{renderActiveSection()}</div>
+            {/* All Analytics Sections - Always Rendered */}
+            {!isLoadingAccountInsight && selectedAccount && (
+              <div className="space-y-12">
+                {/* Overview Section */}
+                <section id="overview" className="scroll-mt-24">
+                  <OverviewSection
+                    accountInsight={{
+                      // Basic metrics
+                      totalFollowers:
+                        accountInsight?.totalFollowers ||
+                        accountInsight?.followersCount,
+                      totalPosts:
+                        accountInsight?.totalPosts ||
+                        accountInsight?.mediaCount,
+
+                      // Engagement metrics (comprehensive)
+                      totalLikes: accountInsight?.totalLikes,
+                      totalReactions: 0, // Facebook reactions (not implemented yet)
+                      totalComments: accountInsight?.totalComments,
+                      totalShares: accountInsight?.totalShares,
+                      totalSaves: accountInsight?.totalSaves,
+                      totalClicks: accountInsight?.totalClicks,
+
+                      // Reach & Impressions
+                      totalReach: accountInsight?.totalReach,
+                      totalImpressions: accountInsight?.totalImpressions,
+                      avgReachPerPost: accountInsight?.avgReachPerPost,
+
+                      // Calculated metrics
+                      engagementRate: accountInsight?.engagementRate,
+                      avgEngagementPerPost:
+                        accountInsight?.avgEngagementPerPost,
+                      avgClickThroughRate: accountInsight?.avgClickThroughRate,
+
+                      // Growth metrics
+                      followerGrowth: accountInsight?.followerGrowth as any,
+                      followersGrowthPercent:
+                        accountInsight?.followersGrowthPercent || 0,
+                      mediaGrowthPercent:
+                        accountInsight?.mediaGrowthPercent || 0,
+                      engagementGrowthPercent:
+                        accountInsight?.engagementGrowthPercent || 0,
+                      reachGrowthPercent:
+                        accountInsight?.reachGrowthPercent || 0,
+
+                      // Platform specific
+                      platform: selectedPlatform as "INSTAGRAM" | "FACEBOOK",
+                      bioLinkClicks: accountInsight?.bioLinkClicks,
+                      storyViews: accountInsight?.storyViews,
+                      profileVisits: accountInsight?.profileVisits,
+                    }}
+                    stats={stats}
+                    isLoading={isLoadingAccountInsight || isLoadingStats}
+                  />
+                </section>
+
+                {/* Comparison Section */}
+                <section id="comparison" className="scroll-mt-24">
+                  <div className="bg-white rounded-lg border p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <TrendingUp className="h-5 w-5 text-blue-600" />
+                      <h2 className="text-xl font-semibold">
+                        Growth Comparison
+                      </h2>
+                    </div>
+                    <div className="text-center py-12">
+                      <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">
+                        Analytics Comparison
+                      </h3>
+                      <p className="text-muted-foreground mb-4">
+                        Compare performance metrics and track growth trends over
+                        time
+                      </p>
+                      <Button asChild>
+                        <Link href="/analytics/comparison">
+                          View Detailed Comparison
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Posts Section */}
+                <section id="posts" className="scroll-mt-24">
+                  <PostPerformance
+                    socialAccountId={selectedAccount}
+                    teamId={currentTeamId || undefined}
+                  />
+                </section>
+
+                {/* Stories Section - Instagram Only */}
+                {selectedPlatform === "INSTAGRAM" && (
+                  <section id="stories" className="scroll-mt-24">
+                    <StoriesPerformance platform="instagram" />
+                  </section>
+                )}
+
+                {/* Audience Section */}
+                <section id="audience" className="scroll-mt-24">
+                  <AudienceInsights />
+                </section>
+
+                {/* Hashtags Section - Instagram Only */}
+                {selectedPlatform === "INSTAGRAM" && (
+                  <section id="hashtags" className="scroll-mt-24">
+                    <HashtagAnalytics />
+                  </section>
+                )}
+
+                {/* Links Section */}
+                <section id="links" className="scroll-mt-24">
+                  <LinkAnalytics />
+                </section>
+
+                {/* Sentiment Section */}
+                <section id="sentiment" className="scroll-mt-24">
+                  <SentimentAnalysis />
+                </section>
+
+                {/* Optimization Section */}
+                <section id="optimization" className="scroll-mt-24">
+                  <PostTimeOptimizer
+                    socialAccountId={selectedAccount}
+                    teamId={currentTeamId!}
+                  />
+                </section>
+
+                {/* Competitors Section */}
+                <section id="competitors" className="scroll-mt-24">
+                  <CompetitorBenchmarking
+                    platform={selectedPlatform.toLowerCase()}
+                  />
+                </section>
+
+                {/* Custom Reports Section */}
+                <section id="custom-reports" className="scroll-mt-24">
+                  <div className="bg-white rounded-lg border p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <FileText className="h-5 w-5 text-indigo-600" />
+                      <h2 className="text-xl font-semibold">Custom Reports</h2>
+                    </div>
+                    <div className="text-center py-12">
+                      <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">
+                        Advanced Reporting
+                      </h3>
+                      <p className="text-muted-foreground mb-4">
+                        Create custom reports and export analytics data for
+                        deeper insights
+                      </p>
+                      <Badge variant="secondary">Coming Soon</Badge>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {/* No Account Selected State */}
+            {!selectedAccount && !isLoadingAccountInsight && (
+              <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                  <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">
+                    Pilih Akun untuk Melihat Analytics
+                  </h3>
+                  <p className="text-muted-foreground">
+                    Pilih akun media sosial untuk melihat data analytics dan
+                    insights
+                  </p>
+                </div>
+              </div>
             )}
           </div>
         </div>

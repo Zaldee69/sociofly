@@ -14,6 +14,7 @@ import { permissionRouter } from "./routers/permission";
 import { approvalWorkflowRouter } from "./routers/approval-workflow";
 import { approvalRequestRouter } from "./routers/approval-request";
 import { realAnalyticsRouter } from "./routers/real-analytics";
+import { analyticsComparisonRouter } from "./routers/analytics-comparison";
 import { hotspotsRouter } from "./routers/hotspots";
 
 /**
@@ -30,6 +31,7 @@ export const appRouter = createTRPCRouter({
   approvalWorkflow: approvalWorkflowRouter,
   approvalRequest: approvalRequestRouter,
   realAnalytics: realAnalyticsRouter,
+  analyticsComparison: analyticsComparisonRouter,
   hotspots: hotspotsRouter,
 });
 

@@ -49,6 +49,12 @@ const navigationLinks = [
     description: "General metrics",
   },
   {
+    label: "Comparison",
+    targetId: "comparison",
+    icon: <TrendingUp className="h-4 w-4" />,
+    description: "Growth & trends",
+  },
+  {
     label: "Posts",
     targetId: "posts",
     icon: <PieChart className="h-4 w-4" />,
@@ -147,9 +153,16 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
   });
 
   return (
-    <div className="w-64 border-r sticky top-16 h-[calc(100vh-4rem)] flex flex-col bg-background">
+    <div
+      className="w-64 border-r sticky flex flex-col bg-background transition-all duration-300 overflow-hidden"
+      style={{
+        top: "var(--sidebar-top, calc(64px + 80px))",
+        maxHeight: "var(--sidebar-height, calc(100vh - 144px))",
+        minHeight: "400px",
+      }}
+    >
       {/* Social Accounts Section */}
-      <div className="p-4 pb-3">
+      <div className="p-4 pb-3 flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-sm text-gray-900">
             Social Accounts
@@ -179,9 +192,10 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
                 variant={selectedAccount === account.id ? "default" : "ghost"}
                 size="sm"
                 className={cn(
-                  "w-full justify-start h-auto p-3 hover:bg-muted/50",
+                  "w-full justify-start h-auto p-3",
                   selectedAccount === account.id &&
-                    "bg-primary text-primary-foreground"
+                    "bg-primary text-primary-foreground",
+                  selectedAccount !== account.id && "hover:bg-transparent"
                 )}
                 onClick={() => onSelectAccount(account.id)}
               >
@@ -208,15 +222,18 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
       <Separator />
 
       {/* Analytics Navigation Section */}
-      <div className="flex-1 flex flex-col">
-        <div className="p-4 pb-2">
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="p-4 pb-2 flex-shrink-0">
           <h3 className="font-semibold text-sm text-gray-900 mb-3">
             Analytics Sections
           </h3>
         </div>
 
-        <ScrollArea className="flex-1 px-4">
-          <div className="space-y-1 pb-4">
+        <ScrollArea
+          className="flex-1 px-4 overflow-y-auto"
+          style={{ maxHeight: "calc(100% - 60px)" }}
+        >
+          <div className="space-y-1 pb-6">
             {selectedAccount ? (
               filteredNavigationLinks.map((link) => (
                 <Button
@@ -226,9 +243,10 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
                   }
                   size="sm"
                   className={cn(
-                    "w-full justify-start text-left h-auto p-3 hover:bg-muted/50",
+                    "w-full justify-start text-left h-auto p-3",
                     activeSection === link.targetId &&
-                      "bg-primary text-primary-foreground font-medium"
+                      "bg-primary text-primary-foreground font-medium",
+                    activeSection !== link.targetId && "hover:bg-transparent"
                   )}
                   onClick={() => handleSectionClick(link.targetId)}
                 >
@@ -257,7 +275,7 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
       {selectedAccountData && (
         <>
           <Separator />
-          <div className="p-4 pt-3">
+          <div className="p-4 pt-3 flex-shrink-0">
             <div className="text-xs text-muted-foreground text-center">
               {selectedAccountData.platform === "INSTAGRAM" && (
                 <span>Instagram-specific features enabled</span>
