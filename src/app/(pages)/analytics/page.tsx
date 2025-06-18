@@ -57,8 +57,6 @@ const Analytics: React.FC = () => {
     setActiveSection(sectionId);
   };
 
-  console.log("accountInsight", accountInsight);
-
   return (
     <div className="flex h-full">
       {/* Secondary Sidebar */}

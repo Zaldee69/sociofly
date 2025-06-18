@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useCallback, useState } from "react";
+import React, { useEffect, useCallback, useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, ArrowLeft, Instagram, Facebook } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,8 @@ import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
-const Onboarding: React.FC = () => {
+// Separate component to handle search params with Suspense boundary
+const OnboardingWithSearchParams: React.FC = () => {
   const searchParams = useSearchParams();
   const refresh = searchParams.get("refresh");
   const [isAccountSelectionOpen, setIsAccountSelectionOpen] = useState(false);
@@ -406,4 +407,38 @@ const Onboarding: React.FC = () => {
   );
 };
 
-export default Onboarding;
+// Loading fallback component
+const OnboardingLoading = () => {
+  return (
+    <div className="min-h-screen flex max-w-screen-xl mx-auto">
+      <div className="w-full md:w-1/2 p-6 md:p-10 flex flex-col">
+        <div className="mb-10 flex gap-2 items-center">
+          <div className="h-8 w-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-lg animate-pulse"></div>
+        </div>
+        <div className="flex-1 space-y-4">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded-md mb-4"></div>
+            <div className="h-32 bg-gray-200 rounded-md"></div>
+          </div>
+        </div>
+      </div>
+      <div className="hidden md:flex md:w-1/2 bg-gray-50 p-10 flex-col animate-pulse">
+        <div className="flex-1 flex flex-col justify-center max-w-lg mx-auto">
+          <div className="h-6 bg-gray-200 rounded-md mb-4"></div>
+          <div className="h-20 bg-gray-200 rounded-md"></div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Main component with Suspense boundary
+const OnboardingPage: React.FC = () => {
+  return (
+    <Suspense fallback={<OnboardingLoading />}>
+      <OnboardingWithSearchParams />
+    </Suspense>
+  );
+};
+
+export default OnboardingPage;
