@@ -51,7 +51,6 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
   const [isRemovingAccount, setIsRemovingAccount] = useState(false);
   const { hasPermission } = usePermissions(teamId);
   const searchParams = useSearchParams();
-  const router = useRouter();
   const authUser = useUser();
   const sessionId = searchParams.get("sessionId") ?? "";
 
@@ -269,7 +268,7 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
       sessionId &&
       Array.isArray(temporaryData) &&
       temporaryData.length > 0 &&
-      hasPermission("social.connect")
+      hasPermission("account.manage")
     ) {
       // Keep track of whether account has been processed
       const alreadyProcessed = sessionStorage.getItem(`processed-${sessionId}`);
@@ -442,7 +441,7 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
                   </div>
                 </div>
 
-                {hasPermission("social.connect") && (
+                {hasPermission("account.manage") && (
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
@@ -464,7 +463,7 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
           </div>
         )}
 
-        {hasPermission("social.connect") && (
+        {hasPermission("account.manage") && (
           <div className="mt-6">
             <Dialog open={isAddAccountOpen} onOpenChange={setIsAddAccountOpen}>
               <DialogTrigger asChild>
