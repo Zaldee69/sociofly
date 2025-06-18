@@ -2,6 +2,7 @@ import React, { JSX } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import {
   Instagram,
   Facebook,
@@ -9,14 +10,20 @@ import {
   Linkedin,
   Check,
   Loader2,
-} from "lucide-react"; // Added Loader2
+  BarChart3,
+  Users,
+  MessageSquare,
+  TrendingUp,
+  Target,
+  Hash,
+  Link,
+  PlayCircle,
+  PieChart,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SocialPlatform } from "@prisma/client";
 
-// Use the SocialPlatform enum from your schema for consistency if possible
-// import { SocialPlatform } from "@prisma/client"; // Assuming you can import enums
-
-// Define the interface for SocialAccount - updated to include platform type string for now
+// Define the interface for SocialAccount
 interface SocialAccount {
   id: string;
   name: string | null;
@@ -25,47 +32,98 @@ interface SocialAccount {
 }
 
 interface AnalyticsSidebarProps {
-  socialAccounts: SocialAccount[]; // Added prop for social accounts
-  isLoading: boolean; // Added prop for loading state
+  socialAccounts: SocialAccount[];
+  isLoading: boolean;
   selectedAccount: string | null;
   onSelectAccount: (accountId: string) => void;
-  activeSection: string | null; // Added prop for active navigation section
+  activeSection: string | null;
   onNavigateToSection: (sectionId: string) => void;
 }
 
-// Removed mockAccounts
-
+// Updated navigation links with new sections and icons
 const navigationLinks = [
-  { label: "Overview", targetId: "overview" },
-  { label: "Post Performance", targetId: "post-performance" },
-  { label: "Audience", targetId: "audience" },
-  { label: "Sentiment", targetId: "sentiment" },
-  { label: "Optimization", targetId: "optimization" },
-  { label: "Competitors", targetId: "competitors" },
-  { label: "Custom Reports", targetId: "custom-reports" },
+  {
+    label: "Overview",
+    targetId: "overview",
+    icon: <BarChart3 className="h-4 w-4" />,
+    description: "General metrics",
+  },
+  {
+    label: "Posts",
+    targetId: "posts",
+    icon: <PieChart className="h-4 w-4" />,
+    description: "Post performance",
+  },
+  {
+    label: "Stories",
+    targetId: "stories",
+    icon: <PlayCircle className="h-4 w-4" />,
+    description: "Stories analytics",
+    platforms: ["INSTAGRAM"], // Only show for Instagram
+  },
+  {
+    label: "Audience",
+    targetId: "audience",
+    icon: <Users className="h-4 w-4" />,
+    description: "Demographics & insights",
+  },
+  {
+    label: "Hashtags",
+    targetId: "hashtags",
+    icon: <Hash className="h-4 w-4" />,
+    description: "Hashtag performance",
+    platforms: ["INSTAGRAM"], // Only show for Instagram
+  },
+  {
+    label: "Links",
+    targetId: "links",
+    icon: <Link className="h-4 w-4" />,
+    description: "Link & CTA tracking",
+  },
+  {
+    label: "Sentiment",
+    targetId: "sentiment",
+    icon: <MessageSquare className="h-4 w-4" />,
+    description: "Brand perception",
+  },
+  {
+    label: "Optimization",
+    targetId: "optimization",
+    icon: <Target className="h-4 w-4" />,
+    description: "Best posting times",
+  },
+  {
+    label: "Competitors",
+    targetId: "competitors",
+    icon: <TrendingUp className="h-4 w-4" />,
+    description: "Competitor analysis",
+  },
+  {
+    label: "Reports",
+    targetId: "custom-reports",
+    icon: <BarChart3 className="h-4 w-4" />,
+    description: "Custom reports",
+  },
 ];
 
 const renderPlatformIcon = (platform: string) => {
-  // Use a map for cleaner mapping of platform strings to icons
   const platformIcons: { [key: string]: JSX.Element } = {
     instagram: <Instagram className="h-4 w-4 text-[#E1306C]" />,
     facebook: <Facebook className="h-4 w-4 text-[#4267B2]" />,
     twitter: <Twitter className="h-4 w-4 text-[#1DA1F2]" />,
     linkedin: <Linkedin className="h-4 w-4 text-[#0077B5]" />,
-    // Add more platforms if needed
   };
-  // Return the specific icon or a default one if not found
   return (
     platformIcons[platform.toLowerCase()] || <Instagram className="h-4 w-4" />
-  ); // Default icon
+  );
 };
 
 const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
-  socialAccounts, // Destructure new prop
-  isLoading, // Destructure new prop
+  socialAccounts,
+  isLoading,
   selectedAccount,
   onSelectAccount,
-  activeSection, // Destructure new prop
+  activeSection,
   onNavigateToSection,
 }) => {
   const handleSectionClick = (sectionId: string) => {
@@ -76,13 +134,35 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
     onNavigateToSection(sectionId);
   };
 
+  // Get selected account platform for filtering navigation
+  const selectedAccountData = socialAccounts?.find(
+    (acc) => acc.id === selectedAccount
+  );
+  const selectedPlatform = selectedAccountData?.platform;
+
+  // Filter navigation links based on platform
+  const filteredNavigationLinks = navigationLinks.filter((link) => {
+    if (!link.platforms) return true; // Show all links that don't have platform restrictions
+    return selectedPlatform && link.platforms.includes(selectedPlatform);
+  });
+
   return (
-    <div className="w-46 border-r sticky top-16 h-[calc(100vh-4rem)] flex flex-col bg-background p-4">
-      <div className="pb-4">
-        <h3 className="font-semibold text-sm text-gray-900 mb-3">
-          Social Media Accounts
-        </h3>
-        <div className="space-y-2 flex flex-col pr-2">
+    <div className="w-64 border-r sticky top-16 h-[calc(100vh-4rem)] flex flex-col bg-background">
+      {/* Social Accounts Section */}
+      <div className="p-4 pb-3">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-sm text-gray-900">
+            Social Accounts
+          </h3>
+          {selectedAccount && (
+            <Badge variant="secondary" className="text-xs">
+              {socialAccounts
+                ?.find((acc) => acc.id === selectedAccount)
+                ?.platform.toLowerCase()}
+            </Badge>
+          )}
+        </div>
+        <div className="space-y-2">
           {isLoading || !socialAccounts ? (
             <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -98,17 +178,26 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
                 key={account.id}
                 variant={selectedAccount === account.id ? "default" : "ghost"}
                 size="sm"
-                className={cn("w-full justify-start h-auto p-2")}
+                className={cn(
+                  "w-full justify-start h-auto p-3 hover:bg-muted/50",
+                  selectedAccount === account.id &&
+                    "bg-primary text-primary-foreground"
+                )}
                 onClick={() => onSelectAccount(account.id)}
               >
-                <div className="flex items-center gap-2 w-full">
+                <div className="flex items-center gap-3 w-full">
                   {renderPlatformIcon(account.platform)}
-                  <div className="flex-1 text-left">
-                    <div className="text-xs font-medium">{account.name}</div>
+                  <div className="flex-1 text-left min-w-0">
+                    <div className="text-sm font-medium truncate">
+                      {account.name || "Unnamed Account"}
+                    </div>
                     <div className="text-xs text-muted-foreground">
-                      @{account.name}
+                      {account.platform.toLowerCase()}
                     </div>
                   </div>
+                  {selectedAccount === account.id && (
+                    <Check className="h-4 w-4 flex-shrink-0" />
+                  )}
                 </div>
               </Button>
             ))
@@ -118,34 +207,71 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
 
       <Separator />
 
-      <div className="py-4 flex-1 flex flex-col pr-2">
-        {" "}
-        {/* Added flex-1 and flex-col */}
-        <h3 className="font-semibold text-sm text-gray-900 mb-3">
-          Analytics Navigation
-        </h3>
-        {/* ScrollArea should take remaining space */}
-        <ScrollArea className="flex-1 pb-4">
-          {" "}
-          {/* Added pb-4 for padding below content */}
-          <div className="space-y-1">
-            {navigationLinks.map((link) => (
-              <Button
-                key={link.targetId}
-                variant={activeSection === link.targetId ? "default" : "ghost"} // Style active link
-                size="sm"
-                className={cn(
-                  "w-full justify-start text-xs",
-                  activeSection === link.targetId && "font-semibold" // Example active style
-                )}
-                onClick={() => handleSectionClick(link.targetId)}
-              >
-                {link.label}
-              </Button>
-            ))}
+      {/* Analytics Navigation Section */}
+      <div className="flex-1 flex flex-col">
+        <div className="p-4 pb-2">
+          <h3 className="font-semibold text-sm text-gray-900 mb-3">
+            Analytics Sections
+          </h3>
+        </div>
+
+        <ScrollArea className="flex-1 px-4">
+          <div className="space-y-1 pb-4">
+            {selectedAccount ? (
+              filteredNavigationLinks.map((link) => (
+                <Button
+                  key={link.targetId}
+                  variant={
+                    activeSection === link.targetId ? "default" : "ghost"
+                  }
+                  size="sm"
+                  className={cn(
+                    "w-full justify-start text-left h-auto p-3 hover:bg-muted/50",
+                    activeSection === link.targetId &&
+                      "bg-primary text-primary-foreground font-medium"
+                  )}
+                  onClick={() => handleSectionClick(link.targetId)}
+                >
+                  <div className="flex items-center gap-3 w-full">
+                    <div className="flex-shrink-0">{link.icon}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium">{link.label}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {link.description}
+                      </div>
+                    </div>
+                  </div>
+                </Button>
+              ))
+            ) : (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                Select an account to view analytics sections
+              </div>
+            )}
           </div>
         </ScrollArea>
       </div>
+
+      {/* Footer with platform info */}
+      {selectedAccountData && (
+        <>
+          <Separator />
+          <div className="p-4 pt-3">
+            <div className="text-xs text-muted-foreground text-center">
+              {selectedAccountData.platform === "INSTAGRAM" && (
+                <span>Instagram-specific features enabled</span>
+              )}
+              {selectedAccountData.platform === "FACEBOOK" && (
+                <span>Facebook analytics ready</span>
+              )}
+              {!["INSTAGRAM", "FACEBOOK"].includes(
+                selectedAccountData.platform
+              ) && <span>Basic analytics available</span>}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

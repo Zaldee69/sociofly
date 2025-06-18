@@ -9,6 +9,13 @@ export enum JobType {
   PROCESS_WEBHOOK = "process_webhook",
   GENERATE_REPORT = "generate_report",
   SOCIAL_MEDIA_SYNC = "social_media_sync",
+
+  // Unified Analytics Jobs
+  COLLECT_ANALYTICS = "collect_analytics",
+  ANALYZE_COMPREHENSIVE_INSIGHTS = "analyze_comprehensive_insights",
+  COLLECT_HISTORICAL_DATA = "collect_historical_data",
+
+  // Legacy (deprecated - will be removed)
   ANALYZE_HOTSPOTS = "analyze_hotspots",
   ANALYZE_ACCOUNT_INSIGHTS = "analyze_account_insights",
   COLLECT_POSTS_ANALYTICS = "collect_posts_analytics",
@@ -115,7 +122,60 @@ export interface AnalyzeAccountInsightsJobData {
   )[];
 }
 
-// Union type for all job data
+// New unified analytics job data
+export interface CollectAnalyticsJobData {
+  socialAccountId: string;
+  platform: string;
+  accountName: string;
+  teamId: string;
+  collectTypes: (
+    | "account"
+    | "posts"
+    | "stories"
+    | "audience"
+    | "hashtags"
+    | "links"
+  )[];
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
+  priority: "low" | "normal" | "high";
+}
+
+// Unified comprehensive insights analysis
+export interface AnalyzeComprehensiveInsightsJobData {
+  userId?: string;
+  teamId?: string;
+  socialAccountId?: string;
+  platform?: string;
+  analysisTypes: (
+    | "hotspots"
+    | "account_insights"
+    | "demographics"
+    | "engagement"
+    | "growth"
+    | "content_performance"
+    | "competitor_analysis"
+  )[];
+  analyzePeriod: "week" | "month" | "quarter" | "year";
+  includeComparisons: boolean;
+}
+
+// Historical data collection job
+export interface CollectHistoricalDataJobData {
+  socialAccountId: string;
+  platform: string;
+  accountName: string;
+  teamId: string;
+  userId: string;
+  daysBack: number; // How many days back to collect (default: 90)
+  priority: "low" | "normal" | "high";
+  collectTypes: ("posts" | "stories" | "audience" | "hashtags" | "links")[];
+  immediate: boolean; // Process immediately or schedule
+}
+
+// Updated union type for all job data
 export type JobData =
   | PublishPostJobData
   | ProcessApprovalJobData
@@ -126,6 +186,10 @@ export type JobData =
   | ProcessWebhookJobData
   | GenerateReportJobData
   | SocialMediaSyncJobData
+  | CollectAnalyticsJobData
+  | AnalyzeComprehensiveInsightsJobData
+  | CollectHistoricalDataJobData
+  // Legacy types (deprecated)
   | CollectPostsAnalyticsJobData
   | AnalyzeHotspotsJobData
   | AnalyzeAccountInsightsJobData;

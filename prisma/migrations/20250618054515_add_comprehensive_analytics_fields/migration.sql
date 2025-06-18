@@ -1,0 +1,15 @@
+-- AlterTable
+ALTER TABLE "AccountAnalytics" ADD COLUMN     "avgClickThroughRate" DOUBLE PRECISION DEFAULT 0,
+ADD COLUMN     "avgEngagementPerPost" DOUBLE PRECISION DEFAULT 0,
+ADD COLUMN     "bioLinkClicks" INTEGER DEFAULT 0,
+ADD COLUMN     "profileVisits" INTEGER DEFAULT 0,
+ADD COLUMN     "storyViews" INTEGER DEFAULT 0,
+ADD COLUMN     "totalClicks" INTEGER DEFAULT 0,
+ADD COLUMN     "totalComments" INTEGER DEFAULT 0,
+ADD COLUMN     "totalFollowers" INTEGER DEFAULT 0,
+ADD COLUMN     "totalImpressions" INTEGER DEFAULT 0,
+ADD COLUMN     "totalLikes" INTEGER DEFAULT 0,
+ADD COLUMN     "totalPosts" INTEGER DEFAULT 0,
+ADD COLUMN     "totalReach" INTEGER DEFAULT 0,
+ADD COLUMN     "totalSaves" INTEGER DEFAULT 0,
+ADD COLUMN     "totalShares" INTEGER DEFAULT 0;

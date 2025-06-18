@@ -183,6 +183,54 @@ export class JobSchedulerManager {
           userId: "system",
         },
       },
+      // New unified analytics jobs
+      {
+        name: "collect_analytics",
+        schedule: "0 7 * * *", // Daily at 7 AM
+        description: "Collect comprehensive analytics data",
+        enabled: process.env.CRON_COLLECT_ANALYTICS_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
+        jobType: JobType.COLLECT_ANALYTICS,
+        jobData: {
+          userId: "system",
+          platform: "all",
+          collectTypes: ["account", "posts", "audience", "links"],
+        },
+      },
+      {
+        name: "analyze_comprehensive_insights",
+        schedule: "0 8 * * *", // Daily at 8 AM
+        description: "Analyze comprehensive insights from all data sources",
+        enabled: process.env.CRON_COMPREHENSIVE_INSIGHTS_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
+        jobType: JobType.ANALYZE_COMPREHENSIVE_INSIGHTS,
+        jobData: {
+          userId: "system",
+          analysisTypes: [
+            "hotspots",
+            "account_insights",
+            "demographics",
+            "engagement",
+          ],
+          analyzePeriod: "week",
+          includeComparisons: true,
+        },
+      },
+      {
+        name: "collect_historical_data",
+        schedule: "0 2 * * 1", // Weekly on Monday at 2 AM
+        description: "Collect historical data for new accounts",
+        enabled: process.env.CRON_HISTORICAL_DATA_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
+        jobType: JobType.COLLECT_HISTORICAL_DATA,
+        jobData: {
+          userId: "system",
+          daysBack: 90,
+          priority: "normal",
+          collectTypes: ["posts", "audience", "hashtags", "links"],
+          immediate: false,
+        },
+      },
     ];
 
     // Register enabled jobs
@@ -607,6 +655,10 @@ export class JobSchedulerManager {
       analyze_engagement_hotspots: QueueManager.QUEUES.SOCIAL_SYNC,
       fetch_account_insights: QueueManager.QUEUES.SOCIAL_SYNC,
       collect_posts_analytics: QueueManager.QUEUES.SOCIAL_SYNC,
+      // New unified analytics jobs
+      collect_analytics: QueueManager.QUEUES.SOCIAL_SYNC,
+      analyze_comprehensive_insights: QueueManager.QUEUES.SOCIAL_SYNC,
+      collect_historical_data: QueueManager.QUEUES.SOCIAL_SYNC,
     };
     return mapping[jobName] || null;
   }
@@ -620,6 +672,10 @@ export class JobSchedulerManager {
       analyze_engagement_hotspots: JobType.ANALYZE_HOTSPOTS,
       fetch_account_insights: JobType.ANALYZE_ACCOUNT_INSIGHTS,
       collect_posts_analytics: JobType.COLLECT_POSTS_ANALYTICS,
+      // New unified analytics jobs
+      collect_analytics: JobType.COLLECT_ANALYTICS,
+      analyze_comprehensive_insights: JobType.ANALYZE_COMPREHENSIVE_INSIGHTS,
+      collect_historical_data: JobType.COLLECT_HISTORICAL_DATA,
     };
     return mapping[jobName] || null;
   }
@@ -668,6 +724,43 @@ export class JobSchedulerManager {
         return {
           syncType: JOB_CONSTANTS.SYNC_TYPES.RECENT,
           userId: "system",
+        };
+      // New unified analytics jobs
+      case JobType.COLLECT_ANALYTICS:
+        return {
+          socialAccountId: "system", // Will be processed for all accounts
+          platform: "all",
+          accountName: "All Accounts",
+          teamId: "system",
+          collectTypes: ["account", "posts", "audience", "links"],
+          priority: "normal",
+        };
+      case JobType.ANALYZE_COMPREHENSIVE_INSIGHTS:
+        return {
+          userId: "system",
+          teamId: "system",
+          socialAccountId: "system", // Will be processed for all accounts
+          platform: "all",
+          analysisTypes: [
+            "hotspots",
+            "account_insights",
+            "demographics",
+            "engagement",
+          ],
+          analyzePeriod: "week",
+          includeComparisons: true,
+        };
+      case JobType.COLLECT_HISTORICAL_DATA:
+        return {
+          socialAccountId: "system", // Will be processed for all accounts
+          platform: "all",
+          accountName: "All Accounts",
+          teamId: "system",
+          userId: "system",
+          daysBack: 90,
+          priority: "normal",
+          collectTypes: ["posts", "audience", "hashtags", "links"],
+          immediate: true,
         };
       default:
         return { userId: "system" };

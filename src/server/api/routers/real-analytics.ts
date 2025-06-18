@@ -291,50 +291,136 @@ export const realAnalyticsRouter = createTRPCRouter({
     }),
 
   /**
-   * Trigger scheduled analytics collection (admin only)
+   * Get account analytics insights - Main endpoint for dashboard
    */
-  triggerScheduledCollection: protectedProcedure.mutation(async ({ ctx }) => {
-    try {
-      const realAnalyticsService = new RealSocialAnalyticsService(ctx.prisma);
+  getAccountInsights: protectedProcedure
+    .input(
+      z.object({
+        socialAccountId: z.string(),
+        days: z.number().default(30),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        // Verify user has access to this social account
+        const socialAccount = await ctx.prisma.socialAccount.findFirst({
+          where: {
+            id: input.socialAccountId,
+            team: {
+              memberships: {
+                some: { userId: ctx.auth.userId },
+              },
+            },
+          },
+        });
 
-      // Check if user is admin (you might want to add role checking)
-      // For now, just check if user exists
-      if (!ctx.auth.userId) {
+        if (!socialAccount) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Social account not found or access denied",
+          });
+        }
+
+        const endDate = new Date();
+        const startDate = new Date(
+          endDate.getTime() - input.days * 24 * 60 * 60 * 1000
+        );
+
+        // Get account analytics
+        const accountAnalytics = await ctx.prisma.accountAnalytics.findMany({
+          where: {
+            socialAccountId: input.socialAccountId,
+            recordedAt: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
+          orderBy: { recordedAt: "desc" },
+        });
+
+        // Calculate insights
+        const latest = accountAnalytics[0];
+        const previous = accountAnalytics[accountAnalytics.length - 1];
+
+        const followersGrowth =
+          latest && previous
+            ? ((latest.followersCount - previous.followersCount) /
+                previous.followersCount) *
+              100
+            : 0;
+
+        const engagementGrowth =
+          latest && previous
+            ? ((latest.engagementRate - previous.engagementRate) /
+                previous.engagementRate) *
+              100
+            : 0;
+
+        return {
+          // Basic metrics
+          followersCount: latest?.followersCount || 0,
+          mediaCount: latest?.mediaCount || 0,
+          engagementRate: latest?.engagementRate || 0,
+          avgReachPerPost: latest?.avgReachPerPost || 0,
+
+          // Additional metrics for UI compatibility
+          totalFollowers: latest?.totalFollowers || latest?.followersCount || 0,
+          totalPosts: latest?.totalPosts || latest?.mediaCount || 0,
+          totalReach: latest?.totalReach || 0,
+          totalImpressions: latest?.totalImpressions || 0,
+          totalLikes: latest?.totalLikes || 0,
+          totalComments: latest?.totalComments || 0,
+          totalShares: latest?.totalShares || 0,
+          totalSaves: latest?.totalSaves || 0,
+          totalClicks: latest?.totalClicks || 0,
+          avgEngagementPerPost: latest?.avgEngagementPerPost || 0,
+          avgClickThroughRate: latest?.avgClickThroughRate || 0,
+
+          // Growth metrics
+          followersGrowthPercent:
+            latest?.followersGrowthPercent || followersGrowth,
+          engagementGrowthPercent:
+            latest?.engagementGrowthPercent || engagementGrowth,
+          mediaGrowthPercent: latest?.mediaGrowthPercent || 0,
+          reachGrowthPercent: latest?.reachGrowthPercent || 0,
+
+          // Platform-specific metrics
+          bioLinkClicks: latest?.bioLinkClicks || 0,
+          storyViews: latest?.storyViews || 0,
+          profileVisits: latest?.profileVisits || 0,
+
+          // Growth data array
+          followerGrowth: accountAnalytics.map((a) => ({
+            date: a.recordedAt,
+            value: a.followersCount,
+          })),
+        };
+      } catch (error: any) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
         throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "Authentication required",
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to get account insights",
+          cause: error,
         });
       }
-
-      // Trigger the scheduled collection
-      await realAnalyticsService.scheduleAnalyticsCollection();
-
-      return {
-        success: true,
-        message: "Scheduled analytics collection triggered successfully",
-      };
-    } catch (error: any) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to trigger scheduled collection",
-        cause: error,
-      });
-    }
-  }),
+    }),
 
   /**
-   * Get analytics collection stats
+   * Get collection stats for metrics overview
    */
   getCollectionStats: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
-        days: z.number().min(1).max(90).default(30),
+        days: z.number().default(30),
       })
     )
     .query(async ({ input, ctx }) => {
       try {
-        // Check team access
+        // Verify user has access to this team
         const membership = await ctx.prisma.membership.findFirst({
           where: {
             teamId: input.teamId,
@@ -349,84 +435,47 @@ export const realAnalyticsRouter = createTRPCRouter({
           });
         }
 
-        const since = new Date();
-        since.setDate(since.getDate() - input.days);
+        const endDate = new Date();
+        const startDate = new Date(
+          endDate.getTime() - input.days * 24 * 60 * 60 * 1000
+        );
 
-        // Get analytics collection stats
-        const stats = await ctx.prisma.postAnalytics.groupBy({
-          by: ["postSocialAccountId"],
+        // Get basic collection stats
+        const totalPosts = await ctx.prisma.post.count({
           where: {
-            recordedAt: { gte: since },
-            postSocialAccount: {
-              post: { teamId: input.teamId },
+            teamId: input.teamId,
+            publishedAt: {
+              gte: startDate,
+              lte: endDate,
             },
-          },
-          _count: {
-            id: true,
+            status: "PUBLISHED",
           },
         });
 
-        const totalCollections = stats.reduce(
-          (sum, stat) => sum + stat._count.id,
-          0
-        );
-        const uniquePosts = stats.length;
-
-        // Get platform breakdown (simplified query)
-        const analyticsData = await ctx.prisma.postAnalytics.findMany({
+        const totalAnalytics = await ctx.prisma.postAnalytics.count({
           where: {
-            recordedAt: { gte: since },
-            postSocialAccount: {
-              post: { teamId: input.teamId },
+            recordedAt: {
+              gte: startDate,
+              lte: endDate,
             },
-          },
-          include: {
             postSocialAccount: {
-              include: {
-                socialAccount: {
-                  select: { platform: true },
-                },
+              post: {
+                teamId: input.teamId,
               },
             },
           },
         });
 
-        // Group by platform
-        const platformBreakdown = analyticsData.reduce(
-          (acc, analytics) => {
-            const platform = analytics.postSocialAccount.socialAccount.platform;
-            if (!acc[platform]) {
-              acc[platform] = {
-                platform,
-                collections: 0,
-                totalViews: 0,
-                totalLikes: 0,
-                totalEngagement: 0,
-              };
-            }
-            acc[platform].collections++;
-            acc[platform].totalViews += analytics.views;
-            acc[platform].totalLikes += analytics.likes;
-            acc[platform].totalEngagement += analytics.engagement;
-            return acc;
-          },
-          {} as Record<string, any>
-        );
-
-        const platforms = Object.values(platformBreakdown).map((p: any) => ({
-          platform: p.platform,
-          collections: p.collections,
-          avgViews: Math.round(p.totalViews / p.collections),
-          avgLikes: Math.round(p.totalLikes / p.collections),
-          avgEngagement:
-            Math.round((p.totalEngagement / p.collections) * 100) / 100,
-        }));
+        // Calculate coverage percentage
+        const coveragePercentage =
+          totalPosts > 0 ? (totalAnalytics / totalPosts) * 100 : 0;
 
         return {
-          totalCollections,
-          uniquePosts,
-          period: input.days,
-          platforms,
+          totalPosts,
+          totalAnalytics,
+          coveragePercentage,
+          lastUpdated: new Date(),
+          period: `${input.days} days`,
         };
       } catch (error: any) {
         if (error instanceof TRPCError) {
@@ -442,46 +491,74 @@ export const realAnalyticsRouter = createTRPCRouter({
     }),
 
   /**
-   * Get account-level insights for a social account (followers, media count)
+   * Trigger analytics collection for all accounts in a team
    */
-  getAccountInsights: protectedProcedure
-    .input(z.object({ socialAccountId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      const account = await ctx.prisma.socialAccount.findUnique({
-        where: { id: input.socialAccountId },
-        select: { platform: true },
-      });
+  triggerAccountAnalyticsCollection: protectedProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify user has access to this team
+        const membership = await ctx.prisma.membership.findFirst({
+          where: {
+            teamId: input.teamId,
+            userId: ctx.auth.userId,
+          },
+        });
 
-      if (!account) {
+        if (!membership) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You don't have access to this team",
+          });
+        }
+
+        const realAnalyticsService = new RealSocialAnalyticsService(ctx.prisma);
+
+        // Get all social accounts for the team
+        const socialAccounts = await ctx.prisma.socialAccount.findMany({
+          where: { teamId: input.teamId },
+          select: { id: true, platform: true, name: true },
+        });
+
+        if (socialAccounts.length === 0) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "No social accounts found for this team",
+          });
+        }
+
+        // Use SchedulerService for analytics collection
+        const { SchedulerService } = await import(
+          "@/lib/services/scheduler.service"
+        );
+
+        // Run account insights collection for all accounts
+        const result =
+          await SchedulerService.runAccountInsightsForAllAccounts();
+
+        return {
+          success: true,
+          message: `Analytics collection completed for ${result.success} of ${result.total} accounts`,
+          results: {
+            success: result.success,
+            failed: result.failed,
+            total: result.total,
+          },
+        };
+      } catch (error: any) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Account not found",
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to trigger analytics collection",
+          cause: error,
         });
       }
-
-      const latest = await ctx.prisma.accountAnalytics.findFirst({
-        where: { socialAccountId: input.socialAccountId },
-        orderBy: { recordedAt: "desc" },
-      });
-
-      if (!latest) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "No analytics data available",
-        });
-      }
-
-      return {
-        platform: account.platform,
-        followersCount: latest.followersCount,
-        mediaCount: latest.mediaCount,
-        engagementRate: latest.engagementRate, // Data real
-        avgReachPerPost: latest.avgReachPerPost, // Data real
-        followerGrowth: latest.followerGrowth, // Data real
-        followersGrowthPercent: latest.followersGrowthPercent, // Data real
-        mediaGrowthPercent: latest.mediaGrowthPercent, // Data real
-        engagementGrowthPercent: latest.engagementGrowthPercent, // Data real
-        reachGrowthPercent: latest.reachGrowthPercent, // Data real
-      };
     }),
 });

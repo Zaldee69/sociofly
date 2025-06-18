@@ -38,7 +38,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar } from "@/components/ui/avatar";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 // Mock data for teams

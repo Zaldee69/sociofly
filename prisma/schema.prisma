@@ -64,23 +64,29 @@ model Membership {
 }
 
 model SocialAccount {
-  id                String              @id @default(cuid())
-  accessToken       String
-  refreshToken      String?
-  expiresAt         DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  userId            String
-  name              String?
-  platform          SocialPlatform
-  profilePicture    String?
-  profileId         String?
-  teamId            String
-  posts             PostSocialAccount[]
-  team              Team                @relation(fields: [teamId], references: [id])
-  user              User                @relation(fields: [userId], references: [id])
+  id             String              @id @default(cuid())
+  accessToken    String
+  refreshToken   String?
+  expiresAt      DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  userId         String
+  name           String?
+  platform       SocialPlatform
+  profilePicture String?
+  profileId      String?
+  teamId         String
+  posts          PostSocialAccount[]
+  team           Team                @relation(fields: [teamId], references: [id])
+  user           User                @relation(fields: [userId], references: [id])
+
+  // Analytics relations
   EngagementHotspot EngagementHotspot[]
   AccountAnalytics  AccountAnalytics[]
+  StoryAnalytics    StoryAnalytics[]
+  AudienceInsights  AudienceInsights[]
+  HashtagAnalytics  HashtagAnalytics[]
+  LinkAnalytics     LinkAnalytics[]
 }
 
 model Post {
@@ -308,27 +314,180 @@ model ApprovalAssignment {
 }
 
 model PostAnalytics {
-  id                  String            @id @default(cuid())
+  id                  String @id @default(cuid())
   postSocialAccountId String
-  views               Int               @default(0)
-  likes               Int               @default(0)
-  comments            Int               @default(0)
-  shares              Int               @default(0)
-  clicks              Int               @default(0)
-  reach               Int               @default(0)
-  impressions         Int               @default(0)
-  engagement          Float             @default(0)
-  recordedAt          DateTime          @default(now())
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
-  rawInsights         Json?
-  postSocialAccount   PostSocialAccount @relation(fields: [postSocialAccountId], references: [id], onDelete: Cascade)
+
+  // Basic engagement metrics
+  views     Int @default(0)
+  likes     Int @default(0)
+  reactions Int @default(0) // Facebook reactions (love, haha, wow, etc)
+  comments  Int @default(0)
+  shares    Int @default(0)
+  saves     Int @default(0) // Instagram saves
+  clicks    Int @default(0) // Link clicks
+
+  // Reach & Impressions
+  reach       Int @default(0)
+  impressions Int @default(0)
+
+  // Performance metrics
+  engagement       Float @default(0) // Calculated engagement rate
+  ctr              Float @default(0) // Click-through rate
+  timeToEngagement Int? // Minutes to first engagement
+
+  // Content format
+  contentFormat ContentFormat?
+
+  // Timestamps
+  recordedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Raw data from API
+  rawInsights Json?
+
+  postSocialAccount PostSocialAccount           @relation(fields: [postSocialAccountId], references: [id], onDelete: Cascade)
+  demographics      PostAnalyticsDemographics[]
+  hashtagAnalytics  PostHashtagAnalytics[]
 
   @@unique([postSocialAccountId, recordedAt])
   @@index([postSocialAccountId])
   @@index([recordedAt])
+  @@index([engagement])
 }
 
+// New model for Stories Analytics
+model StoryAnalytics {
+  id              String @id @default(cuid())
+  socialAccountId String
+  storyId         String // Platform story ID
+
+  // Basic metrics
+  reach       Int @default(0)
+  impressions Int @default(0)
+  replies     Int @default(0)
+
+  // Navigation metrics
+  exits          Int   @default(0)
+  forwards       Int   @default(0)
+  tapsNext       Int   @default(0)
+  tapsPrevious   Int   @default(0)
+  completionRate Float @default(0)
+
+  // Story details
+  storyType   StoryType
+  publishedAt DateTime
+  recordedAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([socialAccountId, storyId])
+  @@index([socialAccountId])
+  @@index([publishedAt])
+}
+
+// Enhanced Audience Insights
+model AudienceInsights {
+  id              String @id @default(cuid())
+  socialAccountId String
+
+  // Demographics
+  ageGroup   String // "18-24", "25-34", etc.
+  gender     String? // "male", "female", "other"
+  topCountry String?
+  topCity    String?
+  percentage Float
+
+  // Active times (0-23 hours)
+  activeHours Json // Array of hourly engagement data
+  activeDays  Json // Array of daily engagement data
+
+  recordedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@index([socialAccountId])
+  @@index([recordedAt])
+}
+
+// Hashtag Analytics for Instagram
+model HashtagAnalytics {
+  id              String @id @default(cuid())
+  socialAccountId String
+  hashtag         String
+
+  // Performance metrics
+  reach       Int @default(0)
+  impressions Int @default(0)
+  discovery   Int @default(0) // Posts discovered via hashtag
+  usageCount  Int @default(0) // How many times used
+
+  // Trending data
+  isTop Boolean @default(false) // Top hashtag for account
+  rank  Int? // Ranking position
+
+  recordedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  socialAccount SocialAccount          @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  postAnalytics PostHashtagAnalytics[]
+
+  @@unique([socialAccountId, hashtag, recordedAt])
+  @@index([socialAccountId])
+  @@index([hashtag])
+  @@index([isTop])
+}
+
+// Junction table for Post-Hashtag analytics
+model PostHashtagAnalytics {
+  id                 String @id @default(cuid())
+  postAnalyticsId    String
+  hashtagAnalyticsId String
+
+  reach       Int @default(0)
+  impressions Int @default(0)
+
+  postAnalytics    PostAnalytics    @relation(fields: [postAnalyticsId], references: [id], onDelete: Cascade)
+  hashtagAnalytics HashtagAnalytics @relation(fields: [hashtagAnalyticsId], references: [id], onDelete: Cascade)
+
+  @@unique([postAnalyticsId, hashtagAnalyticsId])
+}
+
+// Link & CTA Performance
+model LinkAnalytics {
+  id              String @id @default(cuid())
+  socialAccountId String
+
+  // Link details
+  linkUrl    String
+  linkType   LinkType // "bio", "post", "story", "button"
+  buttonType String? // "contact", "shop_now", "learn_more", etc.
+
+  // Performance
+  clicks       Int   @default(0)
+  uniqueClicks Int   @default(0)
+  ctr          Float @default(0)
+
+  // Context
+  sourcePostId String? // If from specific post
+
+  recordedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@index([socialAccountId])
+  @@index([linkType])
+  @@index([recordedAt])
+}
+
+// Keep existing EngagementHotspot model
 model EngagementHotspot {
   id              String   @id @default(cuid())
   teamId          String
@@ -345,32 +504,46 @@ model EngagementHotspot {
   @@index([socialAccountId])
 }
 
-model PostAnalyticsDemographics {
-  id                  String   @id @default(cuid())
-  postSocialAccountId String
-  ageGroup            String
-  gender              String?
-  location            String?
-  percentage          Float
-  recordedAt          DateTime @default(now())
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  @@index([postSocialAccountId])
-  @@index([recordedAt])
-}
-
+// Enhanced Account Analytics with detailed follower data
 model AccountAnalytics {
   id              String   @id @default(cuid())
   socialAccountId String
   recordedAt      DateTime @default(now())
-  followersCount  Int
-  mediaCount      Int
-  engagementRate  Float    @default(0)
-  avgReachPerPost Int      @default(0)
-  followerGrowth  Json
 
-  // New comparison fields
+  // Follower metrics
+  followersCount Int
+  followingCount Int @default(0)
+  mediaCount     Int
+
+  // Engagement metrics
+  engagementRate     Float @default(0)
+  avgReachPerPost    Int   @default(0)
+  avgLikesPerPost    Float @default(0)
+  avgCommentsPerPost Float @default(0)
+
+  // Additional comprehensive metrics for UI compatibility
+  totalFollowers       Int?   @default(0)
+  totalPosts           Int?   @default(0)
+  totalReach           Int?   @default(0)
+  totalImpressions     Int?   @default(0)
+  totalLikes           Int?   @default(0)
+  totalComments        Int?   @default(0)
+  totalShares          Int?   @default(0)
+  totalSaves           Int?   @default(0)
+  totalClicks          Int?   @default(0)
+  avgEngagementPerPost Float? @default(0)
+  avgClickThroughRate  Float? @default(0)
+
+  // Platform-specific metrics
+  bioLinkClicks Int? @default(0)
+  storyViews    Int? @default(0)
+  profileVisits Int? @default(0)
+
+  // Growth data
+  followerGrowth Json // Daily growth data
+  unfollowCount  Int  @default(0) // Facebook page unlikes
+
+  // Previous period comparison
   previousFollowersCount  Int?   @default(0)
   previousMediaCount      Int?   @default(0)
   previousEngagementRate  Float? @default(0)
@@ -383,6 +556,23 @@ model AccountAnalytics {
   socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
 
   @@index([socialAccountId])
+  @@index([recordedAt])
+}
+
+model PostAnalyticsDemographics {
+  id                  String         @id @default(cuid())
+  postSocialAccountId String
+  ageGroup            String
+  gender              String?
+  location            String?
+  percentage          Float
+  recordedAt          DateTime       @default(now())
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  PostAnalytics       PostAnalytics? @relation(fields: [postAnalyticsId], references: [id])
+  postAnalyticsId     String?
+
+  @@index([postSocialAccountId])
   @@index([recordedAt])
 }
 
@@ -442,4 +632,29 @@ enum BillingPlan {
   FREE
   PRO
   ENTERPRISE
+}
+
+enum ContentFormat {
+  IMAGE
+  VIDEO
+  CAROUSEL
+  REELS
+  STORY
+  IGTV
+}
+
+enum StoryType {
+  IMAGE
+  VIDEO
+  BOOMERANG
+  SUPERZOOM
+  REWIND
+}
+
+enum LinkType {
+  BIO
+  POST
+  STORY
+  BUTTON
+  SWIPE_UP
 }

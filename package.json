@@ -18,8 +18,6 @@
     "redis:monitor": "./scripts/monitor-redis-locks.sh",
     "seed:hashtags": "npx tsx src/features/social/scripts/seed-hashtags.ts",
     "seed:permissions": "npx tsx src/server/permissions/seed/seed-role-permissions.ts",
-    "analytics:collect": "npx tsx scripts/collect-analytics.ts",
-    "analytics:check": "npx tsx scripts/debug/check-analytics.ts",
     "cluster:setup": "chmod +x scripts/setup-redis-cluster.sh && ./scripts/setup-redis-cluster.sh setup",
     "cluster:start": "./scripts/setup-redis-cluster.sh start",
     "cluster:stop": "./scripts/setup-redis-cluster.sh stop",

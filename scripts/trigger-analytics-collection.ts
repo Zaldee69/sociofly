@@ -1,0 +1,88 @@
+#!/usr/bin/env tsx
+
+import { PrismaClient } from "@prisma/client";
+import { SchedulerService } from "../src/lib/services/scheduler.service";
+
+const prisma = new PrismaClient();
+
+async function main() {
+  const args = process.argv.slice(2);
+  const teamId = args[0];
+
+  if (!teamId) {
+    console.log("Usage: npm run trigger-analytics <teamId>");
+    console.log("   or: npm run trigger-analytics all");
+    process.exit(1);
+  }
+
+  try {
+    if (teamId === "all") {
+      console.log("🚀 Triggering analytics collection for all accounts...");
+
+      // Run account insights for all accounts
+      const accountResult =
+        await SchedulerService.runAccountInsightsForAllAccounts();
+      console.log(
+        `📊 Account insights: ${accountResult.success}/${accountResult.total} successful`
+      );
+
+      // Run hotspot analysis for all accounts
+      const hotspotResult =
+        await SchedulerService.runHotspotAnalysisForAllAccounts();
+      console.log(
+        `🔥 Hotspot analysis: ${hotspotResult.success}/${hotspotResult.total} successful`
+      );
+
+      console.log("✅ Analytics collection completed for all accounts!");
+    } else {
+      console.log(`🚀 Triggering analytics collection for team: ${teamId}`);
+
+      // Get team's social accounts
+      const accounts = await prisma.socialAccount.findMany({
+        where: { teamId },
+        select: { id: true, name: true, platform: true },
+      });
+
+      if (accounts.length === 0) {
+        console.log("❌ No social accounts found for this team");
+        process.exit(1);
+      }
+
+      console.log(`📊 Found ${accounts.length} accounts to process`);
+
+      let success = 0;
+      let failed = 0;
+
+      for (const account of accounts) {
+        try {
+          console.log(`Processing ${account.name} (${account.platform})...`);
+
+          // Fetch account insights
+          await SchedulerService.fetchInitialAccountInsights(account.id);
+
+          // Fetch heatmap data
+          await SchedulerService.fetchInitialHeatmapData(account.id);
+
+          console.log(`✅ Completed analytics for ${account.name}`);
+          success++;
+        } catch (error) {
+          console.error(`❌ Failed analytics for ${account.name}:`, error);
+          failed++;
+        }
+      }
+
+      console.log(
+        `🎯 Analytics collection completed: ${success}/${accounts.length} successful, ${failed} failed`
+      );
+    }
+
+    await prisma.$disconnect();
+    process.exit(0);
+  } catch (error) {
+    console.error("💥 Failed to trigger analytics collection:", error);
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+}
+
+main().catch(console.error);

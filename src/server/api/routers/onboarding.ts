@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { OnboardingStatus, Role, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
 import { SchedulerService } from "@/lib/services/scheduler.service";
+// Historical data collection is now handled by SchedulerService
 
 const onboardingSchema = z.object({
   userType: z.enum(["solo", "team"]),
@@ -421,5 +422,120 @@ export const onboardingRouter = createTRPCRouter({
       });
 
       return { success: true };
+    }),
+
+  linkSocialAccount: protectedProcedure
+    .input(
+      z.object({
+        platform: z.enum([
+          "INSTAGRAM",
+          "FACEBOOK",
+          "TWITTER",
+          "LINKEDIN",
+          "TIKTOK",
+        ]),
+        accessToken: z.string(),
+        refreshToken: z.string().optional(),
+        profileId: z.string(),
+        name: z.string(),
+        profilePicture: z.string().optional(),
+        teamId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Create social account
+      const socialAccount = await ctx.prisma.socialAccount.create({
+        data: {
+          platform: input.platform,
+          accessToken: input.accessToken,
+          refreshToken: input.refreshToken,
+          profileId: input.profileId,
+          name: input.name,
+          profilePicture: input.profilePicture,
+          userId: ctx.auth.userId,
+          teamId: input.teamId,
+        },
+      });
+
+      // Trigger initial analytics collection for Instagram and Facebook
+      if (input.platform === "INSTAGRAM" || input.platform === "FACEBOOK") {
+        try {
+          // Fetch initial account insights
+          await SchedulerService.fetchInitialAccountInsights(socialAccount.id);
+
+          // Fetch initial heatmap data
+          await SchedulerService.fetchInitialHeatmapData(socialAccount.id);
+
+          console.log(
+            `🚀 Initial analytics collection completed for ${input.name}`
+          );
+        } catch (error) {
+          console.error("Failed to collect initial analytics:", error);
+          // Don't fail the account linking if analytics collection fails
+        }
+      }
+
+      return {
+        socialAccount,
+        message: `${input.platform} account linked successfully! Historical data collection has been started in the background.`,
+      };
+    }),
+
+  // Get analytics collection status
+  getAnalyticsStatus: protectedProcedure
+    .input(z.object({ socialAccountId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      // Get latest analytics data to determine status
+      const latestAnalytics = await ctx.prisma.accountAnalytics.findFirst({
+        where: { socialAccountId: input.socialAccountId },
+        orderBy: { recordedAt: "desc" },
+        select: { recordedAt: true },
+      });
+
+      const latestHotspots = await ctx.prisma.engagementHotspot.findFirst({
+        where: { socialAccountId: input.socialAccountId },
+        orderBy: { updatedAt: "desc" },
+        select: { updatedAt: true },
+      });
+
+      return {
+        hasAnalytics: !!latestAnalytics,
+        hasHotspots: !!latestHotspots,
+        lastAnalyticsUpdate: latestAnalytics?.recordedAt,
+        lastHotspotsUpdate: latestHotspots?.updatedAt,
+      };
+    }),
+
+  // Manual trigger for analytics collection
+  triggerAnalyticsCollection: protectedProcedure
+    .input(
+      z.object({
+        socialAccountId: z.string(),
+        includeHotspots: z.boolean().default(true),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        // Fetch account insights
+        await SchedulerService.fetchInitialAccountInsights(
+          input.socialAccountId
+        );
+
+        // Fetch heatmap data if requested
+        if (input.includeHotspots) {
+          await SchedulerService.fetchInitialHeatmapData(input.socialAccountId);
+        }
+
+        return {
+          success: true,
+          message: "Analytics collection completed successfully",
+        };
+      } catch (error) {
+        console.error("Failed to collect analytics:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to collect analytics",
+        });
+      }
     }),
 });
