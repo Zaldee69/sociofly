@@ -531,14 +531,100 @@ export const realAnalyticsRouter = createTRPCRouter({
           });
         }
 
-        // Use SchedulerService for analytics collection
-        const { SchedulerService } = await import(
-          "@/lib/services/scheduler.service"
+        // Use enhanced Instagram client directly for better analytics
+        const { EnhancedInstagramClient } = await import(
+          "@/lib/services/social-analytics/enhanced-instagram-client"
+        );
+        const { getStandardParams, logCollectionParams } = await import(
+          "@/config/analytics-config"
         );
 
-        // Run account insights collection for all accounts
-        const result =
-          await SchedulerService.runAccountInsightsForAllAccounts();
+        let successCount = 0;
+        let failedCount = 0;
+
+        for (const account of socialAccounts) {
+          try {
+            console.log(
+              `🔄 Collecting analytics for ${account.name} (${account.platform})`
+            );
+
+            if (account.platform === "INSTAGRAM") {
+              // Use enhanced Instagram client for comprehensive analytics
+              const instagramAccount =
+                await ctx.prisma.socialAccount.findUnique({
+                  where: { id: account.id },
+                  select: { profileId: true, accessToken: true },
+                });
+
+              if (
+                instagramAccount?.profileId &&
+                instagramAccount?.accessToken
+              ) {
+                const enhancedClient = new EnhancedInstagramClient();
+                const standardParams = getStandardParams(
+                  "COMPREHENSIVE_INSIGHTS"
+                );
+
+                // Log parameters for debugging
+                logCollectionParams(
+                  "UPDATE_DATA_BUTTON",
+                  standardParams,
+                  account.name || undefined
+                );
+
+                const insights = await enhancedClient.getComprehensiveInsights(
+                  instagramAccount.profileId,
+                  instagramAccount.accessToken,
+                  standardParams
+                );
+
+                // Store the comprehensive insights in AccountAnalytics
+                await ctx.prisma.accountAnalytics.create({
+                  data: {
+                    socialAccountId: account.id,
+                    followersCount: insights.followersCount,
+                    mediaCount: insights.mediaCount,
+                    engagementRate: insights.engagementRate,
+                    avgReachPerPost: insights.averageReachPerPost,
+                    totalReach: insights.totalReach,
+                    totalImpressions: insights.totalImpressions,
+                    totalLikes: insights.totalLikes,
+                    totalComments: insights.totalComments,
+                    totalShares: insights.totalShares,
+                    totalSaves: insights.totalSaves,
+                    avgEngagementPerPost: insights.averageEngagementPerPost,
+                    storyViews: insights.storyViews,
+                    followerGrowth: [],
+                  },
+                });
+
+                console.log(
+                  `✅ Enhanced Instagram analytics for ${account.name}: ${insights.engagementRate}% engagement`
+                );
+              } else {
+                throw new Error("Missing Instagram credentials");
+              }
+            } else {
+              // For other platforms, use scheduler service
+              const { SchedulerService } = await import(
+                "@/lib/services/scheduler.service"
+              );
+              await SchedulerService.fetchInitialAccountInsights(account.id);
+              console.log(`✅ Standard analytics for ${account.name}`);
+            }
+
+            successCount++;
+          } catch (error: any) {
+            failedCount++;
+            console.error(`❌ Failed for ${account.name}:`, error.message);
+          }
+        }
+
+        const result = {
+          total: socialAccounts.length,
+          success: successCount,
+          failed: failedCount,
+        };
 
         return {
           success: true,
@@ -557,6 +643,92 @@ export const realAnalyticsRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to trigger analytics collection",
+          cause: error,
+        });
+      }
+    }),
+
+  /**
+   * Get analytics collection status for a social account
+   */
+  getCollectionStatus: protectedProcedure
+    .input(
+      z.object({
+        socialAccountId: z.string(),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        // Check if user has access to this social account
+        const socialAccount = await ctx.prisma.socialAccount.findUnique({
+          where: { id: input.socialAccountId },
+          include: {
+            team: {
+              include: {
+                memberships: {
+                  where: { userId: ctx.auth.userId },
+                },
+              },
+            },
+          },
+        });
+
+        if (!socialAccount) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Social account not found",
+          });
+        }
+
+        if (socialAccount.team.memberships.length === 0) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You don't have access to this social account",
+          });
+        }
+
+        // Check for recent analytics data (within last 24 hours)
+        const recentAnalytics = await ctx.prisma.accountAnalytics.findFirst({
+          where: {
+            socialAccountId: input.socialAccountId,
+            recordedAt: {
+              gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+            },
+          },
+          orderBy: { recordedAt: "desc" },
+        });
+
+        // Check for any analytics data
+        const hasAnyAnalytics = await ctx.prisma.accountAnalytics.findFirst({
+          where: { socialAccountId: input.socialAccountId },
+          orderBy: { recordedAt: "desc" },
+        });
+
+        // Check for running jobs (simplified check)
+        const isCollecting = false; // We'll implement proper job status checking later
+
+        return {
+          hasRecentData: !!recentAnalytics,
+          hasAnyData: !!hasAnyAnalytics,
+          isCollecting,
+          lastCollected: hasAnyAnalytics?.recordedAt || null,
+          accountCreated: socialAccount.createdAt,
+          status: recentAnalytics
+            ? "ready"
+            : hasAnyAnalytics
+              ? "stale"
+              : isCollecting
+                ? "collecting"
+                : "pending",
+        };
+      } catch (error: any) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to get collection status",
           cause: error,
         });
       }

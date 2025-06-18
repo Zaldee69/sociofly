@@ -91,7 +91,7 @@ export class InstagramPublisher extends BasePublisher {
       }
 
       const response = await fetch(
-        `https://graph.facebook.com/v22.0/${socialAccount.profileId}?fields=id,name&access_token=${socialAccount.accessToken}`
+        `https://graph.facebook.com/v22.0/${socialAccount.profileId}?fields=id,name,username&access_token=${socialAccount.accessToken}`
       );
 
       const data = await response.json();
@@ -133,7 +133,7 @@ export class InstagramPublisher extends BasePublisher {
   }> {
     try {
       let response = await fetch(
-        `https://graph.facebook.com/v22.0/${instagramAccountId}?fields=id,name,account_type&access_token=${accessToken}`
+        `https://graph.facebook.com/v22.0/${instagramAccountId}?fields=id,name,username,account_type&access_token=${accessToken}`
       );
 
       let data = await response.json();
@@ -142,7 +142,7 @@ export class InstagramPublisher extends BasePublisher {
       if (data.error && data.error.message.includes("account_type")) {
         console.log("Account type field not available, trying without it...");
         response = await fetch(
-          `https://graph.facebook.com/v22.0/${instagramAccountId}?fields=id,name&access_token=${accessToken}`
+          `https://graph.facebook.com/v22.0/${instagramAccountId}?fields=id,name,username&access_token=${accessToken}`
         );
         data = await response.json();
       }
@@ -158,7 +158,7 @@ export class InstagramPublisher extends BasePublisher {
         isValid: true,
         accountInfo: {
           id: data.id,
-          username: data.name, // Using name field instead of deprecated username
+          username: data.username || data.name, // Prefer username field over name
           accountType: data.account_type,
           name: data.name,
         },

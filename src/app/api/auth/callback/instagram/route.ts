@@ -194,7 +194,7 @@ export async function GET(request: NextRequest) {
 
   // Get Instagram Business Account details
   const igDetailsResponse = await fetch(
-    `https://graph.facebook.com/v22.0/${instagramBusinessAccount.id}?fields=id,name,profile_picture_url&access_token=${tokenData.access_token}`
+    `https://graph.facebook.com/v22.0/${instagramBusinessAccount.id}?fields=id,name,username,profile_picture_url&access_token=${tokenData.access_token}`
   );
 
   const instagramAccountData = await igDetailsResponse.json();
@@ -239,7 +239,7 @@ export async function GET(request: NextRequest) {
       accessToken: tokenData.access_token,
       profileId: instagramBusinessAccount.id,
       userId: existingUser.id,
-      name: instagramAccountData.name,
+      name: instagramAccountData.username || instagramAccountData.name, // Prefer username over display name
       profilePicture: instagramAccountData.profile_picture_url,
     },
   ];

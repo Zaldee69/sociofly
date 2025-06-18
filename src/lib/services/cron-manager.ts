@@ -727,6 +727,10 @@ export class JobSchedulerManager {
         };
       // New unified analytics jobs
       case JobType.COLLECT_ANALYTICS:
+        // Import standardized parameters
+        const { getStandardParams } = require("@/config/analytics-config");
+        const standardParams = getStandardParams("COMPREHENSIVE_INSIGHTS");
+
         return {
           socialAccountId: "system", // Will be processed for all accounts
           platform: "all",
@@ -734,6 +738,8 @@ export class JobSchedulerManager {
           teamId: "system",
           collectTypes: ["account", "posts", "audience", "links"],
           priority: "normal",
+          // Add standardized collection parameters
+          collectionParams: standardParams,
         };
       case JobType.ANALYZE_COMPREHENSIVE_INSIGHTS:
         return {

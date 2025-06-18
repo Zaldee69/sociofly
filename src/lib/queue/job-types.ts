@@ -141,6 +141,12 @@ export interface CollectAnalyticsJobData {
     end: Date;
   };
   priority: "low" | "normal" | "high";
+  // Standardized collection parameters
+  collectionParams?: {
+    mediaLimit: number;
+    daysBack: number;
+    includeStories: boolean;
+  };
 }
 
 // Unified comprehensive insights analysis

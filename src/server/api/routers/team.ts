@@ -797,9 +797,118 @@ export const teamRouter = createTRPCRouter({
         },
       });
 
-      // Fetch initial insights for the newly created social account
-      await SchedulerService.fetchInitialAccountInsights(socialAccount.id);
-      await SchedulerService.fetchInitialHeatmapData(socialAccount.id);
+      // Schedule background analytics collection for the newly created social account
+      try {
+        console.log(
+          `📋 Scheduling background analytics collection for ${socialAccount.name}...`
+        );
+
+        // Import queue manager for background job scheduling
+        const { QueueManager } = await import("@/lib/queue/queue-manager");
+        const { JobType } = await import("@/lib/queue/job-types");
+        const { JobSchedulerManager } = await import(
+          "@/lib/services/cron-manager"
+        );
+        const { getStandardParams, logCollectionParams } = await import(
+          "@/config/analytics-config"
+        );
+
+        const queueManager = QueueManager.getInstance();
+
+        // Ensure QueueManager is initialized
+        if (!queueManager.isReady()) {
+          console.log(
+            "🚀 Initializing QueueManager for background analytics..."
+          );
+          // Initialize QueueManager directly for analytics collection
+          await JobSchedulerManager.initialize();
+        }
+
+        // Get standardized parameters for collection
+        const standardParams = getStandardParams("QUICK_COLLECTION");
+
+        // Log parameters for debugging
+        logCollectionParams(
+          "ONBOARDING_BACKGROUND",
+          standardParams,
+          socialAccount.name || undefined
+        );
+
+        // Schedule analytics collection job in background
+        await queueManager.addJob(
+          QueueManager.QUEUES.SOCIAL_SYNC,
+          JobType.COLLECT_ANALYTICS,
+          {
+            socialAccountId: socialAccount.id,
+            platform: socialAccount.platform,
+            accountName:
+              socialAccount.name || `${socialAccount.platform} Account`,
+            teamId: input.teamId,
+            collectTypes: ["account", "posts"],
+            priority: "normal",
+            // Add standardized parameters to job data
+            collectionParams: standardParams,
+          },
+          {
+            delay: 5000, // Start after 5 seconds to allow onboarding to complete
+            attempts: 3,
+            backoff: {
+              type: "exponential",
+              delay: 10000,
+            },
+          }
+        );
+
+        // Also schedule heatmap analysis
+        await queueManager.addJob(
+          QueueManager.QUEUES.SOCIAL_SYNC,
+          JobType.ANALYZE_COMPREHENSIVE_INSIGHTS,
+          {
+            socialAccountId: socialAccount.id,
+            teamId: input.teamId,
+            analysisTypes: ["hotspots"],
+            analyzePeriod: "week",
+            includeComparisons: false,
+          },
+          {
+            delay: 30000, // Start after 30 seconds, after analytics collection
+            attempts: 2,
+          }
+        );
+
+        console.log(
+          `✅ Background analytics jobs scheduled for ${socialAccount.name}`
+        );
+      } catch (error: any) {
+        console.error(
+          `⚠️ Failed to schedule analytics collection for ${socialAccount.name}:`,
+          error.message
+        );
+        // Fallback to immediate collection if queue fails
+        try {
+          if (
+            socialAccount.platform === "INSTAGRAM" &&
+            socialAccount.profileId &&
+            socialAccount.accessToken
+          ) {
+            const { SchedulerService } = await import(
+              "@/lib/services/scheduler.service"
+            );
+            await SchedulerService.fetchInitialAccountInsights(
+              socialAccount.id
+            );
+            console.log(
+              `✅ Fallback analytics collected for ${socialAccount.name}`
+            );
+          }
+        } catch (fallbackError: any) {
+          console.error(
+            `❌ Fallback analytics also failed:`,
+            fallbackError.message
+          );
+          // Don't throw - account creation should still succeed
+        }
+      }
 
       return socialAccount;
     }),

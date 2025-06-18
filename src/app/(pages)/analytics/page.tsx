@@ -78,6 +78,17 @@ const Analytics: React.FC = () => {
       { enabled: !!currentTeamId, refetchOnWindowFocus: false }
     );
 
+  // Fetch collection status for selected account
+  const { data: collectionStatus, isLoading: isLoadingCollectionStatus } =
+    trpc.realAnalytics.getCollectionStatus.useQuery(
+      { socialAccountId: selectedAccount },
+      {
+        enabled: !!selectedAccount,
+        refetchOnWindowFocus: false,
+        refetchInterval: 10000, // Refetch every 10 seconds to check status
+      }
+    );
+
   // Mutations
   const triggerCollection =
     trpc.realAnalytics.triggerAccountAnalyticsCollection.useMutation({
@@ -111,11 +122,6 @@ const Analytics: React.FC = () => {
     setSelectedPlatform(platform);
   };
 
-  // Get selected account platform for conditional rendering
-  const selectedAccountData = socialAccounts?.find(
-    (acc) => acc.id === selectedAccount
-  );
-
   const renderActiveSection = () => {
     if (!selectedAccount) {
       return (
@@ -132,12 +138,6 @@ const Analytics: React.FC = () => {
         </div>
       );
     }
-
-    const commonProps = {
-      socialAccountId: selectedAccount,
-      platform: selectedPlatform,
-      isLoading: isLoadingAccountInsight || isLoadingStats,
-    };
 
     switch (activeSection) {
       case "overview":
@@ -278,14 +278,47 @@ const Analytics: React.FC = () => {
 
             <div className="flex items-center gap-3">
               {/* Collection Status */}
+              {selectedAccount && collectionStatus && (
+                <Card className="px-3 py-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-1">
+                      {collectionStatus.status === "collecting" ? (
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                      ) : collectionStatus.status === "ready" ? (
+                        <div className="w-2 h-2 bg-green-500 rounded-full" />
+                      ) : collectionStatus.status === "stale" ? (
+                        <div className="w-2 h-2 bg-yellow-500 rounded-full" />
+                      ) : (
+                        <div className="w-2 h-2 bg-gray-400 rounded-full" />
+                      )}
+                      <span className="text-muted-foreground">
+                        {collectionStatus.status === "collecting"
+                          ? "Mengumpulkan data..."
+                          : collectionStatus.status === "ready"
+                            ? "Data terbaru"
+                            : collectionStatus.status === "stale"
+                              ? "Data lama"
+                              : "Belum ada data"}
+                      </span>
+                      {collectionStatus.lastCollected && (
+                        <Badge variant="secondary" className="text-xs">
+                          {new Date(
+                            collectionStatus.lastCollected
+                          ).toLocaleDateString()}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Global Coverage Stats */}
               {stats && (
                 <Card className="px-3 py-2">
                   <div className="flex items-center gap-2 text-sm">
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                      <span className="text-muted-foreground">
-                        Data Coverage:
-                      </span>
+                      <span className="text-muted-foreground">Coverage:</span>
                       <Badge variant="secondary">
                         {Math.round(stats.coveragePercentage)}%
                       </Badge>
@@ -311,7 +344,7 @@ const Analytics: React.FC = () => {
               </Button>
 
               {/* Account Selector */}
-              <AccountSelector
+              {/* <AccountSelector
                 accounts={(socialAccounts || []).map((acc) => ({
                   id: acc.id,
                   name: acc.name || "Unknown",
@@ -328,7 +361,7 @@ const Analytics: React.FC = () => {
                     handleAccountChange(accountId, account.platform);
                   }
                 }}
-              />
+              /> */}
             </div>
           </div>
         </div>
@@ -380,15 +413,44 @@ const Analytics: React.FC = () => {
                 </div>
               ))}
 
-            {/* Error State */}
-            {!isLoadingAccountInsight && selectedAccount && !accountInsight && (
-              <Alert>
-                <AlertDescription>
-                  Tidak ada data analytics untuk akun ini. Klik "Update Data"
-                  untuk mengumpulkan data terbaru.
-                </AlertDescription>
-              </Alert>
-            )}
+            {/* Collection Status Info */}
+            {!isLoadingAccountInsight &&
+              selectedAccount &&
+              collectionStatus && (
+                <>
+                  {collectionStatus.status === "collecting" && (
+                    <Alert>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <AlertDescription>
+                        Data analytics sedang dikumpulkan di background. Halaman
+                        akan otomatis terupdate dalam beberapa menit.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {collectionStatus.status === "pending" && (
+                    <Alert>
+                      <AlertDescription>
+                        Belum ada data analytics untuk akun ini. Data sedang
+                        dikumpulkan di background setelah akun ditautkan. Klik
+                        "Update Data" jika ingin memperbarui sekarang.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {collectionStatus.status === "stale" && (
+                    <Alert>
+                      <AlertDescription>
+                        Data analytics sudah lama (terakhir:{" "}
+                        {new Date(
+                          collectionStatus.lastCollected!
+                        ).toLocaleString()}
+                        ). Klik "Update Data" untuk mengumpulkan data terbaru.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </>
+              )}
 
             {/* Content */}
             {!isLoadingAccountInsight && (
