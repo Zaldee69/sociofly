@@ -91,7 +91,7 @@ export class InstagramPublisher extends BasePublisher {
       }
 
       const response = await fetch(
-        `https://graph.facebook.com/v22.0/${socialAccount.profileId}?fields=id,username&access_token=${socialAccount.accessToken}`
+        `https://graph.facebook.com/v22.0/${socialAccount.profileId}?fields=id,name&access_token=${socialAccount.accessToken}`
       );
 
       const data = await response.json();
@@ -101,7 +101,7 @@ export class InstagramPublisher extends BasePublisher {
         return false;
       }
 
-      if (!data.id || !data.username) {
+      if (!data.id) {
         console.error(
           "Instagram token validation failed: Missing required fields"
         );
@@ -133,7 +133,7 @@ export class InstagramPublisher extends BasePublisher {
   }> {
     try {
       let response = await fetch(
-        `https://graph.facebook.com/v22.0/${instagramAccountId}?fields=id,username,account_type,name&access_token=${accessToken}`
+        `https://graph.facebook.com/v22.0/${instagramAccountId}?fields=id,name,account_type&access_token=${accessToken}`
       );
 
       let data = await response.json();
@@ -142,7 +142,7 @@ export class InstagramPublisher extends BasePublisher {
       if (data.error && data.error.message.includes("account_type")) {
         console.log("Account type field not available, trying without it...");
         response = await fetch(
-          `https://graph.facebook.com/v22.0/${instagramAccountId}?fields=id,username,name&access_token=${accessToken}`
+          `https://graph.facebook.com/v22.0/${instagramAccountId}?fields=id,name&access_token=${accessToken}`
         );
         data = await response.json();
       }
@@ -158,7 +158,7 @@ export class InstagramPublisher extends BasePublisher {
         isValid: true,
         accountInfo: {
           id: data.id,
-          username: data.username,
+          username: data.name, // Using name field instead of deprecated username
           accountType: data.account_type,
           name: data.name,
         },

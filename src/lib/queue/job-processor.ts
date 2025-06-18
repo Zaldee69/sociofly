@@ -869,6 +869,16 @@ export class JobProcessor {
         console.log(
           `✅ Successfully collected real analytics data for ${socialAccount.platform}`
         );
+        console.log(`📊 Real data preview:`, {
+          followersCount: realData.data?.followersCount,
+          mediaCount: realData.data?.mediaCount,
+          totalLikes: realData.data?.totalLikes,
+          totalComments: realData.data?.totalComments,
+          engagementRate: realData.data?.engagementRate,
+          source: "real_api",
+        });
+
+        console.log(`📊 Full data being saved to database:`, realData.data);
 
         await prisma.accountAnalytics.create({
           data: {
@@ -880,41 +890,25 @@ export class JobProcessor {
 
         return { count: 1, source: "real_api" };
       } else {
+        console.log(`❌ Real API failed: ${realData.error}`);
         console.log(
-          `⚠️ Real API failed, falling back to realistic mock data: ${realData.error}`
+          `⚠️ Skipping analytics collection for account: ${socialAccount.name} - Real API required`
         );
 
-        // Fallback to realistic mock data if real API fails
-        const mockData = this.generateRealisticMockData();
-
-        await prisma.accountAnalytics.create({
-          data: {
-            socialAccountId,
-            ...mockData,
-            recordedAt: new Date(),
-          },
-        });
-
-        return { count: 1, source: "mock_fallback", error: realData.error };
+        // DO NOT use mock data - return error instead
+        return { count: 0, source: "api_failed", error: realData.error };
       }
     } catch (error: any) {
       console.error(
         `❌ Error collecting analytics for ${socialAccountId}:`,
         error
       );
+      console.log(
+        `⚠️ Skipping analytics collection due to error - Real API required`
+      );
 
-      // Final fallback to mock data
-      const mockData = this.generateRealisticMockData();
-
-      await prisma.accountAnalytics.create({
-        data: {
-          socialAccountId,
-          ...mockData,
-          recordedAt: new Date(),
-        },
-      });
-
-      return { count: 1, source: "error_fallback", error: error.message };
+      // DO NOT use mock data - return error instead
+      return { count: 0, source: "error", error: error.message };
     }
   }
 
@@ -1055,17 +1049,28 @@ export class JobProcessor {
       const endDate = new Date();
       const startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-      // Fetch account insights using Graph API
+      // First, get basic account data (followers_count, media_count)
+      const axios = (await import("axios")).default;
+      const basicAccountResp = await axios.get(
+        `https://graph.facebook.com/v22.0/${socialAccount.profileId}`,
+        {
+          params: {
+            fields: "followers_count,media_count,name",
+            access_token: socialAccount.accessToken,
+          },
+        }
+      );
+
+      const basicAccountData = basicAccountResp.data;
+      console.log("📊 Basic Instagram account data:", basicAccountData);
+
+      // Try to get account insights (may fail due to API limitations)
       const accountInsights = await this.fetchInstagramAccountInsightsFromAPI(
         socialAccount.profileId || socialAccount.id,
         socialAccount.accessToken,
         startDate,
         endDate
       );
-
-      if (!accountInsights.success) {
-        return { success: false, error: accountInsights.error };
-      }
 
       // Get recent media for engagement calculation
       const recentMedia = await instagramClient.getAccountMedia(
@@ -1075,10 +1080,18 @@ export class JobProcessor {
         startDate
       );
 
-      // Calculate comprehensive metrics
+      // Get engagement data from recent posts
+      const engagementData = await this.calculateEngagementFromPosts(
+        recentMedia,
+        socialAccount.accessToken
+      );
+
+      // Calculate comprehensive metrics using both basic data and insights
       const analyticsData = this.calculateInstagramAccountMetrics(
-        accountInsights.data,
-        recentMedia
+        accountInsights.success ? accountInsights.data : { data: [] },
+        recentMedia,
+        basicAccountData, // Pass basic account data
+        engagementData // Pass engagement data
       );
 
       return { success: true, data: analyticsData };
@@ -1147,29 +1160,27 @@ export class JobProcessor {
   ): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
       const axios = (await import("axios")).default;
+      let allInsights: any[] = [];
 
-      const insights = [
-        "follower_count", // Total followers
-        "reach", // Unique accounts reached
-        "impressions", // Total impressions
-        "profile_views", // Profile views
-        "website_clicks", // Bio link clicks
-      ].join(",");
+      // Instagram interaction metrics (require metric_type=total_value)
+      // Note: Only basic engagement metrics are compatible with period 'week'
+      const interactionInsights = [
+        "likes", // Total likes
+        "comments", // Total comments
+        "shares", // Total shares
+        "saves", // Total saves (fixed: should be 'saves' not 'saved')
+      ];
 
-      const response = await axios.get(
-        `https://graph.facebook.com/v22.0/${userId}/insights`,
-        {
-          params: {
-            access_token: accessToken,
-            metric: insights,
-            since: startDate.toISOString().split("T")[0],
-            until: endDate.toISOString().split("T")[0],
-            period: "day",
-          },
-        }
-      );
+      // Skip insights API completely due to period compatibility issues
+      // Just return empty insights - we'll use basic account data instead
+      const interactionResponse = { data: { data: [] } };
 
-      return { success: true, data: response.data };
+      allInsights = [...interactionResponse.data.data];
+
+      // Note: profile_views and website_clicks are not available in v22+ interaction metrics
+      // These would require separate API calls or different endpoints if available
+
+      return { success: true, data: { data: allInsights } };
     } catch (error: any) {
       console.error(
         "Instagram account insights error:",
@@ -1297,11 +1308,83 @@ export class JobProcessor {
   }
 
   /**
+   * Calculate engagement data from individual posts
+   */
+  private static async calculateEngagementFromPosts(
+    recentMedia: any[],
+    accessToken: string
+  ): Promise<any> {
+    let totalLikes = 0;
+    let totalComments = 0;
+    let totalShares = 0;
+    let totalSaves = 0;
+    let postsWithEngagement = 0;
+
+    try {
+      const axios = (await import("axios")).default;
+
+      // For each media, try to get basic engagement from the media object itself
+      for (const media of recentMedia.slice(0, 10)) {
+        // Limit to 10 recent posts to avoid rate limits
+        try {
+          // Get media details with engagement data
+          const mediaResponse = await axios.get(
+            `https://graph.facebook.com/v22.0/${media.id}`,
+            {
+              params: {
+                fields: "like_count,comments_count,id,media_type",
+                access_token: accessToken,
+              },
+            }
+          );
+
+          const mediaData = mediaResponse.data;
+          totalLikes += mediaData.like_count || 0;
+          totalComments += mediaData.comments_count || 0;
+          postsWithEngagement++;
+
+          // Small delay to avoid rate limits
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        } catch (error: any) {
+          console.warn(
+            `Failed to get engagement for media ${media.id}:`,
+            error.response?.data?.error?.message || error.message
+          );
+          // Continue with other posts even if one fails
+        }
+      }
+
+      console.log(
+        `📊 Calculated engagement from ${postsWithEngagement} posts: ${totalLikes} likes, ${totalComments} comments`
+      );
+
+      return {
+        totalLikes,
+        totalComments,
+        totalShares, // Instagram doesn't provide shares directly
+        totalSaves, // Would need insights API for saves
+        postsAnalyzed: postsWithEngagement,
+      };
+    } catch (error: any) {
+      console.error("Error calculating engagement from posts:", error);
+      return {
+        totalLikes: 0,
+        totalComments: 0,
+        totalShares: 0,
+        totalSaves: 0,
+        postsAnalyzed: 0,
+      };
+    }
+  }
+
+  /**
    * Calculate Instagram account metrics from API response
    */
   private static calculateInstagramAccountMetrics(
     accountInsights: any,
-    recentMedia: any[]
+    recentMedia: any[],
+    basicAccountData?: any, // Optional basic account data with followers_count, media_count
+    engagementData?: any // Optional engagement data from posts
   ): any {
     const insights = accountInsights.data || [];
     const latestData: any = {};
@@ -1317,16 +1400,12 @@ export class JobProcessor {
           latestData.totalFollowers = latestValue?.value || 0;
           break;
         case "reach":
-          latestData.totalReach = values.reduce(
-            (sum: number, v: any) => sum + (v.value || 0),
-            0
-          );
+          // Reach metric removed due to compatibility issues, set to 0
+          latestData.totalReach = 0;
           break;
-        case "impressions":
-          latestData.totalImpressions = values.reduce(
-            (sum: number, v: any) => sum + (v.value || 0),
-            0
-          );
+        case "views": // New metric replacing impressions in v22+
+          // Views metric removed due to compatibility issues, set to 0
+          latestData.totalImpressions = 0;
           break;
         case "profile_views":
           latestData.profileVisits = values.reduce(
@@ -1343,24 +1422,28 @@ export class JobProcessor {
       }
     });
 
-    // Calculate metrics from media
-    const totalLikes = recentMedia.reduce(
-      (sum, media) => sum + (media.like_count || 0),
-      0
-    );
-    const totalComments = recentMedia.reduce(
-      (sum, media) => sum + (media.comments_count || 0),
-      0
-    );
-    const totalShares = 0; // Instagram doesn't provide share count directly
-    const totalSaves = 0; // Would need insights API for each media
+    // Use engagement data if available, otherwise try to extract from media
+    const totalLikes =
+      engagementData?.totalLikes ||
+      recentMedia.reduce((sum, media) => sum + (media.like_count || 0), 0);
+    const totalComments =
+      engagementData?.totalComments ||
+      recentMedia.reduce((sum, media) => sum + (media.comments_count || 0), 0);
+    const totalShares = engagementData?.totalShares || 0; // Instagram doesn't provide share count directly
+    const totalSaves = engagementData?.totalSaves || 0; // Would need insights API for each media
 
     // Calculate engagement rate
-    const totalEngagement = totalLikes + totalComments;
+    const totalEngagement =
+      totalLikes + totalComments + totalShares + totalSaves;
+
+    // Use followers count as basis for engagement rate if reach is not available
+    const accountFollowers =
+      basicAccountData?.followers_count || latestData.followersCount || 0;
+    const engagementBase =
+      latestData.totalReach > 0 ? latestData.totalReach : accountFollowers;
+
     const engagementRate =
-      latestData.totalReach > 0
-        ? (totalEngagement / latestData.totalReach) * 100
-        : 0;
+      engagementBase > 0 ? (totalEngagement / engagementBase) * 100 : 0;
 
     // Calculate growth (simplified)
     const followersGrowthPercent = this.calculateGrowthPercentage(
@@ -1372,18 +1455,23 @@ export class JobProcessor {
       "reach"
     );
 
+    // Use basic account data if available, otherwise fall back to insights/calculated data
+    const followersCount =
+      basicAccountData?.followers_count || latestData.followersCount || 0;
+    const mediaCount = basicAccountData?.media_count || recentMedia.length;
+
     return {
       // Basic metrics
-      followersCount: latestData.followersCount || 0,
-      mediaCount: recentMedia.length,
+      followersCount,
+      mediaCount,
       engagementRate: parseFloat(engagementRate.toFixed(2)),
       avgReachPerPost: Math.floor(
-        (latestData.totalReach || 0) / Math.max(recentMedia.length, 1)
+        (latestData.totalReach || 0) / Math.max(mediaCount, 1)
       ),
 
       // Additional metrics for UI compatibility
-      totalFollowers: latestData.totalFollowers || 0,
-      totalPosts: recentMedia.length,
+      totalFollowers: followersCount,
+      totalPosts: mediaCount,
       totalReach: latestData.totalReach || 0,
       totalImpressions: latestData.totalImpressions || 0,
       totalLikes,
@@ -1392,7 +1480,7 @@ export class JobProcessor {
       totalSaves, // Would need individual media insights
       totalClicks: latestData.bioLinkClicks || 0,
       avgEngagementPerPost: Math.floor(
-        totalEngagement / Math.max(recentMedia.length, 1)
+        totalEngagement / Math.max(mediaCount, 1)
       ),
       avgClickThroughRate:
         latestData.totalReach > 0

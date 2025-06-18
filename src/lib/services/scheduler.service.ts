@@ -874,12 +874,12 @@ export class SchedulerService {
             `📅 Date range: ${formatDateForAPI(currentPeriodStart)} to ${formatDateForAPI(yesterday)} (29 days)`
           );
 
-          // Get current basic account info
+          // Get current basic account info - Fixed field names for Instagram API
           const basicResp = await axios.get(
             `https://graph.facebook.com/v22.0/${profileId}`,
             {
               params: {
-                fields: "followers_count,media_count",
+                fields: "followers_count,media_count,name,username",
                 access_token: accessToken,
               },
             }
@@ -1350,12 +1350,12 @@ export class SchedulerService {
         `Date range: ${formatDateForAPI(currentPeriodStart)} to ${formatDateForAPI(yesterday)} (29 days)`
       );
 
-      // Get current basic account info
+      // Get current basic account info - Fixed field names for Instagram API
       const basicResp = await axios.get(
         `https://graph.facebook.com/v22.0/${profileId}`,
         {
           params: {
-            fields: "followers_count,media_count",
+            fields: "followers_count,media_count,name,username",
             access_token: accessToken,
           },
         }

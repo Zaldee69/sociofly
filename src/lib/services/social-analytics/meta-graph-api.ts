@@ -14,7 +14,7 @@ export interface InstagramMediaInsights {
   timestamp: string;
   insights: {
     impressions: number;
-    reach: number;
+    reach: number; // Keep for backward compatibility, but will be 0
     engagement: number;
     likes: number;
     comments: number;
@@ -42,7 +42,7 @@ export interface FacebookPageInsights {
 }
 
 export class MetaGraphAPI {
-  private baseUrl = "https://graph.facebook.com/v19.0";
+  private baseUrl = "https://graph.facebook.com/v22.0";
   private credentials: MetaAPICredentials;
 
   constructor(credentials: MetaAPICredentials) {
@@ -54,47 +54,52 @@ export class MetaGraphAPI {
    */
   async getInstagramAccountInsights(
     accountId: string,
-    period: "day" | "week" | "days_28" = "days_28"
+    period: "day" | "week" = "week" // Changed default from days_28 to week
   ): Promise<InstagramAccountInsights> {
-    const metrics = [
-      "follower_count",
-      "media_count",
-      "impressions",
-      "reach",
-      "profile_views",
-      "website_clicks",
-    ];
-
     const url = `${this.baseUrl}/${accountId}/insights`;
-    const params = new URLSearchParams({
-      metric: metrics.join(","),
-      period,
-      access_token: this.credentials.accessToken,
-    });
+    const insights: any = {};
 
     try {
-      const response = await fetch(`${url}?${params}`);
-      const data = await response.json();
+      // First API call for interaction metrics (require metric_type=total_value)
+      // Note: Only basic engagement metrics are compatible with period 'week'
+      const interactionMetrics = [
+        "likes",
+        "comments",
+        "shares",
+        "saves", // Fixed: should be 'saves' not 'saved'
+      ];
 
-      if (!response.ok) {
+      const interactionParams = new URLSearchParams({
+        metric: interactionMetrics.join(","),
+        period,
+        metric_type: "total_value", // Required for interaction metrics
+        access_token: this.credentials.accessToken,
+      });
+
+      const interactionResponse = await fetch(`${url}?${interactionParams}`);
+      const interactionData = await interactionResponse.json();
+
+      if (!interactionResponse.ok) {
         throw new Error(
-          `Instagram API Error: ${data.error?.message || response.statusText}`
+          `Instagram API Error: ${interactionData.error?.message || interactionResponse.statusText}`
         );
       }
 
-      // Transform API response to our format
-      const insights: any = {};
-      data.data.forEach((metric: any) => {
-        insights[metric.name] = metric.values[0]?.value || 0;
+      // Process interaction metrics
+      interactionData.data.forEach((metric: any) => {
+        insights[metric.name] = metric.total_value?.value || 0;
       });
 
+      // Note: profile_views and website_clicks are not available in the interaction metrics
+      // These might be available through different endpoints or not supported in v22+
+
       return {
-        follower_count: insights.follower_count || 0,
-        media_count: insights.media_count || 0,
-        impressions: insights.impressions || 0,
-        reach: insights.reach || 0,
-        profile_views: insights.profile_views || 0,
-        website_clicks: insights.website_clicks || 0,
+        follower_count: 0, // Not available in interaction metrics - would need separate API call
+        media_count: 0, // Not available in interaction metrics - would need separate API call
+        impressions: 0, // Removed: incompatible with period 'week' in v22+
+        reach: 0, // Removed: incompatible with period 'week' in v22+
+        profile_views: 0, // Not available in v22+ interaction metrics
+        website_clicks: 0, // Not available in v22+ interaction metrics
       };
     } catch (error) {
       console.error("Failed to fetch Instagram account insights:", error);
@@ -168,25 +173,8 @@ export class MetaGraphAPI {
   private async getMediaInsights(mediaId: string, mediaType: string) {
     const metrics =
       mediaType === "VIDEO"
-        ? [
-            "impressions",
-            "reach",
-            "engagement",
-            "likes",
-            "comments",
-            "shares",
-            "saves",
-            "video_views",
-          ]
-        : [
-            "impressions",
-            "reach",
-            "engagement",
-            "likes",
-            "comments",
-            "shares",
-            "saves",
-          ];
+        ? ["engagement", "likes", "comments", "shares", "saves", "video_views"]
+        : ["engagement", "likes", "comments", "shares", "saves"];
 
     const url = `${this.baseUrl}/${mediaId}/insights`;
     const params = new URLSearchParams({
@@ -207,8 +195,8 @@ export class MetaGraphAPI {
     });
 
     return {
-      impressions: insights.impressions || 0,
-      reach: insights.reach || 0,
+      impressions: 0, // Deprecated in v22+ - set to 0 for compatibility
+      reach: 0, // Removed: incompatible with some periods in v22+
       engagement: insights.engagement || 0,
       likes: insights.likes || 0,
       comments: insights.comments || 0,
@@ -271,8 +259,7 @@ export class MetaGraphAPI {
    */
   private async getStoryInsights(storyId: string) {
     const metrics = [
-      "impressions",
-      "reach",
+      // "reach" is incompatible with some periods in v22+
       "replies",
       "exits",
       "taps_forward",
@@ -298,16 +285,13 @@ export class MetaGraphAPI {
     });
 
     return {
-      impressions: insights.impressions || 0,
-      reach: insights.reach || 0,
+      impressions: 0, // Deprecated in v22+ - set to 0 for compatibility
+      reach: 0, // Removed: incompatible with some periods in v22+
       replies: insights.replies || 0,
       exits: insights.exits || 0,
       taps_forward: insights.taps_forward || 0,
       taps_back: insights.taps_back || 0,
-      completion_rate:
-        insights.reach > 0
-          ? ((insights.reach - insights.exits) / insights.reach) * 100
-          : 0,
+      completion_rate: 0, // Cannot calculate without reach data
     };
   }
 

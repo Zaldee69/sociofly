@@ -184,22 +184,19 @@ export class InstagramAnalyticsClient {
 
       // Use only metrics supported in v22.0+
       // Based on: https://developers.facebook.com/docs/instagram-platform/reference/instagram-media/insights/
+      // Note: Only basic engagement metrics are compatible
       const supportedBasicInsights = [
-        "reach", // ✅ Still supported
         "likes", // ✅ Still supported
         "comments", // ✅ Still supported
         "shares", // ✅ Still supported
         "saved", // ✅ Still supported
-        "views", // ✅ New metric replacing impressions
       ];
 
       const supportedVideoInsights = [
-        "reach", // ✅ Still supported
         "likes", // ✅ Still supported
         "comments", // ✅ Still supported
         "shares", // ✅ Still supported
         "saved", // ✅ Still supported
-        "views", // ✅ New metric replacing impressions
         "ig_reels_avg_watch_time", // ✅ For reels
       ];
 
@@ -283,7 +280,7 @@ export class InstagramAnalyticsClient {
       const response = await this.httpClient.get("/me", {
         params: {
           access_token: accessToken,
-          fields: "id,username",
+          fields: "id,name",
         },
       });
 
