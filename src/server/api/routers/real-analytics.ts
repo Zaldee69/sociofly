@@ -649,6 +649,227 @@ export const realAnalyticsRouter = createTRPCRouter({
     }),
 
   /**
+   * Get post performance analytics for a social account
+   */
+  getPostPerformance: protectedProcedure
+    .input(
+      z.object({
+        socialAccountId: z.string(),
+        teamId: z.string(),
+        platform: z.enum(["INSTAGRAM", "FACEBOOK", "TWITTER"]).optional(),
+        contentFormat: z
+          .enum(["IMAGE", "VIDEO", "CAROUSEL", "REELS", "STORY"])
+          .optional(),
+        sortBy: z
+          .enum(["engagementRate", "reach", "impressions", "publishedAt"])
+          .default("engagementRate"),
+        limit: z.number().min(1).max(100).default(20),
+        dateFrom: z.date().optional(),
+        dateTo: z.date().optional(),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        // Check if user has access to this social account
+        const socialAccount = await ctx.prisma.socialAccount.findUnique({
+          where: { id: input.socialAccountId },
+          include: {
+            team: {
+              include: {
+                memberships: {
+                  where: { userId: ctx.auth.userId },
+                },
+              },
+            },
+          },
+        });
+
+        if (!socialAccount) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Social account not found",
+          });
+        }
+
+        if (socialAccount.team.memberships.length === 0) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You don't have access to this social account",
+          });
+        }
+
+        if (socialAccount.teamId !== input.teamId) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Social account doesn't belong to the specified team",
+          });
+        }
+
+        // Build query filters
+        const whereClause: any = {
+          socialAccountId: input.socialAccountId,
+          post: {
+            status: "PUBLISHED",
+            publishedAt: {
+              not: null,
+            },
+            ...(input.dateFrom &&
+              input.dateTo && {
+                publishedAt: {
+                  gte: input.dateFrom,
+                  lte: input.dateTo,
+                },
+              }),
+          },
+          analytics: {
+            some: {}, // Only include posts that have analytics data
+          },
+        };
+
+        // Add platform filter if specified
+        if (input.platform) {
+          whereClause.socialAccount = {
+            platform: input.platform,
+          };
+        }
+
+        // Get posts with their latest analytics
+        const postSocialAccounts = await ctx.prisma.postSocialAccount.findMany({
+          where: whereClause,
+          include: {
+            post: {
+              select: {
+                id: true,
+                content: true,
+                publishedAt: true,
+                mediaUrls: true,
+              },
+            },
+            socialAccount: {
+              select: {
+                platform: true,
+              },
+            },
+            analytics: {
+              orderBy: { recordedAt: "desc" },
+              take: 1, // Get the latest analytics record
+              ...(input.contentFormat && {
+                where: {
+                  contentFormat: input.contentFormat,
+                },
+              }),
+            },
+          },
+          take: input.limit,
+        });
+
+        // Transform data to match the expected format
+        const postMetrics = postSocialAccounts
+          .filter((psa) => psa.analytics.length > 0) // Only include posts with analytics
+          .map((psa) => {
+            const latestAnalytics = psa.analytics[0];
+            const totalEngagement =
+              latestAnalytics.likes +
+              latestAnalytics.reactions +
+              latestAnalytics.comments +
+              latestAnalytics.shares +
+              latestAnalytics.saves;
+
+            // Calculate engagement rate
+            const engagementRate =
+              latestAnalytics.reach > 0
+                ? (totalEngagement / latestAnalytics.reach) * 100
+                : 0;
+
+            // Calculate performance score (0-100)
+            const performanceScore = Math.min(
+              100,
+              Math.round(
+                engagementRate * 0.4 +
+                  latestAnalytics.ctr * 20 +
+                  (latestAnalytics.reach > 1000
+                    ? 30
+                    : (latestAnalytics.reach / 1000) * 30)
+              )
+            );
+
+            // Determine content format from media URLs if not in analytics
+            let contentFormat = latestAnalytics.contentFormat;
+            if (!contentFormat && psa.post.mediaUrls.length > 0) {
+              const firstMedia = psa.post.mediaUrls[0];
+              if (firstMedia.includes(".mp4") || firstMedia.includes(".mov")) {
+                contentFormat = "VIDEO";
+              } else if (psa.post.mediaUrls.length > 1) {
+                contentFormat = "CAROUSEL";
+              } else {
+                contentFormat = "IMAGE";
+              }
+            }
+
+            return {
+              id: psa.id,
+              platform: psa.socialAccount.platform,
+              contentFormat: contentFormat || "IMAGE",
+              content: psa.post.content,
+              publishedAt: psa.post.publishedAt?.toISOString() || "",
+
+              // Engagement metrics
+              likes: latestAnalytics.likes,
+              reactions: latestAnalytics.reactions,
+              comments: latestAnalytics.comments,
+              shares: latestAnalytics.shares,
+              saves: latestAnalytics.saves,
+              clicks: latestAnalytics.clicks,
+
+              // Reach & Impressions
+              reach: latestAnalytics.reach,
+              impressions: latestAnalytics.impressions,
+
+              // Calculated metrics
+              engagementRate: Number(engagementRate.toFixed(2)),
+              ctr: Number(latestAnalytics.ctr.toFixed(2)),
+              timeToEngagement: latestAnalytics.timeToEngagement,
+
+              // Performance indicators
+              isTopPerformer: performanceScore >= 80,
+              performanceScore,
+            };
+          });
+
+        // Sort the results
+        const sortedMetrics = postMetrics.sort((a, b) => {
+          switch (input.sortBy) {
+            case "engagementRate":
+              return b.engagementRate - a.engagementRate;
+            case "reach":
+              return b.reach - a.reach;
+            case "impressions":
+              return b.impressions - a.impressions;
+            case "publishedAt":
+              return (
+                new Date(b.publishedAt).getTime() -
+                new Date(a.publishedAt).getTime()
+              );
+            default:
+              return b.engagementRate - a.engagementRate;
+          }
+        });
+
+        return sortedMetrics;
+      } catch (error: any) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to get post performance",
+          cause: error,
+        });
+      }
+    }),
+
+  /**
    * Get analytics collection status for a social account
    */
   getCollectionStatus: protectedProcedure

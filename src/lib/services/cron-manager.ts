@@ -5,6 +5,7 @@ import { JOB_CONSTANTS } from "@/lib/queue/job-constants";
 import { SchedulerService } from "./scheduler.service";
 import { prisma } from "@/lib/prisma/client";
 import { UnifiedRedisManager } from "./unified-redis-manager";
+import { getStandardParams } from "@/config/analytics-config";
 
 interface ScheduledJobConfig {
   name: string;
@@ -474,7 +475,7 @@ export class JobSchedulerManager {
       // Group logs by job name and calculate stats
       const jobStats: Record<string, any> = {};
 
-      logs.forEach((log) => {
+      logs.forEach((log: any) => {
         // Remove 'enhanced_' or 'queue_' prefix from the name
         const jobName = log.name.replace(/^(enhanced_|queue_)/, "");
 
@@ -726,9 +727,8 @@ export class JobSchedulerManager {
           userId: "system",
         };
       // New unified analytics jobs
-      case JobType.COLLECT_ANALYTICS:
-        // Import standardized parameters
-        const { getStandardParams } = require("@/config/analytics-config");
+      case JobType.COLLECT_ANALYTICS: {
+        // Use standardized parameters
         const standardParams = getStandardParams("COMPREHENSIVE_INSIGHTS");
 
         return {
@@ -741,6 +741,7 @@ export class JobSchedulerManager {
           // Add standardized collection parameters
           collectionParams: standardParams,
         };
+      }
       case JobType.ANALYZE_COMPREHENSIVE_INSIGHTS:
         return {
           userId: "system",

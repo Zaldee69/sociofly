@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SocialPlatform, ContentFormat } from "@prisma/client";
 
 interface PostPerformanceProps {
   socialAccountId?: string;
@@ -45,8 +46,8 @@ interface PostPerformanceProps {
 
 interface PostMetrics {
   id: string;
-  platform: "INSTAGRAM" | "FACEBOOK" | "TWITTER";
-  contentFormat: "IMAGE" | "VIDEO" | "CAROUSEL" | "REELS" | "STORY";
+  platform: SocialPlatform;
+  contentFormat: ContentFormat;
   content: string;
   publishedAt: string;
 
@@ -65,7 +66,7 @@ interface PostMetrics {
   // Calculated metrics
   engagementRate: number;
   ctr: number;
-  timeToEngagement?: number; // minutes
+  timeToEngagement?: number | null; // minutes
 
   // Performance indicators
   isTopPerformer: boolean;
@@ -80,100 +81,39 @@ const PostPerformanceSection: React.FC<PostPerformanceProps> = ({
   const [selectedFormat, setSelectedFormat] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("engagementRate");
 
-  // Fetch post analytics data (commented out until tRPC router is implemented)
-  // const { data: postAnalytics, isLoading } = trpc.analytics.getPostPerformance.useQuery({
-  //   socialAccountId: socialAccountId || "",
-  //   teamId: teamId || "",
-  //   platform: selectedPlatform !== "all" ? selectedPlatform : undefined,
-  //   contentFormat: selectedFormat !== "all" ? selectedFormat : undefined,
-  //   sortBy: sortBy as "engagementRate" | "reach" | "impressions" | "publishedAt"
-  // }, {
-  //   enabled: !!socialAccountId && !!teamId
-  // });
+  // Fetch post analytics data from real API
+  const { data: postAnalytics, isLoading } =
+    trpc.realAnalytics.getPostPerformance.useQuery(
+      {
+        socialAccountId: socialAccountId || "",
+        teamId: teamId || "",
+        platform:
+          selectedPlatform !== "all"
+            ? (selectedPlatform as "INSTAGRAM" | "FACEBOOK" | "TWITTER")
+            : undefined,
+        contentFormat:
+          selectedFormat !== "all"
+            ? (selectedFormat as
+                | "IMAGE"
+                | "VIDEO"
+                | "CAROUSEL"
+                | "REELS"
+                | "STORY")
+            : undefined,
+        sortBy: sortBy as
+          | "engagementRate"
+          | "reach"
+          | "impressions"
+          | "publishedAt",
+      },
+      {
+        enabled: !!socialAccountId && !!teamId,
+        refetchInterval: 60000, // Refetch every minute for real-time updates
+        staleTime: 50000, // Consider data stale after 50 seconds
+      }
+    );
 
-  const isLoading = false;
-
-  // Mock data for demonstration (remove when real API is ready)
-  const mockPosts: PostMetrics[] = [
-    {
-      id: "1",
-      platform: "INSTAGRAM",
-      contentFormat: "REELS",
-      content: "Behind the scenes of our latest product launch! 🚀",
-      publishedAt: "2024-01-15T10:30:00Z",
-      likes: 1250,
-      comments: 89,
-      shares: 34,
-      saves: 156,
-      clicks: 45,
-      reach: 8500,
-      impressions: 12400,
-      engagementRate: 18.2,
-      ctr: 0.53,
-      timeToEngagement: 15,
-      isTopPerformer: true,
-      performanceScore: 92,
-    },
-    {
-      id: "2",
-      platform: "FACEBOOK",
-      contentFormat: "VIDEO",
-      content: "Customer testimonial: Why they love our service",
-      publishedAt: "2024-01-14T14:20:00Z",
-      likes: 890,
-      reactions: 234,
-      comments: 67,
-      shares: 89,
-      clicks: 234,
-      reach: 12300,
-      impressions: 18600,
-      engagementRate: 9.8,
-      ctr: 1.9,
-      timeToEngagement: 8,
-      isTopPerformer: false,
-      performanceScore: 76,
-    },
-    {
-      id: "3",
-      platform: "INSTAGRAM",
-      contentFormat: "CAROUSEL",
-      content: "Step-by-step guide to maximize your productivity",
-      publishedAt: "2024-01-13T09:15:00Z",
-      likes: 2100,
-      comments: 123,
-      shares: 45,
-      saves: 289,
-      clicks: 78,
-      reach: 15600,
-      impressions: 21800,
-      engagementRate: 14.6,
-      ctr: 0.5,
-      timeToEngagement: 22,
-      isTopPerformer: true,
-      performanceScore: 87,
-    },
-    {
-      id: "4",
-      platform: "INSTAGRAM",
-      contentFormat: "IMAGE",
-      content: "Motivational quote for Monday morning ✨",
-      publishedAt: "2024-01-12T07:00:00Z",
-      likes: 456,
-      comments: 23,
-      shares: 12,
-      saves: 67,
-      clicks: 8,
-      reach: 3200,
-      impressions: 4100,
-      engagementRate: 15.3,
-      ctr: 0.25,
-      timeToEngagement: 45,
-      isTopPerformer: false,
-      performanceScore: 68,
-    },
-  ];
-
-  const data = mockPosts;
+  const data = postAnalytics || [];
 
   const renderPlatformIcon = (platform: string) => {
     switch (platform) {
@@ -250,6 +190,61 @@ const PostPerformanceSection: React.FC<PostPerformanceProps> = ({
           <Skeleton className="h-[60px] w-full" />
           <Skeleton className="h-[400px] w-full" />
         </div>
+      </section>
+    );
+  }
+
+  // Show empty state if no social account selected or no data
+  if (!socialAccountId || !teamId) {
+    return (
+      <section id="post-performance" className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold">Post Performance</h2>
+          <p className="text-muted-foreground">
+            Select a social media account to view detailed post analytics
+          </p>
+        </div>
+        <Card>
+          <CardContent className="flex items-center justify-center h-[400px]">
+            <div className="text-center space-y-4">
+              <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto" />
+              <div>
+                <h3 className="text-lg font-semibold">No Account Selected</h3>
+                <p className="text-muted-foreground">
+                  Choose a social media account from the sidebar to view post
+                  performance metrics
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+    );
+  }
+
+  // Show empty state if no posts found
+  if (data.length === 0) {
+    return (
+      <section id="post-performance" className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold">Post Performance</h2>
+          <p className="text-muted-foreground">
+            No published posts found with analytics data
+          </p>
+        </div>
+        <Card>
+          <CardContent className="flex items-center justify-center h-[400px]">
+            <div className="text-center space-y-4">
+              <Image className="h-12 w-12 text-muted-foreground mx-auto" />
+              <div>
+                <h3 className="text-lg font-semibold">No Posts Found</h3>
+                <p className="text-muted-foreground">
+                  Publish some posts first, then analytics data will appear here
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </section>
     );
   }
