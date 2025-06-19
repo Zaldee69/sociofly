@@ -22,6 +22,9 @@ const formatDateForAPI = (date: Date): string => {
   return date.toISOString().split("T")[0];
 };
 
+// Add tracking for posts currently being processed
+const processingPosts = new Set<string>();
+
 export class SchedulerService {
   /**
    * Checks for and publishes all posts that are due to be published
@@ -39,6 +42,7 @@ export class SchedulerService {
     try {
       // Get current time
       const now = new Date();
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutes ago
 
       // Limit processing to prevent overwhelming the system
       // Reduced batch size to prevent Instagram API rate limiting
@@ -67,6 +71,7 @@ export class SchedulerService {
 
       // Find scheduled posts that are due (with limit for performance)
       // Exclude posts that recently failed due to rate limits
+      // Exclude posts that are already being processed
       const duePosts = await prisma.post.findMany({
         where: {
           status: PostStatus.SCHEDULED,
@@ -83,6 +88,10 @@ export class SchedulerService {
                 },
               },
             ],
+          },
+          // Additional filter: exclude posts that were recently updated (to prevent race conditions)
+          updatedAt: {
+            lt: fiveMinutesAgo, // Only process posts that haven't been updated in the last 5 minutes
           },
         },
         include: {
@@ -104,14 +113,19 @@ export class SchedulerService {
         take: BATCH_SIZE, // Limit to prevent overwhelming system
       });
 
+      // Filter out posts that are already being processed
+      const availablePosts = duePosts.filter(
+        (post) => !processingPosts.has(post.id)
+      );
+
       console.log(
-        `📋 Processing ${duePosts.length} of ${totalDue} due posts (batch size: ${BATCH_SIZE})`
+        `📋 Processing ${availablePosts.length} of ${totalDue} due posts (batch size: ${BATCH_SIZE}, ${duePosts.length - availablePosts.length} already processing)`
       );
 
       // Log if there are any posts that were scheduled but no longer exist
-      if (totalDue > duePosts.length) {
+      if (totalDue > availablePosts.length) {
         console.log(
-          `ℹ️  Note: ${totalDue - duePosts.length} scheduled posts may have been deleted or are being rate-limited`
+          `ℹ️  Note: ${totalDue - availablePosts.length} scheduled posts may have been deleted, are being rate-limited, or already processing`
         );
       }
 
@@ -123,11 +137,56 @@ export class SchedulerService {
 
       // Use Promise.allSettled for parallel processing with error isolation
       // But add sequential delays to prevent API overload
-      const postPromises = duePosts.map(async (post, index) => {
+      const postPromises = availablePosts.map(async (post, index) => {
         try {
+          // Mark post as being processed
+          processingPosts.add(post.id);
+
           // Add staggered delay to prevent all posts hitting API simultaneously
           if (index > 0) {
             await new Promise((resolve) => setTimeout(resolve, index * 1000)); // 1s delay per post
+          }
+
+          // Double-check post is still schedulable (race condition protection)
+          const freshPost = await prisma.post.findUnique({
+            where: { id: post.id },
+            select: {
+              id: true,
+              status: true,
+              scheduledAt: true,
+              postSocialAccounts: {
+                select: {
+                  status: true,
+                },
+              },
+            },
+          });
+
+          if (!freshPost || freshPost.status !== PostStatus.SCHEDULED) {
+            console.log(
+              `⏩ Skipping post ${post.id} - status changed during processing`
+            );
+            return {
+              status: "skipped",
+              postId: post.id,
+              reason: "status changed",
+            };
+          }
+
+          // Check if any social accounts are already published (partial publishing scenario)
+          const hasPublishedAccounts = freshPost.postSocialAccounts.some(
+            (psa) => psa.status === PostStatus.PUBLISHED
+          );
+
+          if (hasPublishedAccounts) {
+            console.log(
+              `⏩ Skipping post ${post.id} - some accounts already published`
+            );
+            return {
+              status: "skipped",
+              postId: post.id,
+              reason: "partially published",
+            };
           }
 
           // Check if post needs approval
@@ -187,6 +246,9 @@ export class SchedulerService {
             error instanceof Error ? error.message : String(error);
           console.error(`❌ Error processing post ${post.id}:`, errorMessage);
           return { status: "failed", postId: post.id, error: errorMessage };
+        } finally {
+          // Always remove from processing set
+          processingPosts.delete(post.id);
         }
       });
 
@@ -216,16 +278,17 @@ export class SchedulerService {
       });
 
       // Single batch log entry instead of individual logs (reduces DB writes significantly)
-      if (duePosts.length > 0) {
+      if (availablePosts.length > 0) {
         const batchData = {
-          processed: duePosts.length,
+          processed: availablePosts.length,
           success: successCount,
           failed: failedCount,
           skipped: skippedCount,
           rate_limited: rateLimitedCount,
           total: totalDue,
-          remaining: totalDue - duePosts.length,
+          remaining: totalDue - availablePosts.length,
           batchSize: BATCH_SIZE,
+          alreadyProcessing: duePosts.length - availablePosts.length,
         };
 
         const logData = {
@@ -236,7 +299,7 @@ export class SchedulerService {
                 ? "PARTIAL"
                 : "FAILED"
               : "SUCCESS",
-          message: `Batch processed ${duePosts.length} posts: ${successCount} success, ${failedCount} failed, ${skippedCount} skipped, ${rateLimitedCount} rate_limited. ${totalDue - duePosts.length} remaining. Data: ${JSON.stringify(batchData)}`,
+          message: `Batch processed ${availablePosts.length} posts: ${successCount} success, ${failedCount} failed, ${skippedCount} skipped, ${rateLimitedCount} rate_limited. ${totalDue - availablePosts.length} remaining. ${batchData.alreadyProcessing} already processing. Data: ${JSON.stringify(batchData)}`,
         };
 
         await prisma.taskLog.create({ data: logData });
@@ -247,7 +310,7 @@ export class SchedulerService {
         failed: failedCount,
         skipped: skippedCount,
         rate_limited: rateLimitedCount,
-        processed: duePosts.length,
+        processed: availablePosts.length,
         total: totalDue,
       };
     } catch (error) {

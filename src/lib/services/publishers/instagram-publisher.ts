@@ -207,6 +207,10 @@ export class InstagramPublisher extends BasePublisher {
       const containerData = await containerResponse.json();
 
       if (containerData.error) {
+        console.error(
+          `❌ Failed to create media container:`,
+          containerData.error
+        );
         throw new Error(
           `Failed to create media container: ${containerData.error.message}`
         );
@@ -221,6 +225,7 @@ export class InstagramPublisher extends BasePublisher {
       }
 
       // Step 3: Publish the media
+      console.log(`📤 Publishing media container: ${containerId}`);
       const publishResponse = await fetch(
         `https://graph.facebook.com/v22.0/${instagramAccountId}/media_publish`,
         {
@@ -236,17 +241,31 @@ export class InstagramPublisher extends BasePublisher {
       const publishData = await publishResponse.json();
 
       if (publishData.error) {
+        console.error(`❌ Failed to publish media:`, publishData.error);
         throw new Error(
           `Failed to publish media: ${publishData.error.message}`
         );
       }
 
+      const publishedPostId = publishData.id;
       console.log(
-        `🎉 Instagram post published successfully: ${publishData.id}`
+        `🎉 Instagram post published successfully: ${publishedPostId}`
       );
-      return publishData.id;
+
+      // Add additional logging to track successful publications
+      console.log(`📊 Instagram publish summary:`, {
+        instagramAccountId,
+        containerId,
+        publishedPostId,
+        mediaType,
+        mediaUrl: mediaUrl.substring(0, 50) + "...",
+        captionLength: caption.length,
+        timestamp: new Date().toISOString(),
+      });
+
+      return publishedPostId;
     } catch (error) {
-      console.error("Error creating single media post:", error);
+      console.error("❌ Error creating single media post:", error);
       throw error;
     }
   }

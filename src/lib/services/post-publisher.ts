@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma/client";
 import { publisherFactory } from "./publishers/publisher-factory";
 import { PublishResult } from "./publishers/types";
 
+// Add a simple in-memory lock to prevent duplicate processing
+const processingLocks = new Set<string>();
+
 export class PostPublisherService {
   /**
    * Publish a post to a specific social media platform
@@ -11,31 +14,84 @@ export class PostPublisherService {
     postId: string,
     socialAccountId: string
   ): Promise<PublishResult> {
-    try {
-      // Get post and social account data
-      const postSocialAccount = await prisma.postSocialAccount.findUnique({
-        where: {
-          postId_socialAccountId: {
-            postId,
-            socialAccountId,
-          },
-        },
-        include: {
-          post: true,
-          socialAccount: true,
-        },
-      });
+    // Create a unique lock key for this post-account combination
+    const lockKey = `${postId}-${socialAccountId}`;
 
-      if (!postSocialAccount) {
-        throw new Error("Post or social account not found");
+    // Check if this post-account is already being processed
+    if (processingLocks.has(lockKey)) {
+      console.log(
+        `⏸️  Post ${postId} for account ${socialAccountId} is already being processed, skipping...`
+      );
+      return {
+        success: false,
+        error: "Post is already being processed",
+        platform: "UNKNOWN" as any,
+      };
+    }
+
+    try {
+      // Add lock
+      processingLocks.add(lockKey);
+
+      // Check if this specific post to social account has already been published
+      const existingPostSocialAccount =
+        await prisma.postSocialAccount.findUnique({
+          where: {
+            postId_socialAccountId: {
+              postId,
+              socialAccountId,
+            },
+          },
+        });
+
+      if (existingPostSocialAccount?.status === PostStatus.PUBLISHED) {
+        console.log(
+          `✅ Post ${postId} already published to account ${socialAccountId}, skipping...`
+        );
+        // Get the social account to retrieve platform info
+        const socialAccount = await prisma.socialAccount.findUnique({
+          where: { id: socialAccountId },
+          select: { platform: true },
+        });
+
+        return {
+          success: true,
+          error: "Already published",
+          platform: socialAccount?.platform || ("UNKNOWN" as any),
+          platformPostId: existingPostSocialAccount.platformPostId || undefined,
+        };
       }
 
-      const { post, socialAccount } = postSocialAccount;
+      // Get post and social account details
+      const [post, socialAccount] = await Promise.all([
+        prisma.post.findUnique({
+          where: { id: postId },
+        }),
+        prisma.socialAccount.findUnique({
+          where: { id: socialAccountId },
+        }),
+      ]);
 
-      // Get the appropriate publisher using the factory
+      if (!post) {
+        return {
+          success: false,
+          error: "Post not found",
+          platform: "UNKNOWN" as any,
+        };
+      }
+
+      if (!socialAccount) {
+        return {
+          success: false,
+          error: "Social account not found",
+          platform: "UNKNOWN" as any,
+        };
+      }
+
+      // Get the appropriate publisher
       const publisher = publisherFactory.getPublisher(socialAccount.platform);
 
-      // Publish the content
+      // Publish the post
       const publishResult = await publisher.publish(
         socialAccount,
         post.content,
@@ -106,6 +162,9 @@ export class PostPublisherService {
         error: error instanceof Error ? error.message : "Unknown error",
         platform: publisherFactory.getSupportedPlatforms()[0], // Fallback platform
       };
+    } finally {
+      // Always remove the lock, even if an error occurs
+      processingLocks.delete(lockKey);
     }
   }
 
@@ -116,11 +175,77 @@ export class PostPublisherService {
     postId: string
   ): Promise<PublishResult[]> {
     try {
-      // Get all social accounts associated with the post
-      const postSocialAccounts = await prisma.postSocialAccount.findMany({
-        where: { postId },
-        select: { socialAccountId: true },
+      // Check if post is already being processed globally
+      if (processingLocks.has(postId)) {
+        console.log(
+          `⏸️  Post ${postId} is already being processed globally, skipping...`
+        );
+        return [
+          {
+            success: false,
+            error: "Post is already being processed",
+            platform: "UNKNOWN" as any,
+          },
+        ];
+      }
+
+      // Add global post lock
+      processingLocks.add(postId);
+
+      // Additional check: ensure post is in correct state for publishing
+      const post = await prisma.post.findUnique({
+        where: { id: postId },
+        include: {
+          postSocialAccounts: {
+            include: {
+              socialAccount: true,
+            },
+          },
+        },
       });
+
+      if (!post) {
+        return [
+          {
+            success: false,
+            error: "Post not found",
+            platform: "UNKNOWN" as any,
+          },
+        ];
+      }
+
+      // Check if post is already fully published
+      const allAlreadyPublished = post.postSocialAccounts.every(
+        (psa) => psa.status === PostStatus.PUBLISHED
+      );
+
+      if (allAlreadyPublished) {
+        console.log(
+          `✅ Post ${postId} is already fully published, skipping...`
+        );
+        return post.postSocialAccounts.map((psa) => ({
+          success: true,
+          error: "Already published",
+          platform: psa.socialAccount?.platform || ("UNKNOWN" as any),
+          platformPostId: psa.platformPostId || undefined,
+        }));
+      }
+
+      // Get all social accounts associated with the post that haven't been published yet
+      const postSocialAccounts = post.postSocialAccounts.filter(
+        (psa) => psa.status !== PostStatus.PUBLISHED
+      );
+
+      if (postSocialAccounts.length === 0) {
+        console.log(`✅ No pending social accounts for post ${postId}`);
+        return [
+          {
+            success: true,
+            error: "No pending publications",
+            platform: "UNKNOWN" as any,
+          },
+        ];
+      }
 
       // Publish to each platform in parallel for better performance
       const results = await Promise.allSettled(
@@ -155,6 +280,9 @@ export class PostPublisherService {
           platform: publisherFactory.getSupportedPlatforms()[0], // Fallback platform
         },
       ];
+    } finally {
+      // Remove global post lock
+      processingLocks.delete(postId);
     }
   }
 
