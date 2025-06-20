@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,6 +17,7 @@ import {
   BarChart2,
   ArrowUp,
   ArrowDown,
+  Construction,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
@@ -215,6 +217,13 @@ const SentimentAnalysis = ({
         <CardTitle className="text-lg flex items-center gap-2">
           <MessageSquare className="h-5 w-5" />
           Analisis Sentimen Kompetitor
+          <Badge
+            variant="outline"
+            className="text-orange-600 border-orange-300"
+          >
+            <Construction className="h-3 w-3 mr-1" />
+            Coming Soon
+          </Badge>
         </CardTitle>
         <CardDescription>
           Analisis sentimen komentar pada akun kompetitor untuk memahami
@@ -222,6 +231,17 @@ const SentimentAnalysis = ({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Coming Soon Alert */}
+        <Alert className="border-orange-200 bg-orange-50">
+          <Construction className="h-4 w-4 text-orange-600" />
+          <AlertDescription className="text-orange-800">
+            <strong>Coming Soon:</strong> AI-powered sentiment analysis for
+            competitor benchmarking will be available in future updates. This
+            will include automated comment analysis, brand perception tracking,
+            and competitive insights.
+          </AlertDescription>
+        </Alert>
+
         <div className="flex flex-wrap gap-3 mb-4">
           <Input
             placeholder="Masukkan username kompetitor..."

@@ -19,6 +19,8 @@ import {
   Link,
   PlayCircle,
   PieChart,
+  Construction,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SocialPlatform } from "@prisma/client";
@@ -106,10 +108,18 @@ const navigationLinks = [
     description: "Competitor analysis",
   },
   {
-    label: "Reports",
+    label: "Custom Reports",
     targetId: "custom-reports",
-    icon: <BarChart3 className="h-4 w-4" />,
-    description: "Custom reports",
+    icon: <FileText className="h-4 w-4" />,
+    description: "PDF reports",
+    badge: "New",
+  },
+  {
+    label: "Coming Soon",
+    targetId: "coming-soon",
+    icon: <Construction className="h-4 w-4" />,
+    description: "Upcoming features",
+    badge: "New",
   },
 ];
 
@@ -293,18 +303,28 @@ const AnalyticsSidebar: React.FC<AnalyticsSidebarProps> = ({
                       {link.icon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div
-                        className={cn(
-                          "text-sm",
-                          !disableTransition &&
-                            !isDisabled &&
-                            "transition-all duration-200 ease-in-out",
-                          !isDisabled && activeSection === link.targetId
-                            ? "font-semibold"
-                            : "font-medium"
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={cn(
+                            "text-sm",
+                            !disableTransition &&
+                              !isDisabled &&
+                              "transition-all duration-200 ease-in-out",
+                            !isDisabled && activeSection === link.targetId
+                              ? "font-semibold"
+                              : "font-medium"
+                          )}
+                        >
+                          {link.label}
+                        </div>
+                        {(link as any).badge && (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs px-1.5 py-0.5 h-auto bg-blue-100 text-blue-700 border-blue-200"
+                          >
+                            {(link as any).badge}
+                          </Badge>
                         )}
-                      >
-                        {link.label}
                       </div>
                       <div
                         className={cn(

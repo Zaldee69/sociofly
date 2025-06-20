@@ -33,6 +33,8 @@ import LinkAnalytics from "@/components/analytics/link-analytics";
 import SentimentAnalysis from "@/components/analytics/sentiment-analysis";
 import PostTimeOptimizer from "@/components/analytics/post-time-optimizer";
 import CompetitorBenchmarking from "@/components/analytics/competitor-benchmarking";
+import ComingSoonFeatures from "@/components/analytics/coming-soon-features";
+import CustomReports from "@/components/analytics/custom-reports";
 import { GrowthComparisonCards } from "@/components/analytics/growth-comparison-cards";
 import { trpc } from "@/lib/trpc/client";
 import { useTeamContext } from "@/lib/contexts/team-context";
@@ -135,6 +137,7 @@ const Analytics: React.FC = () => {
             "optimization",
             "competitors",
             "custom-reports",
+            "coming-soon",
           ];
 
           const headerHeight = isMainNavbarHidden ? 80 : 144; // Analytics header height
@@ -728,23 +731,16 @@ const Analytics: React.FC = () => {
 
                 {/* Custom Reports Section */}
                 <section id="custom-reports" className="scroll-mt-24">
-                  <div className="bg-white rounded-lg border p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <FileText className="h-5 w-5 text-indigo-600" />
-                      <h2 className="text-xl font-semibold">Custom Reports</h2>
-                    </div>
-                    <div className="text-center py-12">
-                      <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium mb-2">
-                        Advanced Reporting
-                      </h3>
-                      <p className="text-muted-foreground mb-4">
-                        Create custom reports and export analytics data for
-                        deeper insights
-                      </p>
-                      <Badge variant="secondary">Coming Soon</Badge>
-                    </div>
-                  </div>
+                  <CustomReports
+                    userPlan="enterprise"
+                    socialAccountId={selectedAccount || undefined}
+                    teamId={currentTeamId || undefined}
+                  />
+                </section>
+
+                {/* Coming Soon Features Section */}
+                <section id="coming-soon" className="scroll-mt-24">
+                  <ComingSoonFeatures />
                 </section>
               </div>
             )}

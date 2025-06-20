@@ -413,8 +413,8 @@ export const analyticsComparisonRouter = createTRPCRouter({
         days: z.number().min(1).max(365).default(30),
       })
     )
-    .mutation(async ({ input }) => {
-      const service = new AnalyticsComparisonService();
+    .mutation(async ({ input, ctx }) => {
+      const service = new AnalyticsComparisonService(ctx.prisma);
       return await service.generateSampleGrowthData(
         input.socialAccountId,
         input.days
@@ -499,8 +499,8 @@ export const analyticsComparisonRouter = createTRPCRouter({
         targetDate: z.date().optional(),
       })
     )
-    .mutation(async ({ input }) => {
-      const service = new AnalyticsComparisonService();
+    .mutation(async ({ input, ctx }) => {
+      const service = new AnalyticsComparisonService(ctx.prisma);
       return await service.upsertAnalyticsData(
         input.socialAccountId,
         input.analyticsData,
@@ -516,8 +516,8 @@ export const analyticsComparisonRouter = createTRPCRouter({
         daysToCheck: z.number().min(1).max(30).default(7),
       })
     )
-    .mutation(async ({ input }) => {
-      const service = new AnalyticsComparisonService();
+    .mutation(async ({ input, ctx }) => {
+      const service = new AnalyticsComparisonService(ctx.prisma);
       return await service.autoCleanupDuplicates(
         input.socialAccountId,
         input.daysToCheck
@@ -531,8 +531,8 @@ export const analyticsComparisonRouter = createTRPCRouter({
         daysToCheck: z.number().min(1).max(30).default(7),
       })
     )
-    .query(async ({ input }) => {
-      const service = new AnalyticsComparisonService();
+    .query(async ({ input, ctx }) => {
+      const service = new AnalyticsComparisonService(ctx.prisma);
       return await service.getDuplicateHealthReport(input.daysToCheck);
     }),
 
@@ -564,8 +564,8 @@ export const analyticsComparisonRouter = createTRPCRouter({
           .optional(),
       })
     )
-    .mutation(async ({ input }) => {
-      const service = new AnalyticsComparisonService();
+    .mutation(async ({ input, ctx }) => {
+      const service = new AnalyticsComparisonService(ctx.prisma);
       return await service.collectAnalyticsDataSafely(
         input.socialAccountId,
         input.analyticsData,

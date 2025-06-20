@@ -1,16 +1,31 @@
 import React from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Clock, TrendingUp, Users, X, AlertCircle } from "lucide-react";
-import { trpc } from "@/lib/trpc/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Clock,
+  Users,
+  TrendingUp,
+  Calendar,
+  BarChart3,
+  Info,
+  X,
+  AlertCircle,
+} from "lucide-react";
+import { trpc } from "@/lib/trpc/client";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 
@@ -105,19 +120,14 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
       // Find best time period
       const peakPeriod = findPeakPeriod(sortedHours);
 
-      // Calculate average engagement
-      const totalScore = dayHotspots.reduce(
-        (sum, h) => sum + (h.score || 0),
-        0
-      );
-      const avgEngagement =
-        dayHotspots.length > 0 ? totalScore / dayHotspots.length : 0;
+      // Use the PEAK hour score instead of average for better representation
+      const peakScore = sortedHours[0]?.score || 0;
 
       return {
         day,
         time: `${formatHour(peakPeriod.start)} - ${formatHour(peakPeriod.end)}`,
-        engagement: getEngagementLevel(avgEngagement),
-        score: Math.round(avgEngagement),
+        engagement: getEngagementLevel(peakScore),
+        score: Math.round(peakScore * 10) / 10, // Round to 1 decimal place like heatmap
       };
     });
   }, [hotspots]);
@@ -239,7 +249,7 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
         </div>
 
         {/* Metrics Column */}
-        <div className="flex items-center gap-4 w-[240px] justify-end">
+        <div className="flex items-center gap-4 w-[280px] justify-end">
           {isNoData ? (
             <Badge
               variant="outline"
@@ -258,12 +268,26 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
               {rec.engagement}
             </Badge>
           )}
-          <div className="flex items-center gap-2 min-w-[80px] justify-end text-muted-foreground">
-            <Users className="w-4 h-4" />
-            <span className="tabular-nums">
-              {isNoData ? "-" : `${rec.score}%`}
-            </span>
-          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1 min-w-[100px] justify-end text-muted-foreground cursor-help">
+                  <Users className="w-4 h-4" />
+                  <span className="tabular-nums">
+                    {isNoData ? "-" : `${rec.score}%`}
+                  </span>
+                  <Info className="w-3 h-3 opacity-50 ml-1" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-sm">
+                  {isNoData
+                    ? "Belum ada data untuk hari ini"
+                    : `Peak engagement rate untuk ${rec.time} pada hari ${rec.day}`}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
 
         {/* Hover Info */}
@@ -284,9 +308,25 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
       <DialogContent className="min-w-[90vw] w-full max-h-[85vh] p-6 overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Detail Heatmap Engagement Audience</DialogTitle>
-          <p className="text-sm text-muted-foreground mt-2">
-            Persentase audience yang aktif berdasarkan hari dan jam
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Persentase audience yang aktif berdasarkan hari dan jam spesifik
+            </p>
+            <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="text-xs text-blue-800">
+                <p className="font-medium mb-1">Perbedaan Data:</p>
+                <p className="mb-1">
+                  • <strong>Daftar hari:</strong> Menampilkan peak engagement
+                  rate (jam terbaik) untuk setiap hari
+                </p>
+                <p>
+                  • <strong>Heatmap:</strong> Menampilkan engagement rate
+                  spesifik untuk setiap jam pada setiap hari
+                </p>
+              </div>
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="mt-4 flex-1 min-h-0">
@@ -546,8 +586,21 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">
-              Persentase audience aktif per hari
+              Peak engagement rate per hari (jam terbaik)
             </span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-3 h-3 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-sm max-w-xs">
+                    Menampilkan engagement rate tertinggi untuk setiap hari.
+                    Klik "Lihat Detail Heatmap" untuk melihat breakdown per jam.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
           <Button
             variant="outline"

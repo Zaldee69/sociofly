@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Table,
   TableBody,
@@ -17,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search } from "lucide-react";
+import { Search, Construction } from "lucide-react";
 import {
   ChartContainer,
   ChartTooltip,
@@ -204,12 +206,32 @@ const CompetitorBenchmarking = ({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Competitor Benchmarking</CardTitle>
+          <CardTitle className="flex items-center gap-3">
+            Competitor Benchmarking
+            <Badge
+              variant="outline"
+              className="text-orange-600 border-orange-300"
+            >
+              <Construction className="h-3 w-3 mr-1" />
+              Coming Soon
+            </Badge>
+          </CardTitle>
           <CardDescription>
             Bandingkan performa akun Anda dengan kompetitor
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Coming Soon Alert */}
+          <Alert className="border-orange-200 bg-orange-50 mb-6">
+            <Construction className="h-4 w-4 text-orange-600" />
+            <AlertDescription className="text-orange-800">
+              <strong>Coming Soon:</strong> Competitor Benchmarking will provide
+              detailed comparison of your performance against competitors,
+              including follower growth, engagement rates, and content
+              performance analysis.
+            </AlertDescription>
+          </Alert>
+
           <div className="flex flex-wrap gap-2 mb-6">
             <div className="grow">
               <Input

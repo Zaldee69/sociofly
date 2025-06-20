@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   MousePointer,
   ExternalLink,
@@ -16,6 +17,7 @@ import {
   Phone,
   Mail,
   Info,
+  Construction,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -267,11 +269,30 @@ const LinkAnalyticsSection: React.FC<LinkAnalyticsProps> = ({
   return (
     <section id="link-analytics" className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Link & CTA Analytics</h2>
+        <div className="flex items-center gap-3 mb-2">
+          <h2 className="text-2xl font-bold">Link & CTA Analytics</h2>
+          <Badge
+            variant="outline"
+            className="text-orange-600 border-orange-300"
+          >
+            <Construction className="h-3 w-3 mr-1" />
+            Coming Soon
+          </Badge>
+        </div>
         <p className="text-muted-foreground">
           Track link clicks and call-to-action performance across platforms
         </p>
       </div>
+
+      {/* Coming Soon Alert */}
+      <Alert className="border-orange-200 bg-orange-50">
+        <Construction className="h-4 w-4 text-orange-600" />
+        <AlertDescription className="text-orange-800">
+          <strong>Coming Soon:</strong> Link & CTA Analytics will provide
+          detailed tracking of link clicks, conversion rates, and call-to-action
+          performance across all your social media platforms.
+        </AlertDescription>
+      </Alert>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4 p-4 border rounded-lg bg-muted/5">

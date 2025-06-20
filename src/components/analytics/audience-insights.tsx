@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Users,
   MapPin,
@@ -14,6 +15,8 @@ import {
   Instagram,
   Facebook,
   BarChart3,
+  AlertTriangle,
+  Construction,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -233,11 +236,30 @@ const AudienceInsightsSection: React.FC<AudienceInsightsProps> = ({
   return (
     <section id="audience-insights" className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Audience Insights</h2>
+        <div className="flex items-center gap-3 mb-2">
+          <h2 className="text-2xl font-bold">Audience Insights</h2>
+          <Badge
+            variant="outline"
+            className="text-orange-600 border-orange-300"
+          >
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            Demo Data
+          </Badge>
+        </div>
         <p className="text-muted-foreground">
           Comprehensive audience demographics and behavioral patterns
         </p>
       </div>
+
+      {/* Data Status Alert */}
+      <Alert className="border-orange-200 bg-orange-50">
+        <AlertTriangle className="h-4 w-4 text-orange-600" />
+        <AlertDescription className="text-orange-800">
+          <strong>Demo Mode:</strong> This data is for demonstration purposes
+          only. Real audience insights from Meta API will be integrated in a
+          future update.
+        </AlertDescription>
+      </Alert>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4 p-4 border rounded-lg bg-muted/5">
@@ -335,7 +357,12 @@ const AudienceInsightsSection: React.FC<AudienceInsightsProps> = ({
           <TabsTrigger value="demographics">Demographics</TabsTrigger>
           <TabsTrigger value="location">Location</TabsTrigger>
           <TabsTrigger value="activity">Activity Times</TabsTrigger>
-          <TabsTrigger value="behavior">Behavior</TabsTrigger>
+          <TabsTrigger value="behavior" className="relative">
+            Behavior
+            <Badge variant="secondary" className="ml-2 text-xs px-1 py-0">
+              Beta
+            </Badge>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="demographics" className="space-y-4">
@@ -573,17 +600,36 @@ const AudienceInsightsSection: React.FC<AudienceInsightsProps> = ({
         </TabsContent>
 
         <TabsContent value="behavior" className="space-y-4">
+          {/* Coming Soon Alert */}
+          <Alert className="border-blue-200 bg-blue-50">
+            <Construction className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>Coming Soon:</strong> Instagram Stories Analytics,
+              Sentiment Analysis, Competitor Benchmarking, and Link & CTA
+              Analytics will be available in future updates.
+            </AlertDescription>
+          </Alert>
+
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
+            <Card className="relative">
+              <div className="absolute top-4 right-4">
+                <Badge variant="secondary" className="text-xs">
+                  <Construction className="h-3 w-3 mr-1" />
+                  Stories Coming Soon
+                </Badge>
+              </div>
               <CardHeader>
                 <CardTitle>Engagement Patterns</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-4 bg-muted/20 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">78%</div>
+                  <div className="text-center p-4 bg-muted/20 rounded-lg opacity-60">
+                    <div className="text-2xl font-bold text-blue-600">--</div>
                     <div className="text-xs text-muted-foreground">
                       Stories Completion
+                    </div>
+                    <div className="text-xs text-orange-600 mt-1">
+                      Coming Soon
                     </div>
                   </div>
                   <div className="text-center p-4 bg-muted/20 rounded-lg">
@@ -594,12 +640,13 @@ const AudienceInsightsSection: React.FC<AudienceInsightsProps> = ({
                       Avg Engagement
                     </div>
                   </div>
-                  <div className="text-center p-4 bg-muted/20 rounded-lg">
-                    <div className="text-2xl font-bold text-purple-600">
-                      2.1x
-                    </div>
+                  <div className="text-center p-4 bg-muted/20 rounded-lg opacity-60">
+                    <div className="text-2xl font-bold text-purple-600">--</div>
                     <div className="text-xs text-muted-foreground">
                       Session Length
+                    </div>
+                    <div className="text-xs text-orange-600 mt-1">
+                      Coming Soon
                     </div>
                   </div>
                   <div className="text-center p-4 bg-muted/20 rounded-lg">
@@ -614,7 +661,13 @@ const AudienceInsightsSection: React.FC<AudienceInsightsProps> = ({
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="relative">
+              <div className="absolute top-4 right-4">
+                <Badge variant="secondary" className="text-xs">
+                  <Construction className="h-3 w-3 mr-1" />
+                  Enhanced Coming Soon
+                </Badge>
+              </div>
               <CardHeader>
                 <CardTitle>Growth Trends</CardTitle>
               </CardHeader>
@@ -649,6 +702,19 @@ const AudienceInsightsSection: React.FC<AudienceInsightsProps> = ({
                     </div>
                   </div>
                   <Progress value={92} className="h-2" />
+                </div>
+
+                {/* Future Features Preview */}
+                <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                  <h5 className="text-sm font-medium text-blue-800 mb-2">
+                    🚀 Coming Soon
+                  </h5>
+                  <div className="text-xs text-blue-700 space-y-1">
+                    <div>• Competitor Benchmarking</div>
+                    <div>• Sentiment Analysis</div>
+                    <div>• Link & CTA Performance</div>
+                    <div>• Advanced Audience Segmentation</div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

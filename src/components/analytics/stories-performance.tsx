@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -31,6 +32,7 @@ import {
   Play,
   Pause,
   ExternalLink,
+  Construction,
 } from "lucide-react";
 import {
   BarChart,
@@ -246,7 +248,18 @@ const StoriesPerformance: React.FC<StoriesPerformanceProps> = ({
       {/* Header dengan Filter */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold">Instagram Stories Analytics</h3>
+          <div className="flex items-center gap-3 mb-2">
+            <h3 className="text-lg font-semibold">
+              Instagram Stories Analytics
+            </h3>
+            <Badge
+              variant="outline"
+              className="text-orange-600 border-orange-300"
+            >
+              <Construction className="h-3 w-3 mr-1" />
+              Coming Soon
+            </Badge>
+          </div>
           <p className="text-sm text-muted-foreground">
             Lacak performa Stories dengan metrik engagement dan completion rate
           </p>
@@ -262,6 +275,16 @@ const StoriesPerformance: React.FC<StoriesPerformanceProps> = ({
           </SelectContent>
         </Select>
       </div>
+
+      {/* Coming Soon Alert */}
+      <Alert className="border-orange-200 bg-orange-50">
+        <Construction className="h-4 w-4 text-orange-600" />
+        <AlertDescription className="text-orange-800">
+          <strong>Coming Soon:</strong> Instagram Stories Analytics will be
+          available soon. This feature will provide detailed insights into story
+          performance, completion rates, and audience engagement patterns.
+        </AlertDescription>
+      </Alert>
 
       {/* Overview Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
