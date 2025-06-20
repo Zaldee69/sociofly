@@ -422,38 +422,62 @@ export class RealSocialAnalyticsService {
     postSocialAccountId: string,
     analyticsData: SocialAnalyticsData
   ): Promise<void> {
-    await this.prisma.postAnalytics.upsert({
-      where: {
-        postSocialAccountId_recordedAt: {
-          postSocialAccountId,
-          recordedAt: analyticsData.recordedAt,
+    try {
+      console.log(
+        `💾 Storing analytics for postSocialAccount ${postSocialAccountId}`
+      );
+
+      await this.prisma.postAnalytics.upsert({
+        where: {
+          postSocialAccountId_recordedAt: {
+            postSocialAccountId,
+            recordedAt: analyticsData.recordedAt,
+          },
         },
-      },
-      update: {
-        views: analyticsData.views,
-        likes: analyticsData.likes,
-        comments: analyticsData.comments,
-        shares: analyticsData.shares,
-        clicks: analyticsData.clicks || 0,
-        reach: analyticsData.reach,
-        impressions: analyticsData.impressions,
-        engagement: analyticsData.engagement,
-        rawInsights: analyticsData.rawInsights || undefined,
-      },
-      create: {
-        postSocialAccountId,
-        views: analyticsData.views,
-        likes: analyticsData.likes,
-        comments: analyticsData.comments,
-        shares: analyticsData.shares,
-        clicks: analyticsData.clicks || 0,
-        reach: analyticsData.reach,
-        impressions: analyticsData.impressions,
-        engagement: analyticsData.engagement,
-        recordedAt: analyticsData.recordedAt,
-        rawInsights: analyticsData.rawInsights || undefined,
-      },
-    });
+        update: {
+          views: analyticsData.views,
+          likes: analyticsData.likes,
+          comments: analyticsData.comments,
+          shares: analyticsData.shares,
+          clicks: analyticsData.clicks || 0,
+          reach: analyticsData.reach,
+          impressions: analyticsData.impressions,
+          engagement: analyticsData.engagement,
+          rawInsights: analyticsData.rawInsights || undefined,
+          // Additional fields for better insights (use any to access extended properties)
+          reactions: (analyticsData as any).reactions || 0,
+          saves: (analyticsData as any).saves || 0,
+          ctr: (analyticsData as any).ctr || 0,
+        },
+        create: {
+          postSocialAccountId,
+          views: analyticsData.views,
+          likes: analyticsData.likes,
+          comments: analyticsData.comments,
+          shares: analyticsData.shares,
+          clicks: analyticsData.clicks || 0,
+          reach: analyticsData.reach,
+          impressions: analyticsData.impressions,
+          engagement: analyticsData.engagement,
+          recordedAt: analyticsData.recordedAt,
+          rawInsights: analyticsData.rawInsights || undefined,
+          // Additional fields for better insights (use any to access extended properties)
+          reactions: (analyticsData as any).reactions || 0,
+          saves: (analyticsData as any).saves || 0,
+          ctr: (analyticsData as any).ctr || 0,
+        },
+      });
+
+      console.log(
+        `✅ Analytics stored successfully for postSocialAccount ${postSocialAccountId}`
+      );
+    } catch (error: any) {
+      console.error(
+        `❌ Failed to store analytics for postSocialAccount ${postSocialAccountId}:`,
+        error
+      );
+      throw new Error(`Failed to store analytics: ${error.message}`);
+    }
   }
 
   private calculateOverview(analytics: any[]): any {

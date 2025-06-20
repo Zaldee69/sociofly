@@ -15,6 +15,10 @@ export enum JobType {
   ANALYZE_COMPREHENSIVE_INSIGHTS = "analyze_comprehensive_insights",
   COLLECT_HISTORICAL_DATA = "collect_historical_data",
 
+  // Individual Post Analytics Collection
+  COLLECT_POST_ANALYTICS = "collect_post_analytics",
+  COLLECT_BATCH_POST_ANALYTICS = "collect_batch_post_analytics",
+
   // Legacy (deprecated - will be removed)
   ANALYZE_HOTSPOTS = "analyze_hotspots",
   ANALYZE_ACCOUNT_INSIGHTS = "analyze_account_insights",
@@ -33,6 +37,22 @@ export interface PublishPostJobData {
     media?: string[];
     hashtags?: string[];
   };
+}
+
+export interface CollectPostAnalyticsJobData {
+  postId: string;
+  userId: string;
+  teamId?: string;
+  platforms?: string[]; // Optional: specific platforms to collect from
+  maxRetries?: number;
+}
+
+export interface CollectBatchPostAnalyticsJobData {
+  postIds: string[];
+  userId: string;
+  teamId?: string;
+  batchSize?: number;
+  maxRetries?: number;
 }
 
 export interface ProcessApprovalJobData {

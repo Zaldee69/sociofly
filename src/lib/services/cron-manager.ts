@@ -232,6 +232,38 @@ export class JobSchedulerManager {
           immediate: false,
         },
       },
+      // Individual Post Analytics Collection Jobs
+      {
+        name: "collect_recent_post_analytics",
+        schedule: "0 */6 * * *", // Every 6 hours
+        description:
+          "Collect analytics for recently published posts (last 7 days)",
+        enabled: process.env.CRON_POST_ANALYTICS_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
+        jobType: JobType.COLLECT_BATCH_POST_ANALYTICS,
+        priority: 4, // High priority
+        jobData: {
+          postIds: JOB_CONSTANTS.SPECIAL_POST_IDS.RECENT_PUBLISHED_POSTS,
+          userId: "system",
+          batchSize: 10,
+          maxRetries: 3,
+        },
+      },
+      {
+        name: "collect_older_post_analytics",
+        schedule: "0 3 * * *", // Daily at 3 AM
+        description: "Collect analytics for older published posts (7-30 days)",
+        enabled: process.env.CRON_POST_ANALYTICS_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
+        jobType: JobType.COLLECT_BATCH_POST_ANALYTICS,
+        priority: 2, // Lower priority
+        jobData: {
+          postIds: JOB_CONSTANTS.SPECIAL_POST_IDS.OLDER_PUBLISHED_POSTS,
+          userId: "system",
+          batchSize: 20,
+          maxRetries: 2,
+        },
+      },
     ];
 
     // Register enabled jobs

@@ -874,6 +874,51 @@ export default function PostDetailPage() {
     }
   };
 
+  // Manual analytics collection
+  const [isCollectingAnalytics, setIsCollectingAnalytics] = useState(false);
+
+  const handleCollectAnalytics = async () => {
+    if (!post?.id) return;
+
+    setIsCollectingAnalytics(true);
+    try {
+      const response = await fetch(
+        "/api/scheduled-tasks/collect-post-analytics",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            postId: post.id,
+            teamId: post.teamId,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(
+          `Analytics collected successfully! ${result.results.successCount} platforms updated.`
+        );
+        // Refetch analytics data to show the latest results
+        setTimeout(() => {
+          window.location.reload(); // Force reload to get fresh analytics data
+        }, 1000);
+      } else {
+        toast.error(
+          `Analytics collection failed: ${result.error || "Unknown error"}`
+        );
+      }
+    } catch (error: any) {
+      console.error("Failed to collect analytics:", error);
+      toast.error("Failed to collect analytics. Please try again.");
+    } finally {
+      setIsCollectingAnalytics(false);
+    }
+  };
+
   const confirmDelete = () => {
     if (post?.id) {
       deletePostMutation.mutate({ id: post.id });
@@ -1039,6 +1084,21 @@ export default function PostDetailPage() {
 
             {/* Right Section - Actions */}
             <div className="flex items-center gap-3 lg:flex-shrink-0">
+              {/* Analytics Collection Button - Only show for published posts */}
+              {post.status === "PUBLISHED" && (
+                <Button
+                  onClick={handleCollectAnalytics}
+                  disabled={isCollectingAnalytics}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  size="sm"
+                >
+                  <BarChart3
+                    className={`w-4 h-4 mr-2 ${isCollectingAnalytics ? "animate-spin" : ""}`}
+                  />
+                  {isCollectingAnalytics ? "Collecting..." : "Update Analytics"}
+                </Button>
+              )}
+
               <Button
                 onClick={handleEdit}
                 className="bg-blue-600 hover:bg-blue-700 text-white"

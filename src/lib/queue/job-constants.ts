@@ -5,6 +5,8 @@ export const JOB_CONSTANTS = {
     BATCH_DUE_POSTS: "batch_due_posts",
     BATCH_EXPIRED_TOKENS: "batch_expired_tokens",
     SYSTEM_MAINTENANCE: "system_maintenance",
+    RECENT_PUBLISHED_POSTS: "recent_published_posts",
+    OLDER_PUBLISHED_POSTS: "older_published_posts",
   },
 
   // Job retry configurations

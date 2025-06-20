@@ -9,7 +9,10 @@ import type {
   CollectAnalyticsJobData,
   AnalyzeComprehensiveInsightsJobData,
   CollectHistoricalDataJobData,
+  CollectPostAnalyticsJobData,
+  CollectBatchPostAnalyticsJobData,
 } from "./job-types";
+import { JOB_CONSTANTS } from "./job-constants";
 
 export class JobProcessor {
   /**
@@ -66,6 +69,17 @@ export class JobProcessor {
           data as CollectHistoricalDataJobData
         );
 
+      // Individual Post Analytics Collection
+      case JobType.COLLECT_POST_ANALYTICS:
+        return await this.processCollectPostAnalytics(
+          data as CollectPostAnalyticsJobData
+        );
+
+      case JobType.COLLECT_BATCH_POST_ANALYTICS:
+        return await this.processCollectBatchPostAnalytics(
+          data as CollectBatchPostAnalyticsJobData
+        );
+
       // Legacy jobs (deprecated)
       case JobType.COLLECT_POSTS_ANALYTICS:
         return await this.processCollectPostsAnalytics();
@@ -99,6 +113,178 @@ export class JobProcessor {
     } catch (error) {
       console.error(`❌ Failed to process due posts:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Process individual post analytics collection
+   */
+  private static async processCollectPostAnalytics(data: any): Promise<any> {
+    console.log(`📊 Collecting analytics for post ${data.postId}...`);
+
+    try {
+      const { RealSocialAnalyticsService } = await import(
+        "@/lib/services/social-analytics/real-analytics-service"
+      );
+      const { prisma } = await import("@/lib/prisma/client");
+
+      const analyticsService = new RealSocialAnalyticsService(prisma);
+      const result = await analyticsService.collectPostAnalytics(data.postId);
+
+      console.log(
+        `✅ Post analytics collection completed for ${data.postId}:`,
+        {
+          success: result.success,
+          resultsCount: result.results.length,
+          errorsCount: result.errors.length,
+        }
+      );
+
+      return result;
+    } catch (error) {
+      console.error(
+        `❌ Failed to collect post analytics for ${data.postId}:`,
+        error
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Process batch post analytics collection
+   */
+  private static async processCollectBatchPostAnalytics(
+    data: CollectBatchPostAnalyticsJobData
+  ): Promise<any> {
+    console.log(`📊 Processing batch post analytics collection...`);
+
+    try {
+      const { RealSocialAnalyticsService } = await import(
+        "@/lib/services/social-analytics/real-analytics-service"
+      );
+      const { prisma } = await import("@/lib/prisma/client");
+
+      let postIds = data.postIds;
+
+      // Handle special post IDs that need to be resolved
+      if (
+        data.postIds.length === 1 &&
+        (data.postIds[0] ===
+          JOB_CONSTANTS.SPECIAL_POST_IDS.RECENT_PUBLISHED_POSTS ||
+          data.postIds[0] ===
+            JOB_CONSTANTS.SPECIAL_POST_IDS.OLDER_PUBLISHED_POSTS)
+      ) {
+        postIds = await this.resolveSpecialPostIds(
+          data.postIds[0],
+          data.teamId
+        );
+        console.log(
+          `🔄 Resolved ${data.postIds[0]} to ${postIds.length} actual post IDs`
+        );
+      }
+
+      if (postIds.length === 0) {
+        console.log(`ℹ️  No posts found for analytics collection`);
+        return {
+          totalPosts: 0,
+          successCount: 0,
+          errorCount: 0,
+          platformResults: {},
+          errors: [],
+        };
+      }
+
+      console.log(`📊 Collecting analytics for ${postIds.length} posts...`);
+
+      const analyticsService = new RealSocialAnalyticsService(prisma);
+      const result = await analyticsService.collectBatchAnalytics(postIds);
+
+      console.log(`✅ Batch analytics collection completed:`, {
+        totalPosts: result.totalPosts,
+        successCount: result.successCount,
+        errorCount: result.errorCount,
+      });
+
+      return result;
+    } catch (error) {
+      console.error(`❌ Failed to collect batch post analytics:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Resolve special post IDs to actual post IDs
+   */
+  private static async resolveSpecialPostIds(
+    specialId: string,
+    teamId?: string
+  ): Promise<string[]> {
+    const { prisma } = await import("@/lib/prisma/client");
+
+    try {
+      let whereClause: any = {
+        status: "PUBLISHED",
+        publishedAt: { not: null },
+        postSocialAccounts: {
+          some: {
+            status: "PUBLISHED",
+            platformPostId: { not: null },
+          },
+        },
+      };
+
+      // Add team filter if specified
+      if (teamId) {
+        whereClause.teamId = teamId;
+      }
+
+      const now = new Date();
+
+      switch (specialId) {
+        case JOB_CONSTANTS.SPECIAL_POST_IDS.RECENT_PUBLISHED_POSTS:
+          // Posts published in the last 7 days
+          const sevenDaysAgo = new Date(
+            now.getTime() - 7 * 24 * 60 * 60 * 1000
+          );
+          whereClause.publishedAt = {
+            gte: sevenDaysAgo,
+            lte: now,
+          };
+          break;
+
+        case JOB_CONSTANTS.SPECIAL_POST_IDS.OLDER_PUBLISHED_POSTS:
+          // Posts published 7-30 days ago
+          const thirtyDaysAgo = new Date(
+            now.getTime() - 30 * 24 * 60 * 60 * 1000
+          );
+          const sevenDaysAgoForOlder = new Date(
+            now.getTime() - 7 * 24 * 60 * 60 * 1000
+          );
+          whereClause.publishedAt = {
+            gte: thirtyDaysAgo,
+            lt: sevenDaysAgoForOlder,
+          };
+          break;
+
+        default:
+          console.warn(`Unknown special post ID: ${specialId}`);
+          return [];
+      }
+
+      const posts = await prisma.post.findMany({
+        where: whereClause,
+        select: { id: true },
+        orderBy: { publishedAt: "desc" },
+        take: 50, // Limit to prevent overwhelming the system
+      });
+
+      return posts.map((post) => post.id);
+    } catch (error) {
+      console.error(
+        `Error resolving special post IDs for ${specialId}:`,
+        error
+      );
+      return [];
     }
   }
 
