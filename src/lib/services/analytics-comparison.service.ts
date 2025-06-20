@@ -218,43 +218,56 @@ export class AnalyticsComparisonService {
     newData: Partial<AccountAnalytics>
   ): Promise<void> {
     try {
+      console.log(
+        `🔍 Updating comparison fields for account: ${socialAccountId}`
+      );
+      console.log(`📊 New data:`, JSON.stringify(newData, null, 2));
+
       // Get the most recent previous record
       const previousRecord = await this.prisma.accountAnalytics.findFirst({
         where: { socialAccountId },
         orderBy: { recordedAt: "desc" },
       });
 
-      if (previousRecord && newData.followersCount !== undefined) {
-        // Calculate growth percentages
+      console.log(`📋 Previous record found:`, previousRecord ? "YES" : "NO");
+
+      if (previousRecord) {
+        console.log(`📈 Previous data:`, {
+          followersCount: previousRecord.followersCount,
+          mediaCount: previousRecord.mediaCount,
+          engagementRate: previousRecord.engagementRate,
+          avgReachPerPost: previousRecord.avgReachPerPost,
+          totalReach: previousRecord.totalReach,
+          recordedAt: previousRecord.recordedAt,
+        });
+
+        // Calculate growth percentages with proper validation
         const followersGrowth = this.calculatePercentageGrowth(
-          newData.followersCount,
-          previousRecord.followersCount
+          newData.followersCount || 0,
+          previousRecord.followersCount || 0
         );
 
-        const engagementGrowth =
-          newData.engagementRate !== undefined
-            ? this.calculatePercentageGrowth(
-                newData.engagementRate,
-                previousRecord.engagementRate
-              )
-            : 0;
+        const engagementGrowth = this.calculatePercentageGrowth(
+          newData.engagementRate || 0,
+          previousRecord.engagementRate || 0
+        );
 
-        const reachGrowth =
-          newData.totalReach !== undefined &&
-          previousRecord.totalReach !== undefined
-            ? this.calculatePercentageGrowth(
-                newData.totalReach || 0,
-                previousRecord.totalReach || 0
-              )
-            : 0;
+        const reachGrowth = this.calculatePercentageGrowth(
+          newData.totalReach || newData.avgReachPerPost || 0,
+          previousRecord.totalReach || previousRecord.avgReachPerPost || 0
+        );
 
-        const mediaGrowth =
-          newData.mediaCount !== undefined
-            ? this.calculatePercentageGrowth(
-                newData.mediaCount,
-                previousRecord.mediaCount
-              )
-            : 0;
+        const mediaGrowth = this.calculatePercentageGrowth(
+          newData.mediaCount || 0,
+          previousRecord.mediaCount || 0
+        );
+
+        console.log(`📊 Calculated growth percentages:`, {
+          followersGrowth: followersGrowth.toFixed(2) + "%",
+          engagementGrowth: engagementGrowth.toFixed(2) + "%",
+          reachGrowth: reachGrowth.toFixed(2) + "%",
+          mediaGrowth: mediaGrowth.toFixed(2) + "%",
+        });
 
         // Update the new record with comparison data
         Object.assign(newData, {
@@ -262,14 +275,40 @@ export class AnalyticsComparisonService {
           previousMediaCount: previousRecord.mediaCount,
           previousEngagementRate: previousRecord.engagementRate,
           previousAvgReachPerPost: previousRecord.avgReachPerPost,
-          followersGrowthPercent: followersGrowth,
-          engagementGrowthPercent: engagementGrowth,
-          reachGrowthPercent: reachGrowth,
-          mediaGrowthPercent: mediaGrowth,
+          followersGrowthPercent: parseFloat(followersGrowth.toFixed(2)),
+          engagementGrowthPercent: parseFloat(engagementGrowth.toFixed(2)),
+          reachGrowthPercent: parseFloat(reachGrowth.toFixed(2)),
+          mediaGrowthPercent: parseFloat(mediaGrowth.toFixed(2)),
+        });
+
+        console.log(`✅ Updated new data with comparison fields:`, {
+          previousFollowersCount: newData.previousFollowersCount,
+          previousMediaCount: newData.previousMediaCount,
+          previousEngagementRate: newData.previousEngagementRate,
+          followersGrowthPercent: newData.followersGrowthPercent,
+          engagementGrowthPercent: newData.engagementGrowthPercent,
+          reachGrowthPercent: newData.reachGrowthPercent,
+          mediaGrowthPercent: newData.mediaGrowthPercent,
+        });
+      } else {
+        console.log(
+          `ℹ️ No previous record found - this is the first analytics entry`
+        );
+        // Set default values for first entry
+        Object.assign(newData, {
+          previousFollowersCount: 0,
+          previousMediaCount: 0,
+          previousEngagementRate: 0,
+          previousAvgReachPerPost: 0,
+          followersGrowthPercent: 0,
+          engagementGrowthPercent: 0,
+          reachGrowthPercent: 0,
+          mediaGrowthPercent: 0,
         });
       }
     } catch (error) {
-      console.error("Error updating comparison fields:", error);
+      console.error("❌ Error updating comparison fields:", error);
+      throw error; // Re-throw to handle in calling function
     }
   }
 
@@ -512,6 +551,638 @@ export class AnalyticsComparisonService {
         return "vs Last Month";
       case "quarter":
         return "vs Last Quarter";
+    }
+  }
+
+  /**
+   * UTILITY: Clean duplicate records (keep only latest per day)
+   */
+  async cleanDuplicateRecords(socialAccountId: string): Promise<number> {
+    console.log(
+      `🧹 Cleaning duplicate records for account: ${socialAccountId}`
+    );
+
+    // Get all records grouped by date
+    const allRecords = await this.prisma.accountAnalytics.findMany({
+      where: { socialAccountId },
+      orderBy: { recordedAt: "desc" },
+    });
+
+    const recordsByDate = new Map<string, any[]>();
+
+    allRecords.forEach((record) => {
+      const dateKey = record.recordedAt.toISOString().split("T")[0];
+      if (!recordsByDate.has(dateKey)) {
+        recordsByDate.set(dateKey, []);
+      }
+      recordsByDate.get(dateKey)!.push(record);
+    });
+
+    let deletedCount = 0;
+
+    // For each date, keep only the latest record
+    for (const [date, records] of recordsByDate.entries()) {
+      if (records.length > 1) {
+        // Sort by recordedAt desc, keep first (latest), delete others
+        records.sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime());
+        const toDelete = records.slice(1); // All except the first (latest)
+
+        for (const record of toDelete) {
+          await this.prisma.accountAnalytics.delete({
+            where: { id: record.id },
+          });
+          deletedCount++;
+        }
+
+        console.log(
+          `🗑️ Cleaned ${toDelete.length} duplicate records for ${date}`
+        );
+      }
+    }
+
+    console.log(`✅ Cleaned ${deletedCount} duplicate records`);
+
+    // After cleaning, recalculate growth percentages for remaining records
+    await this.recalculateGrowthPercentages(socialAccountId);
+
+    return deletedCount;
+  }
+
+  /**
+   * UTILITY: Recalculate growth percentages after cleaning duplicates
+   */
+  private async recalculateGrowthPercentages(
+    socialAccountId: string
+  ): Promise<void> {
+    console.log(
+      `🔄 Recalculating growth percentages for account: ${socialAccountId}`
+    );
+
+    const records = await this.prisma.accountAnalytics.findMany({
+      where: { socialAccountId },
+      orderBy: { recordedAt: "asc" }, // Oldest first for proper calculation
+    });
+
+    for (let i = 1; i < records.length; i++) {
+      const current = records[i];
+      const previous = records[i - 1];
+
+      // Calculate growth percentages
+      const followersGrowth = this.calculatePercentageGrowth(
+        current.followersCount,
+        previous.followersCount
+      );
+
+      const engagementGrowth = this.calculatePercentageGrowth(
+        current.engagementRate,
+        previous.engagementRate
+      );
+
+      const mediaGrowth = this.calculatePercentageGrowth(
+        current.mediaCount,
+        previous.mediaCount
+      );
+
+      const reachGrowth = this.calculatePercentageGrowth(
+        current.totalReach || current.avgReachPerPost || 0,
+        previous.totalReach || previous.avgReachPerPost || 0
+      );
+
+      // Update the record with correct growth percentages
+      await this.prisma.accountAnalytics.update({
+        where: { id: current.id },
+        data: {
+          previousFollowersCount: previous.followersCount,
+          previousMediaCount: previous.mediaCount,
+          previousEngagementRate: previous.engagementRate,
+          previousAvgReachPerPost: previous.avgReachPerPost,
+          followersGrowthPercent: parseFloat(followersGrowth.toFixed(2)),
+          engagementGrowthPercent: parseFloat(engagementGrowth.toFixed(2)),
+          mediaGrowthPercent: parseFloat(mediaGrowth.toFixed(2)),
+          reachGrowthPercent: parseFloat(reachGrowth.toFixed(2)),
+        },
+      });
+
+      console.log(
+        `📊 Updated growth for ${current.recordedAt.toISOString().split("T")[0]}: F:${followersGrowth.toFixed(1)}%, E:${engagementGrowth.toFixed(1)}%`
+      );
+    }
+  }
+
+  /**
+   * UTILITY: Generate varied sample data for testing growth comparison
+   * This should only be used for testing/development
+   */
+  async generateSampleGrowthData(
+    socialAccountId: string,
+    days: number = 7
+  ): Promise<void> {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Sample data generation is not allowed in production");
+    }
+
+    console.log(
+      `🧪 Generating ${days} days of REALISTIC sample data for account: ${socialAccountId}`
+    );
+
+    // Clean existing data first to avoid duplicates
+    await this.cleanDuplicateRecords(socialAccountId);
+
+    // Base metrics to start with (more realistic)
+    let baseFollowers = 150 + Math.floor(Math.random() * 200); // 150-350 followers
+    let baseEngagement = 3 + Math.random() * 4; // 3-7% engagement rate
+    let basePosts = 80 + Math.floor(Math.random() * 40); // 80-120 posts
+    let baseReach = Math.floor(baseFollowers * (0.4 + Math.random() * 0.3)); // 40-70% of followers
+
+    for (let i = days; i >= 0; i--) {
+      const recordDate = new Date();
+      recordDate.setDate(recordDate.getDate() - i);
+      recordDate.setHours(
+        Math.floor(Math.random() * 24),
+        Math.floor(Math.random() * 60),
+        0,
+        0
+      );
+
+      // Add REALISTIC daily variance (not extreme)
+      const followersVariation = Math.floor(Math.random() * 6) - 3; // +/- 3 followers per day
+      const engagementVariation = Math.random() * 1 - 0.5; // +/- 0.5% engagement
+      const postsVariation =
+        Math.random() < 0.3 ? Math.floor(Math.random() * 3) : 0; // 0-2 new posts occasionally
+      const reachVariation = Math.floor(Math.random() * 20) - 10; // +/- 10 reach
+
+      baseFollowers = Math.max(50, baseFollowers + followersVariation);
+      baseEngagement = Math.max(
+        1,
+        Math.min(12, baseEngagement + engagementVariation)
+      );
+      basePosts = Math.max(10, basePosts + postsVariation);
+      baseReach = Math.max(20, baseReach + reachVariation);
+
+      const sampleData = {
+        followersCount: baseFollowers,
+        mediaCount: basePosts,
+        avgReachPerPost: Math.floor(baseReach / Math.max(1, basePosts)),
+        engagementRate: parseFloat(baseEngagement.toFixed(2)),
+        followerGrowth: JSON.stringify([followersVariation]),
+
+        // Additional fields for completeness
+        totalFollowers: baseFollowers,
+        totalPosts: basePosts,
+        totalReach: baseReach,
+        totalImpressions: Math.floor(baseReach * 1.3),
+        totalLikes: Math.floor(baseReach * 0.08),
+        totalComments: Math.floor(baseReach * 0.015),
+        totalShares: Math.floor(baseReach * 0.005),
+        totalSaves: Math.floor(baseReach * 0.02),
+        avgEngagementPerPost: Math.floor(
+          (baseReach * 0.1) / Math.max(1, basePosts)
+        ),
+      };
+
+      // Create the record without using updateComparisonFields to avoid duplicate calculation
+      const createdRecord = await this.prisma.accountAnalytics.create({
+        data: {
+          socialAccountId,
+          ...sampleData,
+          recordedAt: recordDate,
+          // Set initial values, will be recalculated later
+          previousFollowersCount: 0,
+          previousMediaCount: 0,
+          previousEngagementRate: 0,
+          previousAvgReachPerPost: 0,
+          followersGrowthPercent: 0,
+          engagementGrowthPercent: 0,
+          mediaGrowthPercent: 0,
+          reachGrowthPercent: 0,
+        },
+      });
+
+      console.log(
+        `📊 Created realistic sample record for ${recordDate.toISOString().split("T")[0]} - F:${baseFollowers}, E:${baseEngagement.toFixed(2)}%, P:${basePosts}`
+      );
+    }
+
+    // Recalculate growth percentages for all records
+    await this.recalculateGrowthPercentages(socialAccountId);
+
+    console.log(
+      `✅ Generated ${days + 1} realistic sample records with proper growth calculations`
+    );
+  }
+
+  /**
+   * PRODUCTION: Upsert analytics data (prevent duplicates)
+   * This replaces direct prisma.create() calls in production
+   */
+  async upsertAnalyticsData(
+    socialAccountId: string,
+    newData: Partial<AccountAnalytics>,
+    targetDate?: Date
+  ): Promise<{ created: boolean; updated: boolean; record: any }> {
+    const recordDate = targetDate || new Date();
+    const dateKey = recordDate.toISOString().split("T")[0]; // YYYY-MM-DD
+
+    console.log(
+      `📊 Upserting analytics data for ${socialAccountId} on ${dateKey}`
+    );
+
+    try {
+      // Check if record already exists for this date
+      const existingRecord = await this.prisma.accountAnalytics.findFirst({
+        where: {
+          socialAccountId,
+          recordedAt: {
+            gte: new Date(`${dateKey}T00:00:00.000Z`),
+            lt: new Date(`${dateKey}T23:59:59.999Z`),
+          },
+        },
+        orderBy: { recordedAt: "desc" },
+      });
+
+      if (existingRecord) {
+        // Update existing record (merge data)
+        console.log(`🔄 Updating existing record for ${dateKey}`);
+
+        // Calculate comparison fields based on previous record
+        await this.updateComparisonFields(socialAccountId, newData);
+
+        // Filter out fields that shouldn't be updated
+        const { socialAccountId: _, id: __, ...updateData } = newData;
+
+        const updatedRecord = await this.prisma.accountAnalytics.update({
+          where: { id: existingRecord.id },
+          data: {
+            ...updateData,
+            recordedAt: recordDate, // Update timestamp to latest
+          } as any,
+        });
+
+        return { created: false, updated: true, record: updatedRecord };
+      } else {
+        // Create new record
+        console.log(`✨ Creating new record for ${dateKey}`);
+
+        // Calculate comparison fields
+        await this.updateComparisonFields(socialAccountId, newData);
+
+        // Ensure required fields are present and filter out problematic fields
+        const { id, followerGrowth, ...safeData } = newData;
+        const createData = {
+          socialAccountId,
+          recordedAt: recordDate,
+          followersCount: newData.followersCount || 0,
+          mediaCount: newData.mediaCount || 0,
+          engagementRate: newData.engagementRate || 0,
+          avgReachPerPost: newData.avgReachPerPost || 0,
+          followerGrowth: followerGrowth || "[]",
+          ...safeData, // Override with any provided values
+        };
+
+        const createdRecord = await this.prisma.accountAnalytics.create({
+          data: createData as any,
+        });
+
+        return { created: true, updated: false, record: createdRecord };
+      }
+    } catch (error) {
+      console.error(`❌ Error upserting analytics data:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * PRODUCTION: Auto-cleanup duplicates (run daily)
+   * Safe for production - only keeps latest record per day
+   */
+  async autoCleanupDuplicates(
+    socialAccountId?: string,
+    daysToCheck: number = 7
+  ): Promise<{
+    accountsProcessed: number;
+    duplicatesRemoved: number;
+    summary: Array<{
+      accountId: string;
+      accountName: string;
+      duplicatesRemoved: number;
+    }>;
+  }> {
+    console.log(
+      `🧹 Starting auto-cleanup for duplicates (last ${daysToCheck} days)...`
+    );
+
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysToCheck);
+
+    let accountsToProcess: Array<{ id: string; name: string }> = [];
+
+    if (socialAccountId) {
+      // Process specific account
+      const account = await this.prisma.socialAccount.findUnique({
+        where: { id: socialAccountId },
+        select: { id: true, name: true },
+      });
+      if (account && account.name) {
+        accountsToProcess = [{ id: account.id, name: account.name }];
+      }
+    } else {
+      // Process all accounts with recent analytics
+      const accounts = await this.prisma.socialAccount.findMany({
+        where: {
+          AccountAnalytics: {
+            some: {
+              recordedAt: {
+                gte: startDate,
+                lte: endDate,
+              },
+            },
+          },
+        },
+        select: { id: true, name: true },
+      });
+
+      accountsToProcess = accounts
+        .filter((account) => account.name)
+        .map((account) => ({ id: account.id, name: account.name! }));
+    }
+
+    const summary: Array<{
+      accountId: string;
+      accountName: string;
+      duplicatesRemoved: number;
+    }> = [];
+    let totalDuplicatesRemoved = 0;
+
+    for (const account of accountsToProcess) {
+      const duplicatesRemoved = await this.cleanDuplicateRecords(account.id);
+      totalDuplicatesRemoved += duplicatesRemoved;
+
+      summary.push({
+        accountId: account.id,
+        accountName: account.name,
+        duplicatesRemoved,
+      });
+
+      console.log(
+        `✅ Processed ${account.name}: ${duplicatesRemoved} duplicates removed`
+      );
+    }
+
+    console.log(
+      `🎉 Auto-cleanup completed: ${accountsToProcess.length} accounts, ${totalDuplicatesRemoved} total duplicates removed`
+    );
+
+    return {
+      accountsProcessed: accountsToProcess.length,
+      duplicatesRemoved: totalDuplicatesRemoved,
+      summary,
+    };
+  }
+
+  /**
+   * PRODUCTION: Check for duplicate data issues
+   * Returns health report for monitoring
+   */
+  async getDuplicateHealthReport(daysToCheck: number = 7): Promise<{
+    status: "healthy" | "warning" | "critical";
+    totalAccounts: number;
+    accountsWithDuplicates: number;
+    totalDuplicates: number;
+    worstOffenders: Array<{
+      accountId: string;
+      accountName: string;
+      duplicateDates: string[];
+      duplicateCount: number;
+    }>;
+    recommendations: string[];
+  }> {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysToCheck);
+
+    // Get all analytics records in date range
+    const records = await this.prisma.accountAnalytics.findMany({
+      where: {
+        recordedAt: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      include: {
+        socialAccount: {
+          select: { name: true },
+        },
+      },
+      orderBy: { recordedAt: "desc" },
+    });
+
+    // Group by account and date
+    const accountDuplicates = new Map<
+      string,
+      {
+        accountName: string;
+        duplicateDates: Map<string, number>;
+        totalDuplicates: number;
+      }
+    >();
+
+    records.forEach((record) => {
+      const accountId = record.socialAccountId;
+      const dateKey = record.recordedAt.toISOString().split("T")[0];
+
+      if (!accountDuplicates.has(accountId)) {
+        accountDuplicates.set(accountId, {
+          accountName: record.socialAccount.name || "Unknown Account",
+          duplicateDates: new Map(),
+          totalDuplicates: 0,
+        });
+      }
+
+      const accountData = accountDuplicates.get(accountId)!;
+      const currentCount = accountData.duplicateDates.get(dateKey) || 0;
+      accountData.duplicateDates.set(dateKey, currentCount + 1);
+    });
+
+    // Calculate statistics
+    let totalDuplicates = 0;
+    let accountsWithDuplicates = 0;
+    const worstOffenders: Array<{
+      accountId: string;
+      accountName: string;
+      duplicateDates: string[];
+      duplicateCount: number;
+    }> = [];
+
+    accountDuplicates.forEach((data, accountId) => {
+      const duplicateDates: string[] = [];
+      let accountDuplicateCount = 0;
+
+      data.duplicateDates.forEach((count, date) => {
+        if (count > 1) {
+          duplicateDates.push(date);
+          accountDuplicateCount += count - 1; // Only count extras as duplicates
+        }
+      });
+
+      if (duplicateDates.length > 0) {
+        accountsWithDuplicates++;
+        totalDuplicates += accountDuplicateCount;
+
+        worstOffenders.push({
+          accountId,
+          accountName: data.accountName,
+          duplicateDates,
+          duplicateCount: accountDuplicateCount,
+        });
+      }
+    });
+
+    // Sort worst offenders by duplicate count
+    worstOffenders.sort((a, b) => b.duplicateCount - a.duplicateCount);
+
+    // Determine status
+    let status: "healthy" | "warning" | "critical";
+    if (totalDuplicates === 0) {
+      status = "healthy";
+    } else if (totalDuplicates < 10 || accountsWithDuplicates <= 2) {
+      status = "warning";
+    } else {
+      status = "critical";
+    }
+
+    // Generate recommendations
+    const recommendations: string[] = [];
+    if (totalDuplicates > 0) {
+      recommendations.push(
+        `Run auto-cleanup to remove ${totalDuplicates} duplicate records`
+      );
+    }
+    if (accountsWithDuplicates > 0) {
+      recommendations.push(
+        `Check analytics collection jobs for ${accountsWithDuplicates} accounts`
+      );
+    }
+    if (worstOffenders.length > 0) {
+      recommendations.push(
+        `Review data collection frequency for high-duplicate accounts`
+      );
+    }
+    if (status === "critical") {
+      recommendations.push(
+        `Consider implementing upsertAnalyticsData() to prevent future duplicates`
+      );
+    }
+
+    return {
+      status,
+      totalAccounts: accountDuplicates.size,
+      accountsWithDuplicates,
+      totalDuplicates,
+      worstOffenders: worstOffenders.slice(0, 5), // Top 5 worst offenders
+      recommendations,
+    };
+  }
+
+  /**
+   * PRODUCTION: Safe data collection with duplicate prevention
+   * Use this instead of direct create() calls
+   */
+  async collectAnalyticsDataSafely(
+    socialAccountId: string,
+    analyticsData: Partial<AccountAnalytics>,
+    options?: {
+      allowSameDayUpdate?: boolean;
+      mergeWithExisting?: boolean;
+      targetDate?: Date;
+    }
+  ): Promise<{
+    success: boolean;
+    action: "created" | "updated" | "skipped";
+    record?: any;
+    message: string;
+  }> {
+    const {
+      allowSameDayUpdate = true,
+      mergeWithExisting = true,
+      targetDate,
+    } = options || {};
+
+    try {
+      if (allowSameDayUpdate && mergeWithExisting) {
+        // Use upsert strategy (recommended for production)
+        const result = await this.upsertAnalyticsData(
+          socialAccountId,
+          analyticsData,
+          targetDate
+        );
+
+        return {
+          success: true,
+          action: result.created ? "created" : "updated",
+          record: result.record,
+          message: result.created
+            ? "New analytics record created successfully"
+            : "Existing record updated with latest data",
+        };
+      } else {
+        // Check if data already exists for today
+        const today = targetDate || new Date();
+        const dateKey = today.toISOString().split("T")[0];
+
+        const existingRecord = await this.prisma.accountAnalytics.findFirst({
+          where: {
+            socialAccountId,
+            recordedAt: {
+              gte: new Date(`${dateKey}T00:00:00.000Z`),
+              lt: new Date(`${dateKey}T23:59:59.999Z`),
+            },
+          },
+        });
+
+        if (existingRecord && !allowSameDayUpdate) {
+          return {
+            success: true,
+            action: "skipped",
+            message:
+              "Data already exists for today, skipping to prevent duplicates",
+          };
+        }
+
+        // Create new record
+        await this.updateComparisonFields(socialAccountId, analyticsData);
+
+        // Ensure required fields are present
+        const { id, followerGrowth, ...safeAnalyticsData } = analyticsData;
+        const createData = {
+          socialAccountId,
+          recordedAt: today,
+          followersCount: analyticsData.followersCount || 0,
+          mediaCount: analyticsData.mediaCount || 0,
+          engagementRate: analyticsData.engagementRate || 0,
+          avgReachPerPost: analyticsData.avgReachPerPost || 0,
+          followerGrowth: followerGrowth || "[]",
+          ...safeAnalyticsData, // Override with any provided values
+        };
+
+        const newRecord = await this.prisma.accountAnalytics.create({
+          data: createData as any,
+        });
+
+        return {
+          success: true,
+          action: "created",
+          record: newRecord,
+          message: "New analytics record created successfully",
+        };
+      }
+    } catch (error) {
+      console.error(`❌ Error collecting analytics data safely:`, error);
+      return {
+        success: false,
+        action: "skipped",
+        message: `Failed to collect analytics: ${error}`,
+      };
     }
   }
 }

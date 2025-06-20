@@ -1,8 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { GrowthComparisonCards } from "@/components/analytics/growth-comparison-cards";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -146,6 +152,13 @@ export default function AnalyticsComparisonPage() {
     "cmc1rehtx0006vx3iwena0qli"
   );
   const [comparisonType, setComparisonType] = useState<ComparisonType>("week");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Production Health Report
+  const [healthReport, setHealthReport] = useState<any>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [autoCleanupResult, setAutoCleanupResult] = useState<any>(null);
 
   // Get growth summary data
   const {
@@ -193,8 +206,284 @@ export default function AnalyticsComparisonPage() {
     }
   };
 
+  const handleGenerateData = async () => {
+    if (!selectedAccountId) {
+      setError("Please select a social account first");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        "/api/analytics/comparison/generate-sample-data",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            socialAccountId: selectedAccountId,
+            days: 7,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Sample data generated:", result);
+
+      // Refresh growth data after generating
+      refetchGrowth();
+    } catch (err) {
+      console.error("❌ Error generating sample data:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to generate sample data"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Production Health Monitoring
+  const fetchHealthReport = async () => {
+    setHealthLoading(true);
+    try {
+      const response = await fetch("/api/analytics/comparison/health-report", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setHealthReport(result);
+    } catch (err) {
+      console.error("❌ Error fetching health report:", err);
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+
+  const runAutoCleanup = async () => {
+    setHealthLoading(true);
+    try {
+      const response = await fetch("/api/analytics/comparison/auto-cleanup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          daysToCheck: 7,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setAutoCleanupResult(result);
+
+      // Refresh health report
+      await fetchHealthReport();
+    } catch (err) {
+      console.error("❌ Error running auto cleanup:", err);
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Auto-fetch health report on mount
+    fetchHealthReport();
+  }, []);
+
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-6 space-y-8">
+      <div className="flex flex-col space-y-4">
+        <h1 className="text-2xl font-bold">Growth Comparison Analytics</h1>
+        <p className="text-muted-foreground">
+          Compare your social media growth across different time periods with
+          duplicate detection and cleanup tools.
+        </p>
+      </div>
+
+      {/* Production Health Dashboard */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            🏥 Production Health Dashboard
+            <Badge
+              variant={
+                !healthReport
+                  ? "secondary"
+                  : healthReport.status === "healthy"
+                    ? "default"
+                    : healthReport.status === "warning"
+                      ? "destructive"
+                      : "destructive"
+              }
+            >
+              {!healthReport ? "Loading..." : healthReport.status.toUpperCase()}
+            </Badge>
+          </CardTitle>
+          <CardDescription>
+            Monitor data quality and manage duplicate records
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {healthLoading && (
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+              <span>Checking system health...</span>
+            </div>
+          )}
+
+          {healthReport && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="p-4 border rounded-lg">
+                <div className="text-2xl font-bold">
+                  {healthReport.totalAccounts}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Total Accounts
+                </div>
+              </div>
+              <div className="p-4 border rounded-lg">
+                <div className="text-2xl font-bold text-orange-600">
+                  {healthReport.accountsWithDuplicates}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Accounts with Duplicates
+                </div>
+              </div>
+              <div className="p-4 border rounded-lg">
+                <div className="text-2xl font-bold text-red-600">
+                  {healthReport.totalDuplicates}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Total Duplicates
+                </div>
+              </div>
+              <div className="p-4 border rounded-lg">
+                <div className="text-2xl font-bold text-green-600">
+                  {healthReport.status === "healthy"
+                    ? "✅"
+                    : healthReport.status === "warning"
+                      ? "⚠️"
+                      : "🚨"}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  System Status
+                </div>
+              </div>
+            </div>
+          )}
+
+          {healthReport?.worstOffenders &&
+            healthReport.worstOffenders.length > 0 && (
+              <div>
+                <h4 className="font-semibold mb-2">🔥 Worst Offenders</h4>
+                <div className="space-y-2">
+                  {healthReport.worstOffenders.map(
+                    (offender: any, index: number) => (
+                      <div
+                        key={index}
+                        className="flex justify-between items-center p-2 bg-red-50 rounded"
+                      >
+                        <span className="font-medium">
+                          {offender.accountName}
+                        </span>
+                        <div className="flex gap-2">
+                          <Badge variant="destructive">
+                            {offender.duplicateCount} duplicates
+                          </Badge>
+                          <Badge variant="outline">
+                            {offender.duplicateDates.length} dates affected
+                          </Badge>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+
+          {healthReport?.recommendations &&
+            healthReport.recommendations.length > 0 && (
+              <div>
+                <h4 className="font-semibold mb-2">💡 Recommendations</h4>
+                <ul className="space-y-1">
+                  {healthReport.recommendations.map(
+                    (rec: string, index: number) => (
+                      <li key={index} className="flex items-center gap-2">
+                        <span className="text-blue-500">•</span>
+                        <span className="text-sm">{rec}</span>
+                      </li>
+                    )
+                  )}
+                </ul>
+              </div>
+            )}
+
+          <div className="flex gap-2">
+            <Button
+              onClick={fetchHealthReport}
+              disabled={healthLoading}
+              variant="outline"
+              size="sm"
+            >
+              🔄 Refresh Health Report
+            </Button>
+            <Button
+              onClick={runAutoCleanup}
+              disabled={healthLoading || !healthReport?.totalDuplicates}
+              variant={
+                healthReport?.totalDuplicates > 0 ? "destructive" : "outline"
+              }
+              size="sm"
+            >
+              🧹 Auto-Cleanup Duplicates
+            </Button>
+          </div>
+
+          {autoCleanupResult && (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <h4 className="font-semibold text-green-800 mb-2">
+                ✅ Cleanup Completed
+              </h4>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-medium">Accounts Processed:</span>{" "}
+                  {autoCleanupResult.accountsProcessed}
+                </div>
+                <div>
+                  <span className="font-medium">Duplicates Removed:</span>{" "}
+                  {autoCleanupResult.duplicatesRemoved}
+                </div>
+              </div>
+              {autoCleanupResult.summary &&
+                autoCleanupResult.summary.length > 0 && (
+                  <div className="mt-2">
+                    <div className="font-medium mb-1">Summary:</div>
+                    {autoCleanupResult.summary.map(
+                      (item: any, index: number) => (
+                        <div key={index} className="text-xs text-green-700">
+                          • {item.accountName}: {item.duplicatesRemoved}{" "}
+                          duplicates removed
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -473,6 +762,231 @@ export default function AnalyticsComparisonPage() {
           </TabsContent>
         </Tabs>
       )}
+
+      {/* Debug Section (Development Only) */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="mt-8 border-t pt-6">
+          <h2 className="text-lg font-semibold mb-4 text-yellow-700">
+            🔧 Debug Tools (Development Only)
+          </h2>
+          <DebugGrowthComparison socialAccountId={selectedAccountId} />
+        </div>
+      )}
     </div>
   );
 }
+
+// Debug Component for Growth Comparison
+const DebugGrowthComparison = ({
+  socialAccountId,
+}: {
+  socialAccountId: string;
+}) => {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
+
+  const { data: debugData, refetch: refetchDebug } =
+    api.analyticsComparison.getDebugData.useQuery(
+      { socialAccountId, limit: 10 },
+      { enabled: !!socialAccountId }
+    );
+
+  const generateSampleData =
+    api.analyticsComparison.generateSampleData.useMutation({
+      onSuccess: () => {
+        refetchDebug();
+        setIsGenerating(false);
+      },
+      onError: (error) => {
+        console.error("Error generating sample data:", error);
+        setIsGenerating(false);
+      },
+    });
+
+  const cleanDuplicates = api.analyticsComparison.cleanDuplicates.useMutation({
+    onSuccess: () => {
+      refetchDebug();
+      setIsCleaning(false);
+    },
+    onError: (error) => {
+      console.error("Error cleaning duplicates:", error);
+      setIsCleaning(false);
+    },
+  });
+
+  const handleGenerateSampleData = () => {
+    setIsGenerating(true);
+    generateSampleData.mutate({ socialAccountId, days: 7 });
+  };
+
+  const handleCleanDuplicates = () => {
+    setIsCleaning(true);
+    cleanDuplicates.mutate({ socialAccountId });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Alert for duplicates */}
+      {debugData &&
+        debugData.records.length > 0 &&
+        (() => {
+          const dateGroups = debugData.records.reduce(
+            (acc, record) => {
+              const date = new Date(record.recordedAt).toDateString();
+              acc[date] = (acc[date] || 0) + 1;
+              return acc;
+            },
+            {} as Record<string, number>
+          );
+
+          const hasDuplicates = Object.values(dateGroups).some(
+            (count) => count > 1
+          );
+
+          return hasDuplicates ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <svg
+                    className="h-5 w-5 text-red-400"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">
+                    Data Duplikat Terdeteksi!
+                  </h3>
+                  <div className="mt-2 text-sm text-red-700">
+                    <p>
+                      Ditemukan multiple records di tanggal yang sama. Ini
+                      menyebabkan Growth Comparison tidak akurat.
+                      <strong>
+                        {" "}
+                        Klik "Clean Duplicates" untuk memperbaiki.
+                      </strong>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null;
+        })()}
+
+      <div className="flex gap-4 flex-wrap">
+        <Button
+          variant="outline"
+          onClick={handleCleanDuplicates}
+          disabled={isCleaning}
+          className="bg-red-50 hover:bg-red-100 border-red-200 text-red-700 font-medium"
+        >
+          {isCleaning && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+          🧹 Clean Duplicates (Fix Growth Issue)
+        </Button>
+
+        <Button
+          variant="outline"
+          onClick={handleGenerateSampleData}
+          disabled={isGenerating}
+          className="bg-blue-50 hover:bg-blue-100"
+        >
+          {isGenerating && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+          🧪 Generate Realistic Sample Data (7 days)
+        </Button>
+
+        <Button
+          variant="outline"
+          onClick={() => refetchDebug()}
+          className="bg-green-50 hover:bg-green-100"
+        >
+          <RefreshCw className="h-4 w-4 mr-2" />
+          🔄 Refresh Debug Data
+        </Button>
+      </div>
+
+      {debugData && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">
+              Debug Data: {debugData.accountName} ({debugData.platform})
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Total Records: {debugData.totalRecords}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {debugData.records.map((record) => (
+                <div
+                  key={record.id}
+                  className="border rounded p-3 text-xs bg-slate-50"
+                >
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <strong>Date:</strong>{" "}
+                      {new Date(record.recordedAt).toLocaleDateString()}
+                    </div>
+                    <div>
+                      <strong>Followers:</strong> {record.followersCount}
+                      <span
+                        className={`ml-1 ${
+                          (record.followersGrowthPercent || 0) > 0
+                            ? "text-green-600"
+                            : (record.followersGrowthPercent || 0) < 0
+                              ? "text-red-600"
+                              : "text-gray-600"
+                        }`}
+                      >
+                        ({record.followersGrowthPercent?.toFixed(1) || "0.0"}%)
+                      </span>
+                    </div>
+                    <div>
+                      <strong>Engagement:</strong> {record.engagementRate}%
+                      <span
+                        className={`ml-1 ${
+                          (record.engagementGrowthPercent || 0) > 0
+                            ? "text-green-600"
+                            : (record.engagementGrowthPercent || 0) < 0
+                              ? "text-red-600"
+                              : "text-gray-600"
+                        }`}
+                      >
+                        ({record.engagementGrowthPercent?.toFixed(1) || "0.0"}%)
+                      </span>
+                    </div>
+                    <div>
+                      <strong>Posts:</strong> {record.mediaCount}
+                      <span
+                        className={`ml-1 ${
+                          (record.mediaGrowthPercent || 0) > 0
+                            ? "text-green-600"
+                            : (record.mediaGrowthPercent || 0) < 0
+                              ? "text-red-600"
+                              : "text-gray-600"
+                        }`}
+                      >
+                        ({record.mediaGrowthPercent?.toFixed(1) || "0.0"}%)
+                      </span>
+                    </div>
+                    <div className="col-span-2 mt-1 pt-1 border-t">
+                      <strong>Previous:</strong> F:
+                      {record.previousFollowersCount || 0}, E:
+                      {record.previousEngagementRate || 0}%, P:
+                      {record.previousMediaCount || 0}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};

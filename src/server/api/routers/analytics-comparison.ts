@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "@/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { AnalyticsComparisonService } from "@/lib/services/analytics-comparison.service";
 
@@ -316,5 +320,256 @@ export const analyticsComparisonRouter = createTRPCRouter({
           cause: error,
         });
       }
+    }),
+
+  /**
+   * DEBUG: Get raw analytics data for troubleshooting
+   */
+  getDebugData: protectedProcedure
+    .input(
+      z.object({
+        socialAccountId: z.string(),
+        limit: z.number().min(1).max(50).default(10),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        // Verify user has access to this social account
+        const socialAccount = await ctx.prisma.socialAccount.findFirst({
+          where: {
+            id: input.socialAccountId,
+            team: {
+              memberships: {
+                some: { userId: ctx.auth.userId },
+              },
+            },
+          },
+        });
+
+        if (!socialAccount) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Social account not found or access denied",
+          });
+        }
+
+        // Get recent analytics records
+        const records = await ctx.prisma.accountAnalytics.findMany({
+          where: { socialAccountId: input.socialAccountId },
+          orderBy: { recordedAt: "desc" },
+          take: input.limit,
+        });
+
+        return {
+          socialAccountId: input.socialAccountId,
+          accountName: socialAccount.name,
+          platform: socialAccount.platform,
+          totalRecords: records.length,
+          records: records.map((record) => ({
+            id: record.id,
+            recordedAt: record.recordedAt,
+            followersCount: record.followersCount,
+            mediaCount: record.mediaCount,
+            engagementRate: record.engagementRate,
+            avgReachPerPost: record.avgReachPerPost,
+            totalReach: record.totalReach,
+
+            // Growth fields
+            followersGrowthPercent: record.followersGrowthPercent,
+            engagementGrowthPercent: record.engagementGrowthPercent,
+            mediaGrowthPercent: record.mediaGrowthPercent,
+            reachGrowthPercent: record.reachGrowthPercent,
+
+            // Previous values
+            previousFollowersCount: record.previousFollowersCount,
+            previousMediaCount: record.previousMediaCount,
+            previousEngagementRate: record.previousEngagementRate,
+            previousAvgReachPerPost: record.previousAvgReachPerPost,
+
+            // Raw follower growth data
+            followerGrowth: record.followerGrowth,
+          })),
+        };
+      } catch (error: any) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to get debug data",
+          cause: error,
+        });
+      }
+    }),
+
+  /**
+   * UTILITY: Generate sample data for testing (development only)
+   */
+  generateSampleData: publicProcedure
+    .input(
+      z.object({
+        socialAccountId: z.string(),
+        days: z.number().min(1).max(365).default(30),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const service = new AnalyticsComparisonService();
+      return await service.generateSampleGrowthData(
+        input.socialAccountId,
+        input.days
+      );
+    }),
+
+  /**
+   * UTILITY: Clean duplicate records
+   */
+  cleanDuplicates: protectedProcedure
+    .input(
+      z.object({
+        socialAccountId: z.string(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify user has access to this social account
+        const socialAccount = await ctx.prisma.socialAccount.findFirst({
+          where: {
+            id: input.socialAccountId,
+            team: {
+              memberships: {
+                some: { userId: ctx.auth.userId },
+              },
+            },
+          },
+        });
+
+        if (!socialAccount) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Social account not found or access denied",
+          });
+        }
+
+        const comparisonService = new AnalyticsComparisonService(ctx.prisma);
+        const deletedCount = await comparisonService.cleanDuplicateRecords(
+          input.socialAccountId
+        );
+
+        return {
+          success: true,
+          message: `Cleaned ${deletedCount} duplicate records`,
+          socialAccountId: input.socialAccountId,
+          deletedCount,
+        };
+      } catch (error: any) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to clean duplicates",
+          cause: error,
+        });
+      }
+    }),
+
+  // === PRODUCTION ENDPOINTS ===
+
+  // Upsert analytics data (prevents duplicates)
+  upsertAnalyticsData: publicProcedure
+    .input(
+      z.object({
+        socialAccountId: z.string(),
+        analyticsData: z.object({
+          followersCount: z.number().optional(),
+          followingCount: z.number().optional(),
+          mediaCount: z.number().optional(),
+          engagementRate: z.number().optional(),
+          avgReachPerPost: z.number().optional(),
+          avgLikesPerPost: z.number().optional(),
+          avgCommentsPerPost: z.number().optional(),
+          avgSharesPerPost: z.number().optional(),
+          impressionsGrowth: z.number().optional(),
+          reachGrowth: z.number().optional(),
+          profileViewsGrowth: z.number().optional(),
+          // Add other fields as needed
+        }),
+        targetDate: z.date().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const service = new AnalyticsComparisonService();
+      return await service.upsertAnalyticsData(
+        input.socialAccountId,
+        input.analyticsData,
+        input.targetDate
+      );
+    }),
+
+  // Auto-cleanup duplicates (production safe)
+  autoCleanupDuplicates: publicProcedure
+    .input(
+      z.object({
+        socialAccountId: z.string().optional(),
+        daysToCheck: z.number().min(1).max(30).default(7),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const service = new AnalyticsComparisonService();
+      return await service.autoCleanupDuplicates(
+        input.socialAccountId,
+        input.daysToCheck
+      );
+    }),
+
+  // Get duplicate health report
+  getDuplicateHealthReport: publicProcedure
+    .input(
+      z.object({
+        daysToCheck: z.number().min(1).max(30).default(7),
+      })
+    )
+    .query(async ({ input }) => {
+      const service = new AnalyticsComparisonService();
+      return await service.getDuplicateHealthReport(input.daysToCheck);
+    }),
+
+  // Safe data collection
+  collectAnalyticsDataSafely: publicProcedure
+    .input(
+      z.object({
+        socialAccountId: z.string(),
+        analyticsData: z.object({
+          followersCount: z.number().optional(),
+          followingCount: z.number().optional(),
+          mediaCount: z.number().optional(),
+          engagementRate: z.number().optional(),
+          avgReachPerPost: z.number().optional(),
+          avgLikesPerPost: z.number().optional(),
+          avgCommentsPerPost: z.number().optional(),
+          avgSharesPerPost: z.number().optional(),
+          impressionsGrowth: z.number().optional(),
+          reachGrowth: z.number().optional(),
+          profileViewsGrowth: z.number().optional(),
+          // Add other fields as needed
+        }),
+        options: z
+          .object({
+            allowSameDayUpdate: z.boolean().default(true),
+            mergeWithExisting: z.boolean().default(true),
+            targetDate: z.date().optional(),
+          })
+          .optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const service = new AnalyticsComparisonService();
+      return await service.collectAnalyticsDataSafely(
+        input.socialAccountId,
+        input.analyticsData,
+        input.options
+      );
     }),
 });

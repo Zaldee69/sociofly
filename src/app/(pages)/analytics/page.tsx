@@ -657,6 +657,7 @@ const Analytics: React.FC = () => {
                       <GrowthComparisonCards
                         data={growthData as any}
                         isLoading={false}
+                        comparisonType="day"
                       />
                     ) : (
                       <div className="text-center py-8">

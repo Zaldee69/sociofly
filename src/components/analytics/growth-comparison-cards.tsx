@@ -31,11 +31,13 @@ interface GrowthData {
     reach: GrowthMetric;
     posts: GrowthMetric;
   };
+  comparisonPeriod?: string;
 }
 
 interface GrowthComparisonCardsProps {
   data: GrowthData;
   isLoading?: boolean;
+  comparisonType?: "day" | "week" | "month" | "quarter";
 }
 
 const MetricCard = ({
@@ -43,82 +45,116 @@ const MetricCard = ({
   icon,
   metric,
   suffix = "",
+  comparisonType,
 }: {
   title: string;
   icon: React.ReactNode;
   metric: GrowthMetric;
   suffix?: string;
+  comparisonType?: string;
 }) => {
   const formatValue = (value: number) => {
-    if (suffix === "%") {
-      return value.toFixed(1);
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(1)}M`;
+    } else if (value >= 1000) {
+      return `${(value / 1000).toFixed(1)}K`;
     }
-    return value.toLocaleString();
+    return value.toString();
   };
 
   const getTrendIcon = () => {
-    switch (metric.trend) {
-      case "up":
-        return <TrendingUp className="h-4 w-4 text-green-600" />;
-      case "down":
-        return <TrendingDown className="h-4 w-4 text-red-600" />;
-      case "stable":
-        return <Minus className="h-4 w-4 text-gray-600" />;
+    if (metric.trend === "up") {
+      return <TrendingUp className="h-4 w-4 text-green-600" />;
+    } else if (metric.trend === "down") {
+      return <TrendingDown className="h-4 w-4 text-red-600" />;
     }
+    return <Minus className="h-4 w-4 text-gray-600" />;
   };
 
   const getTrendColor = () => {
-    switch (metric.trend) {
-      case "up":
-        return "text-green-600 bg-green-50";
-      case "down":
-        return "text-red-600 bg-red-50";
-      case "stable":
-        return "text-gray-600 bg-gray-50";
+    if (metric.trend === "up") return "text-green-600";
+    if (metric.trend === "down") return "text-red-600";
+    return "text-gray-600";
+  };
+
+  const getPercentageDisplay = () => {
+    const absPercentage = Math.abs(metric.percentage);
+    const sign = metric.percentage > 0 ? "+" : metric.percentage < 0 ? "-" : "";
+
+    if (absPercentage > 100) {
+      return `${sign}${absPercentage.toFixed(0)}%`;
+    } else if (absPercentage > 10) {
+      return `${sign}${absPercentage.toFixed(1)}%`;
+    } else {
+      return `${sign}${absPercentage.toFixed(2)}%`;
     }
   };
 
-  const getProgressValue = () => {
-    // Convert percentage to a value between 0-100 for progress bar
-    const absPercentage = Math.abs(metric.percentage);
-    return Math.min(absPercentage, 100);
+  const getPeriodLabel = () => {
+    switch (comparisonType) {
+      case "day":
+        return "yesterday";
+      case "week":
+        return "last week";
+      case "month":
+        return "last month";
+      case "quarter":
+        return "last quarter";
+      default:
+        return "previous period";
+    }
+  };
+
+  const formatLastUpdated = (date: Date) => {
+    const now = new Date();
+    const diffMinutes = Math.floor(
+      (now.getTime() - date.getTime()) / (1000 * 60)
+    );
+
+    if (diffMinutes < 60) {
+      return `${diffMinutes} minutes ago`;
+    } else if (diffMinutes < 1440) {
+      return `${Math.floor(diffMinutes / 60)} hours ago`;
+    } else {
+      return date.toLocaleDateString();
+    }
   };
 
   return (
-    <Card>
+    <Card className="transition-all duration-200 hover:shadow-md">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         {icon}
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">
-          {formatValue(metric.current)}
-          {suffix}
-        </div>
-        <div className="flex items-center justify-between mt-2">
-          <div className="flex items-center space-x-1">
-            {getTrendIcon()}
-            <Badge variant="secondary" className={getTrendColor()}>
-              {metric.percentage > 0 ? "+" : ""}
-              {metric.percentage.toFixed(1)}%
-            </Badge>
+        <div className="space-y-1">
+          <div className="text-2xl font-bold">
+            {formatValue(metric.current)}
+            {suffix}
           </div>
-        </div>
-        <div className="mt-2">
-          <div className="flex justify-between text-xs text-muted-foreground mb-1">
-            <span>
-              Previous: {formatValue(metric.previous)}
+
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">
+              vs {getPeriodLabel()}: {formatValue(metric.previous)}
               {suffix}
             </span>
-            <span>
-              {metric.trend === "up"
-                ? "Growth"
-                : metric.trend === "down"
-                  ? "Decline"
-                  : "Stable"}
+          </div>
+
+          <div
+            className={`flex items-center text-xs font-medium ${getTrendColor()}`}
+          >
+            {getTrendIcon()}
+            <span className="ml-1">
+              {getPercentageDisplay()} from {getPeriodLabel()}
             </span>
           </div>
-          <Progress value={getProgressValue()} className="h-2" />
+
+          {/* Warning for extreme values */}
+          {Math.abs(metric.percentage) > 50 && (
+            <div className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
+              ⚠️ Extreme value detected
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -151,6 +187,7 @@ const LoadingSkeleton = () => (
 export const GrowthComparisonCards: React.FC<GrowthComparisonCardsProps> = ({
   data,
   isLoading = false,
+  comparisonType,
 }) => {
   if (isLoading) {
     return <LoadingSkeleton />;
@@ -164,11 +201,51 @@ export const GrowthComparisonCards: React.FC<GrowthComparisonCardsProps> = ({
     );
   }
 
+  const getPeriodLabel = (type?: string) => {
+    switch (type) {
+      case "day":
+        return "vs Yesterday";
+      case "week":
+        return "vs Last Week";
+      case "month":
+        return "vs Last Month";
+      case "quarter":
+        return "vs Last Quarter";
+      default:
+        return "vs Previous Period";
+    }
+  };
+
+  const formatLastUpdated = (date: Date) => {
+    const now = new Date();
+    const diffMinutes = Math.floor(
+      (now.getTime() - date.getTime()) / (1000 * 60)
+    );
+
+    if (diffMinutes < 60) {
+      return `${diffMinutes} minutes ago`;
+    } else if (diffMinutes < 1440) {
+      return `${Math.floor(diffMinutes / 60)} hours ago`;
+    } else {
+      return date.toLocaleDateString();
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Growth Overview</h3>
-        <Badge variant="outline">{data.accountName || "Account"}</Badge>
+        <div>
+          <h3 className="text-lg font-semibold">Growth Overview</h3>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Badge variant="outline">{data.accountName || "Account"}</Badge>
+            <span>•</span>
+            <span className="font-medium text-blue-600">
+              {getPeriodLabel(comparisonType)}
+            </span>
+            <span>•</span>
+            <span>Updated {formatLastUpdated(data.lastUpdated)}</span>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -176,6 +253,7 @@ export const GrowthComparisonCards: React.FC<GrowthComparisonCardsProps> = ({
           title="Total Followers"
           icon={<Users className="h-4 w-4 text-muted-foreground" />}
           metric={data.growth.followers}
+          comparisonType={comparisonType}
         />
 
         <MetricCard
@@ -183,83 +261,79 @@ export const GrowthComparisonCards: React.FC<GrowthComparisonCardsProps> = ({
           icon={<Heart className="h-4 w-4 text-muted-foreground" />}
           metric={data.growth.engagement}
           suffix="%"
+          comparisonType={comparisonType}
         />
 
         <MetricCard
           title="Total Reach"
           icon={<Eye className="h-4 w-4 text-muted-foreground" />}
           metric={data.growth.reach}
+          comparisonType={comparisonType}
         />
 
         <MetricCard
           title="Total Posts"
           icon={<FileText className="h-4 w-4 text-muted-foreground" />}
           metric={data.growth.posts}
+          comparisonType={comparisonType}
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Account Info</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Platform:</span>
-                <span className="capitalize">
-                  {data.platform.toLowerCase()}
+      {/* Comparison Summary */}
+      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium">
+            📊 Comparison Summary ({getPeriodLabel(comparisonType)})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {Object.entries(data.growth).map(([key, metric]) => (
+              <div
+                key={key}
+                className="flex items-center justify-between text-sm"
+              >
+                <span className="capitalize text-muted-foreground">
+                  {key.replace("Growth", "")}:
                 </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Last Updated:</span>
-                <span>{data.lastUpdated.toLocaleDateString()}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Overall Performance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {Object.entries(data.growth).map(([key, metric]) => (
-                <div
-                  key={key}
-                  className="flex items-center justify-between text-sm"
-                >
-                  <span className="capitalize text-muted-foreground">
-                    {key.replace("Growth", "")}:
+                <div className="flex items-center space-x-1">
+                  {metric.trend === "up" ? (
+                    <TrendingUp className="h-3 w-3 text-green-600" />
+                  ) : metric.trend === "down" ? (
+                    <TrendingDown className="h-3 w-3 text-red-600" />
+                  ) : (
+                    <Minus className="h-3 w-3 text-gray-600" />
+                  )}
+                  <span
+                    className={
+                      metric.trend === "up"
+                        ? "text-green-600 font-medium"
+                        : metric.trend === "down"
+                          ? "text-red-600 font-medium"
+                          : "text-gray-600"
+                    }
+                  >
+                    {metric.percentage > 0 ? "+" : ""}
+                    {Math.abs(metric.percentage) > 100
+                      ? `${metric.percentage > 0 ? "+" : ""}${metric.percentage.toFixed(0)}%`
+                      : `${metric.percentage > 0 ? "+" : ""}${metric.percentage.toFixed(1)}%`}
                   </span>
-                  <div className="flex items-center space-x-1">
-                    {metric.trend === "up" ? (
-                      <TrendingUp className="h-3 w-3 text-green-600" />
-                    ) : metric.trend === "down" ? (
-                      <TrendingDown className="h-3 w-3 text-red-600" />
-                    ) : (
-                      <Minus className="h-3 w-3 text-gray-600" />
-                    )}
-                    <span
-                      className={
-                        metric.trend === "up"
-                          ? "text-green-600"
-                          : metric.trend === "down"
-                            ? "text-red-600"
-                            : "text-gray-600"
-                      }
-                    >
-                      {metric.percentage > 0 ? "+" : ""}
-                      {metric.percentage.toFixed(1)}%
-                    </span>
-                  </div>
                 </div>
-              ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Alert for extreme values */}
+          {Object.values(data.growth).some(
+            (metric) => Math.abs(metric.percentage) > 50
+          ) && (
+            <div className="mt-3 p-2 bg-yellow-100 border border-yellow-300 rounded text-xs text-yellow-800">
+              ⚠️ Note: Extreme growth values may indicate sample data or data
+              quality issues
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
