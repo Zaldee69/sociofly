@@ -30,6 +30,8 @@ import {
   Heart,
   Eye,
   FileText,
+  BarChart3,
+  Image,
 } from "lucide-react";
 import { api } from "@/lib/utils/api";
 
@@ -171,11 +173,34 @@ export default function AnalyticsComparisonPage() {
   );
 
   // Get account comparison data
-  const { data: comparisonData, isLoading: isLoadingComparison } =
-    api.analyticsComparison.getAccountComparison.useQuery(
-      { socialAccountId: selectedAccountId, comparisonType },
-      { enabled: !!selectedAccountId }
-    );
+  const {
+    data: comparisonData,
+    isLoading: isLoadingComparison,
+    error: comparisonError,
+  } = api.analyticsComparison.getAccountComparison.useQuery(
+    { socialAccountId: selectedAccountId, comparisonType },
+    { enabled: !!selectedAccountId }
+  );
+
+  // Debug logging
+  React.useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      console.log("🔍 Analytics Comparison Debug:", {
+        selectedAccountId,
+        comparisonType,
+        isLoadingComparison,
+        hasComparisonData: !!comparisonData,
+        comparisonError: comparisonError?.message,
+        comparisonData: comparisonData ? "Data available" : "No data",
+      });
+    }
+  }, [
+    selectedAccountId,
+    comparisonType,
+    isLoadingComparison,
+    comparisonData,
+    comparisonError,
+  ]);
 
   // Get historical trends
   const { data: trendsData, isLoading: isLoadingTrends } =
@@ -628,92 +653,1062 @@ export default function AnalyticsComparisonPage() {
 
           {/* Detailed Analysis Tab */}
           <TabsContent value="detailed" className="space-y-6">
-            {comparisonData && (
-              <div className="grid gap-6 md:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Growth Metrics</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {Object.entries(comparisonData.growth).map(
-                        ([key, metric]) => (
-                          <div
-                            key={key}
-                            className="flex items-center justify-between"
-                          >
-                            <span className="capitalize">
-                              {key.replace("Growth", "")}
+            {isLoadingComparison ? (
+              <Card>
+                <CardContent className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <h3 className="text-lg font-medium mb-2">
+                      Loading Detailed Analysis
+                    </h3>
+                    <p className="text-muted-foreground">
+                      Fetching comprehensive analytics data...
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : comparisonError ? (
+              <Card>
+                <CardContent className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="text-red-500 mb-4">
+                      <svg
+                        className="h-12 w-12 mx-auto"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.232 15.5c-.77.833.192 2.5 1.732 2.5z"
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-medium mb-2 text-red-600">
+                      Error Loading Data
+                    </h3>
+                    <p className="text-muted-foreground mb-4">
+                      {comparisonError.message ||
+                        "Failed to load comparison data"}
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => window.location.reload()}
+                      className="text-sm"
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : comparisonData ? (
+              <>
+                {/* Performance Overview */}
+                <div className="grid gap-6 md:grid-cols-3">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5" />
+                        Growth Metrics
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {Object.entries(comparisonData.growth).map(
+                          ([key, metric]) => (
+                            <div
+                              key={key}
+                              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                            >
+                              <div>
+                                <span className="font-medium capitalize">
+                                  {key.replace("Growth", "")}
+                                </span>
+                                <div className="text-sm text-muted-foreground">
+                                  {metric.absolute > 0 ? "+" : ""}
+                                  {metric.absolute}
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                {getTrendIcon(metric.trend)}
+                                <span
+                                  className={`text-sm font-semibold ${
+                                    metric.percentage > 0
+                                      ? "text-green-600"
+                                      : metric.percentage < 0
+                                        ? "text-red-600"
+                                        : "text-gray-600"
+                                  }`}
+                                >
+                                  {metric.percentage > 0 ? "+" : ""}
+                                  {metric.percentage.toFixed(1)}%
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5" />
+                        Current vs Previous
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Followers</span>
+                          <div className="text-right">
+                            <div className="font-semibold">
+                              {comparisonData.current.followersCount.toLocaleString()}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              vs{" "}
+                              {comparisonData.previous?.followersCount?.toLocaleString() ||
+                                0}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">
+                            Engagement Rate
+                          </span>
+                          <div className="text-right">
+                            <div className="font-semibold">
+                              {comparisonData.current.engagementRate.toFixed(2)}
+                              %
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              vs{" "}
+                              {comparisonData.previous?.engagementRate?.toFixed(
+                                2
+                              ) || 0}
+                              %
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">
+                            Media Count
+                          </span>
+                          <div className="text-right">
+                            <div className="font-semibold">
+                              {comparisonData.current.mediaCount}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              vs {comparisonData.previous?.mediaCount || 0}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">
+                            Total Reach
+                          </span>
+                          <div className="text-right">
+                            <div className="font-semibold">
+                              {(
+                                comparisonData.current.totalReach || 0
+                              ).toLocaleString()}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              vs{" "}
+                              {(
+                                comparisonData.previous?.totalReach || 0
+                              ).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5" />
+                        Period Analysis
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-sm font-medium">
+                            Comparison Period
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {comparisonData.period.label}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">Current Period</p>
+                          <p className="text-sm text-muted-foreground">
+                            {comparisonData.current.recordedAt.toLocaleDateString()}
+                          </p>
+                        </div>
+                        {comparisonData.previous && (
+                          <div>
+                            <p className="text-sm font-medium">
+                              Previous Period
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {comparisonData.previous.recordedAt.toLocaleDateString()}
+                            </p>
+                          </div>
+                        )}
+                        <div className="pt-2 border-t">
+                          <p className="text-sm font-medium">Data Quality</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span className="text-xs text-muted-foreground">
+                              Complete Data
                             </span>
-                            <div className="flex items-center space-x-2">
-                              {getTrendIcon(metric.trend)}
-                              <span className="text-sm">
-                                {metric.percentage > 0 ? "+" : ""}
-                                {metric.percentage.toFixed(1)}%
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Performance Breakdown */}
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Target className="h-5 w-5" />
+                        Performance Breakdown
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Detailed analysis of key performance indicators
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {/* Engagement Analysis */}
+                        <div className="p-4 border rounded-lg">
+                          <h4 className="font-medium mb-3 flex items-center gap-2">
+                            <Users className="h-4 w-4" />
+                            Engagement Analysis
+                          </h4>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">
+                                Engagement Rate
+                              </span>
+                              <div className="font-semibold">
+                                {comparisonData.current.engagementRate.toFixed(
+                                  2
+                                )}
+                                %
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">
+                                Avg Reach/Post
+                              </span>
+                              <div className="font-semibold">
+                                {comparisonData.current.avgReachPerPost
+                                  ? comparisonData.current.avgReachPerPost.toLocaleString()
+                                  : "N/A"}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-3 p-2 bg-blue-50 rounded text-xs">
+                            <strong>Insight:</strong>{" "}
+                            {comparisonData.growth.engagementGrowth.percentage >
+                            0
+                              ? `Engagement improved by ${comparisonData.growth.engagementGrowth.percentage.toFixed(1)}% - great content strategy!`
+                              : comparisonData.growth.engagementGrowth
+                                    .percentage < -5
+                                ? `Engagement declined by ${Math.abs(comparisonData.growth.engagementGrowth.percentage).toFixed(1)}% - consider content optimization.`
+                                : "Engagement is stable - maintain current strategy."}
+                          </div>
+                        </div>
+
+                        {/* Growth Analysis */}
+                        <div className="p-4 border rounded-lg">
+                          <h4 className="font-medium mb-3 flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4" />
+                            Growth Analysis
+                          </h4>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">
+                                Follower Growth
+                              </span>
+                              <div className="font-semibold">
+                                {comparisonData.growth.followersGrowth
+                                  .absolute > 0
+                                  ? "+"
+                                  : ""}
+                                {comparisonData.growth.followersGrowth.absolute}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">
+                                Content Growth
+                              </span>
+                              <div className="font-semibold">
+                                {comparisonData.growth.postsGrowth.absolute > 0
+                                  ? "+"
+                                  : ""}
+                                {comparisonData.growth.postsGrowth.absolute}{" "}
+                                posts
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-3 p-2 bg-green-50 rounded text-xs">
+                            <strong>Growth Rate:</strong>{" "}
+                            {comparisonData.growth.followersGrowth.percentage >
+                            10
+                              ? "Excellent growth trajectory!"
+                              : comparisonData.growth.followersGrowth
+                                    .percentage > 5
+                                ? "Good steady growth."
+                                : comparisonData.growth.followersGrowth
+                                      .percentage > 0
+                                  ? "Slow but positive growth."
+                                  : "Focus needed on growth strategies."}
+                          </div>
+                        </div>
+
+                        {/* Content Performance */}
+                        <div className="p-4 border rounded-lg">
+                          <h4 className="font-medium mb-3 flex items-center gap-2">
+                            <Image className="h-4 w-4" />
+                            Content Performance
+                          </h4>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">
+                                Posts Published
+                              </span>
+                              <span className="font-semibold">
+                                {comparisonData.current.mediaCount}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">
+                                Avg Engagement/Post
+                              </span>
+                              <span className="font-semibold">
+                                {comparisonData.current.mediaCount > 0
+                                  ? (
+                                      (comparisonData.current.engagementRate *
+                                        comparisonData.current.followersCount) /
+                                      100 /
+                                      comparisonData.current.mediaCount
+                                    ).toFixed(0)
+                                  : "N/A"}
                               </span>
                             </div>
                           </div>
-                        )
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                          <div className="mt-3 p-2 bg-purple-50 rounded text-xs">
+                            <strong>Content Strategy:</strong>{" "}
+                            {comparisonData.growth.postsGrowth.percentage > 0 &&
+                            comparisonData.growth.engagementGrowth.percentage >
+                              0
+                              ? "More content + better engagement = winning strategy!"
+                              : comparisonData.growth.postsGrowth.percentage >
+                                    0 &&
+                                  comparisonData.growth.engagementGrowth
+                                    .percentage <= 0
+                                ? "Publishing more but engagement declining - focus on quality."
+                                : "Consider increasing content frequency."}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
 
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5" />
+                        Key Insights & Recommendations
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        AI-powered insights based on your performance data
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {/* Performance Summary */}
+                        <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border">
+                          <h4 className="font-medium mb-3 flex items-center gap-2">
+                            🎯 Performance Summary
+                          </h4>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span>Best Performing Metric</span>
+                              <Badge
+                                variant="secondary"
+                                className="text-green-600 bg-green-50"
+                              >
+                                {comparisonData.insights.bestPerformingMetric}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Overall Trend</span>
+                              <div className="flex items-center gap-1">
+                                {getTrendIcon(
+                                  comparisonData.insights.overallTrend ===
+                                    "improving"
+                                    ? "up"
+                                    : comparisonData.insights.overallTrend ===
+                                        "declining"
+                                      ? "down"
+                                      : "stable"
+                                )}
+                                <span className="capitalize font-medium">
+                                  {comparisonData.insights.overallTrend}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actionable Recommendations */}
+                        <div className="p-4 border rounded-lg">
+                          <h4 className="font-medium mb-3 flex items-center gap-2">
+                            💡 Actionable Recommendations
+                          </h4>
+                          <div className="space-y-3">
+                            {comparisonData.insights.recommendations.map(
+                              (rec, index) => (
+                                <div
+                                  key={index}
+                                  className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg"
+                                >
+                                  <div className="w-6 h-6 bg-yellow-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                                    {index + 1}
+                                  </div>
+                                  <p className="text-sm">{rec}</p>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Platform-Specific Insights */}
+                        <div className="p-4 border rounded-lg">
+                          <h4 className="font-medium mb-3 flex items-center gap-2">
+                            📱 Platform-Specific Insights
+                          </h4>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">
+                                {comparisonData.platform}
+                              </Badge>
+                              <span className="text-muted-foreground">
+                                Platform
+                              </span>
+                            </div>
+                            {comparisonData.platform === "INSTAGRAM" && (
+                              <div className="mt-3 p-3 bg-pink-50 rounded-lg">
+                                <p className="text-xs">
+                                  <strong>Instagram Tips:</strong>
+                                </p>
+                                <ul className="text-xs text-muted-foreground mt-1 space-y-1">
+                                  <li>• Post consistently 1-2 times per day</li>
+                                  <li>• Use 8-15 relevant hashtags</li>
+                                  <li>• Engage with Stories and Reels</li>
+                                  <li>• Optimal posting: 6-9 AM or 7-9 PM</li>
+                                </ul>
+                              </div>
+                            )}
+                            {comparisonData.platform === "FACEBOOK" && (
+                              <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                                <p className="text-xs">
+                                  <strong>Facebook Tips:</strong>
+                                </p>
+                                <ul className="text-xs text-muted-foreground mt-1 space-y-1">
+                                  <li>• Post 1-2 times per day maximum</li>
+                                  <li>• Focus on video content</li>
+                                  <li>• Engage in Facebook Groups</li>
+                                  <li>• Optimal posting: 1-3 PM weekdays</li>
+                                </ul>
+                              </div>
+                            )}
+                            {comparisonData.platform === "LINKEDIN" && (
+                              <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                                <p className="text-xs">
+                                  <strong>LinkedIn Tips:</strong>
+                                </p>
+                                <ul className="text-xs text-muted-foreground mt-1 space-y-1">
+                                  <li>• Post 2-5 times per week</li>
+                                  <li>• Share industry insights</li>
+                                  <li>• Use professional tone</li>
+                                  <li>• Optimal posting: 8-10 AM or 12-2 PM</li>
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Next Steps */}
+                        <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border">
+                          <h4 className="font-medium mb-3 flex items-center gap-2">
+                            🚀 Next Steps
+                          </h4>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span>Monitor engagement rates daily</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <span>A/B test posting times</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                              <span>Analyze top-performing content</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                              <span>Review weekly comparison reports</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Advanced Metrics */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Period Comparison</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Advanced Metrics & Calculations
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Deep dive into calculated metrics and performance
+                      indicators
+                    </p>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        Comparing {comparisonData.period.label.toLowerCase()}
-                      </p>
-                      <div className="text-sm">
-                        <strong>Current Period:</strong>{" "}
-                        {comparisonData.current.recordedAt.toDateString()}
-                      </div>
-                      {comparisonData.previous && (
-                        <div className="text-sm">
-                          <strong>Previous Period:</strong>{" "}
-                          {comparisonData.previous.recordedAt.toDateString()}
+                    <div className="grid gap-6 md:grid-cols-3">
+                      {/* Engagement Metrics */}
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-sm">
+                          Engagement Metrics
+                        </h4>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              Engagement Rate
+                            </span>
+                            <span className="font-semibold">
+                              {comparisonData.current.engagementRate.toFixed(2)}
+                              %
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              Est. Total Engagements
+                            </span>
+                            <span className="font-semibold">
+                              {Math.round(
+                                (comparisonData.current.engagementRate *
+                                  comparisonData.current.followersCount) /
+                                  100
+                              ).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              Engagement/Follower
+                            </span>
+                            <span className="font-semibold">
+                              {(
+                                comparisonData.current.engagementRate / 100
+                              ).toFixed(3)}
+                            </span>
+                          </div>
                         </div>
-                      )}
+                      </div>
+
+                      {/* Growth Metrics */}
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-sm">Growth Metrics</h4>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              Daily Growth Rate
+                            </span>
+                            <span className="font-semibold">
+                              {comparisonData.previous
+                                ? (
+                                    comparisonData.growth.followersGrowth
+                                      .percentage / 7
+                                  ).toFixed(2)
+                                : 0}
+                              %
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              Content Velocity
+                            </span>
+                            <span className="font-semibold">
+                              {comparisonData.previous
+                                ? (
+                                    comparisonData.growth.postsGrowth.absolute /
+                                    7
+                                  ).toFixed(1)
+                                : 0}{" "}
+                              posts/day
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              Reach Efficiency
+                            </span>
+                            <span className="font-semibold">
+                              {comparisonData.current.totalReach &&
+                              comparisonData.current.mediaCount > 0
+                                ? (
+                                    comparisonData.current.totalReach /
+                                    comparisonData.current.mediaCount
+                                  ).toFixed(0)
+                                : "N/A"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Performance Scores */}
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-sm">
+                          Performance Scores
+                        </h4>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              Growth Score
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-12 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-green-500 rounded-full"
+                                  style={{
+                                    width: `${Math.min(100, Math.max(0, (comparisonData.growth.followersGrowth.percentage + 10) * 5))}%`,
+                                  }}
+                                ></div>
+                              </div>
+                              <span className="text-xs font-semibold">
+                                {Math.min(
+                                  100,
+                                  Math.max(
+                                    0,
+                                    Math.round(
+                                      (comparisonData.growth.followersGrowth
+                                        .percentage +
+                                        10) *
+                                        5
+                                    )
+                                  )
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              Engagement Score
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-12 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-blue-500 rounded-full"
+                                  style={{
+                                    width: `${Math.min(100, comparisonData.current.engagementRate * 10)}%`,
+                                  }}
+                                ></div>
+                              </div>
+                              <span className="text-xs font-semibold">
+                                {Math.min(
+                                  100,
+                                  Math.round(
+                                    comparisonData.current.engagementRate * 10
+                                  )
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              Overall Score
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-12 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-purple-500 rounded-full"
+                                  style={{
+                                    width: `${Math.min(
+                                      100,
+                                      (Math.max(
+                                        0,
+                                        (comparisonData.growth.followersGrowth
+                                          .percentage +
+                                          10) *
+                                          5
+                                      ) +
+                                        Math.min(
+                                          100,
+                                          comparisonData.current
+                                            .engagementRate * 10
+                                        )) /
+                                        2
+                                    )}%`,
+                                  }}
+                                ></div>
+                              </div>
+                              <span className="text-xs font-semibold">
+                                {Math.round(
+                                  Math.min(
+                                    100,
+                                    (Math.max(
+                                      0,
+                                      (comparisonData.growth.followersGrowth
+                                        .percentage +
+                                        10) *
+                                        5
+                                    ) +
+                                      Math.min(
+                                        100,
+                                        comparisonData.current.engagementRate *
+                                          10
+                                      )) /
+                                      2
+                                  )
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Performance Insights */}
+                    <div className="mt-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border">
+                      <h4 className="font-medium mb-3 flex items-center gap-2">
+                        🧠 AI Performance Analysis
+                      </h4>
+                      <div className="grid gap-4 md:grid-cols-2 text-sm">
+                        <div>
+                          <p className="font-medium mb-2">
+                            Strengths Identified:
+                          </p>
+                          <ul className="space-y-1 text-muted-foreground">
+                            {comparisonData.growth.followersGrowth.percentage >
+                              5 && <li>• Strong follower growth momentum</li>}
+                            {comparisonData.current.engagementRate > 3 && (
+                              <li>• Above-average engagement rate</li>
+                            )}
+                            {comparisonData.growth.postsGrowth.percentage >
+                              0 && <li>• Consistent content publishing</li>}
+                            {comparisonData.growth.reachGrowth.percentage >
+                              0 && <li>• Expanding reach and visibility</li>}
+                          </ul>
+                        </div>
+                        <div>
+                          <p className="font-medium mb-2">
+                            Areas for Improvement:
+                          </p>
+                          <ul className="space-y-1 text-muted-foreground">
+                            {comparisonData.growth.followersGrowth.percentage <
+                              1 && (
+                              <li>
+                                • Focus on follower acquisition strategies
+                              </li>
+                            )}
+                            {comparisonData.current.engagementRate < 2 && (
+                              <li>• Improve content engagement tactics</li>
+                            )}
+                            {comparisonData.growth.postsGrowth.percentage <
+                              0 && (
+                              <li>• Increase content publishing frequency</li>
+                            )}
+                            {comparisonData.growth.reachGrowth.percentage <
+                              0 && <li>• Optimize content for better reach</li>}
+                          </ul>
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
-              </div>
+              </>
+            ) : (
+              <Card>
+                <CardContent className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-medium mb-2">
+                      No Comparison Data Available
+                    </h3>
+                    <p className="text-muted-foreground">
+                      Detailed analysis will appear here once analytics data is
+                      collected for comparison
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
 
           {/* Historical Trends Tab */}
           <TabsContent value="trends" className="space-y-6">
-            {trendsData && (
+            {trendsData ? (
+              <>
+                {/* Trends Overview */}
+                <div className="grid gap-6 md:grid-cols-3">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5 text-blue-600" />
+                        Followers Trend
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="text-2xl font-bold">
+                          {trendsData.trends.followers.length} data points
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Over {trendsData.period}
+                        </div>
+                        {trendsData.trends.followers.length > 1 && (
+                          <div className="flex items-center gap-2">
+                            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div className="h-full bg-blue-500 rounded-full w-3/4"></div>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              Progress
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="h-5 w-5 text-green-600" />
+                        Engagement Trend
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="text-2xl font-bold">
+                          {trendsData.trends.engagement.length} data points
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Over {trendsData.period}
+                        </div>
+                        {trendsData.trends.engagement.length > 1 && (
+                          <div className="flex items-center gap-2">
+                            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div className="h-full bg-green-500 rounded-full w-2/3"></div>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              Activity
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Eye className="h-5 w-5 text-purple-600" />
+                        Reach Trend
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="text-2xl font-bold">
+                          {trendsData.trends.reach.length} data points
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Over {trendsData.period}
+                        </div>
+                        {trendsData.trends.reach.length > 1 && (
+                          <div className="flex items-center gap-2">
+                            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div className="h-full bg-purple-500 rounded-full w-4/5"></div>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              Visibility
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Detailed Trends Analysis */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Trend Analysis & Patterns
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Detailed breakdown of historical performance patterns
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-6 md:grid-cols-2">
+                      {/* Followers Analysis */}
+                      <div className="space-y-4">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4" />
+                          Followers Pattern Analysis
+                        </h4>
+                        <div className="p-4 border rounded-lg space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              Data Points Available
+                            </span>
+                            <span className="font-semibold">
+                              {trendsData.trends.followers.length}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              Tracking Period
+                            </span>
+                            <span className="font-semibold">
+                              {trendsData.period}
+                            </span>
+                          </div>
+                          <div className="pt-2 border-t">
+                            <p className="text-xs text-muted-foreground">
+                              {trendsData.trends.followers.length > 7
+                                ? "Sufficient data for trend analysis"
+                                : "More data needed for accurate trends"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Engagement Analysis */}
+                      <div className="space-y-4">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Engagement Pattern Analysis
+                        </h4>
+                        <div className="p-4 border rounded-lg space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              Data Points Available
+                            </span>
+                            <span className="font-semibold">
+                              {trendsData.trends.engagement.length}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              Tracking Period
+                            </span>
+                            <span className="font-semibold">
+                              {trendsData.period}
+                            </span>
+                          </div>
+                          <div className="pt-2 border-t">
+                            <p className="text-xs text-muted-foreground">
+                              {trendsData.trends.engagement.length > 7
+                                ? "Strong engagement tracking available"
+                                : "Building engagement history"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Trend Insights */}
+                    <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border">
+                      <h4 className="font-medium mb-3 flex items-center gap-2">
+                        📊 Historical Insights
+                      </h4>
+                      <div className="grid gap-4 md:grid-cols-3 text-sm">
+                        <div className="p-3 bg-white rounded-lg border">
+                          <p className="font-medium mb-1">Growth Consistency</p>
+                          <p className="text-muted-foreground">
+                            {trendsData.trends.followers.length > 10
+                              ? "Excellent tracking history"
+                              : trendsData.trends.followers.length > 5
+                                ? "Good data foundation"
+                                : "Building data history"}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-white rounded-lg border">
+                          <p className="font-medium mb-1">
+                            Engagement Stability
+                          </p>
+                          <p className="text-muted-foreground">
+                            {trendsData.trends.engagement.length > 10
+                              ? "Strong engagement tracking"
+                              : trendsData.trends.engagement.length > 5
+                                ? "Developing patterns"
+                                : "Early stage tracking"}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-white rounded-lg border">
+                          <p className="font-medium mb-1">Reach Visibility</p>
+                          <p className="text-muted-foreground">
+                            {trendsData.trends.reach.length > 10
+                              ? "Comprehensive reach data"
+                              : trendsData.trends.reach.length > 5
+                                ? "Growing reach insights"
+                                : "Initial reach tracking"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Chart Placeholder */}
+                    <div className="mt-6 p-8 border-2 border-dashed border-gray-300 rounded-lg text-center">
+                      <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h4 className="font-medium text-gray-600 mb-2">
+                        Interactive Charts Coming Soon
+                      </h4>
+                      <p className="text-sm text-gray-500">
+                        Visual trend charts with line graphs, bar charts, and
+                        interactive data points will be available here. Current
+                        data:{" "}
+                        {trendsData.trends.followers.length +
+                          trendsData.trends.engagement.length +
+                          trendsData.trends.reach.length}{" "}
+                        total data points tracked.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
               <Card>
-                <CardHeader>
-                  <CardTitle>Historical Trends ({trendsData.period})</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div>
-                      <h4 className="font-medium mb-2">Followers</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {trendsData.trends.followers.length} data points
-                      </p>
-                    </div>
-                    <div>
-                      <h4 className="font-medium mb-2">Engagement</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {trendsData.trends.engagement.length} data points
-                      </p>
-                    </div>
-                    <div>
-                      <h4 className="font-medium mb-2">Reach</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {trendsData.trends.reach.length} data points
-                      </p>
-                    </div>
+                <CardContent className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-medium mb-2">
+                      No Historical Data
+                    </h3>
+                    <p className="text-muted-foreground">
+                      Historical trends will appear here once more analytics
+                      data is collected over time
+                    </p>
                   </div>
-                  {/* Here you could add charts using recharts or similar */}
                 </CardContent>
               </Card>
             )}
@@ -721,40 +1716,426 @@ export default function AnalyticsComparisonPage() {
 
           {/* Benchmark Tab */}
           <TabsContent value="benchmark" className="space-y-6">
-            {benchmarkData && (
+            {benchmarkData ? (
+              <>
+                {/* Industry Benchmark Overview */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Target className="h-5 w-5" />
+                      Industry Benchmark Comparison
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      {benchmarkData.note}
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-6 md:grid-cols-3">
+                      <div className="text-center p-4 border rounded-lg">
+                        <div className="text-3xl font-bold text-blue-600 mb-2">
+                          {benchmarkData.benchmark.avgEngagementRate.toFixed(1)}
+                          %
+                        </div>
+                        <div className="text-sm font-medium mb-1">
+                          Industry Avg Engagement
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {comparisonData && (
+                            <span
+                              className={
+                                comparisonData.current.engagementRate >
+                                benchmarkData.benchmark.avgEngagementRate
+                                  ? "text-green-600"
+                                  : "text-orange-600"
+                              }
+                            >
+                              You:{" "}
+                              {comparisonData.current.engagementRate.toFixed(1)}
+                              % (
+                              {comparisonData.current.engagementRate >
+                              benchmarkData.benchmark.avgEngagementRate
+                                ? "Above"
+                                : "Below"}{" "}
+                              average)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-center p-4 border rounded-lg">
+                        <div className="text-3xl font-bold text-green-600 mb-2">
+                          {benchmarkData.benchmark.avgFollowerGrowth.toFixed(1)}
+                          %
+                        </div>
+                        <div className="text-sm font-medium mb-1">
+                          Industry Avg Growth
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {comparisonData && (
+                            <span
+                              className={
+                                comparisonData.growth.followersGrowth
+                                  .percentage >
+                                benchmarkData.benchmark.avgFollowerGrowth
+                                  ? "text-green-600"
+                                  : "text-orange-600"
+                              }
+                            >
+                              You:{" "}
+                              {comparisonData.growth.followersGrowth.percentage.toFixed(
+                                1
+                              )}
+                              % (
+                              {comparisonData.growth.followersGrowth
+                                .percentage >
+                              benchmarkData.benchmark.avgFollowerGrowth
+                                ? "Above"
+                                : "Below"}{" "}
+                              average)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-center p-4 border rounded-lg">
+                        <div className="text-3xl font-bold text-purple-600 mb-2">
+                          {benchmarkData.benchmark.avgReach.toLocaleString()}
+                        </div>
+                        <div className="text-sm font-medium mb-1">
+                          Industry Avg Reach
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {comparisonData &&
+                            comparisonData.current.totalReach && (
+                              <span
+                                className={
+                                  comparisonData.current.totalReach >
+                                  benchmarkData.benchmark.avgReach
+                                    ? "text-green-600"
+                                    : "text-orange-600"
+                                }
+                              >
+                                You:{" "}
+                                {comparisonData.current.totalReach.toLocaleString()}
+                                (
+                                {comparisonData.current.totalReach >
+                                benchmarkData.benchmark.avgReach
+                                  ? "Above"
+                                  : "Below"}{" "}
+                                average)
+                              </span>
+                            )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Performance Comparison */}
+                {comparisonData && (
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <BarChart3 className="h-5 w-5" />
+                          Your Performance vs Industry
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {/* Engagement Comparison */}
+                          <div className="p-4 border rounded-lg">
+                            <div className="flex justify-between items-center mb-3">
+                              <span className="font-medium">
+                                Engagement Rate
+                              </span>
+                              <Badge
+                                variant={
+                                  comparisonData.current.engagementRate >
+                                  benchmarkData.benchmark.avgEngagementRate
+                                    ? "default"
+                                    : "secondary"
+                                }
+                              >
+                                {comparisonData.current.engagementRate >
+                                benchmarkData.benchmark.avgEngagementRate
+                                  ? "Above Average"
+                                  : "Below Average"}
+                              </Badge>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-sm">
+                                <span>Your Rate</span>
+                                <span className="font-semibold">
+                                  {comparisonData.current.engagementRate.toFixed(
+                                    2
+                                  )}
+                                  %
+                                </span>
+                              </div>
+                              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-blue-500 rounded-full"
+                                  style={{
+                                    width: `${Math.min(100, (comparisonData.current.engagementRate / benchmarkData.benchmark.avgEngagementRate) * 100)}%`,
+                                  }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between text-xs text-muted-foreground">
+                                <span>
+                                  Industry:{" "}
+                                  {benchmarkData.benchmark.avgEngagementRate.toFixed(
+                                    1
+                                  )}
+                                  %
+                                </span>
+                                <span>
+                                  {comparisonData.current.engagementRate >
+                                  benchmarkData.benchmark.avgEngagementRate
+                                    ? `+${((comparisonData.current.engagementRate / benchmarkData.benchmark.avgEngagementRate - 1) * 100).toFixed(1)}%`
+                                    : `${((comparisonData.current.engagementRate / benchmarkData.benchmark.avgEngagementRate - 1) * 100).toFixed(1)}%`}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Growth Comparison */}
+                          <div className="p-4 border rounded-lg">
+                            <div className="flex justify-between items-center mb-3">
+                              <span className="font-medium">
+                                Follower Growth
+                              </span>
+                              <Badge
+                                variant={
+                                  comparisonData.growth.followersGrowth
+                                    .percentage >
+                                  benchmarkData.benchmark.avgFollowerGrowth
+                                    ? "default"
+                                    : "secondary"
+                                }
+                              >
+                                {comparisonData.growth.followersGrowth
+                                  .percentage >
+                                benchmarkData.benchmark.avgFollowerGrowth
+                                  ? "Above Average"
+                                  : "Below Average"}
+                              </Badge>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-sm">
+                                <span>Your Growth</span>
+                                <span className="font-semibold">
+                                  {comparisonData.growth.followersGrowth.percentage.toFixed(
+                                    2
+                                  )}
+                                  %
+                                </span>
+                              </div>
+                              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-green-500 rounded-full"
+                                  style={{
+                                    width: `${Math.min(100, Math.max(0, (comparisonData.growth.followersGrowth.percentage / benchmarkData.benchmark.avgFollowerGrowth) * 100))}%`,
+                                  }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between text-xs text-muted-foreground">
+                                <span>
+                                  Industry:{" "}
+                                  {benchmarkData.benchmark.avgFollowerGrowth.toFixed(
+                                    1
+                                  )}
+                                  %
+                                </span>
+                                <span>
+                                  {comparisonData.growth.followersGrowth
+                                    .percentage >
+                                  benchmarkData.benchmark.avgFollowerGrowth
+                                    ? `+${((comparisonData.growth.followersGrowth.percentage / benchmarkData.benchmark.avgFollowerGrowth - 1) * 100).toFixed(1)}%`
+                                    : `${((comparisonData.growth.followersGrowth.percentage / benchmarkData.benchmark.avgFollowerGrowth - 1) * 100).toFixed(1)}%`}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Target className="h-5 w-5" />
+                          Benchmark Insights & Recommendations
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {/* Performance Summary */}
+                          <div className="p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border">
+                            <h4 className="font-medium mb-3">
+                              📊 Performance Summary
+                            </h4>
+                            <div className="space-y-2 text-sm">
+                              <div className="flex items-center justify-between">
+                                <span>Metrics Above Industry Average</span>
+                                <span className="font-bold">
+                                  {
+                                    [
+                                      comparisonData.current.engagementRate >
+                                        benchmarkData.benchmark
+                                          .avgEngagementRate,
+                                      comparisonData.growth.followersGrowth
+                                        .percentage >
+                                        benchmarkData.benchmark
+                                          .avgFollowerGrowth,
+                                      comparisonData.current.totalReach &&
+                                        comparisonData.current.totalReach >
+                                          benchmarkData.benchmark.avgReach,
+                                    ].filter(Boolean).length
+                                  }
+                                  /3
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span>Overall Benchmark Performance</span>
+                                <Badge
+                                  variant={
+                                    [
+                                      comparisonData.current.engagementRate >
+                                        benchmarkData.benchmark
+                                          .avgEngagementRate,
+                                      comparisonData.growth.followersGrowth
+                                        .percentage >
+                                        benchmarkData.benchmark
+                                          .avgFollowerGrowth,
+                                      comparisonData.current.totalReach &&
+                                        comparisonData.current.totalReach >
+                                          benchmarkData.benchmark.avgReach,
+                                    ].filter(Boolean).length >= 2
+                                      ? "default"
+                                      : "secondary"
+                                  }
+                                >
+                                  {[
+                                    comparisonData.current.engagementRate >
+                                      benchmarkData.benchmark.avgEngagementRate,
+                                    comparisonData.growth.followersGrowth
+                                      .percentage >
+                                      benchmarkData.benchmark.avgFollowerGrowth,
+                                    comparisonData.current.totalReach &&
+                                      comparisonData.current.totalReach >
+                                        benchmarkData.benchmark.avgReach,
+                                  ].filter(Boolean).length >= 2
+                                    ? "Strong"
+                                    : "Developing"}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Recommendations */}
+                          <div className="p-4 border rounded-lg">
+                            <h4 className="font-medium mb-3 flex items-center gap-2">
+                              💡 Benchmark-Based Recommendations
+                            </h4>
+                            <div className="space-y-3">
+                              {comparisonData.current.engagementRate <=
+                                benchmarkData.benchmark.avgEngagementRate && (
+                                <div className="flex items-start gap-3 p-3 bg-orange-50 rounded-lg">
+                                  <div className="w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                                    !
+                                  </div>
+                                  <p className="text-sm">
+                                    <strong>Engagement Focus:</strong> Your
+                                    engagement rate is below industry average.
+                                    Consider posting more interactive content,
+                                    asking questions, and responding to comments
+                                    quickly.
+                                  </p>
+                                </div>
+                              )}
+                              {comparisonData.growth.followersGrowth
+                                .percentage <=
+                                benchmarkData.benchmark.avgFollowerGrowth && (
+                                <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
+                                  <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                                    📈
+                                  </div>
+                                  <p className="text-sm">
+                                    <strong>Growth Strategy:</strong> Your
+                                    follower growth is below industry average.
+                                    Focus on hashtag optimization,
+                                    collaborations, and consistent posting
+                                    schedule.
+                                  </p>
+                                </div>
+                              )}
+                              {comparisonData.current.totalReach &&
+                                comparisonData.current.totalReach <=
+                                  benchmarkData.benchmark.avgReach && (
+                                  <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg">
+                                    <div className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                                      👁️
+                                    </div>
+                                    <p className="text-sm">
+                                      <strong>Reach Optimization:</strong> Your
+                                      reach is below industry average. Post
+                                      during peak hours, use trending hashtags,
+                                      and engage with your community more
+                                      actively.
+                                    </p>
+                                  </div>
+                                )}
+                              {comparisonData.current.engagementRate >
+                                benchmarkData.benchmark.avgEngagementRate &&
+                                comparisonData.growth.followersGrowth
+                                  .percentage >
+                                  benchmarkData.benchmark.avgFollowerGrowth && (
+                                  <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
+                                    <div className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                                      ✓
+                                    </div>
+                                    <p className="text-sm">
+                                      <strong>Excellent Performance:</strong>{" "}
+                                      You're outperforming industry benchmarks!
+                                      Continue your current strategy and
+                                      consider sharing your success tactics with
+                                      the community.
+                                    </p>
+                                  </div>
+                                )}
+                            </div>
+                          </div>
+
+                          {/* Industry Context */}
+                          <div className="p-4 bg-gray-50 rounded-lg">
+                            <h4 className="font-medium mb-2">
+                              📋 Industry Context
+                            </h4>
+                            <p className="text-sm text-muted-foreground">
+                              These benchmarks are based on industry averages
+                              for similar accounts. Performance can vary
+                              significantly based on niche, audience size, and
+                              content strategy. Use these as guidelines rather
+                              than absolute targets.
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+              </>
+            ) : (
               <Card>
-                <CardHeader>
-                  <CardTitle>Industry Benchmark</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {benchmarkData.note}
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold">
-                        {benchmarkData.benchmark.avgEngagementRate.toFixed(1)}%
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Avg Engagement Rate
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold">
-                        {benchmarkData.benchmark.avgFollowerGrowth.toFixed(1)}%
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Avg Follower Growth
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold">
-                        {benchmarkData.benchmark.avgReach.toFixed(0)}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Avg Reach
-                      </div>
-                    </div>
+                <CardContent className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-medium mb-2">
+                      No Benchmark Data
+                    </h3>
+                    <p className="text-muted-foreground">
+                      Industry benchmark data will appear here once your account
+                      platform is identified
+                    </p>
                   </div>
                 </CardContent>
               </Card>

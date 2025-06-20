@@ -68,15 +68,15 @@ export class AnalyticsComparisonService {
 
       const periods = this.getComparisonPeriods(comparisonType);
 
-      // Get current and previous period data
+      // Get current and previous period data - look for most recent data within a reasonable range
       const currentData = await this.getDataForPeriod(
         socialAccountId,
-        periods.current,
+        new Date(periods.current.getTime() - 3 * 24 * 60 * 60 * 1000), // 3 days before
         periods.current
       );
       const previousData = await this.getDataForPeriod(
         socialAccountId,
-        periods.previous,
+        new Date(periods.previous.getTime() - 3 * 24 * 60 * 60 * 1000), // 3 days before
         periods.previous
       );
 
