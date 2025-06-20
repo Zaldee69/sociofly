@@ -668,7 +668,7 @@ export const realAnalyticsRouter = createTRPCRouter({
         dateTo: z.date().optional(),
       })
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ ctx, input }) => {
       try {
         // Check if user has access to this social account
         const socialAccount = await ctx.prisma.socialAccount.findUnique({
@@ -705,99 +705,199 @@ export const realAnalyticsRouter = createTRPCRouter({
           });
         }
 
-        // Build query filters
-        const whereClause: any = {
-          socialAccountId: input.socialAccountId,
-          post: {
-            status: "PUBLISHED",
-            publishedAt: {
-              not: null,
-            },
-            ...(input.dateFrom &&
-              input.dateTo && {
-                publishedAt: {
-                  gte: input.dateFrom,
-                  lte: input.dateTo,
-                },
-              }),
-          },
-          analytics: {
-            some: {}, // Only include posts that have analytics data
-          },
-        };
-
-        // Add platform filter if specified
-        if (input.platform) {
-          whereClause.socialAccount = {
-            platform: input.platform,
-          };
-        }
-
-        // Get posts with their latest analytics
-        const postSocialAccounts = await ctx.prisma.postSocialAccount.findMany({
-          where: whereClause,
-          include: {
-            post: {
-              select: {
-                id: true,
-                content: true,
-                publishedAt: true,
-                mediaUrls: true,
-              },
-            },
-            socialAccount: {
-              select: {
-                platform: true,
-              },
-            },
-            analytics: {
-              orderBy: { recordedAt: "desc" },
-              take: 1, // Get the latest analytics record
-              ...(input.contentFormat && {
-                where: {
-                  contentFormat: input.contentFormat,
-                },
-              }),
-            },
-          },
-          take: input.limit,
+        console.log(
+          `🔍 Fetching post performance for account: ${input.socialAccountId}`
+        );
+        console.log(`📊 Filters:`, {
+          platform: input.platform,
+          contentFormat: input.contentFormat,
+          sortBy: input.sortBy,
+          limit: input.limit,
         });
 
+        // First, get all posts for this social account to debug
+        const allPostSocialAccounts =
+          await ctx.prisma.postSocialAccount.findMany({
+            where: {
+              socialAccountId: input.socialAccountId,
+              post: {
+                status: "PUBLISHED",
+                publishedAt: { not: null },
+              },
+            },
+            include: {
+              post: {
+                select: {
+                  id: true,
+                  content: true,
+                  publishedAt: true,
+                  mediaUrls: true,
+                  status: true,
+                },
+              },
+              socialAccount: {
+                select: {
+                  platform: true,
+                  name: true,
+                },
+              },
+              analytics: {
+                orderBy: { recordedAt: "desc" },
+              },
+            },
+          });
+
+        console.log(
+          `📋 Found ${allPostSocialAccounts.length} total published posts`
+        );
+
+        // Debug: Log each post and its analytics
+        allPostSocialAccounts.forEach((psa, index) => {
+          console.log(`📄 Post ${index + 1}:`, {
+            postId: psa.post.id,
+            content: psa.post.content.substring(0, 50) + "...",
+            publishedAt: psa.post.publishedAt,
+            analyticsCount: psa.analytics.length,
+            latestAnalytics: psa.analytics[0]
+              ? {
+                  likes: psa.analytics[0].likes,
+                  comments: psa.analytics[0].comments,
+                  shares: psa.analytics[0].shares,
+                  reach: psa.analytics[0].reach,
+                  impressions: psa.analytics[0].impressions,
+                  engagement: psa.analytics[0].engagement,
+                  contentFormat: psa.analytics[0].contentFormat,
+                  recordedAt: psa.analytics[0].recordedAt,
+                }
+              : "No analytics data",
+          });
+        });
+
+        // Apply filters
+        let filteredPosts = allPostSocialAccounts;
+
+        // Platform filter
+        if (input.platform) {
+          filteredPosts = filteredPosts.filter(
+            (psa) => psa.socialAccount.platform === input.platform
+          );
+          console.log(
+            `📊 After platform filter (${input.platform}): ${filteredPosts.length} posts`
+          );
+        }
+
+        // Content format filter - FIXED: Apply to posts with analytics
+        if (input.contentFormat) {
+          filteredPosts = filteredPosts.filter((psa) => {
+            // Check if any analytics record has the specified content format
+            const hasMatchingFormat = psa.analytics.some(
+              (analytics) => analytics.contentFormat === input.contentFormat
+            );
+
+            // If no analytics have contentFormat, try to infer from media URLs
+            if (!hasMatchingFormat && psa.analytics.length > 0) {
+              let inferredFormat = "IMAGE";
+              if (psa.post.mediaUrls.length > 0) {
+                const firstMedia = psa.post.mediaUrls[0];
+                if (
+                  firstMedia.includes(".mp4") ||
+                  firstMedia.includes(".mov") ||
+                  firstMedia.includes("video")
+                ) {
+                  inferredFormat = "VIDEO";
+                } else if (psa.post.mediaUrls.length > 1) {
+                  inferredFormat = "CAROUSEL";
+                }
+              }
+              return inferredFormat === input.contentFormat;
+            }
+
+            return hasMatchingFormat;
+          });
+          console.log(
+            `📊 After content format filter (${input.contentFormat}): ${filteredPosts.length} posts`
+          );
+        }
+
+        // Only include posts with meaningful analytics data
+        const postsWithAnalytics = filteredPosts.filter((psa) => {
+          const hasAnalytics = psa.analytics.length > 0;
+          const hasData = psa.analytics.some(
+            (analytics) =>
+              analytics.reach > 0 ||
+              analytics.impressions > 0 ||
+              analytics.likes > 0 ||
+              analytics.comments > 0 ||
+              analytics.shares > 0
+          );
+          return hasAnalytics && hasData;
+        });
+
+        console.log(
+          `📊 Posts with meaningful analytics: ${postsWithAnalytics.length}`
+        );
+
         // Transform data to match the expected format
-        const postMetrics = postSocialAccounts
-          .filter((psa) => psa.analytics.length > 0) // Only include posts with analytics
+        const postMetrics = postsWithAnalytics
           .map((psa) => {
             const latestAnalytics = psa.analytics[0];
+
+            console.log(`📊 Processing analytics for post ${psa.post.id}:`, {
+              likes: latestAnalytics.likes,
+              comments: latestAnalytics.comments,
+              shares: latestAnalytics.shares,
+              saves: latestAnalytics.saves,
+              reactions: latestAnalytics.reactions,
+              reach: latestAnalytics.reach,
+              impressions: latestAnalytics.impressions,
+              clicks: latestAnalytics.clicks,
+              contentFormat: latestAnalytics.contentFormat,
+            });
+
             const totalEngagement =
               latestAnalytics.likes +
-              latestAnalytics.reactions +
+              (latestAnalytics.reactions || 0) +
               latestAnalytics.comments +
               latestAnalytics.shares +
-              latestAnalytics.saves;
+              (latestAnalytics.saves || 0);
 
-            // Calculate engagement rate
+            // Calculate engagement rate with proper validation
             const engagementRate =
               latestAnalytics.reach > 0
                 ? (totalEngagement / latestAnalytics.reach) * 100
-                : 0;
+                : latestAnalytics.impressions > 0
+                  ? (totalEngagement / latestAnalytics.impressions) * 100
+                  : 0;
 
-            // Calculate performance score (0-100)
+            // Calculate CTR with proper validation
+            const ctr =
+              latestAnalytics.impressions > 0
+                ? (latestAnalytics.clicks / latestAnalytics.impressions) * 100
+                : latestAnalytics.reach > 0
+                  ? (latestAnalytics.clicks / latestAnalytics.reach) * 100
+                  : 0;
+
+            // Calculate performance score (0-100) with better weighting
             const performanceScore = Math.min(
               100,
               Math.round(
-                engagementRate * 0.4 +
-                  latestAnalytics.ctr * 20 +
-                  (latestAnalytics.reach > 1000
-                    ? 30
-                    : (latestAnalytics.reach / 1000) * 30)
+                engagementRate * 0.5 + // 50% weight on engagement
+                  ctr * 15 + // 15% weight on CTR (scaled up)
+                  (latestAnalytics.reach > 500
+                    ? 35
+                    : (latestAnalytics.reach / 500) * 35) // 35% weight on reach
               )
             );
 
-            // Determine content format from media URLs if not in analytics
+            // Determine content format with improved logic
             let contentFormat = latestAnalytics.contentFormat;
             if (!contentFormat && psa.post.mediaUrls.length > 0) {
               const firstMedia = psa.post.mediaUrls[0];
-              if (firstMedia.includes(".mp4") || firstMedia.includes(".mov")) {
+              if (
+                firstMedia.includes(".mp4") ||
+                firstMedia.includes(".mov") ||
+                firstMedia.includes("video")
+              ) {
                 contentFormat = "VIDEO";
               } else if (psa.post.mediaUrls.length > 1) {
                 contentFormat = "CAROUSEL";
@@ -806,7 +906,7 @@ export const realAnalyticsRouter = createTRPCRouter({
               }
             }
 
-            return {
+            const result = {
               id: psa.id,
               platform: psa.socialAccount.platform,
               contentFormat: contentFormat || "IMAGE",
@@ -815,10 +915,10 @@ export const realAnalyticsRouter = createTRPCRouter({
 
               // Engagement metrics
               likes: latestAnalytics.likes,
-              reactions: latestAnalytics.reactions,
+              reactions: latestAnalytics.reactions || 0,
               comments: latestAnalytics.comments,
               shares: latestAnalytics.shares,
-              saves: latestAnalytics.saves,
+              saves: latestAnalytics.saves || 0,
               clicks: latestAnalytics.clicks,
 
               // Reach & Impressions
@@ -827,14 +927,26 @@ export const realAnalyticsRouter = createTRPCRouter({
 
               // Calculated metrics
               engagementRate: Number(engagementRate.toFixed(2)),
-              ctr: Number(latestAnalytics.ctr.toFixed(2)),
+              ctr: Number(ctr.toFixed(2)),
               timeToEngagement: latestAnalytics.timeToEngagement,
 
               // Performance indicators
               isTopPerformer: performanceScore >= 80,
               performanceScore,
             };
-          });
+
+            console.log(`✅ Processed metrics:`, {
+              totalEngagement,
+              engagementRate: result.engagementRate,
+              ctr: result.ctr,
+              performanceScore: result.performanceScore,
+            });
+
+            return result;
+          })
+          .slice(0, input.limit); // Apply limit after processing
+
+        console.log(`📈 Returning ${postMetrics.length} post metrics`);
 
         // Sort the results
         const sortedMetrics = postMetrics.sort((a, b) => {
@@ -857,13 +969,101 @@ export const realAnalyticsRouter = createTRPCRouter({
 
         return sortedMetrics;
       } catch (error: any) {
+        console.error("❌ Error in getPostPerformance:", error);
         if (error instanceof TRPCError) {
           throw error;
         }
 
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to get post performance",
+          message: "Failed to get post performance data",
+          cause: error,
+        });
+      }
+    }),
+
+  /**
+   * Debug endpoint to see raw post analytics data
+   */
+  debugPostAnalytics: protectedProcedure
+    .input(
+      z.object({
+        socialAccountId: z.string(),
+        teamId: z.string(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      try {
+        // Check access
+        const socialAccount = await ctx.prisma.socialAccount.findUnique({
+          where: { id: input.socialAccountId },
+          include: {
+            team: {
+              include: {
+                memberships: {
+                  where: { userId: ctx.auth.userId },
+                },
+              },
+            },
+          },
+        });
+
+        if (!socialAccount || socialAccount.team.memberships.length === 0) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Access denied",
+          });
+        }
+
+        // Get all posts and their analytics
+        const posts = await ctx.prisma.postSocialAccount.findMany({
+          where: {
+            socialAccountId: input.socialAccountId,
+          },
+          include: {
+            post: {
+              select: {
+                id: true,
+                content: true,
+                publishedAt: true,
+                status: true,
+                mediaUrls: true,
+              },
+            },
+            socialAccount: {
+              select: {
+                platform: true,
+                name: true,
+              },
+            },
+            analytics: {
+              orderBy: { recordedAt: "desc" },
+            },
+          },
+        });
+
+        return {
+          totalPosts: posts.length,
+          publishedPosts: posts.filter((p) => p.post.status === "PUBLISHED")
+            .length,
+          postsWithAnalytics: posts.filter((p) => p.analytics.length > 0)
+            .length,
+          posts: posts.map((psa) => ({
+            postId: psa.post.id,
+            content: psa.post.content.substring(0, 100) + "...",
+            status: psa.post.status,
+            publishedAt: psa.post.publishedAt,
+            mediaUrls: psa.post.mediaUrls,
+            analyticsCount: psa.analytics.length,
+            latestAnalytics: psa.analytics[0] || null,
+            allAnalytics: psa.analytics,
+          })),
+        };
+      } catch (error: any) {
+        console.error("❌ Error in debugPostAnalytics:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to get debug data",
           cause: error,
         });
       }
