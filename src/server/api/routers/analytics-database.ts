@@ -49,13 +49,25 @@ export const analyticsDatabaseRouter = createTRPCRouter({
           });
         }
 
-        // Get latest account analytics from database
-        const latestAnalytics = await ctx.prisma.accountAnalytics.findFirst({
-          where: { socialAccountId: input.socialAccountId },
+        // Calculate date range for filtering
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - input.days);
+
+        // Get analytics data within the specified date range
+        const analyticsInRange = await ctx.prisma.accountAnalytics.findMany({
+          where: {
+            socialAccountId: input.socialAccountId,
+            recordedAt: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
           orderBy: { recordedAt: "desc" },
+          take: 50, // Limit to prevent excessive data
         });
 
-        if (!latestAnalytics) {
+        if (analyticsInRange.length === 0) {
           // Return empty data if no analytics collected yet
           return {
             followersCount: 0,
@@ -73,12 +85,14 @@ export const analyticsDatabaseRouter = createTRPCRouter({
             source: "database",
             lastUpdated: null,
             status: "no_data",
-            message:
-              "No analytics data collected yet. Please wait for scheduled collection.",
+            message: `No analytics data collected for the last ${input.days} days.`,
           };
         }
 
-        // Get comparison data (previous period)
+        // Use the latest record in the date range
+        const latestAnalytics = analyticsInRange[0];
+
+        // Get comparison data (previous period of same length)
         const previousPeriodStart = new Date();
         previousPeriodStart.setDate(
           previousPeriodStart.getDate() - input.days * 2
@@ -97,17 +111,62 @@ export const analyticsDatabaseRouter = createTRPCRouter({
           orderBy: { recordedAt: "desc" },
         });
 
+        // Calculate aggregated metrics for the period (if multiple records)
+        let aggregatedMetrics = latestAnalytics;
+        if (analyticsInRange.length > 1) {
+          // Calculate averages and totals from all records in range
+          const totalRecords = analyticsInRange.length;
+          const totals = analyticsInRange.reduce(
+            (acc, record) => ({
+              followers: acc.followers + record.followersCount,
+              following: acc.following + (record.followingCount || 0),
+              posts: acc.posts + record.mediaCount,
+              engagement: acc.engagement + record.engagementRate,
+              reach: acc.reach + (record.avgReachPerPost || 0),
+              visits: acc.visits + (record.profileVisits || 0),
+              likes: acc.likes + (record.totalLikes || 0),
+              comments: acc.comments + (record.totalComments || 0),
+              shares: acc.shares + (record.totalShares || 0),
+              totalReach: acc.totalReach + (record.totalReach || 0),
+            }),
+            {
+              followers: 0,
+              following: 0,
+              posts: 0,
+              engagement: 0,
+              reach: 0,
+              visits: 0,
+              likes: 0,
+              comments: 0,
+              shares: 0,
+              totalReach: 0,
+            }
+          );
+
+          // Use latest values for counts, averages for rates
+          aggregatedMetrics = {
+            ...latestAnalytics,
+            engagementRate: totals.engagement / totalRecords,
+            avgReachPerPost: totals.reach / totalRecords,
+            profileVisits: totals.visits / totalRecords,
+            totalLikes: totals.likes / totalRecords,
+            totalComments: totals.comments / totalRecords,
+            totalShares: totals.shares / totalRecords,
+            totalReach: totals.totalReach / totalRecords,
+          };
+        }
+
         // Calculate growth metrics
         const followerGrowth = previousAnalytics
           ? {
-              current: latestAnalytics.followersCount,
+              current: aggregatedMetrics.followersCount,
               previous: previousAnalytics.followersCount,
               change:
-                latestAnalytics.followersCount -
+                aggregatedMetrics.followersCount -
                 previousAnalytics.followersCount,
               changePercent:
                 previousAnalytics.followersCount > 0
-                  ? ((latestAnalytics.followersCount -
+                  ? ((aggregatedMetrics.followersCount -
                       previousAnalytics.followersCount) /
                       previousAnalytics.followersCount) *
                     100
@@ -117,14 +176,14 @@ export const analyticsDatabaseRouter = createTRPCRouter({
 
         const engagementGrowth = previousAnalytics
           ? {
-              current: latestAnalytics.engagementRate,
+              current: aggregatedMetrics.engagementRate,
               previous: previousAnalytics.engagementRate,
               change:
-                latestAnalytics.engagementRate -
+                aggregatedMetrics.engagementRate -
                 previousAnalytics.engagementRate,
               changePercent:
                 previousAnalytics.engagementRate > 0
-                  ? ((latestAnalytics.engagementRate -
+                  ? ((aggregatedMetrics.engagementRate -
                       previousAnalytics.engagementRate) /
                       previousAnalytics.engagementRate) *
                     100
@@ -134,14 +193,14 @@ export const analyticsDatabaseRouter = createTRPCRouter({
 
         const reachGrowth = previousAnalytics
           ? {
-              current: latestAnalytics.avgReachPerPost,
+              current: aggregatedMetrics.avgReachPerPost,
               previous: previousAnalytics.avgReachPerPost,
               change:
-                latestAnalytics.avgReachPerPost -
+                aggregatedMetrics.avgReachPerPost -
                 previousAnalytics.avgReachPerPost,
               changePercent:
                 previousAnalytics.avgReachPerPost > 0
-                  ? ((latestAnalytics.avgReachPerPost -
+                  ? ((aggregatedMetrics.avgReachPerPost -
                       previousAnalytics.avgReachPerPost) /
                       previousAnalytics.avgReachPerPost) *
                     100
@@ -151,20 +210,24 @@ export const analyticsDatabaseRouter = createTRPCRouter({
 
         return {
           // Core metrics
-          followersCount: latestAnalytics.followersCount,
-          followingCount: latestAnalytics.followingCount || 0,
-          mediaCount: latestAnalytics.mediaCount,
-          engagementRate: latestAnalytics.engagementRate,
-          avgReachPerPost: latestAnalytics.avgReachPerPost,
-          profileVisits: latestAnalytics.profileVisits || 0,
+          followersCount: aggregatedMetrics.followersCount,
+          followingCount: aggregatedMetrics.followingCount || 0,
+          mediaCount: aggregatedMetrics.mediaCount,
+          engagementRate: Number(aggregatedMetrics.engagementRate.toFixed(2)),
+          avgReachPerPost: Math.round(aggregatedMetrics.avgReachPerPost || 0),
+          profileVisits: Math.round(aggregatedMetrics.profileVisits || 0),
 
           // Totals
-          totalLikes: latestAnalytics.totalLikes,
-          totalComments: latestAnalytics.totalComments,
-          totalShares: latestAnalytics.totalShares,
-          totalReach: latestAnalytics.totalReach,
-          avgLikesPerPost: latestAnalytics.avgLikesPerPost,
-          avgCommentsPerPost: latestAnalytics.avgCommentsPerPost,
+          totalLikes: Math.round(aggregatedMetrics.totalLikes || 0),
+          totalComments: Math.round(aggregatedMetrics.totalComments || 0),
+          totalShares: Math.round(aggregatedMetrics.totalShares || 0),
+          totalReach: Math.round(aggregatedMetrics.totalReach || 0),
+          avgLikesPerPost: Number(
+            (aggregatedMetrics.avgLikesPerPost || 0).toFixed(1)
+          ),
+          avgCommentsPerPost: Number(
+            (aggregatedMetrics.avgCommentsPerPost || 0).toFixed(1)
+          ),
 
           // Growth metrics
           followerGrowth,
@@ -175,7 +238,13 @@ export const analyticsDatabaseRouter = createTRPCRouter({
           source: "database",
           lastUpdated: latestAnalytics.recordedAt,
           status: "ready",
-          message: "Data from scheduled collection",
+          message: `Data from ${analyticsInRange.length} records in last ${input.days} days`,
+          dateRange: {
+            start: startDate.toISOString(),
+            end: endDate.toISOString(),
+            days: input.days,
+            recordsFound: analyticsInRange.length,
+          },
         };
       } catch (error: any) {
         if (error instanceof TRPCError) {
@@ -206,6 +275,7 @@ export const analyticsDatabaseRouter = createTRPCRouter({
         sortBy: z
           .enum(["engagementRate", "reach", "impressions", "publishedAt"])
           .default("publishedAt"),
+        days: z.number().default(30),
       })
     )
     .query(async ({ input, ctx }) => {
@@ -231,7 +301,12 @@ export const analyticsDatabaseRouter = createTRPCRouter({
           });
         }
 
-        // Get post analytics from database
+        // Calculate date range for filtering
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - input.days);
+
+        // Get post analytics from database with date range filter
         const postAnalytics = await ctx.prisma.postAnalytics.findMany({
           where: {
             postSocialAccount: {
@@ -241,10 +316,23 @@ export const analyticsDatabaseRouter = createTRPCRouter({
                   platform: input.platform,
                 },
               }),
+              // Filter by post publication date
+              post: {
+                publishedAt: {
+                  gte: startDate,
+                  lte: endDate,
+                },
+                status: "PUBLISHED", // Only include published posts
+              },
             },
             ...(input.contentFormat && {
               contentFormat: input.contentFormat,
             }),
+            // Also filter by analytics recording date as secondary filter
+            recordedAt: {
+              gte: startDate,
+              lte: endDate,
+            },
           },
           include: {
             postSocialAccount: {

@@ -924,7 +924,7 @@ export class JobProcessor {
         "@/lib/services/analytics/core/analytics-master.service"
       );
 
-      // Extract options from job data
+      // Extract options from job data with Smart Sync integration
       const options = {
         includeInsights: data.includeInsights ?? true,
         includeHotspots: data.includeHotspots ?? true,
@@ -933,6 +933,10 @@ export class JobProcessor {
           data.socialAccountId === "system" ? undefined : data.socialAccountId,
         teamId: data.teamId === "system" ? undefined : data.teamId,
         forceRun: true, // Force run in scheduled context
+
+        // 🧠 Smart Sync Integration
+        useSmartSync: data.useSmartSync ?? true, // Enable by default
+        syncStrategy: data.syncStrategy, // Optional strategy override
       };
 
       console.log(`📊 Running complete analytics with options:`, options);

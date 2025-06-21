@@ -36,6 +36,20 @@ export const ANALYTICS_COLLECTION_CONFIG = {
     daysBack: 7,
     includeStories: false,
   },
+
+  // NEW: Daily incremental sync parameters
+  DAILY_INCREMENTAL: {
+    mediaLimit: 25,
+    daysBack: 1, // Only get yesterday's data
+    includeStories: false,
+  },
+
+  // NEW: Smart sync parameters - adapts based on last collection
+  SMART_SYNC: {
+    mediaLimit: 25,
+    daysBack: 3, // Never go beyond 3 days
+    includeStories: false,
+  },
 } as const;
 
 // Type definitions for better TypeScript support
@@ -50,7 +64,9 @@ export type CollectionType =
   | "FACEBOOK"
   | "COMPREHENSIVE_INSIGHTS"
   | "HISTORICAL_DATA"
-  | "QUICK_COLLECTION";
+  | "QUICK_COLLECTION"
+  | "DAILY_INCREMENTAL"
+  | "SMART_SYNC";
 
 // Helper function to get standardized parameters
 export function getStandardParams(
@@ -91,3 +107,40 @@ export function logCollectionParams(
     }
   );
 }
+
+// NEW: Function to determine optimal sync parameters based on last collection
+export function getOptimalSyncParams(lastCollectionDate?: Date) {
+  if (!lastCollectionDate) {
+    // First time collection - get more historical data
+    return ANALYTICS_COLLECTION_CONFIG.COMPREHENSIVE_INSIGHTS;
+  }
+
+  const daysSinceLastCollection = Math.floor(
+    (Date.now() - lastCollectionDate.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (daysSinceLastCollection <= 1) {
+    // Recent collection - minimal sync
+    return ANALYTICS_COLLECTION_CONFIG.DAILY_INCREMENTAL;
+  } else if (daysSinceLastCollection <= 3) {
+    // Moderate gap - get the missing days
+    return {
+      mediaLimit: 25,
+      daysBack: daysSinceLastCollection + 1,
+      includeStories: false,
+    };
+  } else {
+    // Large gap - comprehensive sync but limited
+    return ANALYTICS_COLLECTION_CONFIG.COMPREHENSIVE_INSIGHTS;
+  }
+}
+
+export const SYNC_STRATEGIES = {
+  FULL_HISTORICAL: "full_historical", // Complete historical backfill
+  INCREMENTAL_DAILY: "incremental_daily", // Only get new data since last sync
+  SMART_ADAPTIVE: "smart_adaptive", // Adapt based on last collection time
+  GAP_FILLING: "gap_filling", // Fill specific date gaps
+} as const;
+
+export type SyncStrategy =
+  (typeof SYNC_STRATEGIES)[keyof typeof SYNC_STRATEGIES];

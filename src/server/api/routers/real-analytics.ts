@@ -571,78 +571,172 @@ export const realAnalyticsRouter = createTRPCRouter({
     .input(
       z.object({
         teamId: z.string(),
-        days: z.number().default(30),
+        days: z.number().default(7),
       })
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ ctx, input }) => {
       try {
-        // Verify user has access to this team
-        const membership = await ctx.prisma.membership.findFirst({
-          where: {
-            teamId: input.teamId,
-            userId: ctx.auth.userId,
-          },
-        });
-
-        if (!membership) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "You don't have access to this team",
-          });
-        }
-
-        const endDate = new Date();
-        const startDate = new Date(
-          endDate.getTime() - input.days * 24 * 60 * 60 * 1000
+        console.log(
+          `📊 Getting collection stats for team ${input.teamId} (last ${input.days} days)`
         );
 
-        // Get basic collection stats
-        const totalPosts = await ctx.prisma.post.count({
+        // Calculate date range
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - input.days);
+
+        // Get recent analytics collection stats using the days parameter
+        const recentAnalytics = await ctx.prisma.accountAnalytics.findMany({
           where: {
-            teamId: input.teamId,
-            publishedAt: {
+            recordedAt: {
               gte: startDate,
               lte: endDate,
             },
-            status: "PUBLISHED",
+            socialAccount: {
+              teamId: input.teamId,
+            },
           },
+          include: {
+            socialAccount: {
+              select: {
+                id: true,
+                name: true,
+                platform: true,
+              },
+            },
+          },
+          orderBy: { recordedAt: "desc" },
         });
 
-        const totalAnalytics = await ctx.prisma.postAnalytics.count({
+        // Get recent post analytics for the same period
+        const recentPostAnalytics = await ctx.prisma.postAnalytics.findMany({
           where: {
             recordedAt: {
               gte: startDate,
               lte: endDate,
             },
             postSocialAccount: {
-              post: {
+              socialAccount: {
                 teamId: input.teamId,
               },
             },
           },
+          include: {
+            postSocialAccount: {
+              include: {
+                socialAccount: {
+                  select: {
+                    id: true,
+                    name: true,
+                    platform: true,
+                  },
+                },
+                post: {
+                  select: {
+                    id: true,
+                    content: true,
+                    publishedAt: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { recordedAt: "desc" },
         });
 
-        // Calculate coverage percentage
-        const coveragePercentage =
-          totalPosts > 0 ? (totalAnalytics / totalPosts) * 100 : 0;
+        // Group account analytics by social account
+        const accountStats = recentAnalytics.reduce(
+          (acc, analytics) => {
+            const accountId = analytics.socialAccountId;
+            if (!acc[accountId]) {
+              acc[accountId] = {
+                accountId,
+                accountName: analytics.socialAccount.name,
+                platform: analytics.socialAccount.platform,
+                lastCollection: analytics.recordedAt,
+                collectionsCount: 0,
+                latestMetrics: {
+                  followers: analytics.followersCount,
+                  engagement: analytics.engagementRate,
+                  reach: analytics.avgReachPerPost,
+                },
+              };
+            }
+            acc[accountId].collectionsCount++;
+            // Keep the most recent metrics
+            if (analytics.recordedAt > acc[accountId].lastCollection) {
+              acc[accountId].lastCollection = analytics.recordedAt;
+              acc[accountId].latestMetrics = {
+                followers: analytics.followersCount,
+                engagement: analytics.engagementRate,
+                reach: analytics.avgReachPerPost,
+              };
+            }
+            return acc;
+          },
+          {} as Record<string, any>
+        );
+
+        // Group post analytics by social account
+        const postStats = recentPostAnalytics.reduce(
+          (acc, analytics) => {
+            const accountId = analytics.postSocialAccount.socialAccountId;
+            if (!acc[accountId]) {
+              acc[accountId] = {
+                accountId,
+                accountName: analytics.postSocialAccount.socialAccount.name,
+                platform: analytics.postSocialAccount.socialAccount.platform,
+                postsAnalyzed: 0,
+                totalEngagement: 0,
+                totalReach: 0,
+                totalImpressions: 0,
+              };
+            }
+            acc[accountId].postsAnalyzed++;
+            acc[accountId].totalEngagement += analytics.engagement || 0;
+            acc[accountId].totalReach += analytics.reach || 0;
+            acc[accountId].totalImpressions += analytics.impressions || 0;
+            return acc;
+          },
+          {} as Record<string, any>
+        );
 
         return {
-          totalPosts,
-          totalAnalytics,
-          coveragePercentage,
-          lastUpdated: new Date(),
-          period: `${input.days} days`,
+          success: true,
+          data: {
+            teamId: input.teamId,
+            period: `${input.days} days`,
+            dateRange: {
+              start: startDate.toISOString(),
+              end: endDate.toISOString(),
+            },
+            accountAnalytics: {
+              totalCollections: recentAnalytics.length,
+              accountsWithData: Object.keys(accountStats).length,
+              accounts: Object.values(accountStats),
+            },
+            postAnalytics: {
+              totalAnalytics: recentPostAnalytics.length,
+              accountsWithPostData: Object.keys(postStats).length,
+              accounts: Object.values(postStats),
+            },
+            summary: {
+              totalAccountCollections: recentAnalytics.length,
+              totalPostAnalytics: recentPostAnalytics.length,
+              uniqueAccountsTracked: new Set([
+                ...Object.keys(accountStats),
+                ...Object.keys(postStats),
+              ]).size,
+            },
+          },
         };
       } catch (error: any) {
-        if (error instanceof TRPCError) {
-          throw error;
-        }
-
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to get collection stats",
-          cause: error,
-        });
+        console.error("Collection stats error:", error);
+        return {
+          success: false,
+          error: "Failed to get collection stats",
+          details: error.message,
+        };
       }
     }),
 

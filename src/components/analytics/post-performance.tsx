@@ -40,8 +40,13 @@ import {
 import { SocialPlatform, ContentFormat } from "@prisma/client";
 
 interface PostPerformanceProps {
-  socialAccountId?: string;
-  teamId?: string;
+  socialAccountId: string;
+  teamId: string;
+  dateRange?: {
+    days: number;
+    startDate: Date;
+    endDate: Date;
+  };
 }
 
 interface PostMetrics {
@@ -76,6 +81,7 @@ interface PostMetrics {
 const PostPerformanceSection: React.FC<PostPerformanceProps> = ({
   socialAccountId,
   teamId,
+  dateRange = { days: 30, startDate: new Date(), endDate: new Date() }, // Default to 30 days
 }) => {
   const [selectedPlatform, setSelectedPlatform] = useState<string>("all");
   const [selectedFormat, setSelectedFormat] = useState<string>("all");
@@ -91,6 +97,7 @@ const PostPerformanceSection: React.FC<PostPerformanceProps> = ({
     {
       socialAccountId: socialAccountId || "",
       teamId: teamId || "",
+      days: dateRange.days, // Use the date range from props
       platform:
         selectedPlatform !== "all"
           ? (selectedPlatform as "INSTAGRAM" | "FACEBOOK" | "TWITTER")

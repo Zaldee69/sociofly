@@ -21,6 +21,9 @@ export enum JobType {
   COLLECT_POST_ANALYTICS = "collect_post_analytics",
   COLLECT_BATCH_POST_ANALYTICS = "collect_batch_post_analytics",
 
+  // NEW: Smart daily sync for incremental collection
+  SMART_DAILY_SYNC = "smart_daily_sync",
+
   // DEPRECATED: Individual analytics jobs (replaced by RUN_COMPLETE_ANALYTICS)
   // These are kept for backward compatibility but should not be used in new code
   COLLECT_ANALYTICS = "collect_analytics", // DEPRECATED: Use RUN_COMPLETE_ANALYTICS
@@ -183,18 +186,27 @@ export interface AnalyzeComprehensiveInsightsJobData {
   analysisTypes: (
     | "hotspots"
     | "account_insights"
+    | "analytics_data"
     | "demographics"
     | "engagement"
     | "growth"
     | "content_performance"
     | "competitor_analysis"
   )[];
-  analyzePeriod: "week" | "month" | "quarter" | "year";
+  analyzePeriod: "week" | "month" | "quarter" | "year" | "adaptive";
   includeComparisons: boolean;
   // Additional properties for complete analytics run
   includeInsights?: boolean;
   includeHotspots?: boolean;
   includeAnalytics?: boolean;
+
+  // 🧠 Smart Sync Integration
+  useSmartSync?: boolean; // Enable smart sync logic
+  syncStrategy?:
+    | "incremental_daily"
+    | "smart_adaptive"
+    | "gap_filling"
+    | "full_historical"; // Force specific strategy
 }
 
 // Historical data collection job

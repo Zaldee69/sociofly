@@ -23,6 +23,14 @@ export interface AnalyticsRunOptions {
   socialAccountId?: string; // If specified, run for specific account only
   teamId?: string; // If specified, run for specific team only
   forceRun?: boolean; // Skip rate limiting checks
+
+  // Smart Sync integration
+  useSmartSync?: boolean; // Enable smart sync logic
+  syncStrategy?:
+    | "incremental_daily"
+    | "smart_adaptive"
+    | "gap_filling"
+    | "full_historical"; // Force specific strategy
 }
 
 export class AnalyticsMasterService {
@@ -41,12 +49,21 @@ export class AnalyticsMasterService {
       socialAccountId,
       teamId,
       forceRun = false,
+      useSmartSync = true, // Enable smart sync by default
+      syncStrategy,
     } = options;
 
     console.log("🚀 Starting Complete Analytics Collection...");
     console.log(
       `📊 Options: Insights=${includeInsights}, Hotspots=${includeHotspots}, Analytics=${includeAnalytics}`
     );
+
+    // NEW: Smart Sync Integration
+    if (useSmartSync) {
+      console.log(
+        "🧠 Smart Sync enabled - analyzing optimal collection strategy..."
+      );
+    }
 
     const result: AnalyticsRunResult = {
       success: 0,
@@ -67,6 +84,11 @@ export class AnalyticsMasterService {
       result.total = accounts.length;
 
       console.log(`🎯 Processing ${accounts.length} social accounts`);
+
+      // NEW: Smart Sync Logic for each account
+      if (useSmartSync && accounts.length > 0) {
+        await this.applySmartSyncToAccounts(accounts, syncStrategy);
+      }
 
       // Phase 1: Collect Account Insights
       if (includeInsights) {
@@ -245,6 +267,55 @@ export class AnalyticsMasterService {
       includeAnalytics: true,
       forceRun: false, // Respect rate limiting
     });
+  }
+
+  /**
+   * Apply Smart Sync recommendations to accounts
+   */
+  private static async applySmartSyncToAccounts(
+    accounts: any[],
+    forcedStrategy?: string
+  ) {
+    console.log("🧠 Applying Smart Sync strategies to accounts...");
+
+    // Import SmartSyncManager
+    const { SmartSyncManager } = await import("./smart-sync-manager");
+
+    for (const account of accounts) {
+      try {
+        const recommendations = await SmartSyncManager.getSyncRecommendations(
+          account.id
+        );
+
+        const strategy = forcedStrategy || recommendations.recommendedStrategy;
+
+        console.log(
+          `📋 ${account.name || account.platform}: Using ${strategy} strategy (${recommendations.urgency} urgency)`
+        );
+
+        // Apply strategy-specific optimizations
+        if (strategy === "incremental_daily") {
+          // Only sync recent data - skip hotspots for efficiency
+          account.skipHotspots = true;
+          account.daysBack = 1;
+        } else if (strategy === "smart_adaptive") {
+          // Moderate sync - include hotspots but limit scope
+          account.skipHotspots = false;
+          account.daysBack = Math.min(
+            recommendations.daysSinceLastCollection + 1,
+            7
+          );
+        } else if (strategy === "full_historical") {
+          // Full sync for new accounts
+          account.skipHotspots = false;
+          account.daysBack = 30;
+        }
+      } catch (error) {
+        console.warn(
+          `⚠️ Smart sync analysis failed for ${account.name}: ${error}. Using default strategy.`
+        );
+      }
+    }
   }
 
   /**
@@ -770,5 +841,421 @@ export class AnalyticsMasterService {
     });
 
     return !recentRun;
+  }
+
+  /**
+   * Smart Historical Data Sync
+   * Intelligently syncs data to fill gaps and maintain continuity
+   */
+  static async syncHistoricalData(
+    socialAccountId: string,
+    options: {
+      maxDaysBack?: number;
+      forceFullSync?: boolean;
+    } = {}
+  ) {
+    console.log(`🔄 Starting historical data sync for ${socialAccountId}`);
+
+    const client = prisma;
+    const result = {
+      success: false,
+      accountDataSynced: 0,
+      postDataSynced: 0,
+      daysBackfilled: 0,
+      gapsFilled: 0,
+      errors: [] as string[],
+    };
+
+    try {
+      // Get social account details
+      const socialAccount = await client.socialAccount.findUnique({
+        where: { id: socialAccountId },
+        include: { team: true },
+      });
+
+      if (!socialAccount) {
+        throw new Error("Social account not found");
+      }
+
+      console.log(
+        `📱 Syncing ${socialAccount.name} (${socialAccount.platform})`
+      );
+
+      // Analyze current data coverage
+      const coverage = await this.analyzeDataCoverage(socialAccountId);
+      console.log(
+        `📊 Current coverage: ${coverage.totalDays} days, ${coverage.gaps.length} gaps`
+      );
+
+      // Determine sync strategy
+      const strategy = this.determineSyncStrategy(coverage, options);
+      console.log(`🎯 Sync strategy: ${strategy.type} - ${strategy.reason}`);
+
+      // Execute sync based on strategy
+      if (strategy.type === "full_backfill" || options.forceFullSync) {
+        await this.performFullBackfill(
+          socialAccountId,
+          options.maxDaysBack || 90,
+          result
+        );
+      } else if (strategy.type === "incremental_update") {
+        await this.performIncrementalUpdate(socialAccountId, result);
+      } else if (strategy.type === "gap_filling" && coverage.gaps.length > 0) {
+        await this.performGapFilling(socialAccountId, coverage.gaps, result);
+      }
+
+      result.success = true;
+      console.log(
+        `✅ Historical sync completed: ${result.accountDataSynced} account records, ${result.postDataSynced} post records`
+      );
+    } catch (error: any) {
+      console.error(`❌ Historical sync failed:`, error);
+      result.errors.push(error.message);
+    }
+
+    return result;
+  }
+
+  /**
+   * Analyze current data coverage to find gaps
+   */
+  private static async analyzeDataCoverage(socialAccountId: string) {
+    const client = prisma;
+
+    // Get date range of existing data
+    const [firstRecord, lastRecord] = await Promise.all([
+      prisma.accountAnalytics.findFirst({
+        where: { socialAccountId },
+        orderBy: { recordedAt: "asc" },
+      }),
+      prisma.accountAnalytics.findFirst({
+        where: { socialAccountId },
+        orderBy: { recordedAt: "desc" },
+      }),
+    ]);
+
+    if (!firstRecord || !lastRecord) {
+      return {
+        hasData: false,
+        totalDays: 0,
+        gaps: [],
+        oldestData: null,
+        newestData: null,
+      };
+    }
+
+    // Calculate total coverage
+    const totalDays = Math.ceil(
+      (lastRecord.recordedAt.getTime() - firstRecord.recordedAt.getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
+
+    // Find gaps in coverage
+    const gaps = await this.findDataGaps(
+      socialAccountId,
+      firstRecord.recordedAt,
+      lastRecord.recordedAt
+    );
+
+    return {
+      hasData: true,
+      totalDays,
+      gaps,
+      oldestData: firstRecord.recordedAt,
+      newestData: lastRecord.recordedAt,
+    };
+  }
+
+  /**
+   * Find gaps in data coverage
+   */
+  private static async findDataGaps(
+    socialAccountId: string,
+    startDate: Date,
+    endDate: Date
+  ) {
+    const client = prisma;
+
+    const allRecords = await client.accountAnalytics.findMany({
+      where: {
+        socialAccountId,
+        recordedAt: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: { recordedAt: true },
+      orderBy: { recordedAt: "asc" },
+    });
+
+    const gaps: { start: Date; end: Date; days: number }[] = [];
+    const recordDates = new Set(
+      allRecords.map((r) => r.recordedAt.toDateString())
+    );
+
+    let currentDate = new Date(startDate);
+    const finalDate = new Date(endDate);
+
+    while (currentDate <= finalDate) {
+      const dateString = currentDate.toDateString();
+
+      if (!recordDates.has(dateString)) {
+        // Found a gap
+        const gapStart = new Date(currentDate);
+        let gapEnd = new Date(currentDate);
+
+        // Extend gap until we find data again
+        while (gapEnd <= finalDate && !recordDates.has(gapEnd.toDateString())) {
+          gapEnd.setDate(gapEnd.getDate() + 1);
+        }
+
+        gapEnd.setDate(gapEnd.getDate() - 1);
+        const gapDays =
+          Math.ceil(
+            (gapEnd.getTime() - gapStart.getTime()) / (1000 * 60 * 60 * 1000)
+          ) + 1;
+
+        gaps.push({
+          start: gapStart,
+          end: gapEnd,
+          days: gapDays,
+        });
+
+        currentDate = new Date(gapEnd);
+      }
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return gaps;
+  }
+
+  /**
+   * Determine sync strategy based on current data
+   */
+  private static determineSyncStrategy(coverage: any, options: any) {
+    const now = new Date();
+
+    if (!coverage.hasData) {
+      return {
+        type: "full_backfill",
+        reason: "No existing data - need full backfill",
+      };
+    }
+
+    // Check if we need recent updates
+    const daysSinceLastUpdate = Math.ceil(
+      (now.getTime() - coverage.newestData.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (daysSinceLastUpdate > 1) {
+      return {
+        type: "incremental_update",
+        reason: `${daysSinceLastUpdate} days since last update`,
+      };
+    }
+
+    // Check for significant gaps
+    const significantGaps = coverage.gaps.filter((gap: any) => gap.days >= 2);
+    if (significantGaps.length > 0) {
+      return {
+        type: "gap_filling",
+        reason: `${significantGaps.length} significant gaps found`,
+      };
+    }
+
+    return {
+      type: "up_to_date",
+      reason: "Data is current, no sync needed",
+    };
+  }
+
+  /**
+   * Perform full backfill for new accounts
+   */
+  private static async performFullBackfill(
+    socialAccountId: string,
+    daysBack: number,
+    result: any
+  ) {
+    console.log(`📥 Performing full backfill for ${daysBack} days`);
+
+    // Run analytics collection multiple times to build historical data
+    for (let i = 0; i < Math.min(daysBack / 7, 12); i++) {
+      // Max 12 weeks
+      try {
+        await this.runAnalyticsForAccount(socialAccountId);
+        result.accountDataSynced++;
+        result.daysBackfilled += 7; // Assume 7 days worth of data per run
+
+        // Add delay to respect API limits
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      } catch (error: any) {
+        console.error(`❌ Failed backfill iteration ${i + 1}:`, error.message);
+        result.errors.push(`Backfill ${i + 1}: ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * Perform incremental update for recent data
+   */
+  private static async performIncrementalUpdate(
+    socialAccountId: string,
+    result: any
+  ) {
+    console.log(`🔄 Performing incremental update`);
+
+    try {
+      await this.runAnalyticsForAccount(socialAccountId);
+      result.accountDataSynced++;
+      console.log(`✅ Incremental update completed`);
+    } catch (error: any) {
+      console.error(`❌ Incremental update failed:`, error.message);
+      result.errors.push(`Incremental update: ${error.message}`);
+    }
+  }
+
+  /**
+   * Fill gaps in data coverage
+   */
+  private static async performGapFilling(
+    socialAccountId: string,
+    gaps: any[],
+    result: any
+  ) {
+    console.log(`🔧 Filling ${gaps.length} data gaps`);
+
+    // For each significant gap, run analytics collection
+    for (const gap of gaps.slice(0, 5)) {
+      // Limit to 5 gaps to avoid overwhelming
+      try {
+        console.log(
+          `📅 Filling gap: ${gap.start.toDateString()} to ${gap.end.toDateString()}`
+        );
+
+        await this.runAnalyticsForAccount(socialAccountId);
+        result.accountDataSynced++;
+        result.gapsFilled += gap.days;
+
+        // Add delay between gap fills
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      } catch (error: any) {
+        console.error(`❌ Failed to fill gap:`, error.message);
+        result.errors.push(`Gap fill: ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * Get sync status and recommendations for an account
+   */
+  static async getSyncStatus(socialAccountId: string) {
+    try {
+      const coverage = await this.analyzeDataCoverage(socialAccountId);
+
+      const lastSync = await prisma.accountAnalytics.findFirst({
+        where: { socialAccountId },
+        orderBy: { recordedAt: "desc" },
+      });
+
+      return {
+        hasData: coverage.hasData,
+        totalDays: coverage.totalDays,
+        gaps: coverage.gaps.length,
+        lastSync: lastSync?.recordedAt || null,
+        coverage: coverage,
+        recommendation: this.getRecommendation(coverage),
+        needsSync: this.needsSync(coverage),
+      };
+    } catch (error: any) {
+      console.error(`❌ Failed to get sync status:`, error);
+      return {
+        hasData: false,
+        totalDays: 0,
+        gaps: 0,
+        lastSync: null,
+        coverage: null,
+        recommendation: "Error getting sync status",
+        needsSync: true,
+      };
+    }
+  }
+
+  /**
+   * Get recommendation for sync strategy
+   */
+  private static getRecommendation(coverage: any): string {
+    if (!coverage.hasData) {
+      return "Perlu full backfill - belum ada data historis";
+    }
+
+    if (coverage.gaps.length > 5) {
+      return "Perlu gap filling - terlalu banyak data yang hilang";
+    }
+
+    const now = new Date();
+    const daysSinceLastUpdate = Math.ceil(
+      (now.getTime() - coverage.newestData.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (daysSinceLastUpdate > 3) {
+      return "Perlu incremental update - data sudah lama";
+    }
+
+    return "Data sudah up-to-date";
+  }
+
+  /**
+   * Check if account needs sync
+   */
+  private static needsSync(coverage: any): boolean {
+    if (!coverage.hasData) return true;
+    if (coverage.gaps.length > 3) return true;
+
+    const now = new Date();
+    const daysSinceLastUpdate = Math.ceil(
+      (now.getTime() - coverage.newestData.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    return daysSinceLastUpdate > 1;
+  }
+
+  /**
+   * Batch sync for multiple accounts
+   */
+  static async batchHistoricalSync(socialAccountIds: string[]) {
+    console.log(
+      `🔄 Starting batch historical sync for ${socialAccountIds.length} accounts`
+    );
+
+    const results = [];
+    let success = 0;
+    let failed = 0;
+
+    for (const accountId of socialAccountIds) {
+      try {
+        const syncResult = await this.syncHistoricalData(accountId);
+        results.push({ accountId, ...syncResult });
+        if (syncResult.success) success++;
+
+        // Add delay between accounts
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      } catch (error: any) {
+        console.error(`❌ Failed to sync ${accountId}:`, error.message);
+        results.push({ accountId, success: false, error: error.message });
+        failed++;
+      }
+    }
+
+    console.log(
+      `✅ Batch historical sync completed: ${success} success, ${failed} failed`
+    );
+
+    return {
+      success,
+      failed,
+      results,
+    };
   }
 }

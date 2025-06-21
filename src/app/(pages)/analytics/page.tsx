@@ -9,19 +9,43 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import {
   RefreshCw,
   TrendingUp,
   Users,
   BarChart3,
-  Calendar,
+  Calendar as CalendarIcon,
   Settings,
   PlayCircle,
   MessageSquare,
   Target,
   FileText,
+  Filter,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import {
+  format,
+  subDays,
+  subWeeks,
+  subMonths,
+  startOfDay,
+  endOfDay,
+} from "date-fns";
+import type { DateRange } from "react-day-picker";
 
 import AnalyticsSidebar from "@/components/analytics/analytics-sidebar";
 import OverviewSection from "@/components/analytics/overview-section";
@@ -50,6 +74,27 @@ const Analytics: React.FC = () => {
   const [isMainNavbarHidden, setIsMainNavbarHidden] = useState(false);
   const [isManualNavigation, setIsManualNavigation] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Date Range Filter State
+  const [dateRange, setDateRange] = useState<{
+    preset: string;
+    startDate: Date;
+    endDate: Date;
+    days: number;
+  }>({
+    preset: "7days",
+    startDate: subDays(new Date(), 7),
+    endDate: new Date(),
+    days: 7,
+  });
+  const [customDateRange, setCustomDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: undefined,
+    to: undefined,
+  });
+  const [isCustomDateOpen, setIsCustomDateOpen] = useState(false);
 
   const { currentTeamId } = useTeamContext();
 
@@ -195,7 +240,7 @@ const Analytics: React.FC = () => {
     isFetching: isFetchingAccountInsight,
     refetch: refetchInsights,
   } = trpc.analytics.database.getAccountAnalytics.useQuery(
-    { socialAccountId: selectedAccount, days: 30 },
+    { socialAccountId: selectedAccount, days: dateRange.days },
     {
       enabled: !!selectedAccount,
       refetchOnWindowFocus: false,
@@ -206,7 +251,7 @@ const Analytics: React.FC = () => {
   // Fetch collection stats for metrics
   const { data: stats, isLoading: isLoadingStats } =
     trpc.analytics.realtime.getCollectionStats.useQuery(
-      { teamId: currentTeamId!, days: 30 },
+      { teamId: currentTeamId!, days: dateRange.days },
       {
         enabled: !!currentTeamId,
         refetchOnWindowFocus: false,
@@ -237,6 +282,126 @@ const Analytics: React.FC = () => {
         staleTime: 40000, // Consider data stale after 40 seconds
       }
     );
+
+  // Date Range Presets
+  const datePresets = [
+    { value: "today", label: "Hari Ini", days: 1 },
+    { value: "yesterday", label: "Kemarin", days: 1 },
+    { value: "7days", label: "7 Hari Terakhir", days: 7 },
+    { value: "14days", label: "14 Hari Terakhir", days: 14 },
+    { value: "30days", label: "30 Hari Terakhir", days: 30 },
+    { value: "thisweek", label: "Minggu Ini", days: 7 },
+    { value: "lastweek", label: "Minggu Lalu", days: 7 },
+    { value: "thismonth", label: "Bulan Ini", days: 30 },
+    { value: "lastmonth", label: "Bulan Lalu", days: 30 },
+    { value: "3months", label: "3 Bulan Terakhir", days: 90 },
+    { value: "6months", label: "6 Bulan Terakhir", days: 180 },
+    { value: "1year", label: "1 Tahun Terakhir", days: 365 },
+    { value: "custom", label: "Custom Range", days: 0 },
+  ];
+
+  // Handle date range preset change
+  const handleDatePresetChange = (preset: string) => {
+    const now = new Date();
+    let startDate: Date;
+    let endDate: Date = now;
+    let days: number;
+
+    switch (preset) {
+      case "today":
+        startDate = startOfDay(now);
+        endDate = endOfDay(now);
+        days = 1;
+        break;
+      case "yesterday":
+        startDate = startOfDay(subDays(now, 1));
+        endDate = endOfDay(subDays(now, 1));
+        days = 1;
+        break;
+      case "7days":
+        startDate = subDays(now, 7);
+        days = 7;
+        break;
+      case "14days":
+        startDate = subDays(now, 14);
+        days = 14;
+        break;
+      case "30days":
+        startDate = subDays(now, 30);
+        days = 30;
+        break;
+      case "thisweek":
+        startDate = subDays(now, now.getDay());
+        days = 7;
+        break;
+      case "lastweek":
+        startDate = subDays(now, now.getDay() + 7);
+        endDate = subDays(now, now.getDay() + 1);
+        days = 7;
+        break;
+      case "thismonth":
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        days = 30;
+        break;
+      case "lastmonth":
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+        days = 30;
+        break;
+      case "3months":
+        startDate = subMonths(now, 3);
+        days = 90;
+        break;
+      case "6months":
+        startDate = subMonths(now, 6);
+        days = 180;
+        break;
+      case "1year":
+        startDate = subMonths(now, 12);
+        days = 365;
+        break;
+      case "custom":
+        if (customDateRange.from && customDateRange.to) {
+          startDate = customDateRange.from;
+          endDate = customDateRange.to;
+          days = Math.ceil(
+            (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+          );
+        } else {
+          return; // Don't update if custom range is not set
+        }
+        break;
+      default:
+        startDate = subDays(now, 7);
+        days = 7;
+    }
+
+    setDateRange({
+      preset,
+      startDate,
+      endDate,
+      days,
+    });
+  };
+
+  // Handle custom date range change
+  const handleCustomDateChange = (range: DateRange | undefined) => {
+    if (range) {
+      setCustomDateRange({ from: range.from, to: range.to });
+      if (range.from && range.to) {
+        const days = Math.ceil(
+          (range.to.getTime() - range.from.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        setDateRange({
+          preset: "custom",
+          startDate: range.from,
+          endDate: range.to,
+          days,
+        });
+        setIsCustomDateOpen(false);
+      }
+    }
+  };
 
   const handleAccountChange = (accountId: string, platform: string) => {
     setSelectedAccount(accountId);
@@ -276,8 +441,72 @@ const Analytics: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Date Range Filter */}
+              <Card className="px-3 py-2">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Periode:</span>
+                  </div>
+
+                  <Select
+                    value={dateRange.preset}
+                    onValueChange={handleDatePresetChange}
+                  >
+                    <SelectTrigger className="w-[180px] h-8">
+                      <SelectValue placeholder="Pilih periode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <div className="p-2">
+                        <div className="text-xs font-medium text-muted-foreground mb-2 px-2">
+                          Quick Select
+                        </div>
+                        {datePresets.slice(0, 5).map((preset) => (
+                          <SelectItem key={preset.value} value={preset.value}>
+                            {preset.label}
+                          </SelectItem>
+                        ))}
+                      </div>
+
+                      <div className="p-2 border-t">
+                        <div className="text-xs font-medium text-muted-foreground mb-2 px-2">
+                          Weekly & Monthly
+                        </div>
+                        {datePresets.slice(5, 9).map((preset) => (
+                          <SelectItem key={preset.value} value={preset.value}>
+                            {preset.label}
+                          </SelectItem>
+                        ))}
+                      </div>
+
+                      <div className="p-2 border-t">
+                        <div className="text-xs font-medium text-muted-foreground mb-2 px-2">
+                          Long Term
+                        </div>
+                        {datePresets.slice(9, 12).map((preset) => (
+                          <SelectItem key={preset.value} value={preset.value}>
+                            {preset.label}
+                          </SelectItem>
+                        ))}
+                      </div>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Date Range Summary */}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground border-l pl-3">
+                    <Badge variant="secondary" className="text-xs">
+                      {dateRange.days} hari
+                    </Badge>
+                    <span className="text-xs">
+                      {format(dateRange.startDate, "MMM dd")} -{" "}
+                      {format(dateRange.endDate, "MMM dd")}
+                    </span>
+                  </div>
+                </div>
+              </Card>
+
               {/* Collection Status */}
-              {selectedAccount && collectionStatus && (
+              {/* {selectedAccount && collectionStatus && (
                 <Card className="px-3 py-2">
                   <div className="flex items-center gap-2 text-sm">
                     <div className="flex items-center gap-1">
@@ -309,22 +538,26 @@ const Analytics: React.FC = () => {
                     </div>
                   </div>
                 </Card>
-              )}
+              )} */}
 
               {/* Global Coverage Stats */}
-              {stats && (
+              {/* {stats && stats.success && stats.data && (
                 <Card className="px-3 py-2">
                   <div className="flex items-center gap-2 text-sm">
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                       <span className="text-muted-foreground">Coverage:</span>
                       <Badge variant="secondary">
-                        {Math.round(stats.coveragePercentage)}%
+                        {stats.data.summary.uniqueAccountsTracked} accounts
+                      </Badge>
+                      <span className="text-muted-foreground">•</span>
+                      <Badge variant="outline">
+                        {stats.data.summary.totalAccountCollections} collections
                       </Badge>
                     </div>
                   </div>
                 </Card>
-              )}
+              )} */}
 
               {/* Auto-refresh Indicator */}
               {isFetchingAccountInsight && !isLoadingAccountInsight && (
@@ -337,36 +570,6 @@ const Analytics: React.FC = () => {
                   </div>
                 </Card>
               )}
-
-              {/* Automated Collection Notice */}
-              <Card className="px-3 py-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                  <span className="text-muted-foreground">
-                    Data dikumpulkan otomatis setiap hari pukul 6 pagi
-                  </span>
-                </div>
-              </Card>
-
-              {/* Account Selector */}
-              {/* <AccountSelector
-                accounts={(socialAccounts || []).map((acc) => ({
-                  id: acc.id,
-                  name: acc.name || "Unknown",
-                  username: acc.name || "unknown",
-                  platform: acc.platform.toLowerCase() as any,
-                  profileImage: acc.profilePicture || undefined,
-                }))}
-                selectedAccount={selectedAccount}
-                onSelectAccount={(accountId) => {
-                  const account = socialAccounts?.find(
-                    (a) => a.id === accountId
-                  );
-                  if (account) {
-                    handleAccountChange(accountId, account.platform);
-                  }
-                }}
-              /> */}
             </div>
           </div>
         </div>
@@ -647,7 +850,8 @@ const Analytics: React.FC = () => {
                 <section id="posts" className="scroll-mt-24">
                   <PostPerformance
                     socialAccountId={selectedAccount}
-                    teamId={currentTeamId || undefined}
+                    teamId={currentTeamId!}
+                    dateRange={dateRange}
                   />
                 </section>
 

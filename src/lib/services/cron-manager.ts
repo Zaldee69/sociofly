@@ -143,10 +143,9 @@ export class JobSchedulerManager {
         },
       },
       {
-        name: "run_complete_analytics",
+        name: "run_complete_analytics_smart",
         schedule: "0 6 * * *", // Daily at 6 AM
-        description:
-          "Run complete analytics collection (insights + hotspots + analytics)",
+        description: "Smart analytics collection with adaptive sync strategies",
         enabled: process.env.CRON_COMPLETE_ANALYTICS_ENABLED !== "false",
         queueName: QueueManager.QUEUES.SOCIAL_SYNC,
         jobType: JobType.RUN_COMPLETE_ANALYTICS,
@@ -155,6 +154,17 @@ export class JobSchedulerManager {
           teamId: "system",
           socialAccountId: "system", // Will be processed for all accounts
           platform: "all",
+
+          // 🧠 Smart Sync Integration
+          useSmartSync: true, // Enable smart sync by default
+          syncStrategy: "smart_adaptive", // Default strategy (can be overridden per account)
+
+          // Analytics components
+          includeInsights: true,
+          includeHotspots: true, // Will be skipped for incremental_daily strategy
+          includeAnalytics: true,
+
+          // Legacy fields (for backward compatibility)
           analysisTypes: [
             "hotspots",
             "account_insights",
@@ -162,11 +172,8 @@ export class JobSchedulerManager {
             "demographics",
             "engagement",
           ],
-          analyzePeriod: "week",
+          analyzePeriod: "adaptive", // Will be determined by smart sync
           includeComparisons: true,
-          includeInsights: true,
-          includeHotspots: true,
-          includeAnalytics: true,
         },
       },
       {
@@ -182,6 +189,20 @@ export class JobSchedulerManager {
           priority: "normal",
           collectTypes: ["posts", "audience", "hashtags", "links"],
           immediate: false,
+        },
+      },
+      {
+        name: "smart_daily_sync",
+        schedule: "0 7 * * *", // Daily at 7 AM
+        description: "Smart incremental analytics sync - only collect new data",
+        enabled: process.env.CRON_SMART_SYNC_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
+        jobType: JobType.SMART_DAILY_SYNC,
+        jobData: {
+          userId: "system",
+          strategy: "smart_adaptive",
+          batchSize: 10, // Process 10 accounts at a time
+          includeRecommendations: true,
         },
       },
     ];
