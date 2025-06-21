@@ -28,6 +28,7 @@ import {
   AlertTriangle,
   Database,
   Zap,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -352,86 +353,6 @@ export function JobSchedulerMonitor() {
       await refreshData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to trigger job");
-    }
-  };
-
-  // New analytics job trigger functions
-  const triggerAnalyticsJob = async (
-    jobType: "collect" | "hotspots" | "comprehensive" | "historical"
-  ) => {
-    try {
-      let jobName: string;
-      let apiEndpoint: string;
-
-      switch (jobType) {
-        case "collect":
-          jobName = "collect_analytics";
-          apiEndpoint = "/api/cron-manager";
-          break;
-        case "hotspots":
-          jobName = "analyze_engagement_hotspots";
-          apiEndpoint = "/api/cron-manager";
-          break;
-        case "comprehensive":
-          jobName = "analyze_comprehensive_insights";
-          apiEndpoint = "/api/cron-manager";
-          break;
-        case "historical":
-          jobName = "collect_historical_data";
-          apiEndpoint = "/api/cron-manager";
-          break;
-        default:
-          throw new Error("Unknown analytics job type");
-      }
-
-      const requestBody = {
-        action: "trigger",
-        jobName,
-        apiKey,
-      };
-
-      const response = await fetch(apiEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to trigger ${jobType} job: ${response.statusText}`
-        );
-      }
-
-      const data = await response.json();
-
-      // Create execution log for analytics job
-      const jobId = data.result?.jobId || `${jobName}-${Date.now()}`;
-      const queueName = "social-sync";
-
-      addExecutionLog({
-        jobId,
-        jobName,
-        status: "queued",
-        queueName,
-      });
-
-      // Start monitoring this job
-      monitorJobExecution(jobId, jobName, queueName);
-
-      // Show success toast
-      toast.success(
-        `${jobName.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} triggered successfully`
-      );
-
-      // Refresh data to get updated status
-      await refreshData();
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : `Failed to trigger ${jobType} job`;
-      setError(errorMessage);
-      toast.error(errorMessage);
     }
   };
 
@@ -1023,7 +944,7 @@ export function JobSchedulerMonitor() {
             </CardContent>
           </Card>
 
-          {/* Analytics Jobs Section */}
+          {/* Analytics Jobs Section - SIMPLIFIED */}
           <Card className="lg:col-span-3">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -1032,155 +953,104 @@ export function JobSchedulerMonitor() {
                     <BarChart3 className="h-5 w-5 text-green-600" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">Analytics Jobs</CardTitle>
+                    <CardTitle className="text-lg">Analytics System</CardTitle>
                     <CardDescription className="text-sm">
-                      Trigger analytics collection and processing manually
+                      Automated analytics collection runs daily at 6 AM
                     </CardDescription>
                   </div>
                 </div>
                 <Badge variant="outline" className="text-xs">
-                  Manual Triggers
+                  Automated
                 </Badge>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Collect Analytics */}
-                <div className="group p-4 border border-border/50 rounded-lg hover:border-border hover:shadow-sm transition-all">
+              <div className="space-y-4">
+                {/* Analytics Status */}
+                <div className="p-4 border border-border/50 rounded-lg bg-gradient-to-r from-green-50 to-blue-50">
                   <div className="flex items-center space-x-3 mb-3">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100">
-                      <Database className="h-5 w-5 text-blue-600" />
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-100">
+                      <Activity className="h-5 w-5 text-green-600" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">Collect Analytics</p>
+                    <div className="flex-1">
+                      <h3 className="font-medium text-sm">
+                        Complete Analytics Collection
+                      </h3>
                       <p className="text-xs text-muted-foreground">
-                        Fetch latest analytics data for all accounts
+                        Automatically runs insights, hotspots, and analytics
+                        data collection
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Next run</p>
+                      <p className="text-sm font-medium">Daily at 6:00 AM</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border/30">
+                    <div className="text-center">
+                      <div className="text-lg font-semibold text-green-600">
+                        ✓
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Account Insights
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-semibold text-orange-600">
+                        ✓
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Engagement Hotspots
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-semibold text-blue-600">
+                        ✓
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Analytics Data
                       </p>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => triggerAnalyticsJob("collect")}
-                    disabled={isLoading || !systemStatus?.queueManagerReady}
-                    className="w-full"
-                  >
-                    <Play className="h-4 w-4 mr-2" />
-                    Trigger Collection
-                  </Button>
                 </div>
 
-                {/* Analyze Hotspots */}
-                <div className="group p-4 border border-border/50 rounded-lg hover:border-border hover:shadow-sm transition-all">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-orange-100">
-                      <TrendingUp className="h-5 w-5 text-orange-600" />
+                {/* Historical Data Collection */}
+                <div className="p-4 border border-border/50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100">
+                      <Clock className="h-4 w-4 text-indigo-600" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">Engagement Hotspots</p>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-sm">
+                        Historical Data Collection
+                      </h4>
                       <p className="text-xs text-muted-foreground">
-                        Analyze optimal posting times
+                        Runs weekly on Mondays for new accounts
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Next run</p>
+                      <p className="text-sm font-medium">Monday 2:00 AM</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Information Notice */}
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-start space-x-2">
+                    <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm text-blue-800 font-medium">
+                        Fully Automated System
+                      </p>
+                      <p className="text-xs text-blue-700 mt-1">
+                        Analytics collection now runs automatically. Manual
+                        triggers have been removed to prevent conflicts and
+                        ensure data consistency.
                       </p>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => triggerAnalyticsJob("hotspots")}
-                    disabled={isLoading || !systemStatus?.queueManagerReady}
-                    className="w-full"
-                  >
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Analyze Hotspots
-                  </Button>
-                </div>
-
-                {/* Comprehensive Insights */}
-                <div className="group p-4 border border-border/50 rounded-lg hover:border-border hover:shadow-sm transition-all">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-100">
-                      <Eye className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">
-                        Comprehensive Insights
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Full analytics processing
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => triggerAnalyticsJob("comprehensive")}
-                    disabled={isLoading || !systemStatus?.queueManagerReady}
-                    className="w-full"
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    Generate Insights
-                  </Button>
-                </div>
-
-                {/* Historical Data */}
-                <div className="group p-4 border border-border/50 rounded-lg hover:border-border hover:shadow-sm transition-all">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-100">
-                      <Clock className="h-5 w-5 text-indigo-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">Historical Data</p>
-                      <p className="text-xs text-muted-foreground">
-                        Collect past 90 days data
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => triggerAnalyticsJob("historical")}
-                    disabled={isLoading || !systemStatus?.queueManagerReady}
-                    className="w-full"
-                  >
-                    <Clock className="h-4 w-4 mr-2" />
-                    Collect Historical
-                  </Button>
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="mt-6 pt-4 border-t">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-sm">Quick Actions</h4>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      await triggerAnalyticsJob("collect");
-                      setTimeout(() => triggerAnalyticsJob("hotspots"), 2000);
-                    }}
-                    disabled={isLoading || !systemStatus?.queueManagerReady}
-                  >
-                    <Zap className="h-4 w-4 mr-2" />
-                    Collect + Analyze
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      await triggerAnalyticsJob("collect");
-                      setTimeout(
-                        () => triggerAnalyticsJob("comprehensive"),
-                        3000
-                      );
-                    }}
-                    disabled={isLoading || !systemStatus?.queueManagerReady}
-                  >
-                    <Activity className="h-4 w-4 mr-2" />
-                    Full Analytics Run
-                  </Button>
                 </div>
               </div>
             </CardContent>

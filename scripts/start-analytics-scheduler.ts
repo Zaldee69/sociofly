@@ -1,38 +1,55 @@
 #!/usr/bin/env tsx
 
 import { PrismaClient } from "@prisma/client";
-import { SchedulerService } from "../src/lib/services/scheduling/scheduler.service";
-import { InsightsCollector } from "../src/lib/services/analytics/core/insights-collector";
-import { HotspotAnalyzer } from "../src/lib/services/analytics/hotspots/hotspot-analyzer";
+import { AnalyticsMasterService } from "../src/lib/services/analytics/core/analytics-master.service";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("🚀 Starting Analytics Collection...");
+  console.log("🚀 Starting Complete Analytics Collection...");
 
   try {
-    console.log("🔄 Running initial analytics collection...");
+    console.log("🔄 Running unified analytics collection...");
 
-    // Run account insights for all accounts
-    const accountResult =
-      await InsightsCollector.runAccountInsightsForAllAccounts();
+    // Use the new master service to run all analytics components
+    const result = await AnalyticsMasterService.runCompleteAnalytics({
+      includeInsights: true,
+      includeHotspots: true,
+      includeAnalytics: true,
+      forceRun: true, // Force run for manual execution
+    });
+
+    console.log("");
+    console.log("🎉 Complete Analytics Collection Results:");
     console.log(
-      `📊 Account insights: ${accountResult.success}/${accountResult.total} successful`
+      `📊 Overall: ${result.success} successful, ${result.failed} failed out of ${result.total} total`
+    );
+    console.log(`⏱️  Execution time: ${result.executionTimeMs}ms`);
+    console.log("");
+    console.log("📋 Component Details:");
+    console.log(
+      `  📈 Account Insights: ${result.details.insights.success}/${result.details.insights.total} successful`
+    );
+    console.log(
+      `  🔥 Engagement Hotspots: ${result.details.hotspots.success}/${result.details.hotspots.total} successful`
+    );
+    console.log(
+      `  📊 Analytics Data: ${result.details.analytics.success}/${result.details.analytics.total} successful`
     );
 
-    // Run hotspot analysis for all accounts
-    const hotspotResult =
-      await HotspotAnalyzer.runHotspotAnalysisForAllAccounts();
-    console.log(
-      `🔥 Hotspot analysis: ${hotspotResult.success}/${hotspotResult.total} successful`
-    );
+    if (result.errors.length > 0) {
+      console.log("");
+      console.log("❌ Errors encountered:");
+      result.errors.forEach((error) => console.log(`  • ${error}`));
+    }
 
-    console.log("✅ Analytics collection completed successfully!");
+    console.log("");
+    console.log("✅ Complete analytics collection finished successfully!");
 
     await prisma.$disconnect();
     process.exit(0);
   } catch (error) {
-    console.error("💥 Failed to run analytics collection:", error);
+    console.error("💥 Failed to run complete analytics collection:", error);
     await prisma.$disconnect();
     process.exit(1);
   }

@@ -6,6 +6,7 @@ import { SchedulerService } from "./scheduling/scheduler.service";
 import { prisma } from "@/lib/prisma/client";
 import { UnifiedRedisManager } from "./unified-redis-manager";
 import { getStandardParams } from "@/config/analytics-config";
+import { AnalyticsMasterService } from "./analytics/core/analytics-master.service";
 
 interface ScheduledJobConfig {
   name: string;
@@ -142,79 +143,30 @@ export class JobSchedulerManager {
         },
       },
       {
-        name: "analyze_engagement_hotspots",
-        schedule: "0 4 * * *", // Daily at 4 AM
-        description: "Analyze social media engagement hotspots",
-        enabled: process.env.CRON_HOTSPOT_ANALYSIS_ENABLED !== "false",
+        name: "run_complete_analytics",
+        schedule: "0 6 * * *", // Daily at 6 AM
+        description:
+          "Run complete analytics collection (insights + hotspots + analytics)",
+        enabled: process.env.CRON_COMPLETE_ANALYTICS_ENABLED !== "false",
         queueName: QueueManager.QUEUES.SOCIAL_SYNC,
-        jobType: JobType.ANALYZE_HOTSPOTS,
-        jobData: {
-          analyzePeriod: "week",
-          userId: "system",
-        },
-      },
-      {
-        name: "fetch_account_insights",
-        schedule: "0 5 * * *", // Daily at 5 AM
-        description: "Fetch account-level insights for all social accounts",
-        enabled: process.env.CRON_ACCOUNT_INSIGHTS_ENABLED !== "false",
-        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
-        jobType: JobType.ANALYZE_ACCOUNT_INSIGHTS,
+        jobType: JobType.RUN_COMPLETE_ANALYTICS,
         jobData: {
           userId: "system",
+          teamId: "system",
           socialAccountId: "system", // Will be processed for all accounts
           platform: "all",
-          insightTypes: [
-            "demographics",
-            "engagement",
-            "growth",
-            "content_performance",
-          ],
-        },
-      },
-      {
-        name: "collect_posts_analytics",
-        schedule: "0 6 * * *", // Daily at 6 AM
-        description: "Collect analytics for all posts",
-        enabled: process.env.CRON_COLLECT_ANALYTICS_ENABLED !== "false",
-        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
-        jobType: JobType.COLLECT_POSTS_ANALYTICS,
-        jobData: {
-          syncType: JOB_CONSTANTS.SYNC_TYPES.RECENT,
-          userId: "system",
-        },
-      },
-      // New unified analytics jobs
-      {
-        name: "collect_analytics",
-        schedule: "0 7 * * *", // Daily at 7 AM
-        description: "Collect comprehensive analytics data",
-        enabled: process.env.CRON_COLLECT_ANALYTICS_ENABLED !== "false",
-        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
-        jobType: JobType.COLLECT_ANALYTICS,
-        jobData: {
-          userId: "system",
-          platform: "all",
-          collectTypes: ["account", "posts", "audience", "links"],
-        },
-      },
-      {
-        name: "analyze_comprehensive_insights",
-        schedule: "0 8 * * *", // Daily at 8 AM
-        description: "Analyze comprehensive insights from all data sources",
-        enabled: process.env.CRON_COMPREHENSIVE_INSIGHTS_ENABLED !== "false",
-        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
-        jobType: JobType.ANALYZE_COMPREHENSIVE_INSIGHTS,
-        jobData: {
-          userId: "system",
           analysisTypes: [
             "hotspots",
             "account_insights",
+            "analytics_data",
             "demographics",
             "engagement",
           ],
           analyzePeriod: "week",
           includeComparisons: true,
+          includeInsights: true,
+          includeHotspots: true,
+          includeAnalytics: true,
         },
       },
       {
@@ -230,38 +182,6 @@ export class JobSchedulerManager {
           priority: "normal",
           collectTypes: ["posts", "audience", "hashtags", "links"],
           immediate: false,
-        },
-      },
-      // Individual Post Analytics Collection Jobs
-      {
-        name: "collect_recent_post_analytics",
-        schedule: "0 */6 * * *", // Every 6 hours
-        description:
-          "Collect analytics for recently published posts (last 7 days)",
-        enabled: process.env.CRON_POST_ANALYTICS_ENABLED !== "false",
-        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
-        jobType: JobType.COLLECT_BATCH_POST_ANALYTICS,
-        priority: 4, // High priority
-        jobData: {
-          postIds: JOB_CONSTANTS.SPECIAL_POST_IDS.RECENT_PUBLISHED_POSTS,
-          userId: "system",
-          batchSize: 10,
-          maxRetries: 3,
-        },
-      },
-      {
-        name: "collect_older_post_analytics",
-        schedule: "0 3 * * *", // Daily at 3 AM
-        description: "Collect analytics for older published posts (7-30 days)",
-        enabled: process.env.CRON_POST_ANALYTICS_ENABLED !== "false",
-        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
-        jobType: JobType.COLLECT_BATCH_POST_ANALYTICS,
-        priority: 2, // Lower priority
-        jobData: {
-          postIds: JOB_CONSTANTS.SPECIAL_POST_IDS.OLDER_PUBLISHED_POSTS,
-          userId: "system",
-          batchSize: 20,
-          maxRetries: 2,
         },
       },
     ];
@@ -685,12 +605,7 @@ export class JobSchedulerManager {
       check_expired_tokens: QueueManager.QUEUES.MAINTENANCE,
       system_health_check: QueueManager.QUEUES.MAINTENANCE,
       cleanup_old_logs: QueueManager.QUEUES.MAINTENANCE,
-      analyze_engagement_hotspots: QueueManager.QUEUES.SOCIAL_SYNC,
-      fetch_account_insights: QueueManager.QUEUES.SOCIAL_SYNC,
-      collect_posts_analytics: QueueManager.QUEUES.SOCIAL_SYNC,
-      // New unified analytics jobs
-      collect_analytics: QueueManager.QUEUES.SOCIAL_SYNC,
-      analyze_comprehensive_insights: QueueManager.QUEUES.SOCIAL_SYNC,
+      run_complete_analytics: QueueManager.QUEUES.SOCIAL_SYNC,
       collect_historical_data: QueueManager.QUEUES.SOCIAL_SYNC,
     };
     return mapping[jobName] || null;
@@ -702,12 +617,7 @@ export class JobSchedulerManager {
       check_expired_tokens: JobType.CHECK_EXPIRED_TOKENS,
       system_health_check: JobType.SYSTEM_HEALTH_CHECK,
       cleanup_old_logs: JobType.CLEANUP_OLD_LOGS,
-      analyze_engagement_hotspots: JobType.ANALYZE_HOTSPOTS,
-      fetch_account_insights: JobType.ANALYZE_ACCOUNT_INSIGHTS,
-      collect_posts_analytics: JobType.COLLECT_POSTS_ANALYTICS,
-      // New unified analytics jobs
-      collect_analytics: JobType.COLLECT_ANALYTICS,
-      analyze_comprehensive_insights: JobType.ANALYZE_COMPREHENSIVE_INSIGHTS,
+      run_complete_analytics: JobType.RUN_COMPLETE_ANALYTICS,
       collect_historical_data: JobType.COLLECT_HISTORICAL_DATA,
     };
     return mapping[jobName] || null;
@@ -736,45 +646,7 @@ export class JobSchedulerManager {
           olderThanDays: JOB_CONSTANTS.CLEANUP_CONFIG.LOG_CLEANUP_DAYS,
           logType: JOB_CONSTANTS.LOG_TYPES.ALL,
         };
-      case JobType.ANALYZE_HOTSPOTS:
-        return {
-          analyzePeriod: "week",
-          userId: "system",
-        };
-      case JobType.ANALYZE_ACCOUNT_INSIGHTS:
-        return {
-          userId: "system",
-          socialAccountId: "system",
-          platform: "all",
-          insightTypes: [
-            "demographics",
-            "engagement",
-            "growth",
-            "content_performance",
-          ],
-        };
-      case JobType.COLLECT_POSTS_ANALYTICS:
-        return {
-          syncType: JOB_CONSTANTS.SYNC_TYPES.RECENT,
-          userId: "system",
-        };
-      // New unified analytics jobs
-      case JobType.COLLECT_ANALYTICS: {
-        // Use standardized parameters
-        const standardParams = getStandardParams("COMPREHENSIVE_INSIGHTS");
-
-        return {
-          socialAccountId: "system", // Will be processed for all accounts
-          platform: "all",
-          accountName: "All Accounts",
-          teamId: "system",
-          collectTypes: ["account", "posts", "audience", "links"],
-          priority: "normal",
-          // Add standardized collection parameters
-          collectionParams: standardParams,
-        };
-      }
-      case JobType.ANALYZE_COMPREHENSIVE_INSIGHTS:
+      case JobType.RUN_COMPLETE_ANALYTICS:
         return {
           userId: "system",
           teamId: "system",
@@ -783,23 +655,23 @@ export class JobSchedulerManager {
           analysisTypes: [
             "hotspots",
             "account_insights",
+            "analytics_data",
             "demographics",
             "engagement",
           ],
           analyzePeriod: "week",
           includeComparisons: true,
+          includeInsights: true,
+          includeHotspots: true,
+          includeAnalytics: true,
         };
       case JobType.COLLECT_HISTORICAL_DATA:
         return {
-          socialAccountId: "system", // Will be processed for all accounts
-          platform: "all",
-          accountName: "All Accounts",
-          teamId: "system",
           userId: "system",
           daysBack: 90,
           priority: "normal",
           collectTypes: ["posts", "audience", "hashtags", "links"],
-          immediate: true,
+          immediate: false,
         };
       default:
         return { userId: "system" };
@@ -930,9 +802,8 @@ export class JobSchedulerManager {
       "check_expired_tokens",
       "system_health_check",
       "cleanup_old_logs",
-      "analyze_engagement_hotspots",
-      "fetch_account_insights",
-      "collect_posts_analytics",
+      "run_complete_analytics",
+      "collect_historical_data",
     ];
   }
 

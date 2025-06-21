@@ -53,23 +53,19 @@ export class JobProcessor {
           data as SocialMediaSyncJobData
         );
 
-      // New unified analytics jobs
-      case JobType.COLLECT_ANALYTICS:
-        return await this.processCollectAnalytics(
-          data as CollectAnalyticsJobData
-        );
-
-      case JobType.ANALYZE_COMPREHENSIVE_INSIGHTS:
-        return await this.processAnalyzeComprehensiveInsights(
+      // Main analytics job (unified)
+      case JobType.RUN_COMPLETE_ANALYTICS:
+        return await this.processRunCompleteAnalytics(
           data as AnalyzeComprehensiveInsightsJobData
         );
 
+      // Historical data collection (still needed for onboarding)
       case JobType.COLLECT_HISTORICAL_DATA:
         return await this.processCollectHistoricalData(
           data as CollectHistoricalDataJobData
         );
 
-      // Individual Post Analytics Collection
+      // Individual Post Analytics Collection (still needed for real-time)
       case JobType.COLLECT_POST_ANALYTICS:
         return await this.processCollectPostAnalytics(
           data as CollectPostAnalyticsJobData
@@ -80,14 +76,40 @@ export class JobProcessor {
           data as CollectBatchPostAnalyticsJobData
         );
 
-      // Legacy jobs (deprecated)
+      // DEPRECATED: Individual analytics jobs (kept for backward compatibility)
+      // These should not be used in new code - use RUN_COMPLETE_ANALYTICS instead
+      case JobType.COLLECT_ANALYTICS:
+        console.warn(
+          "⚠️ DEPRECATED: COLLECT_ANALYTICS job type. Use RUN_COMPLETE_ANALYTICS instead."
+        );
+        return await this.processCollectAnalytics(
+          data as CollectAnalyticsJobData
+        );
+
+      case JobType.ANALYZE_COMPREHENSIVE_INSIGHTS:
+        console.warn(
+          "⚠️ DEPRECATED: ANALYZE_COMPREHENSIVE_INSIGHTS job type. Use RUN_COMPLETE_ANALYTICS instead."
+        );
+        return await this.processAnalyzeComprehensiveInsights(
+          data as AnalyzeComprehensiveInsightsJobData
+        );
+
       case JobType.COLLECT_POSTS_ANALYTICS:
+        console.warn(
+          "⚠️ DEPRECATED: COLLECT_POSTS_ANALYTICS job type. Use RUN_COMPLETE_ANALYTICS instead."
+        );
         return await this.processCollectPostsAnalytics();
 
       case JobType.ANALYZE_HOTSPOTS:
+        console.warn(
+          "⚠️ DEPRECATED: ANALYZE_HOTSPOTS job type. Use RUN_COMPLETE_ANALYTICS instead."
+        );
         return await this.processAnalyzeHotspots();
 
       case JobType.ANALYZE_ACCOUNT_INSIGHTS:
+        console.warn(
+          "⚠️ DEPRECATED: ANALYZE_ACCOUNT_INSIGHTS job type. Use RUN_COMPLETE_ANALYTICS instead."
+        );
         return await this.processAnalyzeAccountInsights();
 
       default:
@@ -868,44 +890,65 @@ export class JobProcessor {
         }
       }
 
-      // Analyze growth trends
-      if (data.analysisTypes.includes("growth")) {
-        try {
-          const growth = await this.analyzeGrowthTrends(data, prisma);
-          result.insights.growth = growth;
-        } catch (error: any) {
-          result.errors.push(`Growth analysis: ${error.message}`);
-        }
-      }
-
-      // Analyze content performance
-      if (data.analysisTypes.includes("content_performance")) {
-        try {
-          const contentPerformance = await this.analyzeContentPerformance(
-            data,
-            prisma
-          );
-          result.insights.contentPerformance = contentPerformance;
-        } catch (error: any) {
-          result.errors.push(`Content performance: ${error.message}`);
-        }
-      }
-
       // Generate comparisons if requested
       if (data.includeComparisons) {
         try {
           const comparisons = await this.generateComparisons(data, prisma);
           result.comparisons = comparisons;
         } catch (error: any) {
-          result.errors.push(`Comparisons: ${error.message}`);
+          result.errors.push(`Comparisons generation: ${error.message}`);
         }
       }
 
-      console.log(`✅ Comprehensive insights analysis completed`);
-      console.log(result);
+      console.log(
+        `✅ Comprehensive insights analysis completed with ${result.errors.length} errors`
+      );
       return result;
     } catch (error) {
-      console.error(`❌ Failed to analyze comprehensive insights:`, error);
+      console.error(`❌ Failed to run comprehensive insights analysis:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process complete analytics run using AnalyticsMasterService
+   */
+  private static async processRunCompleteAnalytics(
+    data: AnalyzeComprehensiveInsightsJobData
+  ): Promise<any> {
+    console.log(`🚀 Running complete analytics collection...`);
+
+    try {
+      // Use dynamic import to avoid circular dependencies
+      const { AnalyticsMasterService } = await import(
+        "@/lib/services/analytics/core/analytics-master.service"
+      );
+
+      // Extract options from job data
+      const options = {
+        includeInsights: data.includeInsights ?? true,
+        includeHotspots: data.includeHotspots ?? true,
+        includeAnalytics: data.includeAnalytics ?? true,
+        socialAccountId:
+          data.socialAccountId === "system" ? undefined : data.socialAccountId,
+        teamId: data.teamId === "system" ? undefined : data.teamId,
+        forceRun: true, // Force run in scheduled context
+      };
+
+      console.log(`📊 Running complete analytics with options:`, options);
+
+      const result = await AnalyticsMasterService.runCompleteAnalytics(options);
+
+      console.log(`✅ Complete analytics run finished:`, {
+        success: result.success,
+        failed: result.failed,
+        total: result.total,
+        executionTimeMs: result.executionTimeMs,
+      });
+
+      return result;
+    } catch (error) {
+      console.error(`❌ Failed to run complete analytics:`, error);
       throw error;
     }
   }

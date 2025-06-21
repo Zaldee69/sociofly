@@ -1,5 +1,6 @@
 // Job types for BullMQ queues
 export enum JobType {
+  // Core system jobs
   PUBLISH_POST = "publish_post",
   PROCESS_APPROVAL = "process_approval",
   CHECK_EXPIRED_TOKENS = "check_expired_tokens",
@@ -10,19 +11,23 @@ export enum JobType {
   GENERATE_REPORT = "generate_report",
   SOCIAL_MEDIA_SYNC = "social_media_sync",
 
-  // Unified Analytics Jobs
-  COLLECT_ANALYTICS = "collect_analytics",
-  ANALYZE_COMPREHENSIVE_INSIGHTS = "analyze_comprehensive_insights",
+  // Main analytics job (unified)
+  RUN_COMPLETE_ANALYTICS = "run_complete_analytics", // NEW: Replaces all individual analytics jobs
+
+  // Historical data collection (still needed for onboarding)
   COLLECT_HISTORICAL_DATA = "collect_historical_data",
 
-  // Individual Post Analytics Collection
+  // Individual Post Analytics Collection (still needed for real-time)
   COLLECT_POST_ANALYTICS = "collect_post_analytics",
   COLLECT_BATCH_POST_ANALYTICS = "collect_batch_post_analytics",
 
-  // Legacy (deprecated - will be removed)
-  ANALYZE_HOTSPOTS = "analyze_hotspots",
-  ANALYZE_ACCOUNT_INSIGHTS = "analyze_account_insights",
-  COLLECT_POSTS_ANALYTICS = "collect_posts_analytics",
+  // DEPRECATED: Individual analytics jobs (replaced by RUN_COMPLETE_ANALYTICS)
+  // These are kept for backward compatibility but should not be used in new code
+  COLLECT_ANALYTICS = "collect_analytics", // DEPRECATED: Use RUN_COMPLETE_ANALYTICS
+  ANALYZE_COMPREHENSIVE_INSIGHTS = "analyze_comprehensive_insights", // DEPRECATED: Use RUN_COMPLETE_ANALYTICS
+  ANALYZE_HOTSPOTS = "analyze_hotspots", // DEPRECATED: Use RUN_COMPLETE_ANALYTICS
+  ANALYZE_ACCOUNT_INSIGHTS = "analyze_account_insights", // DEPRECATED: Use RUN_COMPLETE_ANALYTICS
+  COLLECT_POSTS_ANALYTICS = "collect_posts_analytics", // DEPRECATED: Use RUN_COMPLETE_ANALYTICS
 }
 
 // Job data interfaces
@@ -186,6 +191,10 @@ export interface AnalyzeComprehensiveInsightsJobData {
   )[];
   analyzePeriod: "week" | "month" | "quarter" | "year";
   includeComparisons: boolean;
+  // Additional properties for complete analytics run
+  includeInsights?: boolean;
+  includeHotspots?: boolean;
+  includeAnalytics?: boolean;
 }
 
 // Historical data collection job

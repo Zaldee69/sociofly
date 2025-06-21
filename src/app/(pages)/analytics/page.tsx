@@ -47,7 +47,6 @@ const Analytics: React.FC = () => {
   const [selectedAccount, setSelectedAccount] = useState<string>("");
   const [selectedPlatform, setSelectedPlatform] = useState<string>("INSTAGRAM");
   const [activeSection, setActiveSection] = useState("overview");
-  const [isCollecting, setIsCollecting] = useState(false);
   const [isMainNavbarHidden, setIsMainNavbarHidden] = useState(false);
   const [isManualNavigation, setIsManualNavigation] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -239,34 +238,6 @@ const Analytics: React.FC = () => {
       }
     );
 
-  // Mutations
-  const triggerCollection =
-    trpc.analytics.realtime.triggerAccountAnalyticsCollection.useMutation({
-      onSuccess: (data) => {
-        toast.success(data.message);
-        // Refetch data after collection
-        setTimeout(() => {
-          refetchInsights();
-        }, 5000); // Wait 5 seconds for collection to complete
-      },
-      onError: (error) => {
-        toast.error(`Failed to trigger collection: ${error.message}`);
-      },
-      onSettled: () => {
-        setIsCollecting(false);
-      },
-    });
-
-  const handleTriggerCollection = async () => {
-    if (!currentTeamId) {
-      toast.error("No team selected");
-      return;
-    }
-
-    setIsCollecting(true);
-    triggerCollection.mutate({ teamId: currentTeamId });
-  };
-
   const handleAccountChange = (accountId: string, platform: string) => {
     setSelectedAccount(accountId);
     setSelectedPlatform(platform);
@@ -367,21 +338,15 @@ const Analytics: React.FC = () => {
                 </Card>
               )}
 
-              {/* Trigger Collection Button */}
-              <Button
-                onClick={handleTriggerCollection}
-                disabled={isCollecting || !currentTeamId}
-                variant="outline"
-                size="sm"
-                className="gap-2"
-              >
-                {isCollecting ? (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                ) : (
-                  <PlayCircle className="h-4 w-4" />
-                )}
-                {isCollecting ? "Mengumpulkan..." : "Update Data"}
-              </Button>
+              {/* Automated Collection Notice */}
+              <Card className="px-3 py-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                  <span className="text-muted-foreground">
+                    Data dikumpulkan otomatis setiap hari pukul 6 pagi
+                  </span>
+                </div>
+              </Card>
 
               {/* Account Selector */}
               {/* <AccountSelector
@@ -556,9 +521,9 @@ const Analytics: React.FC = () => {
                   {collectionStatus.status === "pending" && (
                     <Alert>
                       <AlertDescription>
-                        Belum ada data analytics untuk akun ini. Data sedang
-                        dikumpulkan di background setelah akun ditautkan. Klik
-                        "Update Data" jika ingin memperbarui sekarang.
+                        Belum ada data analytics untuk akun ini. Data akan
+                        dikumpulkan otomatis pada penjadwalan berikutnya (setiap
+                        hari pukul 6 pagi).
                       </AlertDescription>
                     </Alert>
                   )}
@@ -570,7 +535,8 @@ const Analytics: React.FC = () => {
                         {new Date(
                           collectionStatus.lastCollected!
                         ).toLocaleString()}
-                        ). Klik "Update Data" untuk mengumpulkan data terbaru.
+                        ). Data akan diperbarui otomatis pada penjadwalan
+                        berikutnya.
                       </AlertDescription>
                     </Alert>
                   )}

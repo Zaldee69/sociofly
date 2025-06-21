@@ -507,37 +507,4 @@ export const onboardingRouter = createTRPCRouter({
         lastHotspotsUpdate: latestHotspots?.updatedAt,
       };
     }),
-
-  // Manual trigger for analytics collection
-  triggerAnalyticsCollection: protectedProcedure
-    .input(
-      z.object({
-        socialAccountId: z.string(),
-        includeHotspots: z.boolean().default(true),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      try {
-        // Fetch account insights
-        await InsightsCollector.fetchInitialAccountInsights(
-          input.socialAccountId
-        );
-
-        // Fetch heatmap data if requested
-        if (input.includeHotspots) {
-          await HotspotAnalyzer.fetchInitialHeatmapData(input.socialAccountId);
-        }
-
-        return {
-          success: true,
-          message: "Analytics collection completed successfully",
-        };
-      } catch (error) {
-        console.error("Failed to collect analytics:", error);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to collect analytics",
-        });
-      }
-    }),
 });
