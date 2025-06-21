@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AnalyticsComparisonService } from "@/lib/services/analytics-comparison.service";
+import { AnalyticsComparisonService } from "@/lib/services/analytics/core/analytics-comparison.service";
 import { prisma } from "@/lib/prisma/client";
 
 export async function POST(request: NextRequest) {

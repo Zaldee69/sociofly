@@ -133,12 +133,13 @@ export class EnhancedInstagramClient {
     try {
       const response = await this.httpClient.get(`/${profileId}`, {
         params: {
-          fields: "followers_count,media_count,name,username",
+          fields: "id,name,username,followers_count,media_count",
           access_token: accessToken,
         },
       });
 
       return {
+        id: response.data.id,
         followersCount: response.data.followers_count || 0,
         mediaCount: response.data.media_count || 0,
         name: response.data.name,
@@ -340,13 +341,16 @@ export class EnhancedInstagramClient {
     mediaId: string,
     accessToken: string
   ) {
-    // Try different metric combinations with v22.0+ supported metrics only
+    // Use only v22.0+ supported metrics (impressions deprecated March 2025)
     const metricSets = [
-      // Most comprehensive set (v22.0+ compatible with views)
+      // Most comprehensive set (v22.0+ compatible - uses 'views' instead of 'impressions')
       ["reach", "views", "likes", "comments", "saved", "shares"],
 
-      // Views and engagement (v22.0+ compatible)
-      ["views", "likes", "comments", "saved"],
+      // Basic engagement metrics (always available)
+      ["likes", "comments", "saved", "shares"],
+
+      // Views and reach only (fallback)
+      ["views", "reach"],
 
       // Engagement only (more likely to work)
       ["likes", "comments", "saved"],
@@ -441,7 +445,7 @@ export class EnhancedInstagramClient {
             `/${story.id}/insights`,
             {
               params: {
-                metric: "impressions,replies",
+                metric: "reach,replies",
                 access_token: accessToken,
               },
             }
@@ -449,7 +453,7 @@ export class EnhancedInstagramClient {
 
           insightsResponse.data.data.forEach((insight: any) => {
             const value = insight.values?.[0]?.value || 0;
-            if (insight.name === "impressions") totalViews += value;
+            if (insight.name === "reach") totalViews += value; // v22.0+: using reach instead of impressions
             if (insight.name === "replies") totalReplies += value;
           });
         } catch (error) {

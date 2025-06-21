@@ -104,7 +104,7 @@ export class JobProcessor {
     try {
       // Use dynamic import to avoid circular dependencies
       const { SchedulerService } = await import(
-        "@/lib/services/scheduler.service"
+        "@/lib/services/scheduling/scheduler.service"
       );
       const result = await SchedulerService.processDuePublications();
 
@@ -124,7 +124,7 @@ export class JobProcessor {
 
     try {
       const { RealSocialAnalyticsService } = await import(
-        "@/lib/services/social-analytics/real-analytics-service"
+        "@/lib/services/analytics/clients/real-analytics-service"
       );
       const { prisma } = await import("@/lib/prisma/client");
 
@@ -160,7 +160,7 @@ export class JobProcessor {
 
     try {
       const { RealSocialAnalyticsService } = await import(
-        "@/lib/services/social-analytics/real-analytics-service"
+        "@/lib/services/analytics/clients/real-analytics-service"
       );
       const { prisma } = await import("@/lib/prisma/client");
 
@@ -297,7 +297,7 @@ export class JobProcessor {
     try {
       // Use dynamic import to avoid circular dependencies
       const { SchedulerService } = await import(
-        "@/lib/services/scheduler.service"
+        "@/lib/services/scheduling/scheduler.service"
       );
       const result = await SchedulerService.processApprovalEdgeCases();
 
@@ -320,7 +320,7 @@ export class JobProcessor {
     try {
       // Use dynamic imports to avoid circular dependencies
       const { SchedulerService } = await import(
-        "@/lib/services/scheduler.service"
+        "@/lib/services/scheduling/scheduler.service"
       );
       const { PostPublisherService } = await import(
         "@/lib/services/post-publisher"
@@ -357,7 +357,7 @@ export class JobProcessor {
     try {
       // Use dynamic import to avoid circular dependencies
       const { SchedulerService } = await import(
-        "@/lib/services/scheduler.service"
+        "@/lib/services/scheduling/scheduler.service"
       );
       const result = await SchedulerService.getApprovalSystemHealth();
 
@@ -514,10 +514,10 @@ export class JobProcessor {
 
     try {
       // Use dynamic import to avoid circular dependencies
-      const { SchedulerService } = await import(
-        "@/lib/services/scheduler.service"
+      const { HotspotAnalyzer } = await import(
+        "@/lib/services/analytics/hotspots/hotspot-analyzer"
       );
-      const result = await SchedulerService.runHotspotAnalysisForAllAccounts();
+      const result = await HotspotAnalyzer.runHotspotAnalysisForAllAccounts();
 
       console.log(`✅ Hotspot analysis completed:`, result);
       return result;
@@ -534,7 +534,7 @@ export class JobProcessor {
       // Use dynamic imports to avoid circular dependencies
       const { prisma } = await import("@/lib/prisma/client");
       const { RealSocialAnalyticsService } = await import(
-        "@/lib/services/social-analytics/real-analytics-service"
+        "@/lib/services/analytics/clients/real-analytics-service"
       );
 
       const realAnalyticsService = new RealSocialAnalyticsService(prisma);
@@ -554,9 +554,13 @@ export class JobProcessor {
     try {
       // Use dynamic import to avoid circular dependencies
       const { SchedulerService } = await import(
-        "@/lib/services/scheduler.service"
+        "@/lib/services/scheduling/scheduler.service"
       );
-      const result = await SchedulerService.runAccountInsightsForAllAccounts();
+      // Use dynamic import to avoid circular dependencies
+      const { InsightsCollector } = await import(
+        "@/lib/services/analytics/core/insights-collector"
+      );
+      const result = await InsightsCollector.runAccountInsightsForAllAccounts();
 
       console.log(`✅ Account insights analysis completed:`, result);
       return result;
@@ -1084,7 +1088,7 @@ export class JobProcessor {
 
         // Calculate comparison fields before saving
         const { AnalyticsComparisonService } = await import(
-          "@/lib/services/analytics-comparison.service"
+          "@/lib/services/analytics/core/analytics-comparison.service"
         );
         const comparisonService = new AnalyticsComparisonService(prisma);
         await comparisonService.updateComparisonFields(
@@ -1138,7 +1142,7 @@ export class JobProcessor {
   ): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
       const { RealSocialAnalyticsService } = await import(
-        "@/lib/services/social-analytics/real-analytics-service"
+        "@/lib/services/analytics/clients/real-analytics-service"
       );
       const analyticsService = new RealSocialAnalyticsService(prisma);
 
@@ -1178,10 +1182,10 @@ export class JobProcessor {
   ): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
       const { FacebookAnalyticsClient } = await import(
-        "@/lib/services/social-analytics/facebook-client"
+        "@/lib/services/analytics/clients/facebook-client"
       );
       const { SocialMediaRateLimiter } = await import(
-        "@/lib/services/social-analytics/rate-limiter"
+        "@/lib/services/analytics/clients/rate-limiter"
       );
 
       const rateLimiter = new SocialMediaRateLimiter();
@@ -1249,7 +1253,7 @@ export class JobProcessor {
     try {
       // Use the new enhanced Instagram client
       const { EnhancedInstagramClient } = await import(
-        "@/lib/services/social-analytics/enhanced-instagram-client"
+        "@/lib/services/analytics/clients/enhanced-instagram-client"
       );
       const { getStandardParams, logCollectionParams } = await import(
         "@/config/analytics-config"

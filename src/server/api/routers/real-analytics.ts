@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { RealSocialAnalyticsService } from "../../../lib/services/social-analytics/real-analytics-service";
+import { RealSocialAnalyticsService } from "../../../lib/services/analytics/clients/real-analytics-service";
+import { InsightsCollector } from "../../../lib/services/analytics/core/insights-collector";
 
 export const realAnalyticsRouter = createTRPCRouter({
   /**
@@ -291,13 +292,14 @@ export const realAnalyticsRouter = createTRPCRouter({
     }),
 
   /**
-   * Get account analytics insights - Main endpoint for dashboard
+   * Get account analytics insights - Main endpoint for dashboard (Enhanced with Phase 4)
    */
   getAccountInsights: protectedProcedure
     .input(
       z.object({
         socialAccountId: z.string(),
         days: z.number().default(30),
+        useEnhanced: z.boolean().default(true), // Enable Phase 4 by default
       })
     )
     .query(async ({ input, ctx }) => {
@@ -320,6 +322,160 @@ export const realAnalyticsRouter = createTRPCRouter({
             message: "Social account not found or access denied",
           });
         }
+
+        // Use Phase 4 Enhanced Analytics if enabled
+        if (input.useEnhanced) {
+          console.log(
+            `🚀 Using Enhanced Analytics (Phase 4) for ${socialAccount.name}`
+          );
+
+          try {
+            const { createEnhancedAnalyticsManager } = await import(
+              "@/lib/services/analytics/advanced/enhanced-analytics-manager"
+            );
+
+            const manager = createEnhancedAnalyticsManager(ctx.prisma);
+
+            // Prepare credentials
+            const credentials = {
+              accessToken: socialAccount.accessToken,
+              userId: ctx.auth.userId,
+              accountId: socialAccount.profileId || socialAccount.id,
+            };
+
+            // Enhanced collection with all Phase 4 features
+            const result = await manager.collectEnhancedAnalytics(
+              input.socialAccountId,
+              credentials,
+              {
+                platform: socialAccount.platform.toLowerCase() as
+                  | "instagram"
+                  | "facebook",
+                days_back: Math.min(input.days, 30), // Limit to 30 days for performance
+                include_posts: true,
+                include_stories: false,
+                limit: 20,
+
+                // Phase 4 features
+                storeInDatabase: true,
+                useCache: true,
+                generateInsights: true,
+                compareWithPrevious: true,
+              }
+            );
+
+            await manager.disconnect();
+
+            if (result.success && result.data) {
+              console.log(
+                `✅ Enhanced analytics successful for ${socialAccount.name}`
+              );
+
+              // Transform Phase 4 data to existing interface
+              const enhancedData = {
+                // Core metrics (compatible with existing UI)
+                followersCount: result.data.account.followers,
+                followingCount: result.data.account.following || 0,
+                mediaCount: result.data.account.posts,
+                engagementRate: result.data.account.engagement_rate,
+                avgReachPerPost: result.data.account.avg_reach || 0,
+                profileVisits: result.data.account.profile_visits || 0,
+
+                // Growth metrics from comparison
+                followerGrowth: result.data.comparison
+                  ? {
+                      current: result.data.comparison.changes.followers.current,
+                      previous:
+                        result.data.comparison.changes.followers.previous,
+                      change: result.data.comparison.changes.followers.change,
+                      changePercent:
+                        result.data.comparison.changes.followers.change_percent,
+                    }
+                  : null,
+
+                engagementGrowth: result.data.comparison
+                  ? {
+                      current:
+                        result.data.comparison.changes.engagement_rate.current,
+                      previous:
+                        result.data.comparison.changes.engagement_rate.previous,
+                      change:
+                        result.data.comparison.changes.engagement_rate.change,
+                      changePercent:
+                        result.data.comparison.changes.engagement_rate
+                          .change_percent,
+                    }
+                  : null,
+
+                reachGrowth: result.data.comparison
+                  ? {
+                      current: result.data.comparison.changes.avg_reach.current,
+                      previous:
+                        result.data.comparison.changes.avg_reach.previous,
+                      change: result.data.comparison.changes.avg_reach.change,
+                      changePercent:
+                        result.data.comparison.changes.avg_reach.change_percent,
+                    }
+                  : null,
+
+                // Enhanced insights (Phase 4 exclusive)
+                insights: result.data.insights,
+
+                // Performance summary
+                performanceSummary: result.data.comparison?.performance_summary,
+
+                // Recent posts performance (transformed)
+                recentPosts: result.data.posts
+                  .slice(0, 10)
+                  .map((post, index) => ({
+                    id: `post_${index}`,
+                    likes: post.likes,
+                    comments: post.comments,
+                    shares: post.shares,
+                    saves: post.saves,
+                    reach: post.reach,
+                    impressions: post.impressions,
+                    engagement:
+                      ((post.likes + post.comments + post.shares + post.saves) /
+                        post.reach) *
+                        100 || 0,
+                  })),
+
+                // Performance metrics
+                performance: result.performance,
+                cacheInfo: result.cache,
+
+                // Metadata
+                source: "enhanced_analytics_v4",
+                collectedAt: new Date(),
+
+                // Follower growth data (for charts)
+                followerGrowthData: [
+                  {
+                    date: new Date(),
+                    value: result.data.account.followers,
+                  },
+                ],
+              };
+
+              return enhancedData;
+            } else {
+              console.warn(
+                `⚠️ Enhanced analytics failed for ${socialAccount.name}, falling back to legacy`
+              );
+              // Fall through to legacy system
+            }
+          } catch (enhancedError) {
+            console.error(
+              `❌ Enhanced analytics error for ${socialAccount.name}:`,
+              enhancedError
+            );
+            // Fall through to legacy system
+          }
+        }
+
+        // Legacy system (fallback or when enhanced is disabled)
+        console.log(`📊 Using legacy analytics for ${socialAccount.name}`);
 
         const endDate = new Date();
         const startDate = new Date(
@@ -491,12 +647,13 @@ export const realAnalyticsRouter = createTRPCRouter({
     }),
 
   /**
-   * Trigger analytics collection for all accounts in a team
+   * Trigger analytics collection for all accounts in a team (Enhanced with Phase 4)
    */
   triggerAccountAnalyticsCollection: protectedProcedure
     .input(
       z.object({
         teamId: z.string(),
+        useEnhanced: z.boolean().default(true), // Enable Phase 4 by default
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -516,12 +673,16 @@ export const realAnalyticsRouter = createTRPCRouter({
           });
         }
 
-        const realAnalyticsService = new RealSocialAnalyticsService(ctx.prisma);
-
         // Get all social accounts for the team
         const socialAccounts = await ctx.prisma.socialAccount.findMany({
           where: { teamId: input.teamId },
-          select: { id: true, platform: true, name: true },
+          select: {
+            id: true,
+            platform: true,
+            name: true,
+            accessToken: true,
+            profileId: true,
+          },
         });
 
         if (socialAccounts.length === 0) {
@@ -531,9 +692,111 @@ export const realAnalyticsRouter = createTRPCRouter({
           });
         }
 
+        // Use Phase 4 Enhanced Analytics if enabled
+        if (input.useEnhanced) {
+          console.log(
+            `🚀 Using Enhanced Analytics (Phase 4) for batch collection`
+          );
+
+          try {
+            const { createEnhancedAnalyticsManager } = await import(
+              "@/lib/services/analytics/advanced/enhanced-analytics-manager"
+            );
+
+            const manager = createEnhancedAnalyticsManager(ctx.prisma);
+
+            // Prepare accounts for batch processing
+            const batchAccounts = socialAccounts.map((account) => ({
+              accountId: account.id,
+              credentials: {
+                accessToken: account.accessToken,
+                userId: ctx.auth.userId,
+                accountId: account.profileId || account.id,
+              },
+              options: {
+                platform: account.platform.toLowerCase() as
+                  | "instagram"
+                  | "facebook",
+                days_back: 7,
+                include_posts: true,
+                include_stories: false,
+                limit: 20,
+
+                // Phase 4 features
+                storeInDatabase: true,
+                useCache: false, // Force fresh data for manual trigger
+                generateInsights: true,
+                compareWithPrevious: true,
+              },
+            }));
+
+            // Batch collection with Enhanced Analytics
+            const results =
+              await manager.collectBatchEnhancedAnalytics(batchAccounts);
+            await manager.disconnect();
+
+            const successCount = results.filter((r) => r.success).length;
+            const failedCount = results.filter((r) => !r.success).length;
+            const partialCount = results.filter(
+              (r) => r.success && (r.fallback_used || r.api_errors?.length)
+            ).length;
+
+            // Collect all errors and warnings for detailed feedback
+            const allApiErrors = results.flatMap((r) => r.api_errors || []);
+            const allWarnings = results.flatMap((r) => r.warnings || []);
+            const fallbackUsedCount = results.filter(
+              (r) => r.fallback_used
+            ).length;
+
+            // Determine overall status
+            let statusMessage;
+            let overallSuccess = true;
+
+            if (failedCount > 0) {
+              overallSuccess = false;
+              statusMessage = `Analytics collection completed with ${failedCount} failures and ${successCount} successes out of ${socialAccounts.length} accounts`;
+            } else if (partialCount > 0 || fallbackUsedCount > 0) {
+              statusMessage = `Analytics collection completed with ${partialCount} warnings (using fallback data) out of ${socialAccounts.length} accounts`;
+            } else {
+              statusMessage = `Enhanced analytics collection completed successfully for all ${socialAccounts.length} accounts`;
+            }
+
+            console.log(
+              `${overallSuccess ? "✅" : "⚠️"} Enhanced batch collection: ${successCount}/${socialAccounts.length} successful, ${partialCount} with issues`
+            );
+
+            return {
+              success: overallSuccess,
+              message: statusMessage,
+              results: {
+                success: successCount,
+                failed: failedCount,
+                partial: partialCount,
+                total: socialAccounts.length,
+                source: "enhanced_analytics_v4",
+                performance: results.map((r) => r.performance).filter(Boolean),
+                api_errors: allApiErrors.length > 0 ? allApiErrors : undefined,
+                warnings: allWarnings.length > 0 ? allWarnings : undefined,
+                fallback_used: fallbackUsedCount > 0,
+              },
+            };
+          } catch (enhancedError) {
+            console.error(
+              `❌ Enhanced batch collection failed:`,
+              enhancedError
+            );
+            // Fall through to legacy system
+          }
+        }
+
+        // Legacy system (fallback or when enhanced is disabled)
+        console.log(`📊 Using legacy analytics for batch collection`);
+
+        const realAnalyticsService = new RealSocialAnalyticsService(ctx.prisma);
+
         // Use enhanced Instagram client directly for better analytics
         const { EnhancedInstagramClient } = await import(
-          "@/lib/services/social-analytics/enhanced-instagram-client"
+          "@/lib/services/analytics/clients/enhanced-instagram-client"
         );
         const { getStandardParams, logCollectionParams } = await import(
           "@/config/analytics-config"
@@ -607,9 +870,9 @@ export const realAnalyticsRouter = createTRPCRouter({
             } else {
               // For other platforms, use scheduler service
               const { SchedulerService } = await import(
-                "@/lib/services/scheduler.service"
+                "@/lib/services/scheduling/scheduler.service"
               );
-              await SchedulerService.fetchInitialAccountInsights(account.id);
+              await InsightsCollector.fetchInitialAccountInsights(account.id);
               console.log(`✅ Standard analytics for ${account.name}`);
             }
 

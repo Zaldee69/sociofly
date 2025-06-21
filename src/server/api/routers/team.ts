@@ -7,7 +7,9 @@ import {
 import { TRPCError } from "@trpc/server";
 import { Role, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
-import { SchedulerService } from "@/lib/services/scheduler.service";
+import { SchedulerService } from "@/lib/services/scheduling/scheduler.service";
+import { InsightsCollector } from "@/lib/services/analytics/core/insights-collector";
+import { HotspotAnalyzer } from "@/lib/services/analytics/hotspots/hotspot-analyzer";
 
 export const teamRouter = createTRPCRouter({
   // Get all teams user is a member of
@@ -892,9 +894,9 @@ export const teamRouter = createTRPCRouter({
             socialAccount.accessToken
           ) {
             const { SchedulerService } = await import(
-              "@/lib/services/scheduler.service"
+              "@/lib/services/scheduling/scheduler.service"
             );
-            await SchedulerService.fetchInitialAccountInsights(
+            await InsightsCollector.fetchInitialAccountInsights(
               socialAccount.id
             );
             console.log(

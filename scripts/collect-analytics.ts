@@ -6,7 +6,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { RealSocialAnalyticsService } from "../src/lib/services/social-analytics/real-analytics-service";
+import { RealSocialAnalyticsService } from "../src/lib/services/analytics/clients/real-analytics-service";
 
 const prisma = new PrismaClient();
 

@@ -86,15 +86,17 @@ const PostTimeOptimizer: React.FC<PostTimeOptimizerProps> = ({
   const [showHeatmap, setShowHeatmap] = React.useState(false);
 
   // Fetch hotspot data using tRPC
-  const { data: hotspots, isLoading } = trpc.hotspots.getHotspots.useQuery({
-    teamId,
-    socialAccountId,
-  });
+  const { data: hotspots, isLoading } =
+    trpc.analytics.hotspots.getHotspots.useQuery({
+      teamId,
+      socialAccountId,
+    });
 
   // Fetch last analysis time
-  const { data: lastAnalysis } = trpc.hotspots.getLastAnalysis.useQuery({
-    socialAccountId,
-  });
+  const { data: lastAnalysis } =
+    trpc.analytics.hotspots.getLastAnalysis.useQuery({
+      socialAccountId,
+    });
 
   // Process hotspots into daily recommendations
   const dailyRecommendations = React.useMemo(() => {

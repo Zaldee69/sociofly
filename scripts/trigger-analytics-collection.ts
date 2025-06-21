@@ -1,7 +1,9 @@
 #!/usr/bin/env tsx
 
 import { PrismaClient } from "@prisma/client";
-import { SchedulerService } from "../src/lib/services/scheduler.service";
+import { SchedulerService } from "../src/lib/services/scheduling/scheduler.service";
+import { InsightsCollector } from "../src/lib/services/analytics/core/insights-collector";
+import { HotspotAnalyzer } from "../src/lib/services/analytics/hotspots/hotspot-analyzer";
 
 const prisma = new PrismaClient();
 
@@ -21,14 +23,14 @@ async function main() {
 
       // Run account insights for all accounts
       const accountResult =
-        await SchedulerService.runAccountInsightsForAllAccounts();
+        await InsightsCollector.runAccountInsightsForAllAccounts();
       console.log(
         `📊 Account insights: ${accountResult.success}/${accountResult.total} successful`
       );
 
       // Run hotspot analysis for all accounts
       const hotspotResult =
-        await SchedulerService.runHotspotAnalysisForAllAccounts();
+        await HotspotAnalyzer.runHotspotAnalysisForAllAccounts();
       console.log(
         `🔥 Hotspot analysis: ${hotspotResult.success}/${hotspotResult.total} successful`
       );
@@ -58,10 +60,10 @@ async function main() {
           console.log(`Processing ${account.name} (${account.platform})...`);
 
           // Fetch account insights
-          await SchedulerService.fetchInitialAccountInsights(account.id);
+          await InsightsCollector.fetchInitialAccountInsights(account.id);
 
           // Fetch heatmap data
-          await SchedulerService.fetchInitialHeatmapData(account.id);
+          await HotspotAnalyzer.fetchInitialHeatmapData(account.id);
 
           console.log(`✅ Completed analytics for ${account.name}`);
           success++;

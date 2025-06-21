@@ -2,7 +2,7 @@
 import { QueueManager } from "@/lib/queue/queue-manager";
 import { JobType } from "@/lib/queue/job-types";
 import { JOB_CONSTANTS } from "@/lib/queue/job-constants";
-import { SchedulerService } from "./scheduler.service";
+import { SchedulerService } from "./scheduling/scheduler.service";
 import { prisma } from "@/lib/prisma/client";
 import { UnifiedRedisManager } from "./unified-redis-manager";
 import { getStandardParams } from "@/config/analytics-config";

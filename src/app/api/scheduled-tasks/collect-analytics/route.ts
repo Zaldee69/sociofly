@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma/client";
-import { SchedulerService } from "../../../../lib/services/scheduler.service";
+import { InsightsCollector } from "../../../../lib/services/analytics/core/insights-collector";
+import { HotspotAnalyzer } from "../../../../lib/services/analytics/hotspots/hotspot-analyzer";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     if (action === "schedule-team" && teamId) {
       // Run analytics for all accounts in a team
-      const result = await SchedulerService.runAccountInsightsForAllAccounts();
+      const result = await InsightsCollector.runAccountInsightsForAllAccounts();
 
       return NextResponse.json({
         success: true,
@@ -45,10 +46,10 @@ export async function POST(request: NextRequest) {
 
       try {
         // Fetch account insights
-        await SchedulerService.fetchInitialAccountInsights(account.id);
+        await InsightsCollector.fetchInitialAccountInsights(account.id);
 
         // Fetch heatmap data for engagement hotspots
-        await SchedulerService.fetchInitialHeatmapData(account.id);
+        await HotspotAnalyzer.fetchInitialHeatmapData(account.id);
 
         return NextResponse.json({
           success: true,
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
       // Run analytics for all teams
       try {
         const result =
-          await SchedulerService.runAccountInsightsForAllAccounts();
+          await InsightsCollector.runAccountInsightsForAllAccounts();
 
         return NextResponse.json({
           success: true,

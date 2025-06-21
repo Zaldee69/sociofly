@@ -26,6 +26,7 @@ import { getRoleBadge } from "../../teams/utils/team-utils";
 
 export default function MyInvitesSection() {
   const router = useRouter();
+  const utils = trpc.useUtils();
   const [actionInviteId, setActionInviteId] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<"accept" | "reject">(
@@ -66,8 +67,6 @@ export default function MyInvitesSection() {
       toast.error(error.message);
     },
   });
-
-  const utils = trpc.useUtils();
 
   // Handler for accepting/rejecting invitations
   const handleInviteAction = (

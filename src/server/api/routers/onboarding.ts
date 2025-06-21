@@ -3,7 +3,9 @@ import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { OnboardingStatus, Role, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
-import { SchedulerService } from "@/lib/services/scheduler.service";
+import { SchedulerService } from "@/lib/services/scheduling/scheduler.service";
+import { InsightsCollector } from "@/lib/services/analytics/core/insights-collector";
+import { HotspotAnalyzer } from "@/lib/services/analytics/hotspots/hotspot-analyzer";
 // Historical data collection is now handled by SchedulerService
 
 const onboardingSchema = z.object({
@@ -252,10 +254,10 @@ export const onboardingRouter = createTRPCRouter({
               );
 
               // Fetch initial insights for the newly created social account
-              await SchedulerService.fetchInitialAccountInsights(
+              await InsightsCollector.fetchInitialAccountInsights(
                 socialAccount.id
               );
-              await SchedulerService.fetchInitialHeatmapData(socialAccount.id);
+              await HotspotAnalyzer.fetchInitialHeatmapData(socialAccount.id);
             } catch (error) {
               console.error(`Error creating social account:`, error);
               continue;
@@ -461,10 +463,10 @@ export const onboardingRouter = createTRPCRouter({
       if (input.platform === "INSTAGRAM" || input.platform === "FACEBOOK") {
         try {
           // Fetch initial account insights
-          await SchedulerService.fetchInitialAccountInsights(socialAccount.id);
+          await InsightsCollector.fetchInitialAccountInsights(socialAccount.id);
 
           // Fetch initial heatmap data
-          await SchedulerService.fetchInitialHeatmapData(socialAccount.id);
+          await HotspotAnalyzer.fetchInitialHeatmapData(socialAccount.id);
 
           console.log(
             `🚀 Initial analytics collection completed for ${input.name}`
@@ -517,13 +519,13 @@ export const onboardingRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       try {
         // Fetch account insights
-        await SchedulerService.fetchInitialAccountInsights(
+        await InsightsCollector.fetchInitialAccountInsights(
           input.socialAccountId
         );
 
         // Fetch heatmap data if requested
         if (input.includeHotspots) {
-          await SchedulerService.fetchInitialHeatmapData(input.socialAccountId);
+          await HotspotAnalyzer.fetchInitialHeatmapData(input.socialAccountId);
         }
 
         return {

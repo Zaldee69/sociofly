@@ -1,5 +1,4 @@
-import { GeneratedContentWithAnalytics } from "./content-generator";
-import { industryConfig, IndustryType } from "../config/industry-config";
+import { industryConfig, IndustryType } from "../../../config/industry-config";
 
 // Helper functions for analytics
 function calculateReadabilityScore(text: string): number {

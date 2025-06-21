@@ -189,24 +189,24 @@ const Analytics: React.FC = () => {
     };
   }, [activeSection, isMainNavbarHidden, isManualNavigation]);
 
-  // Fetch account-level insights
+  // Fetch account-level insights from database (no real-time API calls)
   const {
     data: accountInsight,
     isLoading: isLoadingAccountInsight,
     isFetching: isFetchingAccountInsight,
     refetch: refetchInsights,
-  } = trpc.realAnalytics.getAccountInsights.useQuery(
-    { socialAccountId: selectedAccount },
+  } = trpc.analytics.database.getAccountAnalytics.useQuery(
+    { socialAccountId: selectedAccount, days: 30 },
     {
       enabled: !!selectedAccount,
       refetchOnWindowFocus: false,
-      refetchInterval: 30000, // Auto-refresh every 30 seconds
-      staleTime: 25000, // Consider data stale after 25 seconds
+      refetchInterval: 300000, // Auto-refresh every 5 minutes (less frequent)
+      staleTime: 240000, // Consider data stale after 4 minutes
     }
   );
   // Fetch collection stats for metrics
   const { data: stats, isLoading: isLoadingStats } =
-    trpc.realAnalytics.getCollectionStats.useQuery(
+    trpc.analytics.realtime.getCollectionStats.useQuery(
       { teamId: currentTeamId!, days: 30 },
       {
         enabled: !!currentTeamId,
@@ -216,20 +216,20 @@ const Analytics: React.FC = () => {
       }
     );
 
-  // Fetch collection status for selected account
+  // Fetch collection status for selected account from database
   const { data: collectionStatus, isLoading: isLoadingCollectionStatus } =
-    trpc.realAnalytics.getCollectionStatus.useQuery(
+    trpc.analytics.database.getCollectionStatus.useQuery(
       { socialAccountId: selectedAccount },
       {
         enabled: !!selectedAccount,
         refetchOnWindowFocus: false,
-        refetchInterval: 10000, // Refetch every 10 seconds to check status
+        refetchInterval: 60000, // Refetch every 60 seconds (less frequent since it's from database)
       }
     );
 
   // Fetch growth comparison data
   const { data: growthData, isLoading: isLoadingGrowth } =
-    trpc.analyticsComparison.getGrowthSummary.useQuery(
+    trpc.analytics.comparison.getGrowthSummary.useQuery(
       { socialAccountId: selectedAccount },
       {
         enabled: !!selectedAccount,
@@ -241,7 +241,7 @@ const Analytics: React.FC = () => {
 
   // Mutations
   const triggerCollection =
-    trpc.realAnalytics.triggerAccountAnalyticsCollection.useMutation({
+    trpc.analytics.realtime.triggerAccountAnalyticsCollection.useMutation({
       onSuccess: (data) => {
         toast.success(data.message);
         // Refetch data after collection
@@ -585,47 +585,47 @@ const Analytics: React.FC = () => {
                   <OverviewSection
                     accountInsight={{
                       // Basic metrics
-                      totalFollowers:
-                        accountInsight?.totalFollowers ||
-                        accountInsight?.followersCount,
-                      totalPosts:
-                        accountInsight?.totalPosts ||
-                        accountInsight?.mediaCount,
+                      totalFollowers: accountInsight?.followersCount,
+                      totalPosts: accountInsight?.mediaCount,
 
-                      // Engagement metrics (comprehensive)
-                      totalLikes: accountInsight?.totalLikes,
+                      // Engagement metrics (use available data or defaults)
+                      totalLikes: (accountInsight as any)?.totalLikes || 0,
                       totalReactions: 0, // Facebook reactions (not implemented yet)
-                      totalComments: accountInsight?.totalComments,
-                      totalShares: accountInsight?.totalShares,
-                      totalSaves: accountInsight?.totalSaves,
-                      totalClicks: accountInsight?.totalClicks,
+                      totalComments:
+                        (accountInsight as any)?.totalComments || 0,
+                      totalShares: (accountInsight as any)?.totalShares || 0,
+                      totalSaves: (accountInsight as any)?.totalSaves || 0,
+                      totalClicks: (accountInsight as any)?.totalClicks || 0,
 
                       // Reach & Impressions
-                      totalReach: accountInsight?.totalReach,
-                      totalImpressions: accountInsight?.totalImpressions,
+                      totalReach: (accountInsight as any)?.totalReach || 0,
+                      totalImpressions:
+                        (accountInsight as any)?.totalImpressions || 0,
                       avgReachPerPost: accountInsight?.avgReachPerPost,
 
                       // Calculated metrics
                       engagementRate: accountInsight?.engagementRate,
                       avgEngagementPerPost:
-                        accountInsight?.avgEngagementPerPost,
-                      avgClickThroughRate: accountInsight?.avgClickThroughRate,
+                        (accountInsight as any)?.avgEngagementPerPost || 0,
+                      avgClickThroughRate:
+                        (accountInsight as any)?.avgClickThroughRate || 0,
 
-                      // Growth metrics
+                      // Growth metrics (use followerGrowth data or defaults)
                       followerGrowth: accountInsight?.followerGrowth as any,
                       followersGrowthPercent:
-                        accountInsight?.followersGrowthPercent || 0,
-                      mediaGrowthPercent:
-                        accountInsight?.mediaGrowthPercent || 0,
-                      engagementGrowthPercent:
-                        accountInsight?.engagementGrowthPercent || 0,
-                      reachGrowthPercent:
-                        accountInsight?.reachGrowthPercent || 0,
+                        accountInsight?.followerGrowth &&
+                        !Array.isArray(accountInsight.followerGrowth)
+                          ? accountInsight.followerGrowth.changePercent || 0
+                          : 0,
+                      mediaGrowthPercent: 0, // Not available in current data
+                      engagementGrowthPercent: 0, // Not available in current data
+                      reachGrowthPercent: 0, // Not available in current data
 
                       // Platform specific
                       platform: selectedPlatform as "INSTAGRAM" | "FACEBOOK",
-                      bioLinkClicks: accountInsight?.bioLinkClicks,
-                      storyViews: accountInsight?.storyViews,
+                      bioLinkClicks:
+                        (accountInsight as any)?.bioLinkClicks || 0,
+                      storyViews: (accountInsight as any)?.storyViews || 0,
                       profileVisits: accountInsight?.profileVisits,
                     }}
                     stats={stats}

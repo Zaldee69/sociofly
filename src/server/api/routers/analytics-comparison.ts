@@ -5,17 +5,18 @@ import {
   publicProcedure,
 } from "@/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import { AnalyticsComparisonService } from "@/lib/services/analytics-comparison.service";
+import { AnalyticsComparisonService } from "@/lib/services/analytics/core/analytics-comparison.service";
 
 export const analyticsComparisonRouter = createTRPCRouter({
   /**
-   * Get comparison data for a specific social account
+   * Get comparison data for a specific social account (Enhanced with Phase 4)
    */
   getAccountComparison: protectedProcedure
     .input(
       z.object({
         socialAccountId: z.string(),
         comparisonType: z.enum(["week", "month", "quarter"]).default("week"),
+        useEnhanced: z.boolean().default(true), // Enable Phase 4 by default
       })
     )
     .query(async ({ input, ctx }) => {
@@ -38,6 +39,148 @@ export const analyticsComparisonRouter = createTRPCRouter({
             message: "Social account not found or access denied",
           });
         }
+
+        // Use Phase 4 Enhanced Analytics if enabled
+        if (input.useEnhanced) {
+          console.log(
+            `🚀 Using Enhanced Comparison (Phase 4) for ${socialAccount.name}`
+          );
+
+          try {
+            const { createEnhancedAnalyticsManager } = await import(
+              "@/lib/services/analytics/advanced/enhanced-analytics-manager"
+            );
+
+            const manager = createEnhancedAnalyticsManager(ctx.prisma);
+
+            // Get fresh analytics with comparison data
+            const credentials = {
+              accessToken: socialAccount.accessToken,
+              userId: ctx.auth.userId,
+              accountId: socialAccount.profileId || socialAccount.id,
+            };
+
+            const daysMap = {
+              week: 7,
+              month: 30,
+              quarter: 90,
+            };
+
+            const result = await manager.collectEnhancedAnalytics(
+              input.socialAccountId,
+              credentials,
+              {
+                platform: socialAccount.platform.toLowerCase() as
+                  | "instagram"
+                  | "facebook",
+                days_back: daysMap[input.comparisonType],
+                include_posts: true,
+                include_stories: false,
+                limit: 10,
+
+                // Phase 4 features
+                storeInDatabase: false, // Don't store for comparison queries
+                useCache: true,
+                generateInsights: true,
+                compareWithPrevious: true,
+              }
+            );
+
+            await manager.disconnect();
+
+            if (result.success && result.data?.comparison) {
+              // Transform Phase 4 comparison to existing interface
+              const enhancedComparison = {
+                socialAccountId: input.socialAccountId,
+                socialAccountName: socialAccount.name,
+                platform: socialAccount.platform,
+                comparisonType: input.comparisonType,
+
+                // Current metrics
+                current: {
+                  followersCount:
+                    result.data.comparison.changes.followers.current,
+                  engagementRate:
+                    result.data.comparison.changes.engagement_rate.current,
+                  avgReachPerPost:
+                    result.data.comparison.changes.avg_reach.current,
+                  collectedAt: new Date(),
+                },
+
+                // Previous metrics
+                previous: {
+                  followersCount:
+                    result.data.comparison.changes.followers.previous,
+                  engagementRate:
+                    result.data.comparison.changes.engagement_rate.previous,
+                  avgReachPerPost:
+                    result.data.comparison.changes.avg_reach.previous,
+                  collectedAt: new Date(
+                    Date.now() -
+                      daysMap[input.comparisonType] * 24 * 60 * 60 * 1000
+                  ),
+                },
+
+                // Growth metrics
+                growthMetrics: {
+                  followerGrowth:
+                    result.data.comparison.changes.followers.change,
+                  followerGrowthPercent:
+                    result.data.comparison.changes.followers.change_percent,
+                  engagementGrowth:
+                    result.data.comparison.changes.engagement_rate.change,
+                  engagementGrowthPercent:
+                    result.data.comparison.changes.engagement_rate
+                      .change_percent,
+                  reachGrowth: result.data.comparison.changes.avg_reach.change,
+                  reachGrowthPercent:
+                    result.data.comparison.changes.avg_reach.change_percent,
+                },
+
+                // Enhanced insights (Phase 4 exclusive)
+                insights: {
+                  overallTrend:
+                    result.data.comparison.performance_summary.overall_trend,
+                  keyImprovements:
+                    result.data.comparison.performance_summary.key_improvements,
+                  areasForImprovement:
+                    result.data.comparison.performance_summary
+                      .areas_for_improvement,
+
+                  // Additional Phase 4 insights
+                  engagementAnalysis: result.data.insights?.engagement_analysis,
+                  contentRecommendations:
+                    result.data.insights?.content_recommendations,
+                  audienceInsights: result.data.insights?.audience_insights,
+                },
+
+                // Performance metadata
+                performance: result.performance,
+                source: "enhanced_analytics_v4",
+                cacheInfo: result.cache,
+              };
+
+              console.log(
+                `✅ Enhanced comparison successful for ${socialAccount.name}`
+              );
+              return enhancedComparison;
+            } else {
+              console.warn(
+                `⚠️ Enhanced comparison failed for ${socialAccount.name}, falling back to legacy`
+              );
+              // Fall through to legacy system
+            }
+          } catch (enhancedError) {
+            console.error(
+              `❌ Enhanced comparison error for ${socialAccount.name}:`,
+              enhancedError
+            );
+            // Fall through to legacy system
+          }
+        }
+
+        // Legacy system (fallback or when enhanced is disabled)
+        console.log(`📊 Using legacy comparison for ${socialAccount.name}`);
 
         const comparisonService = new AnalyticsComparisonService(ctx.prisma);
         const comparison = await comparisonService.getAccountComparison(

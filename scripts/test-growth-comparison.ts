@@ -6,7 +6,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { AnalyticsComparisonService } from "../src/lib/services/analytics-comparison.service";
+import { AnalyticsComparisonService } from "../src/lib/services/analytics/core/analytics-comparison.service";
 
 const prisma = new PrismaClient();
 const comparisonService = new AnalyticsComparisonService(prisma);

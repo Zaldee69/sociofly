@@ -82,12 +82,12 @@ const PostPerformanceSection: React.FC<PostPerformanceProps> = ({
   const [sortBy, setSortBy] = useState<string>("engagementRate");
   const [showDebug, setShowDebug] = useState(false);
 
-  // Fetch post analytics data from real API
+  // Fetch post analytics data from database (no real-time API calls)
   const {
-    data: postAnalytics,
+    data: postAnalyticsResult,
     isLoading,
     error,
-  } = trpc.realAnalytics.getPostPerformance.useQuery(
+  } = trpc.analytics.database.getPostAnalytics.useQuery(
     {
       socialAccountId: socialAccountId || "",
       teamId: teamId || "",
@@ -112,14 +112,17 @@ const PostPerformanceSection: React.FC<PostPerformanceProps> = ({
     },
     {
       enabled: !!socialAccountId && !!teamId,
-      refetchInterval: 60000, // Refetch every minute for real-time updates
-      staleTime: 50000, // Consider data stale after 50 seconds
+      refetchInterval: 300000, // Refetch every 5 minutes (less frequent since it's from database)
+      staleTime: 240000, // Consider data stale after 4 minutes
     }
   );
 
+  // Extract data from result
+  const postAnalytics = postAnalyticsResult?.data || [];
+
   // Debug query to see raw data
   const { data: debugData, isLoading: debugLoading } =
-    trpc.realAnalytics.debugPostAnalytics.useQuery(
+    trpc.analytics.realtime.debugPostAnalytics.useQuery(
       {
         socialAccountId: socialAccountId || "",
         teamId: teamId || "",

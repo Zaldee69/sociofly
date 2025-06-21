@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RealSocialAnalyticsService } from "@/lib/services/social-analytics/real-analytics-service";
+import { RealSocialAnalyticsService } from "@/lib/services/analytics/clients/real-analytics-service";
 import { prisma } from "@/lib/prisma/client";
 import { currentUser } from "@clerk/nextjs/server";
 
