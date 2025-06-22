@@ -119,8 +119,10 @@ const PostPerformanceSection: React.FC<PostPerformanceProps> = ({
     },
     {
       enabled: !!socialAccountId && !!teamId,
-      refetchInterval: 300000, // Refetch every 5 minutes (less frequent since it's from database)
-      staleTime: 240000, // Consider data stale after 4 minutes
+      refetchInterval: 60000, // Refetch every 1 minute for more real-time data
+      staleTime: 30000, // Consider data stale after 30 seconds
+      refetchOnWindowFocus: true, // Refetch when user returns to tab
+      refetchOnMount: true, // Always refetch on component mount
     }
   );
 
@@ -129,7 +131,7 @@ const PostPerformanceSection: React.FC<PostPerformanceProps> = ({
 
   // Debug query to see raw data
   const { data: debugData, isLoading: debugLoading } =
-    trpc.analytics.realtime.debugPostAnalytics.useQuery(
+    trpc.analytics.database.debugPostAnalytics.useQuery(
       {
         socialAccountId: socialAccountId || "",
         teamId: teamId || "",
@@ -579,157 +581,199 @@ const PostPerformanceSection: React.FC<PostPerformanceProps> = ({
             <Card>
               <CardHeader>
                 <CardTitle>Detailed Post Analytics</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Showing {data.length} posts with analytics data
+                </p>
               </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Post</TableHead>
-                        <TableHead>Platform</TableHead>
-                        <TableHead>Format</TableHead>
-                        <TableHead>Published</TableHead>
-                        <TableHead>Engagement</TableHead>
-                        <TableHead>Reach</TableHead>
-                        <TableHead>CTR</TableHead>
-                        <TableHead>Score</TableHead>
-                        <TableHead>Insights</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.map((post) => {
-                        const engagementBadge = getEngagementBadge(
-                          post.engagementRate
-                        );
-                        const totalEngagement = calculateTotalEngagement(post);
-                        const engagementInsight = getEngagementInsight(post);
+              <CardContent className="p-0">
+                {/* Fixed table with sticky header - IMPROVED */}
+                <div className="relative overflow-hidden rounded-lg border">
+                  <div className="max-h-[600px] overflow-y-auto">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10 border-b">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="min-w-[300px] bg-background/95 backdrop-blur font-semibold">
+                            Post
+                          </TableHead>
+                          <TableHead className="min-w-[120px] bg-background/95 backdrop-blur font-semibold">
+                            Platform
+                          </TableHead>
+                          <TableHead className="min-w-[100px] bg-background/95 backdrop-blur font-semibold">
+                            Format
+                          </TableHead>
+                          <TableHead className="min-w-[140px] bg-background/95 backdrop-blur font-semibold">
+                            Published
+                          </TableHead>
+                          <TableHead className="min-w-[120px] bg-background/95 backdrop-blur font-semibold">
+                            Engagement
+                          </TableHead>
+                          <TableHead className="min-w-[140px] bg-background/95 backdrop-blur font-semibold">
+                            Reach & Views
+                          </TableHead>
+                          <TableHead className="min-w-[120px] bg-background/95 backdrop-blur font-semibold">
+                            Impressions
+                          </TableHead>
+                          <TableHead className="min-w-[100px] bg-background/95 backdrop-blur font-semibold">
+                            CTR
+                          </TableHead>
+                          <TableHead className="min-w-[100px] bg-background/95 backdrop-blur font-semibold">
+                            Score
+                          </TableHead>
+                          <TableHead className="min-w-[200px] bg-background/95 backdrop-blur font-semibold">
+                            Insights
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data.map((post) => {
+                          const engagementBadge = getEngagementBadge(
+                            post.engagementRate
+                          );
+                          const totalEngagement =
+                            calculateTotalEngagement(post);
+                          const engagementInsight = getEngagementInsight(post);
 
-                        return (
-                          <TableRow
-                            key={post.id}
-                            className={
-                              post.isTopPerformer ? "bg-green-50/50" : ""
-                            }
-                          >
-                            <TableCell className="max-w-[300px]">
-                              <div className="space-y-1">
-                                <div className="font-medium text-sm truncate">
-                                  {post.content}
+                          return (
+                            <TableRow
+                              key={post.id}
+                              className={
+                                post.isTopPerformer ? "bg-green-50/50" : ""
+                              }
+                            >
+                              <TableCell className="max-w-[300px] p-4">
+                                <div className="space-y-1">
+                                  <div className="font-medium text-sm truncate">
+                                    {post.content}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <Heart className="h-3 w-3" />
+                                    <span>{post.likes.toLocaleString()}</span>
+                                    <MessageSquare className="h-3 w-3" />
+                                    <span>{post.comments}</span>
+                                    <Share2 className="h-3 w-3" />
+                                    <span>{post.shares}</span>
+                                    {post.saves && (
+                                      <>
+                                        <Bookmark className="h-3 w-3" />
+                                        <span>{post.saves}</span>
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  <Heart className="h-3 w-3" />
-                                  <span>{post.likes.toLocaleString()}</span>
-                                  <MessageSquare className="h-3 w-3" />
-                                  <span>{post.comments}</span>
-                                  <Share2 className="h-3 w-3" />
-                                  <span>{post.shares}</span>
-                                  {post.saves && (
-                                    <>
-                                      <Bookmark className="h-3 w-3" />
-                                      <span>{post.saves}</span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            </TableCell>
+                              </TableCell>
 
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                {renderPlatformIcon(post.platform)}
-                                <span className="text-sm">{post.platform}</span>
-                              </div>
-                            </TableCell>
+                              <TableCell className="p-4">
+                                <div className="flex items-center gap-2">
+                                  {renderPlatformIcon(post.platform)}
+                                  <span className="text-sm">
+                                    {post.platform}
+                                  </span>
+                                </div>
+                              </TableCell>
 
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                {renderContentFormatIcon(post.contentFormat)}
-                                <span className="text-sm">
-                                  {post.contentFormat}
-                                </span>
-                              </div>
-                            </TableCell>
+                              <TableCell className="p-4">
+                                <div className="flex items-center gap-2">
+                                  {renderContentFormatIcon(post.contentFormat)}
+                                  <span className="text-sm">
+                                    {post.contentFormat}
+                                  </span>
+                                </div>
+                              </TableCell>
 
-                            <TableCell className="text-sm">
-                              {formatDate(post.publishedAt)}
-                              {post.timeToEngagement && (
-                                <div className="text-xs text-muted-foreground">
-                                  First engage: {post.timeToEngagement}m
-                                </div>
-                              )}
-                            </TableCell>
+                              <TableCell className="text-sm p-4">
+                                {formatDate(post.publishedAt)}
+                                {post.timeToEngagement && (
+                                  <div className="text-xs text-muted-foreground">
+                                    First engage: {post.timeToEngagement}m
+                                  </div>
+                                )}
+                              </TableCell>
 
-                            <TableCell>
-                              <div className="space-y-1">
-                                <Badge
-                                  variant={engagementBadge.variant}
-                                  className="text-xs"
-                                >
-                                  {post.engagementRate.toFixed(1)}%
-                                </Badge>
-                                <div className="text-xs text-muted-foreground">
-                                  {totalEngagement.toLocaleString()} total
+                              <TableCell className="p-4">
+                                <div className="space-y-1">
+                                  <Badge
+                                    variant={engagementBadge.variant}
+                                    className="text-xs"
+                                  >
+                                    {post.engagementRate.toFixed(1)}%
+                                  </Badge>
+                                  <div className="text-xs text-muted-foreground">
+                                    {totalEngagement.toLocaleString()} total
+                                  </div>
                                 </div>
-                              </div>
-                            </TableCell>
+                              </TableCell>
 
-                            <TableCell>
-                              <div className="space-y-1">
-                                <div className="font-medium text-sm">
-                                  {post.reach.toLocaleString()}
+                              <TableCell className="p-4">
+                                <div className="space-y-1">
+                                  <div className="font-medium text-sm flex items-center gap-1">
+                                    <Eye className="h-3 w-3 text-blue-500" />
+                                    {post.reach.toLocaleString()}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    Unique users reached
+                                  </div>
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {post.impressions.toLocaleString()}{" "}
-                                  impressions
-                                </div>
-                              </div>
-                            </TableCell>
+                              </TableCell>
 
-                            <TableCell>
-                              <div className="space-y-1">
-                                <div className="font-medium text-sm">
-                                  {post.ctr.toFixed(2)}%
+                              <TableCell className="p-4">
+                                <div className="space-y-1">
+                                  <div className="font-medium text-sm flex items-center gap-1">
+                                    <MousePointer className="h-3 w-3 text-purple-500" />
+                                    {post.impressions.toLocaleString()}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    Total views/impressions
+                                  </div>
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {post.clicks} clicks
-                                </div>
-                              </div>
-                            </TableCell>
+                              </TableCell>
 
-                            <TableCell>
-                              <div className="space-y-1">
-                                <div
-                                  className={`font-bold text-sm ${getPerformanceColor(
-                                    post.performanceScore
-                                  )}`}
-                                >
-                                  {post.performanceScore}
+                              <TableCell className="p-4">
+                                <div className="space-y-1">
+                                  <div className="font-medium text-sm">
+                                    {post.ctr.toFixed(2)}%
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {post.clicks} clicks
+                                  </div>
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {post.isTopPerformer
-                                    ? "Top Performer"
-                                    : "Standard"}
-                                </div>
-                              </div>
-                            </TableCell>
+                              </TableCell>
 
-                            <TableCell>
-                              <div className="space-y-1">
-                                <div className="font-medium text-sm">
-                                  {engagementInsight.icon}
+                              <TableCell className="p-4">
+                                <div className="space-y-1">
+                                  <div
+                                    className={`font-bold text-sm ${getPerformanceColor(
+                                      post.performanceScore
+                                    )}`}
+                                  >
+                                    {post.performanceScore}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {post.isTopPerformer
+                                      ? "Top Performer"
+                                      : "Standard"}
+                                  </div>
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {engagementInsight.message}
+                              </TableCell>
+
+                              <TableCell className="p-4">
+                                <div className="space-y-1">
+                                  <div className="font-medium text-sm">
+                                    {engagementInsight.icon}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {engagementInsight.message}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {engagementInsight.suggestion}
+                                  </div>
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {engagementInsight.suggestion}
-                                </div>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
               </CardContent>
             </Card>

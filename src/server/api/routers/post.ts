@@ -750,228 +750,374 @@ export const postRouter = createTRPCRouter({
   getAnalytics: protectedProcedure
     .input(z.object({ postId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const { postId } = input;
+      try {
+        const { postId } = input;
 
-      // Get post with analytics data
-      const post = await ctx.prisma.post.findUnique({
-        where: { id: postId },
-        include: {
-          postSocialAccounts: {
-            include: {
-              socialAccount: true,
-              analytics: {
-                orderBy: { recordedAt: "desc" },
-                take: 30, // Get more data for better historical view
+        // Get post with analytics data
+        const post = await ctx.prisma.post.findUnique({
+          where: { id: postId },
+          include: {
+            postSocialAccounts: {
+              include: {
+                socialAccount: true,
+                analytics: {
+                  orderBy: { recordedAt: "desc" },
+                  take: 30, // Get more data for better historical view
+                },
               },
             },
           },
-        },
-      });
-
-      if (!post) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Post tidak ditemukan",
-        });
-      }
-
-      // Check if user has access to this post
-      const membership = await ctx.prisma.membership.findUnique({
-        where: {
-          userId_teamId: {
-            userId: ctx.auth.userId,
-            teamId: post.teamId,
-          },
-        },
-      });
-
-      if (!membership) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Anda tidak memiliki akses ke post ini",
-        });
-      }
-
-      // Helper function to extract rich insights from rawInsights
-      const extractRichInsights = (rawInsights: any[]) => {
-        const insights: Record<string, any> = {};
-
-        rawInsights.forEach((insight) => {
-          const value = insight.values?.[0]?.value || 0;
-          insights[insight.name] = value;
         });
 
-        return {
-          // Basic metrics
-          impressions: insights.post_impressions || 0,
-          impressionsUnique: insights.post_impressions_unique || 0,
-          impressionsPaid: insights.post_impressions_paid || 0,
-          impressionsOrganic: insights.post_impressions_organic || 0,
-          clicks: insights.post_clicks || 0,
-
-          // Detailed reactions
-          reactions: {
-            like: insights.post_reactions_like_total || 0,
-            love: insights.post_reactions_love_total || 0,
-            wow: insights.post_reactions_wow_total || 0,
-            haha: insights.post_reactions_haha_total || 0,
-            sad: insights.post_reactions_sorry_total || 0,
-            angry: insights.post_reactions_anger_total || 0,
-          },
-
-          // Engagement breakdown
-          engagementMetrics: {
-            totalReactions:
-              (insights.post_reactions_like_total || 0) +
-              (insights.post_reactions_love_total || 0) +
-              (insights.post_reactions_wow_total || 0) +
-              (insights.post_reactions_haha_total || 0) +
-              (insights.post_reactions_sorry_total || 0) +
-              (insights.post_reactions_anger_total || 0),
-            impressionsPaidVsOrganic: {
-              paid: insights.post_impressions_paid || 0,
-              organic: insights.post_impressions_organic || 0,
-              total: insights.post_impressions || 0,
-            },
-          },
-        };
-      };
-
-      // Process analytics data for each platform
-      const analyticsData = post.postSocialAccounts.map((psa) => {
-        // FIXED: Prioritize records with rawInsights over just latest
-        const recordWithRawInsights = psa.analytics.find(
-          (analytics) =>
-            analytics.rawInsights && (analytics.rawInsights as any[]).length > 0
-        );
-
-        const latestAnalytics = psa.analytics[0]; // Most recent data (for basic metrics)
-
-        // Use record with rawInsights for rich insights, latest for basic metrics
-        const analyticsForRichInsights =
-          recordWithRawInsights || latestAnalytics;
-        const analyticsForBasicMetrics = latestAnalytics;
-
-        // Extract rich insights from the record that has rawInsights
-        const richInsights = analyticsForRichInsights?.rawInsights
-          ? extractRichInsights(analyticsForRichInsights.rawInsights as any[])
-          : null;
-
-        // Ensure we have at least 7 days of data for the chart
-        const chartData = [];
-        const today = new Date();
-
-        for (let i = 6; i >= 0; i--) {
-          const date = new Date(today);
-          date.setDate(date.getDate() - i);
-          const dateStr = date.toISOString().split("T")[0];
-
-          // Find analytics data for this date
-          const dayAnalytics = psa.analytics.find(
-            (analytics) =>
-              analytics.recordedAt.toISOString().split("T")[0] === dateStr
-          );
-
-          chartData.push({
-            date: new Date(date).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            }),
-            views: dayAnalytics?.views || 0,
-            likes: dayAnalytics?.likes || 0,
-            comments: dayAnalytics?.comments || 0,
-            shares: dayAnalytics?.shares || 0,
-            engagement: dayAnalytics?.engagement || 0,
-            reach: dayAnalytics?.reach || 0,
-            impressions: dayAnalytics?.impressions || 0,
-            clicks: dayAnalytics?.clicks || 0,
+        if (!post) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Post tidak ditemukan",
           });
         }
 
-        return {
-          platform: psa.socialAccount.platform,
-          socialAccountId: psa.socialAccountId,
-          socialAccountName: psa.socialAccount.name,
-          status: psa.status,
-          publishedAt: psa.publishedAt,
-          overview: analyticsForBasicMetrics
-            ? {
-                views: analyticsForBasicMetrics.views,
-                likes: analyticsForBasicMetrics.likes,
-                comments: analyticsForBasicMetrics.comments,
-                shares: analyticsForBasicMetrics.shares,
-                clicks: analyticsForBasicMetrics.clicks,
-                reach: analyticsForBasicMetrics.reach,
-                impressions: analyticsForBasicMetrics.impressions,
-                engagement: analyticsForBasicMetrics.engagement,
-              }
-            : {
-                views: 0,
-                likes: 0,
-                comments: 0,
-                shares: 0,
-                clicks: 0,
-                reach: 0,
-                impressions: 0,
-                engagement: 0,
-              },
+        // Check if user has access to this post
+        const membership = await ctx.prisma.membership.findUnique({
+          where: {
+            userId_teamId: {
+              userId: ctx.auth.userId,
+              teamId: post.teamId,
+            },
+          },
+        });
 
-          // Rich insights data (prioritize records with rawInsights)
-          richInsights: richInsights || {
-            impressions: 0,
-            impressionsUnique: 0,
-            impressionsPaid: 0,
-            impressionsOrganic: 0,
-            clicks: 0,
+        if (!membership) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Anda tidak memiliki akses ke post ini",
+          });
+        }
+
+        // Helper function to extract rich insights from rawInsights
+        const extractRichInsights = (rawInsights: any) => {
+          const insights: Record<string, any> = {};
+
+          // Handle both array and object formats
+          if (Array.isArray(rawInsights)) {
+            // Standard format: array of insight objects
+            rawInsights.forEach((insight) => {
+              const value = insight.values?.[0]?.value || 0;
+              insights[insight.name] = value;
+            });
+          } else if (rawInsights && typeof rawInsights === "object") {
+            // Alternative format: direct object mapping
+            Object.keys(rawInsights).forEach((key) => {
+              insights[key] = rawInsights[key];
+            });
+          }
+
+          return {
+            // Basic metrics
+            impressions: insights.post_impressions || insights.impressions || 0,
+            impressionsUnique:
+              insights.post_impressions_unique ||
+              insights.impressions_unique ||
+              0,
+            impressionsPaid:
+              insights.post_impressions_paid || insights.impressions_paid || 0,
+            impressionsOrganic:
+              insights.post_impressions_organic ||
+              insights.impressions_organic ||
+              0,
+            clicks: insights.post_clicks || insights.clicks || 0,
+
+            // Detailed reactions
             reactions: {
-              like: 0,
-              love: 0,
-              wow: 0,
-              haha: 0,
-              sad: 0,
-              angry: 0,
+              like:
+                insights.post_reactions_like_total ||
+                insights.reactions_like_total ||
+                0,
+              love:
+                insights.post_reactions_love_total ||
+                insights.reactions_love_total ||
+                0,
+              wow:
+                insights.post_reactions_wow_total ||
+                insights.reactions_wow_total ||
+                0,
+              haha:
+                insights.post_reactions_haha_total ||
+                insights.reactions_haha_total ||
+                0,
+              sad:
+                insights.post_reactions_sorry_total ||
+                insights.reactions_sorry_total ||
+                0,
+              angry:
+                insights.post_reactions_anger_total ||
+                insights.reactions_anger_total ||
+                0,
             },
+
+            // Engagement breakdown
             engagementMetrics: {
-              totalReactions: 0,
+              totalReactions:
+                (insights.post_reactions_like_total ||
+                  insights.reactions_like_total ||
+                  0) +
+                (insights.post_reactions_love_total ||
+                  insights.reactions_love_total ||
+                  0) +
+                (insights.post_reactions_wow_total ||
+                  insights.reactions_wow_total ||
+                  0) +
+                (insights.post_reactions_haha_total ||
+                  insights.reactions_haha_total ||
+                  0) +
+                (insights.post_reactions_sorry_total ||
+                  insights.reactions_sorry_total ||
+                  0) +
+                (insights.post_reactions_anger_total ||
+                  insights.reactions_anger_total ||
+                  0),
               impressionsPaidVsOrganic: {
-                paid: 0,
-                organic: 0,
-                total: 0,
+                paid:
+                  insights.post_impressions_paid ||
+                  insights.impressions_paid ||
+                  0,
+                organic:
+                  insights.post_impressions_organic ||
+                  insights.impressions_organic ||
+                  0,
+                total: insights.post_impressions || insights.impressions || 0,
               },
             },
-          },
-
-          historical: chartData,
-
-          // Enhanced demographics data based on real analytics if available
-          demographics: {
-            ageGroups: [
-              { range: "18-24", percentage: 25 },
-              { range: "25-34", percentage: 35 },
-              { range: "35-44", percentage: 22 },
-              { range: "45-54", percentage: 12 },
-              { range: "55+", percentage: 6 },
-            ],
-            gender: [
-              { type: "Female", percentage: 58 },
-              { type: "Male", percentage: 40 },
-              { type: "Other", percentage: 2 },
-            ],
-            topLocations: [
-              { country: "Indonesia", percentage: 45 },
-              { country: "Malaysia", percentage: 18 },
-              { country: "Singapore", percentage: 12 },
-              { country: "Thailand", percentage: 8 },
-              { country: "Others", percentage: 17 },
-            ],
-          },
+          };
         };
-      });
 
-      return {
-        postId: post.id,
-        postStatus: post.status,
-        platforms: analyticsData,
-      };
+        // Process analytics data for each platform
+        const analyticsData = post.postSocialAccounts.map((psa) => {
+          // FIXED: Prioritize records with rawInsights over just latest
+          const recordWithRawInsights = psa.analytics.find(
+            (analytics) =>
+              analytics.rawInsights &&
+              (analytics.rawInsights as any[]).length > 0
+          );
+
+          const latestAnalytics = psa.analytics[0]; // Most recent data (for basic metrics)
+
+          // Use record with rawInsights for rich insights, latest for basic metrics
+          const analyticsForRichInsights =
+            recordWithRawInsights || latestAnalytics;
+          const analyticsForBasicMetrics = latestAnalytics;
+
+          // Extract rich insights from the record that has rawInsights
+          let richInsights = null;
+          try {
+            if (analyticsForRichInsights?.rawInsights) {
+              const rawData = analyticsForRichInsights.rawInsights;
+
+              // Check if rawInsights contains actual insights data or just media metadata
+              if (
+                Array.isArray(rawData) ||
+                (typeof rawData === "object" &&
+                  (rawData as any).post_impressions !== undefined) ||
+                (rawData as any).impressions !== undefined
+              ) {
+                // This looks like actual insights data
+                richInsights = extractRichInsights(rawData);
+              } else {
+                // This is just media metadata, not insights
+                console.log(
+                  `📊 rawInsights contains media metadata, not analytics insights`
+                );
+                richInsights = null;
+              }
+            }
+          } catch (error) {
+            console.error(
+              `❌ Error extracting rich insights for post ${input.postId}:`,
+              error
+            );
+            // Continue with null richInsights instead of breaking the entire request
+            richInsights = null;
+          }
+
+          // Create smart historical chart data
+          const chartData = [];
+          const today = new Date();
+
+          // Get unique dates from analytics data (sorted by date)
+          const analyticsWithDates = psa.analytics
+            .map((analytics) => ({
+              ...analytics,
+              dateStr: analytics.recordedAt.toISOString().split("T")[0],
+            }))
+            .sort(
+              (a, b) =>
+                new Date(a.dateStr).getTime() - new Date(b.dateStr).getTime()
+            );
+
+          // Get unique dates
+          const uniqueDates = [
+            ...new Set(analyticsWithDates.map((a) => a.dateStr)),
+          ];
+
+          // If we have data, create chart from first data date to today (max 7 days)
+          if (uniqueDates.length > 0) {
+            const firstDataDate = new Date(uniqueDates[0]);
+            const daysSinceFirstData = Math.floor(
+              (today.getTime() - firstDataDate.getTime()) /
+                (1000 * 60 * 60 * 24)
+            );
+
+            // Show up to 7 days, starting from first data date
+            const daysToShow = Math.min(7, daysSinceFirstData + 1);
+
+            for (let i = daysToShow - 1; i >= 0; i--) {
+              const date = new Date(today);
+              date.setDate(date.getDate() - i);
+              const dateStr = date.toISOString().split("T")[0];
+
+              // Only include dates that are >= first data date
+              if (date >= firstDataDate) {
+                // Find analytics data for this date
+                const dayAnalytics = psa.analytics.find(
+                  (analytics) =>
+                    analytics.recordedAt.toISOString().split("T")[0] === dateStr
+                );
+
+                chartData.push({
+                  date: new Date(date).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  }),
+                  views: dayAnalytics?.views || 0,
+                  likes: dayAnalytics?.likes || 0,
+                  comments: dayAnalytics?.comments || 0,
+                  shares: dayAnalytics?.shares || 0,
+                  engagement: dayAnalytics?.engagement || 0,
+                  reach: dayAnalytics?.reach || 0,
+                  impressions: dayAnalytics?.impressions || 0,
+                  clicks: dayAnalytics?.clicks || 0,
+                });
+              }
+            }
+          } else {
+            // No data available, create single day with current date and 0 values
+            chartData.push({
+              date: today.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              }),
+              views: 0,
+              likes: 0,
+              comments: 0,
+              shares: 0,
+              engagement: 0,
+              reach: 0,
+              impressions: 0,
+              clicks: 0,
+            });
+          }
+
+          return {
+            platform: psa.socialAccount.platform,
+            socialAccountId: psa.socialAccountId,
+            socialAccountName: psa.socialAccount.name,
+            status: psa.status,
+            publishedAt: psa.publishedAt,
+            overview: analyticsForBasicMetrics
+              ? {
+                  views: analyticsForBasicMetrics.views,
+                  likes: analyticsForBasicMetrics.likes,
+                  comments: analyticsForBasicMetrics.comments,
+                  shares: analyticsForBasicMetrics.shares,
+                  clicks: analyticsForBasicMetrics.clicks,
+                  reach: analyticsForBasicMetrics.reach,
+                  impressions: analyticsForBasicMetrics.impressions,
+                  engagement: analyticsForBasicMetrics.engagement,
+                }
+              : {
+                  views: 0,
+                  likes: 0,
+                  comments: 0,
+                  shares: 0,
+                  clicks: 0,
+                  reach: 0,
+                  impressions: 0,
+                  engagement: 0,
+                },
+
+            // Rich insights data (prioritize records with rawInsights)
+            richInsights: richInsights || {
+              impressions: analyticsForBasicMetrics?.impressions || 0,
+              impressionsUnique: 0,
+              impressionsPaid: 0,
+              impressionsOrganic: analyticsForBasicMetrics?.impressions || 0,
+              clicks: analyticsForBasicMetrics?.clicks || 0,
+              reactions: {
+                like: analyticsForBasicMetrics?.likes || 0,
+                love: 0,
+                wow: 0,
+                haha: 0,
+                sad: 0,
+                angry: 0,
+              },
+              engagementMetrics: {
+                totalReactions: analyticsForBasicMetrics?.likes || 0,
+                impressionsPaidVsOrganic: {
+                  paid: 0,
+                  organic: analyticsForBasicMetrics?.impressions || 0,
+                  total: analyticsForBasicMetrics?.impressions || 0,
+                },
+              },
+            },
+
+            historical: chartData,
+
+            // Enhanced demographics data based on real analytics if available
+            demographics: {
+              ageGroups: [
+                { range: "18-24", percentage: 25 },
+                { range: "25-34", percentage: 35 },
+                { range: "35-44", percentage: 22 },
+                { range: "45-54", percentage: 12 },
+                { range: "55+", percentage: 6 },
+              ],
+              gender: [
+                { type: "Female", percentage: 58 },
+                { type: "Male", percentage: 40 },
+                { type: "Other", percentage: 2 },
+              ],
+              topLocations: [
+                { country: "Indonesia", percentage: 45 },
+                { country: "Malaysia", percentage: 18 },
+                { country: "Singapore", percentage: 12 },
+                { country: "Thailand", percentage: 8 },
+                { country: "Others", percentage: 17 },
+              ],
+            },
+          };
+        });
+
+        return {
+          postId: post.id,
+          postStatus: post.status,
+          platforms: analyticsData,
+        };
+      } catch (error) {
+        console.error(
+          `❌ Error getting post analytics for ${input.postId}:`,
+          error
+        );
+
+        // If it's already a TRPC error, re-throw it
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        // Otherwise, throw a generic error
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to get post analytics",
+          cause: error,
+        });
+      }
     }),
 });

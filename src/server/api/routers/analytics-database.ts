@@ -3,14 +3,16 @@ import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 
 /**
- * Analytics Database Router
+ * Analytics Database Router - ENHANCED VERSION
  *
  * Provides analytics data from database only (no real-time API calls).
  * Data should be populated by scheduled jobs.
+ *
+ * ADDED: Endpoints moved from real-analytics for better organization
  */
 export const analyticsDatabaseRouter = createTRPCRouter({
   /**
-   * Get account analytics from database
+   * Get account analytics from database (MAIN ENDPOINT - replaces getAccountInsights)
    */
   getAccountAnalytics: protectedProcedure
     .input(
@@ -82,6 +84,11 @@ export const analyticsDatabaseRouter = createTRPCRouter({
             totalReach: 0,
             avgLikesPerPost: 0,
             avgCommentsPerPost: 0,
+            avgSharesPerPost: 0,
+            avgSavesPerPost: 0,
+            // Analytics metadata
+            postsAnalyzed: 0,
+            totalPostsOnPlatform: 0,
             source: "database",
             lastUpdated: null,
             status: "no_data",
@@ -143,16 +150,17 @@ export const analyticsDatabaseRouter = createTRPCRouter({
             }
           );
 
-          // Use latest values for counts, averages for rates
+          // Use latest values for counts, averages for rates, totals for cumulative metrics
           aggregatedMetrics = {
             ...latestAnalytics,
             engagementRate: totals.engagement / totalRecords,
             avgReachPerPost: totals.reach / totalRecords,
             profileVisits: totals.visits / totalRecords,
-            totalLikes: totals.likes / totalRecords,
-            totalComments: totals.comments / totalRecords,
-            totalShares: totals.shares / totalRecords,
-            totalReach: totals.totalReach / totalRecords,
+            // These should be totals, not averages - cumulative metrics
+            totalLikes: totals.likes,
+            totalComments: totals.comments,
+            totalShares: totals.shares,
+            totalReach: totals.reach, // Use sum for total reach from all posts
           };
         }
 
@@ -217,22 +225,67 @@ export const analyticsDatabaseRouter = createTRPCRouter({
           avgReachPerPost: Math.round(aggregatedMetrics.avgReachPerPost || 0),
           profileVisits: Math.round(aggregatedMetrics.profileVisits || 0),
 
-          // Totals
+          // Additional metrics for UI compatibility (matching real-analytics interface)
+          totalFollowers:
+            aggregatedMetrics.totalFollowers ||
+            aggregatedMetrics.followersCount,
+          totalPosts:
+            aggregatedMetrics.totalPosts || aggregatedMetrics.mediaCount,
+          totalReach: Math.round(aggregatedMetrics.totalReach || 0),
+          totalImpressions: Math.round(aggregatedMetrics.totalImpressions || 0),
           totalLikes: Math.round(aggregatedMetrics.totalLikes || 0),
           totalComments: Math.round(aggregatedMetrics.totalComments || 0),
           totalShares: Math.round(aggregatedMetrics.totalShares || 0),
-          totalReach: Math.round(aggregatedMetrics.totalReach || 0),
+          totalSaves: Math.round(aggregatedMetrics.totalSaves || 0),
+          totalClicks: Math.round(aggregatedMetrics.totalClicks || 0),
+          avgEngagementPerPost: Number(
+            (aggregatedMetrics.avgEngagementPerPost || 0).toFixed(1)
+          ),
+          avgClickThroughRate: Number(
+            (aggregatedMetrics.avgClickThroughRate || 0).toFixed(2)
+          ),
+
+          // Pre-calculated averages from database
           avgLikesPerPost: Number(
             (aggregatedMetrics.avgLikesPerPost || 0).toFixed(1)
           ),
           avgCommentsPerPost: Number(
             (aggregatedMetrics.avgCommentsPerPost || 0).toFixed(1)
           ),
+          avgSharesPerPost: Number(
+            (aggregatedMetrics.avgSharesPerPost || 0).toFixed(1)
+          ),
+          avgSavesPerPost: Number(
+            (aggregatedMetrics.avgSavesPerPost || 0).toFixed(1)
+          ),
+
+          // Analytics metadata
+          postsAnalyzed: aggregatedMetrics.postsAnalyzed || 0,
+          totalPostsOnPlatform:
+            aggregatedMetrics.totalPostsOnPlatform ||
+            aggregatedMetrics.mediaCount ||
+            0,
+
+          // Platform-specific metrics
+          bioLinkClicks: aggregatedMetrics.bioLinkClicks || 0,
+          storyViews: aggregatedMetrics.storyViews || 0,
 
           // Growth metrics
           followerGrowth,
           engagementGrowth,
           reachGrowth,
+
+          // Growth percentages (for backward compatibility)
+          followersGrowthPercent: followerGrowth?.changePercent || 0,
+          engagementGrowthPercent: engagementGrowth?.changePercent || 0,
+          mediaGrowthPercent: aggregatedMetrics.mediaGrowthPercent || 0,
+          reachGrowthPercent: reachGrowth?.changePercent || 0,
+
+          // Follower growth data array (for charts)
+          followerGrowthData: analyticsInRange.map((a) => ({
+            date: a.recordedAt,
+            value: a.followersCount,
+          })),
 
           // Metadata
           source: "database",
@@ -260,14 +313,14 @@ export const analyticsDatabaseRouter = createTRPCRouter({
     }),
 
   /**
-   * Get post analytics from database
+   * Get post analytics from database (ENHANCED - replaces getPostPerformance)
    */
   getPostAnalytics: protectedProcedure
     .input(
       z.object({
         socialAccountId: z.string(),
         teamId: z.string(),
-        limit: z.number().default(20),
+        limit: z.number().default(50),
         platform: z.enum(["INSTAGRAM", "FACEBOOK", "TWITTER"]).optional(),
         contentFormat: z
           .enum(["IMAGE", "VIDEO", "CAROUSEL", "REELS", "STORY"])
@@ -307,6 +360,8 @@ export const analyticsDatabaseRouter = createTRPCRouter({
         startDate.setDate(startDate.getDate() - input.days);
 
         // Get post analytics from database with date range filter
+        // FIXED: Only filter by analytics recording date, not post publication date
+        // This allows older posts with recent analytics to be included
         const postAnalytics = await ctx.prisma.postAnalytics.findMany({
           where: {
             postSocialAccount: {
@@ -316,19 +371,15 @@ export const analyticsDatabaseRouter = createTRPCRouter({
                   platform: input.platform,
                 },
               }),
-              // Filter by post publication date
+              // Only require posts to be published, no date restriction
               post: {
-                publishedAt: {
-                  gte: startDate,
-                  lte: endDate,
-                },
                 status: "PUBLISHED", // Only include published posts
               },
             },
             ...(input.contentFormat && {
               contentFormat: input.contentFormat,
             }),
-            // Also filter by analytics recording date as secondary filter
+            // Filter by analytics recording date (when analytics were collected)
             recordedAt: {
               gte: startDate,
               lte: endDate,
@@ -375,23 +426,37 @@ export const analyticsDatabaseRouter = createTRPCRouter({
           const engagementRate =
             analytics.reach > 0 ? (totalEngagement / analytics.reach) * 100 : 0;
 
-          // Calculate CTR
-          const ctr =
-            analytics.clicks > 0 && analytics.impressions > 0
-              ? Number(
-                  ((analytics.clicks / analytics.impressions) * 100).toFixed(2)
-                )
-              : 0;
+          // Calculate CTR (Click-Through Rate)
+          // For Instagram, clicks might be 0, so we'll calculate based on available data
+          const ctr = (() => {
+            if (analytics.clicks > 0 && analytics.impressions > 0) {
+              return Number(
+                ((analytics.clicks / analytics.impressions) * 100).toFixed(2)
+              );
+            }
 
-          // Calculate performance score (0-100)
+            // Fallback: Use profile visits or saves as proxy for "clicks"
+            const proxyClicks =
+              (analytics.saves || 0) + (analytics.reactions || 0);
+            if (proxyClicks > 0 && analytics.impressions > 0) {
+              return Number(
+                ((proxyClicks / analytics.impressions) * 100).toFixed(2)
+              );
+            }
+
+            return 0;
+          })();
+
+          // Calculate performance score (0-100) - IMPROVED FORMULA
+          // Higher weight on engagement rate, more realistic scoring
           const performanceScore = Math.min(
             100,
             Math.round(
-              engagementRate * 0.4 +
-                ctr * 0.3 +
+              engagementRate * 0.6 + // Higher weight on engagement (main metric)
+                ctr * 0.2 + // Lower weight on CTR (often 0 for Instagram)
                 (analytics.reach / Math.max(analytics.impressions, 1)) *
                   100 *
-                  0.3
+                  0.2 // Lower weight on reach/impression ratio
             )
           );
 
@@ -405,6 +470,7 @@ export const analyticsDatabaseRouter = createTRPCRouter({
 
             // Engagement metrics
             likes: analytics.likes,
+            reactions: analytics.reactions || 0,
             comments: analytics.comments,
             shares: analytics.shares || 0,
             saves: analytics.saves || 0,
@@ -418,8 +484,9 @@ export const analyticsDatabaseRouter = createTRPCRouter({
             engagementRate: Number(engagementRate.toFixed(2)),
             ctr,
 
-            // Performance indicators (matching frontend expectations)
-            isTopPerformer: performanceScore >= 80,
+            // Performance indicators - IMPROVED THRESHOLD
+            // Top 30% of posts (more realistic than top 5%)
+            isTopPerformer: performanceScore >= 40,
             performanceScore,
             timeToEngagement: analytics.timeToEngagement || null,
 
@@ -448,7 +515,183 @@ export const analyticsDatabaseRouter = createTRPCRouter({
     }),
 
   /**
-   * Get analytics collection status
+   * Get collection stats for metrics overview (MOVED from real-analytics)
+   */
+  getCollectionStats: protectedProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+        days: z.number().default(7),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      try {
+        console.log(
+          `📊 Getting collection stats for team ${input.teamId} (last ${input.days} days)`
+        );
+
+        // Calculate date range
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - input.days);
+
+        // Get recent analytics collection stats using the days parameter
+        const recentAnalytics = await ctx.prisma.accountAnalytics.findMany({
+          where: {
+            recordedAt: {
+              gte: startDate,
+              lte: endDate,
+            },
+            socialAccount: {
+              teamId: input.teamId,
+            },
+          },
+          include: {
+            socialAccount: {
+              select: {
+                id: true,
+                name: true,
+                platform: true,
+              },
+            },
+          },
+          orderBy: { recordedAt: "desc" },
+        });
+
+        // Get recent post analytics for the same period
+        const recentPostAnalytics = await ctx.prisma.postAnalytics.findMany({
+          where: {
+            recordedAt: {
+              gte: startDate,
+              lte: endDate,
+            },
+            postSocialAccount: {
+              socialAccount: {
+                teamId: input.teamId,
+              },
+            },
+          },
+          include: {
+            postSocialAccount: {
+              include: {
+                socialAccount: {
+                  select: {
+                    id: true,
+                    name: true,
+                    platform: true,
+                  },
+                },
+                post: {
+                  select: {
+                    id: true,
+                    content: true,
+                    publishedAt: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { recordedAt: "desc" },
+        });
+
+        // Group account analytics by social account
+        const accountStats = recentAnalytics.reduce(
+          (acc, analytics) => {
+            const accountId = analytics.socialAccountId;
+            if (!acc[accountId]) {
+              acc[accountId] = {
+                accountId,
+                accountName: analytics.socialAccount.name,
+                platform: analytics.socialAccount.platform,
+                lastCollection: analytics.recordedAt,
+                collectionsCount: 0,
+                latestMetrics: {
+                  followers: analytics.followersCount,
+                  engagement: analytics.engagementRate,
+                  reach: analytics.avgReachPerPost,
+                },
+              };
+            }
+            acc[accountId].collectionsCount++;
+            // Keep the most recent metrics
+            if (analytics.recordedAt > acc[accountId].lastCollection) {
+              acc[accountId].lastCollection = analytics.recordedAt;
+              acc[accountId].latestMetrics = {
+                followers: analytics.followersCount,
+                engagement: analytics.engagementRate,
+                reach: analytics.avgReachPerPost,
+              };
+            }
+            return acc;
+          },
+          {} as Record<string, any>
+        );
+
+        // Group post analytics by social account
+        const postStats = recentPostAnalytics.reduce(
+          (acc, analytics) => {
+            const accountId = analytics.postSocialAccount.socialAccountId;
+            if (!acc[accountId]) {
+              acc[accountId] = {
+                accountId,
+                accountName: analytics.postSocialAccount.socialAccount.name,
+                platform: analytics.postSocialAccount.socialAccount.platform,
+                postsAnalyzed: 0,
+                totalEngagement: 0,
+                totalReach: 0,
+                totalImpressions: 0,
+              };
+            }
+            acc[accountId].postsAnalyzed++;
+            acc[accountId].totalEngagement += analytics.engagement || 0;
+            acc[accountId].totalReach += analytics.reach || 0;
+            acc[accountId].totalImpressions += analytics.impressions || 0;
+            return acc;
+          },
+          {} as Record<string, any>
+        );
+
+        return {
+          success: true,
+          data: {
+            teamId: input.teamId,
+            period: `${input.days} days`,
+            dateRange: {
+              start: startDate.toISOString(),
+              end: endDate.toISOString(),
+            },
+            accountAnalytics: {
+              totalCollections: recentAnalytics.length,
+              accountsWithData: Object.keys(accountStats).length,
+              accounts: Object.values(accountStats),
+            },
+            postAnalytics: {
+              totalAnalytics: recentPostAnalytics.length,
+              accountsWithPostData: Object.keys(postStats).length,
+              accounts: Object.values(postStats),
+            },
+            summary: {
+              totalAccountCollections: recentAnalytics.length,
+              totalPostAnalytics: recentPostAnalytics.length,
+              uniqueAccountsTracked: new Set([
+                ...Object.keys(accountStats),
+                ...Object.keys(postStats),
+              ]).size,
+            },
+          },
+        };
+      } catch (error: any) {
+        console.error("Collection stats error:", error);
+        return {
+          success: false,
+          error: "Failed to get collection stats",
+          details: error.message,
+        };
+      }
+    }),
+
+  /**
+   * Get analytics collection status (MOVED from real-analytics)
    */
   getCollectionStatus: protectedProcedure
     .input(
@@ -500,6 +743,7 @@ export const analyticsDatabaseRouter = createTRPCRouter({
           hasRecentData: !!recent,
           hasAnyData: !!hasAnyData,
           lastCollected: hasAnyData?.recordedAt || null,
+          accountCreated: socialAccount.createdAt,
           status: recent ? "ready" : hasAnyData ? "stale" : "pending",
           message: recent
             ? "Data is up to date"
@@ -515,6 +759,93 @@ export const analyticsDatabaseRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to get collection status",
+          cause: error,
+        });
+      }
+    }),
+
+  /**
+   * Debug endpoint to see raw post analytics data (MOVED from real-analytics)
+   */
+  debugPostAnalytics: protectedProcedure
+    .input(
+      z.object({
+        socialAccountId: z.string(),
+        teamId: z.string(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      try {
+        // Check access
+        const socialAccount = await ctx.prisma.socialAccount.findUnique({
+          where: { id: input.socialAccountId },
+          include: {
+            team: {
+              include: {
+                memberships: {
+                  where: { userId: ctx.auth.userId },
+                },
+              },
+            },
+          },
+        });
+
+        if (!socialAccount || socialAccount.team.memberships.length === 0) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Access denied",
+          });
+        }
+
+        // Get all posts and their analytics
+        const posts = await ctx.prisma.postSocialAccount.findMany({
+          where: {
+            socialAccountId: input.socialAccountId,
+          },
+          include: {
+            post: {
+              select: {
+                id: true,
+                content: true,
+                publishedAt: true,
+                status: true,
+                mediaUrls: true,
+              },
+            },
+            socialAccount: {
+              select: {
+                platform: true,
+                name: true,
+              },
+            },
+            analytics: {
+              orderBy: { recordedAt: "desc" },
+            },
+          },
+        });
+
+        return {
+          totalPosts: posts.length,
+          publishedPosts: posts.filter((p) => p.post.status === "PUBLISHED")
+            .length,
+          postsWithAnalytics: posts.filter((p) => p.analytics.length > 0)
+            .length,
+          posts: posts.map((psa) => ({
+            postId: psa.post.id,
+            content: psa.post.content.substring(0, 100) + "...",
+            status: psa.post.status,
+            publishedAt: psa.post.publishedAt,
+            mediaUrls: psa.post.mediaUrls,
+            analyticsCount: psa.analytics.length,
+            latestAnalytics: psa.analytics[0] || null,
+            allAnalytics: psa.analytics,
+          })),
+        };
+      } catch (error: any) {
+        console.error("❌ Error in debugPostAnalytics:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to get debug data",
           cause: error,
         });
       }

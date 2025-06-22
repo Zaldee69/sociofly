@@ -49,19 +49,7 @@ const navigationLinks = [
     label: "Overview",
     targetId: "overview",
     icon: <BarChart3 className="h-4 w-4" />,
-    description: "General metrics",
-  },
-  {
-    label: "Comparison",
-    targetId: "comparison",
-    icon: <TrendingUp className="h-4 w-4" />,
-    description: "Growth & trends",
-  },
-  {
-    label: "Posts",
-    targetId: "posts",
-    icon: <PieChart className="h-4 w-4" />,
-    description: "Post performance",
+    description: "General metrics & post performance",
   },
   {
     label: "Stories",

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RealSocialAnalyticsService } from "@/lib/services/analytics/clients/real-analytics-service";
+import { SocialSyncService } from "@/lib/services/analytics/core/social-sync-service";
 import { prisma } from "@/lib/prisma/client";
 import { currentUser } from "@clerk/nextjs/server";
 
@@ -26,22 +26,65 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔄 Manual analytics collection triggered for post ${postId}`);
 
-    const analyticsService = new RealSocialAnalyticsService(prisma);
-    const result = await analyticsService.collectPostAnalytics(postId);
+    // Get post social accounts
+    const postSocialAccounts = await prisma.postSocialAccount.findMany({
+      where: { postId },
+      include: { socialAccount: true },
+    });
+
+    if (postSocialAccounts.length === 0) {
+      return NextResponse.json(
+        { error: "No social accounts found for this post" },
+        { status: 404 }
+      );
+    }
+
+    const results = [];
+    const errors = [];
+    const syncService = new SocialSyncService(prisma);
+
+    for (const psa of postSocialAccounts) {
+      try {
+        // Trigger incremental sync for this account
+        const syncResult = await syncService.performIncrementalSync({
+          accountId: psa.socialAccount.id,
+          teamId: psa.socialAccount.teamId,
+          platform: psa.socialAccount.platform as "INSTAGRAM" | "FACEBOOK",
+          limit: 10,
+        });
+
+        results.push({
+          success: syncResult.success,
+          platform: psa.socialAccount.platform,
+          analyticsUpdated: syncResult.analyticsUpdated,
+        });
+      } catch (error: any) {
+        errors.push({
+          platform: psa.socialAccount.platform,
+          message: error.message,
+          analyticsUpdated: 0,
+        });
+      }
+    }
 
     return NextResponse.json({
-      success: result.success,
-      message: result.success
-        ? `Analytics collected successfully for ${result.results.length} platforms`
-        : `Analytics collection completed with ${result.errors.length} errors`,
+      success: errors.length === 0,
+      message:
+        errors.length === 0
+          ? `Analytics collected successfully for ${results.length} platforms`
+          : `Analytics collection completed with ${errors.length} errors`,
       results: {
-        successCount: result.results.filter((r) => r.success).length,
-        errorCount: result.errors.length,
-        platforms: result.results.map((r) => ({
-          success: r.success,
-          platform: r.data?.platform || r.error?.platform,
-          error: r.error?.message,
-        })),
+        successCount: results.filter((r) => r.success).length,
+        errorCount: errors.length,
+        platforms: [
+          ...results,
+          ...errors.map((e) => ({
+            success: false,
+            platform: e.platform,
+            analyticsUpdated: 0,
+            error: e.message,
+          })),
+        ],
       },
     });
   } catch (error: any) {

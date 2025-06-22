@@ -8,7 +8,6 @@ import { TRPCError } from "@trpc/server";
 import { Role, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
 import { SchedulerService } from "@/lib/services/scheduling/scheduler.service";
-import { InsightsCollector } from "@/lib/services/analytics/core/insights-collector";
 import { HotspotAnalyzer } from "@/lib/services/analytics/hotspots/hotspot-analyzer";
 
 export const teamRouter = createTRPCRouter({
@@ -836,20 +835,16 @@ export const teamRouter = createTRPCRouter({
           socialAccount.name || undefined
         );
 
-        // Schedule analytics collection job in background
+        // Schedule initial sync for the new account (webhook-free strategy)
         await queueManager.addJob(
           QueueManager.QUEUES.SOCIAL_SYNC,
-          JobType.COLLECT_ANALYTICS,
+          JobType.INITIAL_SYNC,
           {
             socialAccountId: socialAccount.id,
-            platform: socialAccount.platform,
-            accountName:
-              socialAccount.name || `${socialAccount.platform} Account`,
             teamId: input.teamId,
-            collectTypes: ["account", "posts"],
+            platform: socialAccount.platform,
+            daysBack: 30, // Initial historical data collection
             priority: "normal",
-            // Add standardized parameters to job data
-            collectionParams: standardParams,
           },
           {
             delay: 5000, // Start after 5 seconds to allow onboarding to complete
@@ -861,23 +856,6 @@ export const teamRouter = createTRPCRouter({
           }
         );
 
-        // Also schedule heatmap analysis
-        await queueManager.addJob(
-          QueueManager.QUEUES.SOCIAL_SYNC,
-          JobType.ANALYZE_COMPREHENSIVE_INSIGHTS,
-          {
-            socialAccountId: socialAccount.id,
-            teamId: input.teamId,
-            analysisTypes: ["hotspots"],
-            analyzePeriod: "week",
-            includeComparisons: false,
-          },
-          {
-            delay: 30000, // Start after 30 seconds, after analytics collection
-            attempts: 2,
-          }
-        );
-
         console.log(
           `✅ Background analytics jobs scheduled for ${socialAccount.name}`
         );
@@ -886,30 +864,7 @@ export const teamRouter = createTRPCRouter({
           `⚠️ Failed to schedule analytics collection for ${socialAccount.name}:`,
           error.message
         );
-        // Fallback to immediate collection if queue fails
-        try {
-          if (
-            socialAccount.platform === "INSTAGRAM" &&
-            socialAccount.profileId &&
-            socialAccount.accessToken
-          ) {
-            const { SchedulerService } = await import(
-              "@/lib/services/scheduling/scheduler.service"
-            );
-            await InsightsCollector.fetchInitialAccountInsights(
-              socialAccount.id
-            );
-            console.log(
-              `✅ Fallback analytics collected for ${socialAccount.name}`
-            );
-          }
-        } catch (fallbackError: any) {
-          console.error(
-            `❌ Fallback analytics also failed:`,
-            fallbackError.message
-          );
-          // Don't throw - account creation should still succeed
-        }
+        // Analytics collection will be handled by the background job above
       }
 
       return socialAccount;

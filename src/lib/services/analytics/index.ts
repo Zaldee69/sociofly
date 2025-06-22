@@ -5,25 +5,32 @@
 
 // Core analytics services
 export { AnalyticsComparisonService } from "./core/analytics-comparison.service";
-export { InsightsCollector } from "./core/insights-collector";
-export { AnalyticsMasterService } from "./core/analytics-master.service";
+export { SocialSyncService } from "./core/social-sync-service";
+export { InsightGenerator } from "./core/insight-generator";
+export { DataAnalyzer } from "./core/data-analyzer";
 
 // Hotspot analysis
 export { HotspotAnalyzer } from "./hotspots/hotspot-analyzer";
 
-// Platform clients
-export { EnhancedInstagramClient } from "./clients/enhanced-instagram-client";
-export { RealSocialAnalyticsService } from "./clients/real-analytics-service";
-export { FacebookAnalyticsClient } from "./clients/facebook-client";
-export { InstagramAnalyticsClient } from "./clients/instagram-client";
+// Unified platform client (replaces separate Instagram/Facebook clients)
+export { UnifiedMetaClient } from "./clients/unified-meta-client";
 export { SocialMediaRateLimiter } from "./clients/rate-limiter";
 export { SocialMediaDataNormalizer } from "./clients/data-normalizer";
+
+// Database services
+export { AnalyticsDatabaseService } from "./database/analytics-database.service";
 
 // Content analytics (functions)
 export { calculateAnalytics } from "./content/content-analytics";
 
+// Configuration
+export { PLATFORMS } from "./config/platforms";
+export type { Metric } from "./config/metrics";
+
 // Re-export types
+export type { SyncResult } from "./core/social-sync-service";
 export type {
-  AnalyticsRunResult,
-  AnalyticsRunOptions,
-} from "./core/analytics-master.service";
+  UnifiedMetaCredentials,
+  UnifiedAnalyticsData,
+  UnifiedAccountInsights,
+} from "./clients/unified-meta-client";

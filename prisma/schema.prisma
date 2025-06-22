@@ -520,6 +520,8 @@ model AccountAnalytics {
   avgReachPerPost    Int   @default(0)
   avgLikesPerPost    Float @default(0)
   avgCommentsPerPost Float @default(0)
+  avgSharesPerPost   Float @default(0)
+  avgSavesPerPost    Float @default(0)
 
   // Additional comprehensive metrics for UI compatibility
   totalFollowers       Int?   @default(0)
@@ -533,6 +535,10 @@ model AccountAnalytics {
   totalClicks          Int?   @default(0)
   avgEngagementPerPost Float? @default(0)
   avgClickThroughRate  Float? @default(0)
+
+  // Analytics metadata
+  postsAnalyzed        Int? @default(0) // Number of posts used for engagement calculation
+  totalPostsOnPlatform Int? @default(0) // Total posts on the platform
 
   // Platform-specific metrics
   bioLinkClicks Int? @default(0)

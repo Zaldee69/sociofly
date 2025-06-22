@@ -3,10 +3,52 @@ import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { OnboardingStatus, Role, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
-import { SchedulerService } from "@/lib/services/scheduling/scheduler.service";
-import { InsightsCollector } from "@/lib/services/analytics/core/insights-collector";
 import { HotspotAnalyzer } from "@/lib/services/analytics/hotspots/hotspot-analyzer";
-// Historical data collection is now handled by SchedulerService
+import { SocialSyncService } from "@/lib/services/analytics";
+
+// Helper function to handle initial analytics collection
+async function performInitialAnalyticsCollection(
+  socialAccount: { id: string; platform: string },
+  teamId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log(
+      `🚀 Starting initial analytics collection for ${socialAccount.platform} account`
+    );
+
+    // Import and initialize sync service
+    const syncService = new SocialSyncService();
+
+    // Perform initial sync
+    await syncService.performInitialSync({
+      accountId: socialAccount.id,
+      teamId: teamId,
+      platform: socialAccount.platform as "INSTAGRAM" | "FACEBOOK",
+      daysBack: 30,
+    });
+
+    // Fetch initial heatmap data
+    await HotspotAnalyzer.fetchInitialHeatmapData(socialAccount.id);
+
+    console.log(
+      `✅ Initial analytics collection completed for ${socialAccount.platform} account`
+    );
+
+    return { success: true };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error(
+      `❌ Initial analytics collection failed for ${socialAccount.platform}:`,
+      errorMessage
+    );
+
+    return {
+      success: false,
+      error: errorMessage,
+    };
+  }
+}
 
 const onboardingSchema = z.object({
   userType: z.enum(["solo", "team"]),
@@ -253,11 +295,23 @@ export const onboardingRouter = createTRPCRouter({
                 `Created social account: ${page.platform} - ${page.name}`
               );
 
-              // Fetch initial insights for the newly created social account
-              await InsightsCollector.fetchInitialAccountInsights(
-                socialAccount.id
-              );
-              await HotspotAnalyzer.fetchInitialHeatmapData(socialAccount.id);
+              // Trigger initial analytics collection for supported platforms
+              if (
+                page.platform === "INSTAGRAM" ||
+                page.platform === "FACEBOOK"
+              ) {
+                const analyticsResult = await performInitialAnalyticsCollection(
+                  { id: socialAccount.id, platform: page.platform },
+                  team.id
+                );
+
+                if (!analyticsResult.success) {
+                  console.warn(
+                    `⚠️ Analytics collection failed for ${page.name}: ${analyticsResult.error}`
+                  );
+                  // Don't fail onboarding if analytics collection fails
+                }
+              }
             } catch (error) {
               console.error(`Error creating social account:`, error);
               continue;
@@ -459,20 +513,17 @@ export const onboardingRouter = createTRPCRouter({
         },
       });
 
-      // Trigger initial analytics collection for Instagram and Facebook
+      // Trigger initial analytics collection for supported platforms
       if (input.platform === "INSTAGRAM" || input.platform === "FACEBOOK") {
-        try {
-          // Fetch initial account insights
-          await InsightsCollector.fetchInitialAccountInsights(socialAccount.id);
+        const analyticsResult = await performInitialAnalyticsCollection(
+          { id: socialAccount.id, platform: input.platform },
+          input.teamId
+        );
 
-          // Fetch initial heatmap data
-          await HotspotAnalyzer.fetchInitialHeatmapData(socialAccount.id);
-
-          console.log(
-            `🚀 Initial analytics collection completed for ${input.name}`
+        if (!analyticsResult.success) {
+          console.warn(
+            `⚠️ Analytics collection failed for ${input.name}: ${analyticsResult.error}`
           );
-        } catch (error) {
-          console.error("Failed to collect initial analytics:", error);
           // Don't fail the account linking if analytics collection fails
         }
       }

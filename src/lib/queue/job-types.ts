@@ -24,6 +24,11 @@ export enum JobType {
   // NEW: Smart daily sync for incremental collection
   SMART_DAILY_SYNC = "smart_daily_sync",
 
+  // NEW: Sync Strategy Jobs (from strategy document)
+  INITIAL_SYNC = "initial_sync", // Initial sync for new accounts
+  INCREMENTAL_SYNC = "incremental_sync", // Hourly incremental sync
+  DAILY_SYNC = "daily_sync", // Daily comprehensive sync
+
   // DEPRECATED: Individual analytics jobs (replaced by RUN_COMPLETE_ANALYTICS)
   // These are kept for backward compatibility but should not be used in new code
   COLLECT_ANALYTICS = "collect_analytics", // DEPRECATED: Use RUN_COMPLETE_ANALYTICS
@@ -276,4 +281,52 @@ export interface QueueMetrics {
   failed: number;
   delayed: number;
   paused: number;
+}
+
+// NEW: Initial Sync Job Data
+export interface InitialSyncJobData {
+  accountId: string;
+  teamId: string;
+  platform:
+    | "INSTAGRAM"
+    | "FACEBOOK"
+    | "TWITTER"
+    | "LINKEDIN"
+    | "TIKTOK"
+    | "YOUTUBE";
+  daysBack?: number; // Default 30-90 days
+  priority?: "low" | "normal" | "high";
+}
+
+// NEW: Incremental Sync Job Data
+export interface IncrementalSyncJobData {
+  accountId: string;
+  teamId: string;
+  platform:
+    | "INSTAGRAM"
+    | "FACEBOOK"
+    | "TWITTER"
+    | "LINKEDIN"
+    | "TIKTOK"
+    | "YOUTUBE";
+  lastSyncDate?: Date;
+  limit?: number; // Default 25 posts
+  priority?: "low" | "normal" | "high";
+}
+
+// NEW: Daily Sync Job Data
+export interface DailySyncJobData {
+  accountId: string;
+  teamId: string;
+  platform:
+    | "INSTAGRAM"
+    | "FACEBOOK"
+    | "TWITTER"
+    | "LINKEDIN"
+    | "TIKTOK"
+    | "YOUTUBE";
+  includeAudience?: boolean;
+  includeHashtags?: boolean;
+  includeLinks?: boolean;
+  priority?: "low" | "normal" | "high";
 }

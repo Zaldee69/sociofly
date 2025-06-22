@@ -1,27 +1,26 @@
 import { createTRPCRouter } from "../trpc";
-import { realAnalyticsRouter } from "./real-analytics";
 import { analyticsComparisonRouter } from "./analytics-comparison";
 import { analyticsDatabaseRouter } from "./analytics-database";
 import { hotspotsRouter } from "./hotspots";
 
 /**
- * Unified Analytics Router
+ * Unified Analytics Router - SIMPLIFIED VERSION
  *
- * Combines all analytics-related functionality:
- * - realtime: Real-time API data collection
- * - comparison: Growth comparison and trends
- * - database: Database-only queries (optimized)
+ * Organized analytics functionality:
+ * - database: Database-only queries (fast, optimized for UI)
+ * - comparison: Growth analysis and trends
  * - hotspots: Engagement hotspots analysis
+ *
+ * REMOVED:
+ * - collection/realtime router (functionality moved to sync system)
+ * - Redundant endpoints consolidated
  */
 export const analyticsRouter = createTRPCRouter({
-  // Real-time analytics (for manual collection)
-  realtime: realAnalyticsRouter,
+  // Database-only queries (optimized for frontend, no API calls)
+  database: analyticsDatabaseRouter,
 
   // Comparison and growth analysis
   comparison: analyticsComparisonRouter,
-
-  // Database-only queries (optimized for frontend)
-  database: analyticsDatabaseRouter,
 
   // Hotspots analysis
   hotspots: hotspotsRouter,

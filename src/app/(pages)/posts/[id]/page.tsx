@@ -228,8 +228,8 @@ const AccountAnalytics = ({
 
       setIsGeneratingAI(true);
       try {
-        const result = await processInsights(insightData, true);
-        setInsights(result);
+        // const result = await processInsights(insightData, true);
+        // setInsights(result);
       } catch (error) {
         console.error("Error processing insights:", error);
       } finally {
@@ -797,7 +797,10 @@ export default function PostDetailPage() {
     { postId },
     {
       enabled: !!postId && !!post && post.status === "PUBLISHED",
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
+      refetchOnMount: true,
+      staleTime: 30000, // 30 seconds
+      refetchInterval: 60000, // 1 minute
       retry: 3,
       retryDelay: 1000,
     }

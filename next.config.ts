@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
       "res.cloudinary.com",
       "images.unsplash.com",
       "utfs.io",
+      "scontent.cdninstagram.com",
     ],
     formats: ["image/avif", "image/webp"],
   },

@@ -59,7 +59,7 @@ import PostTimeOptimizer from "@/components/analytics/post-time-optimizer";
 import CompetitorBenchmarking from "@/components/analytics/competitor-benchmarking";
 import ComingSoonFeatures from "@/components/analytics/coming-soon-features";
 import CustomReports from "@/components/analytics/custom-reports";
-import { GrowthComparisonCards } from "@/components/analytics/growth-comparison-cards";
+
 import { trpc } from "@/lib/trpc/client";
 import { useTeamContext } from "@/lib/contexts/team-context";
 import { Loader2 } from "lucide-react";
@@ -171,8 +171,6 @@ const Analytics: React.FC = () => {
           // Detect active section
           const sections = [
             "overview",
-            "comparison",
-            "posts",
             "stories",
             "audience",
             "hashtags",
@@ -250,7 +248,7 @@ const Analytics: React.FC = () => {
   );
   // Fetch collection stats for metrics
   const { data: stats, isLoading: isLoadingStats } =
-    trpc.analytics.realtime.getCollectionStats.useQuery(
+    trpc.analytics.database.getCollectionStats.useQuery(
       { teamId: currentTeamId!, days: dateRange.days },
       {
         enabled: !!currentTeamId,
@@ -268,18 +266,6 @@ const Analytics: React.FC = () => {
         enabled: !!selectedAccount,
         refetchOnWindowFocus: false,
         refetchInterval: 60000, // Refetch every 60 seconds (less frequent since it's from database)
-      }
-    );
-
-  // Fetch growth comparison data
-  const { data: growthData, isLoading: isLoadingGrowth } =
-    trpc.analytics.comparison.getGrowthSummary.useQuery(
-      { socialAccountId: selectedAccount },
-      {
-        enabled: !!selectedAccount,
-        refetchOnWindowFocus: false,
-        refetchInterval: 45000, // Auto-refresh every 45 seconds
-        staleTime: 40000, // Consider data stale after 40 seconds
       }
     );
 
@@ -749,8 +735,8 @@ const Analytics: React.FC = () => {
             {/* All Analytics Sections - Always Rendered */}
             {!isLoadingAccountInsight && selectedAccount && (
               <div className="space-y-12">
-                {/* Overview Section */}
-                <section id="overview" className="scroll-mt-24">
+                {/* Overview & Growth Section - MERGED */}
+                <section id="overview" className="scroll-mt-24 space-y-6">
                   <OverviewSection
                     accountInsight={{
                       // Basic metrics
@@ -779,6 +765,24 @@ const Analytics: React.FC = () => {
                       avgClickThroughRate:
                         (accountInsight as any)?.avgClickThroughRate || 0,
 
+                      // Pre-calculated averages from database
+                      avgLikesPerPost:
+                        (accountInsight as any)?.avgLikesPerPost || 0,
+                      avgCommentsPerPost:
+                        (accountInsight as any)?.avgCommentsPerPost || 0,
+                      avgSharesPerPost:
+                        (accountInsight as any)?.avgSharesPerPost || 0,
+                      avgSavesPerPost:
+                        (accountInsight as any)?.avgSavesPerPost || 0,
+
+                      // Analytics metadata
+                      postsAnalyzed:
+                        (accountInsight as any)?.postsAnalyzed || 0,
+                      totalPostsOnPlatform:
+                        (accountInsight as any)?.totalPostsOnPlatform ||
+                        accountInsight?.mediaCount ||
+                        0,
+
                       // Growth metrics (use followerGrowth data or defaults)
                       followerGrowth: accountInsight?.followerGrowth as any,
                       followersGrowthPercent:
@@ -796,62 +800,13 @@ const Analytics: React.FC = () => {
                         (accountInsight as any)?.bioLinkClicks || 0,
                       storyViews: (accountInsight as any)?.storyViews || 0,
                       profileVisits: accountInsight?.profileVisits,
+
+                      // New fields for post analytics integration
+                      socialAccountId: selectedAccount,
+                      teamId: currentTeamId!,
                     }}
                     stats={stats}
                     isLoading={isLoadingAccountInsight || isLoadingStats}
-                  />
-                </section>
-
-                {/* Comparison Section */}
-                <section id="comparison" className="scroll-mt-24">
-                  <div className="bg-white rounded-lg border p-6">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="h-5 w-5 text-blue-600" />
-                        <h2 className="text-xl font-semibold">
-                          Growth Comparison
-                        </h2>
-                      </div>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href="/analytics/comparison">
-                          View Detailed Analysis
-                        </Link>
-                      </Button>
-                    </div>
-                    {isLoadingGrowth ? (
-                      <div className="text-center py-8">
-                        <div className="flex items-center justify-center space-x-2">
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                          <span>Loading growth comparison...</span>
-                        </div>
-                      </div>
-                    ) : growthData ? (
-                      <GrowthComparisonCards
-                        data={growthData as any}
-                        isLoading={false}
-                        comparisonType="day"
-                      />
-                    ) : (
-                      <div className="text-center py-8">
-                        <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-lg font-medium mb-2">
-                          No Growth Data Available
-                        </h3>
-                        <p className="text-muted-foreground mb-4">
-                          Growth comparison data will appear here once analytics
-                          are collected
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </section>
-
-                {/* Posts Section */}
-                <section id="posts" className="scroll-mt-24">
-                  <PostPerformance
-                    socialAccountId={selectedAccount}
-                    teamId={currentTeamId!}
-                    dateRange={dateRange}
                   />
                 </section>
 

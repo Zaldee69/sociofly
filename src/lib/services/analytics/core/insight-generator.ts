@@ -10,8 +10,16 @@
  */
 
 import { AccountMetric, PostMetric, InsightMetric } from "../config/metrics";
-import { AnalyticsResult } from "./analytics-manager";
 import { ComparisonResult } from "./data-analyzer";
+
+// Define AnalyticsResult interface to replace the deleted one
+export interface AnalyticsResult {
+  account: AccountMetric;
+  posts?: PostMetric[];
+  insights?: InsightMetric;
+  success: boolean;
+  errors?: string[];
+}
 
 export class InsightGenerator {
   /**

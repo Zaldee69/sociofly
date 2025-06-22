@@ -955,7 +955,7 @@ export function JobSchedulerMonitor() {
                   <div>
                     <CardTitle className="text-lg">Analytics System</CardTitle>
                     <CardDescription className="text-sm">
-                      Automated analytics collection runs daily at 6 AM
+                      Webhook-free sync system with automated collection
                     </CardDescription>
                   </div>
                 </div>
@@ -974,42 +974,51 @@ export function JobSchedulerMonitor() {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-medium text-sm">
-                        Complete Analytics Collection
+                        Social Sync System
                       </h3>
                       <p className="text-xs text-muted-foreground">
-                        Automatically runs insights, hotspots, and analytics
-                        data collection
+                        Incremental sync every 2 hours, daily comprehensive sync
+                        at 1:00 AM
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground">Next run</p>
-                      <p className="text-sm font-medium">Daily at 6:00 AM</p>
+                      <p className="text-xs text-muted-foreground">Schedule</p>
+                      <p className="text-sm font-medium">Automated</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border/30">
                     <div className="text-center">
                       <div className="text-lg font-semibold text-green-600">
-                        ✓
+                        ⏱️
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Account Insights
+                        Incremental Sync
                       </p>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-lg font-semibold text-orange-600">
-                        ✓
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Engagement Hotspots
+                      <p className="text-xs text-muted-foreground font-medium">
+                        Every 2 hours
                       </p>
                     </div>
                     <div className="text-center">
                       <div className="text-lg font-semibold text-blue-600">
-                        ✓
+                        🌙
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Analytics Data
+                        Daily Sync
+                      </p>
+                      <p className="text-xs text-muted-foreground font-medium">
+                        1:00 AM
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-semibold text-purple-600">
+                        🚀
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Initial Sync
+                      </p>
+                      <p className="text-xs text-muted-foreground font-medium">
+                        On Connect
                       </p>
                     </div>
                   </div>
@@ -1023,15 +1032,18 @@ export function JobSchedulerMonitor() {
                     </div>
                     <div className="flex-1">
                       <h4 className="font-medium text-sm">
-                        Historical Data Collection
+                        Sync Strategy Overview
                       </h4>
                       <p className="text-xs text-muted-foreground">
-                        Runs weekly on Mondays for new accounts
+                        Three-tier sync system: Initial (30-90 days),
+                        Incremental (recent data), Daily (comprehensive)
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground">Next run</p>
-                      <p className="text-sm font-medium">Monday 2:00 AM</p>
+                      <p className="text-xs text-muted-foreground">Status</p>
+                      <p className="text-sm font-medium text-green-600">
+                        Active
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1042,12 +1054,12 @@ export function JobSchedulerMonitor() {
                     <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-sm text-blue-800 font-medium">
-                        Fully Automated System
+                        Webhook-Free Analytics System
                       </p>
                       <p className="text-xs text-blue-700 mt-1">
-                        Analytics collection now runs automatically. Manual
-                        triggers have been removed to prevent conflicts and
-                        ensure data consistency.
+                        Advanced sync system using Redis + BullMQ with rate
+                        limiting, duplicate prevention, and comprehensive error
+                        handling. No webhooks required.
                       </p>
                     </div>
                   </div>

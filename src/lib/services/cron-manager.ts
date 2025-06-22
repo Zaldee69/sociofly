@@ -2,11 +2,8 @@
 import { QueueManager } from "@/lib/queue/queue-manager";
 import { JobType } from "@/lib/queue/job-types";
 import { JOB_CONSTANTS } from "@/lib/queue/job-constants";
-import { SchedulerService } from "./scheduling/scheduler.service";
 import { prisma } from "@/lib/prisma/client";
 import { UnifiedRedisManager } from "./unified-redis-manager";
-import { getStandardParams } from "@/config/analytics-config";
-import { AnalyticsMasterService } from "./analytics/core/analytics-master.service";
 
 interface ScheduledJobConfig {
   name: string;
@@ -83,102 +80,107 @@ export class JobSchedulerManager {
   }
 
   /**
-   * Setup all job configurations
+   * Setup all job configurations - CLEANED UP VERSION
    */
   private static async setupJobs(): Promise<void> {
     const jobConfigs: ScheduledJobConfig[] = [
+      // Core system jobs
       {
         name: "publish_due_posts",
-        schedule: "*/1 * * * *", // Every 1 minute
-        description: "Publish posts that are due for publication",
+        schedule: "*/10 * * * *", // Every 10 minutes
+        description: "Publish posts that are due for publishing",
         enabled: process.env.CRON_PUBLISH_ENABLED !== "false",
-        queueName: QueueManager.QUEUES.SCHEDULER,
+        queueName: QueueManager.QUEUES.HIGH_PRIORITY,
         jobType: JobType.PUBLISH_POST,
-        priority: 5, // High priority
         jobData: {
-          postId: JOB_CONSTANTS.SPECIAL_POST_IDS.BATCH_DUE_POSTS,
-          userId: "system",
-          platform: "all",
-          scheduledAt: new Date(),
-          content: {
-            text: "Batch processing of due posts",
-            hashtags: ["#cron", "#batch"],
-          },
+          batchSize: parseInt(process.env.PUBLISH_BATCH_SIZE || "10"),
+          processDue: true,
         },
       },
       {
         name: "check_expired_tokens",
-        schedule: "0 2 * * *", // Daily at 2 AM
-        description: "Check for expired social account tokens",
+        schedule: "0 */6 * * *", // Every 6 hours
+        description: "Check and refresh expired social media tokens",
         enabled: process.env.CRON_TOKEN_CHECK_ENABLED !== "false",
         queueName: QueueManager.QUEUES.MAINTENANCE,
         jobType: JobType.CHECK_EXPIRED_TOKENS,
         jobData: {
-          userId: "system",
-          platform: "all",
+          renewalThresholdHours: 24,
+          autoRenew: process.env.AUTO_RENEW_TOKENS === "true",
         },
       },
       {
         name: "system_health_check",
         schedule: "*/15 * * * *", // Every 15 minutes
-        description: "Monitor system health and log metrics",
+        description: "Perform system health checks",
         enabled: process.env.CRON_HEALTH_CHECK_ENABLED !== "false",
         queueName: QueueManager.QUEUES.MAINTENANCE,
         jobType: JobType.SYSTEM_HEALTH_CHECK,
         jobData: {
-          checkType: JOB_CONSTANTS.HEALTH_CHECK_TYPES.QUICK,
-          alertThreshold: 70,
+          checkRedis: true,
+          checkDatabase: true,
+          checkQueues: true,
+          alertThresholds: {
+            queueSize: 1000,
+            failureRate: 0.1,
+          },
         },
       },
       {
         name: "cleanup_old_logs",
-        schedule: "0 3 * * 0", // Weekly on Sunday at 3 AM
-        description: "Clean up old cron logs (keep last 30 days)",
+        schedule: "0 2 * * *", // Daily at 2 AM
+        description: "Clean up old logs and temporary data",
         enabled: process.env.CRON_CLEANUP_ENABLED !== "false",
         queueName: QueueManager.QUEUES.MAINTENANCE,
         jobType: JobType.CLEANUP_OLD_LOGS,
         jobData: {
-          olderThanDays: JOB_CONSTANTS.CLEANUP_CONFIG.LOG_CLEANUP_DAYS,
-          logType: JOB_CONSTANTS.LOG_TYPES.ALL,
+          retentionDays: parseInt(process.env.LOG_RETENTION_DAYS || "30"),
+          cleanupTypes: ["logs", "temp_data", "failed_jobs"],
         },
+      },
+
+      // NEW: Consolidated Webhook-Free Sync Strategy (REMOVED DUPLICATES)
+      {
+        name: "incremental_sync",
+        schedule: "0 */2 * * *", // Every 2 hours
+        description:
+          "Incremental sync - new posts and recent engagement updates",
+        enabled: process.env.CRON_INCREMENTAL_SYNC_ENABLED !== "false",
+        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
+        jobType: JobType.INCREMENTAL_SYNC,
+        jobData: {
+          accountId: "system", // Process all accounts
+          teamId: "system",
+          platform: "all",
+          limit: 25,
+          priority: "normal",
+        },
+        priority: 2,
       },
       {
-        name: "run_complete_analytics_smart",
-        schedule: "0 6 * * *", // Daily at 6 AM
-        description: "Smart analytics collection with adaptive sync strategies",
-        enabled: process.env.CRON_COMPLETE_ANALYTICS_ENABLED !== "false",
+        name: "daily_sync",
+        schedule: "0 1 * * *", // Daily at 1:00 AM
+        description:
+          "Daily comprehensive sync - follower growth, demographics, hashtags",
+        enabled: process.env.CRON_DAILY_SYNC_ENABLED !== "false",
         queueName: QueueManager.QUEUES.SOCIAL_SYNC,
-        jobType: JobType.RUN_COMPLETE_ANALYTICS,
+        jobType: JobType.DAILY_SYNC,
         jobData: {
-          userId: "system",
+          accountId: "system", // Process all accounts
           teamId: "system",
-          socialAccountId: "system", // Will be processed for all accounts
           platform: "all",
-
-          // 🧠 Smart Sync Integration
-          useSmartSync: true, // Enable smart sync by default
-          syncStrategy: "smart_adaptive", // Default strategy (can be overridden per account)
-
-          // Analytics components
-          includeInsights: true,
-          includeHotspots: true, // Will be skipped for incremental_daily strategy
-          includeAnalytics: true,
-
-          // Legacy fields (for backward compatibility)
-          analysisTypes: [
-            "hotspots",
-            "account_insights",
-            "analytics_data",
-            "demographics",
-            "engagement",
-          ],
-          analyzePeriod: "adaptive", // Will be determined by smart sync
-          includeComparisons: true,
+          includeAudience: true,
+          includeHashtags: true,
+          includeLinks: true,
+          priority: "normal",
         },
+        priority: 1,
       },
+
+      // Historical data collection (weekly)
       {
         name: "collect_historical_data",
-        schedule: "0 2 * * 1", // Weekly on Monday at 2 AM
+        schedule: "0 3 * * 1", // Weekly on Monday at 3 AM
         description: "Collect historical data for new accounts",
         enabled: process.env.CRON_HISTORICAL_DATA_ENABLED !== "false",
         queueName: QueueManager.QUEUES.SOCIAL_SYNC,
@@ -189,20 +191,6 @@ export class JobSchedulerManager {
           priority: "normal",
           collectTypes: ["posts", "audience", "hashtags", "links"],
           immediate: false,
-        },
-      },
-      {
-        name: "smart_daily_sync",
-        schedule: "0 7 * * *", // Daily at 7 AM
-        description: "Smart incremental analytics sync - only collect new data",
-        enabled: process.env.CRON_SMART_SYNC_ENABLED !== "false",
-        queueName: QueueManager.QUEUES.SOCIAL_SYNC,
-        jobType: JobType.SMART_DAILY_SYNC,
-        jobData: {
-          userId: "system",
-          strategy: "smart_adaptive",
-          batchSize: 10, // Process 10 accounts at a time
-          includeRecommendations: true,
         },
       },
     ];
@@ -247,17 +235,6 @@ export class JobSchedulerManager {
       throw new Error("QueueManager not available");
     }
 
-    // Validate job data before scheduling
-    // const validation = JobValidator.validateJobData(
-    //   config.jobType,
-    //   config.jobData
-    // );
-    // if (!validation.isValid) {
-    //   throw new Error(
-    //     `Job validation failed for ${config.name}: ${validation.errors.join(", ")}`
-    //   );
-    // }
-
     await this.queueManager.scheduleRecurringJob(
       config.queueName,
       config.jobType,
@@ -288,7 +265,6 @@ export class JobSchedulerManager {
       queueMetrics: {},
       redisInfo: this.redisManager?.getConnectionInfo() || null,
       scheduledJobs: [] as Array<{ name: string; running: boolean }>,
-      cronJobs: [] as Array<{ name: string; running: boolean }>, // Legacy field for backward compatibility
       // Enhanced metrics for better tracking
       systemHealth: {
         totalJobs: 0,
@@ -343,7 +319,6 @@ export class JobSchedulerManager {
     }));
 
     status.scheduledJobs = jobStatusArray;
-    status.cronJobs = jobStatusArray; // Legacy field for backward compatibility
 
     return status;
   }
@@ -618,15 +593,16 @@ export class JobSchedulerManager {
   }
 
   /**
-   * Helper methods
+   * UPDATED Helper methods - Now includes ALL jobs
    */
   private static getQueueNameForJob(jobName: string): string | null {
     const mapping: { [key: string]: string } = {
-      publish_due_posts: QueueManager.QUEUES.SCHEDULER,
+      publish_due_posts: QueueManager.QUEUES.HIGH_PRIORITY,
       check_expired_tokens: QueueManager.QUEUES.MAINTENANCE,
       system_health_check: QueueManager.QUEUES.MAINTENANCE,
       cleanup_old_logs: QueueManager.QUEUES.MAINTENANCE,
-      run_complete_analytics: QueueManager.QUEUES.SOCIAL_SYNC,
+      incremental_sync: QueueManager.QUEUES.SOCIAL_SYNC,
+      daily_sync: QueueManager.QUEUES.SOCIAL_SYNC,
       collect_historical_data: QueueManager.QUEUES.SOCIAL_SYNC,
     };
     return mapping[jobName] || null;
@@ -638,7 +614,8 @@ export class JobSchedulerManager {
       check_expired_tokens: JobType.CHECK_EXPIRED_TOKENS,
       system_health_check: JobType.SYSTEM_HEALTH_CHECK,
       cleanup_old_logs: JobType.CLEANUP_OLD_LOGS,
-      run_complete_analytics: JobType.RUN_COMPLETE_ANALYTICS,
+      incremental_sync: JobType.INCREMENTAL_SYNC,
+      daily_sync: JobType.DAILY_SYNC,
       collect_historical_data: JobType.COLLECT_HISTORICAL_DATA,
     };
     return mapping[jobName] || null;
@@ -667,24 +644,23 @@ export class JobSchedulerManager {
           olderThanDays: JOB_CONSTANTS.CLEANUP_CONFIG.LOG_CLEANUP_DAYS,
           logType: JOB_CONSTANTS.LOG_TYPES.ALL,
         };
-      case JobType.RUN_COMPLETE_ANALYTICS:
+      case JobType.INCREMENTAL_SYNC:
         return {
-          userId: "system",
+          accountId: "system",
           teamId: "system",
-          socialAccountId: "system", // Will be processed for all accounts
           platform: "all",
-          analysisTypes: [
-            "hotspots",
-            "account_insights",
-            "analytics_data",
-            "demographics",
-            "engagement",
-          ],
-          analyzePeriod: "week",
-          includeComparisons: true,
-          includeInsights: true,
-          includeHotspots: true,
-          includeAnalytics: true,
+          limit: 25,
+          priority: "normal",
+        };
+      case JobType.DAILY_SYNC:
+        return {
+          accountId: "system",
+          teamId: "system",
+          platform: "all",
+          includeAudience: true,
+          includeHashtags: true,
+          includeLinks: true,
+          priority: "normal",
         };
       case JobType.COLLECT_HISTORICAL_DATA:
         return {
@@ -697,25 +673,6 @@ export class JobSchedulerManager {
       default:
         return { userId: "system" };
     }
-  }
-
-  private static getJobConfig(jobName: string): ScheduledJobConfig | null {
-    const queueName = this.getQueueNameForJob(jobName);
-    const jobType = this.getJobTypeForJob(jobName);
-
-    if (!queueName || !jobType) {
-      return null;
-    }
-
-    return {
-      name: jobName,
-      schedule: "* * * * *", // Will be overridden for manual execution
-      description: `Manual execution of ${jobName}`,
-      enabled: true,
-      queueName,
-      jobType,
-      jobData: this.getDefaultJobData(jobType),
-    };
   }
 
   /**
@@ -815,7 +772,7 @@ export class JobSchedulerManager {
   }
 
   /**
-   * Get available job names
+   * Get available job names - UPDATED
    */
   public static getAvailableJobs(): string[] {
     return [
@@ -823,7 +780,8 @@ export class JobSchedulerManager {
       "check_expired_tokens",
       "system_health_check",
       "cleanup_old_logs",
-      "run_complete_analytics",
+      "incremental_sync",
+      "daily_sync",
       "collect_historical_data",
     ];
   }

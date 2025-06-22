@@ -1,8 +1,7 @@
 #!/usr/bin/env tsx
 
 import { PrismaClient } from "@prisma/client";
-import { SchedulerService } from "../src/lib/services/scheduling/scheduler.service";
-import { InsightsCollector } from "../src/lib/services/analytics/core/insights-collector";
+import { SocialSyncService } from "../src/lib/services/analytics/core/social-sync-service";
 import { HotspotAnalyzer } from "../src/lib/services/analytics/hotspots/hotspot-analyzer";
 
 const prisma = new PrismaClient();
@@ -21,12 +20,29 @@ async function main() {
     if (teamId === "all") {
       console.log("🚀 Triggering analytics collection for all accounts...");
 
-      // Run account insights for all accounts
-      const accountResult =
-        await InsightsCollector.runAccountInsightsForAllAccounts();
-      console.log(
-        `📊 Account insights: ${accountResult.success}/${accountResult.total} successful`
-      );
+      // Get all social accounts
+      const accounts = await prisma.socialAccount.findMany({
+        select: { id: true, name: true, platform: true, teamId: true },
+      });
+
+      console.log(`📊 Found ${accounts.length} accounts to process`);
+
+      const syncService = new SocialSyncService();
+      let success = 0;
+      let failed = 0;
+
+      for (const account of accounts) {
+        try {
+          await syncService.performIncrementalSync({
+            accountId: account.id,
+            teamId: account.teamId,
+            platform: account.platform,
+          });
+          success++;
+        } catch (error) {
+          failed++;
+        }
+      }
 
       // Run hotspot analysis for all accounts
       const hotspotResult =
@@ -35,7 +51,9 @@ async function main() {
         `🔥 Hotspot analysis: ${hotspotResult.success}/${hotspotResult.total} successful`
       );
 
-      console.log("✅ Analytics collection completed for all accounts!");
+      console.log(
+        `✅ Analytics collection completed: ${success}/${accounts.length} successful, ${failed} failed`
+      );
     } else {
       console.log(`🚀 Triggering analytics collection for team: ${teamId}`);
 
@@ -59,8 +77,14 @@ async function main() {
         try {
           console.log(`Processing ${account.name} (${account.platform})...`);
 
-          // Fetch account insights
-          await InsightsCollector.fetchInitialAccountInsights(account.id);
+          const syncService = new SocialSyncService();
+
+          // Use incremental sync for data collection
+          await syncService.performIncrementalSync({
+            accountId: account.id,
+            teamId: teamId,
+            platform: account.platform,
+          });
 
           // Fetch heatmap data
           await HotspotAnalyzer.fetchInitialHeatmapData(account.id);
