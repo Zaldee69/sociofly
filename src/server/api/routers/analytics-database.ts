@@ -100,23 +100,36 @@ export const analyticsDatabaseRouter = createTRPCRouter({
         const latestAnalytics = analyticsInRange[0];
 
         // Get comparison data (previous period of same length)
-        const previousPeriodStart = new Date();
-        previousPeriodStart.setDate(
-          previousPeriodStart.getDate() - input.days * 2
-        );
-        const previousPeriodEnd = new Date();
-        previousPeriodEnd.setDate(previousPeriodEnd.getDate() - input.days);
+        const previousPeriodStart = new Date(startDate);
+        previousPeriodStart.setDate(previousPeriodStart.getDate() - 1);
+        const previousPeriodEnd = new Date(startDate);
 
         const previousAnalytics = await ctx.prisma.accountAnalytics.findFirst({
           where: {
             socialAccountId: input.socialAccountId,
             recordedAt: {
               gte: previousPeriodStart,
-              lte: previousPeriodEnd,
+              lt: startDate,
             },
           },
           orderBy: { recordedAt: "desc" },
         });
+
+        // If no previous analytics found, try to get the last record before the current period
+        const fallbackPreviousAnalytics = !previousAnalytics
+          ? await ctx.prisma.accountAnalytics.findFirst({
+              where: {
+                socialAccountId: input.socialAccountId,
+                recordedAt: {
+                  lt: startDate,
+                },
+              },
+              orderBy: { recordedAt: "desc" },
+            })
+          : null;
+
+        const effectivePreviousAnalytics =
+          previousAnalytics || fallbackPreviousAnalytics;
 
         // Calculate aggregated metrics for the period (if multiple records)
         let aggregatedMetrics = latestAnalytics;
@@ -165,52 +178,69 @@ export const analyticsDatabaseRouter = createTRPCRouter({
         }
 
         // Calculate growth metrics
-        const followerGrowth = previousAnalytics
+        const followerGrowth = effectivePreviousAnalytics
           ? {
               current: aggregatedMetrics.followersCount,
-              previous: previousAnalytics.followersCount,
+              previous: effectivePreviousAnalytics.followersCount,
               change:
                 aggregatedMetrics.followersCount -
-                previousAnalytics.followersCount,
+                effectivePreviousAnalytics.followersCount,
               changePercent:
-                previousAnalytics.followersCount > 0
+                effectivePreviousAnalytics.followersCount > 0
                   ? ((aggregatedMetrics.followersCount -
-                      previousAnalytics.followersCount) /
-                      previousAnalytics.followersCount) *
+                      effectivePreviousAnalytics.followersCount) /
+                      effectivePreviousAnalytics.followersCount) *
                     100
                   : 0,
             }
           : null;
 
-        const engagementGrowth = previousAnalytics
+        const mediaGrowth = effectivePreviousAnalytics
+          ? {
+              current: aggregatedMetrics.mediaCount,
+              previous: effectivePreviousAnalytics.mediaCount,
+              change:
+                aggregatedMetrics.mediaCount -
+                effectivePreviousAnalytics.mediaCount,
+              changePercent:
+                effectivePreviousAnalytics.mediaCount > 0
+                  ? ((aggregatedMetrics.mediaCount -
+                      effectivePreviousAnalytics.mediaCount) /
+                      effectivePreviousAnalytics.mediaCount) *
+                    100
+                  : 0,
+            }
+          : null;
+
+        const engagementGrowth = effectivePreviousAnalytics
           ? {
               current: aggregatedMetrics.engagementRate,
-              previous: previousAnalytics.engagementRate,
+              previous: effectivePreviousAnalytics.engagementRate,
               change:
                 aggregatedMetrics.engagementRate -
-                previousAnalytics.engagementRate,
+                effectivePreviousAnalytics.engagementRate,
               changePercent:
-                previousAnalytics.engagementRate > 0
+                effectivePreviousAnalytics.engagementRate > 0
                   ? ((aggregatedMetrics.engagementRate -
-                      previousAnalytics.engagementRate) /
-                      previousAnalytics.engagementRate) *
+                      effectivePreviousAnalytics.engagementRate) /
+                      effectivePreviousAnalytics.engagementRate) *
                     100
                   : 0,
             }
           : null;
 
-        const reachGrowth = previousAnalytics
+        const reachGrowth = effectivePreviousAnalytics
           ? {
-              current: aggregatedMetrics.avgReachPerPost,
-              previous: previousAnalytics.avgReachPerPost,
+              current: aggregatedMetrics.avgReachPerPost || 0,
+              previous: effectivePreviousAnalytics.avgReachPerPost || 0,
               change:
-                aggregatedMetrics.avgReachPerPost -
-                previousAnalytics.avgReachPerPost,
+                (aggregatedMetrics.avgReachPerPost || 0) -
+                (effectivePreviousAnalytics.avgReachPerPost || 0),
               changePercent:
-                previousAnalytics.avgReachPerPost > 0
-                  ? ((aggregatedMetrics.avgReachPerPost -
-                      previousAnalytics.avgReachPerPost) /
-                      previousAnalytics.avgReachPerPost) *
+                (effectivePreviousAnalytics.avgReachPerPost || 0) > 0
+                  ? (((aggregatedMetrics.avgReachPerPost || 0) -
+                      (effectivePreviousAnalytics.avgReachPerPost || 0)) /
+                      (effectivePreviousAnalytics.avgReachPerPost || 0)) *
                     100
                   : 0,
             }
@@ -272,13 +302,14 @@ export const analyticsDatabaseRouter = createTRPCRouter({
 
           // Growth metrics
           followerGrowth,
+          mediaGrowth,
           engagementGrowth,
           reachGrowth,
 
           // Growth percentages (for backward compatibility)
           followersGrowthPercent: followerGrowth?.changePercent || 0,
           engagementGrowthPercent: engagementGrowth?.changePercent || 0,
-          mediaGrowthPercent: aggregatedMetrics.mediaGrowthPercent || 0,
+          mediaGrowthPercent: mediaGrowth?.changePercent || 0,
           reachGrowthPercent: reachGrowth?.changePercent || 0,
 
           // Follower growth data array (for charts)

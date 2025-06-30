@@ -241,9 +241,9 @@ const Analytics: React.FC = () => {
     { socialAccountId: selectedAccount, days: dateRange.days },
     {
       enabled: !!selectedAccount,
-      refetchOnWindowFocus: false,
-      refetchInterval: 300000, // Auto-refresh every 5 minutes (less frequent)
-      staleTime: 240000, // Consider data stale after 4 minutes
+      refetchOnWindowFocus: true,
+      refetchInterval: 60000, // Auto-refresh every minute
+      staleTime: 30000, // Consider data stale after 30 seconds
     }
   );
   // Fetch collection stats for metrics
@@ -252,9 +252,9 @@ const Analytics: React.FC = () => {
       { teamId: currentTeamId!, days: dateRange.days },
       {
         enabled: !!currentTeamId,
-        refetchOnWindowFocus: false,
-        refetchInterval: 60000, // Auto-refresh every 60 seconds
-        staleTime: 55000, // Consider data stale after 55 seconds
+        refetchOnWindowFocus: true,
+        refetchInterval: 60000, // Auto-refresh every minute
+        staleTime: 30000, // Consider data stale after 30 seconds
       }
     );
 
@@ -428,7 +428,7 @@ const Analytics: React.FC = () => {
 
             <div className="flex items-center gap-3">
               {/* Date Range Filter */}
-              <Card className="px-3 py-2">
+              {/* <Card className="px-3 py-2">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-muted-foreground" />
@@ -478,7 +478,6 @@ const Analytics: React.FC = () => {
                     </SelectContent>
                   </Select>
 
-                  {/* Date Range Summary */}
                   <div className="flex items-center gap-2 text-sm text-muted-foreground border-l pl-3">
                     <Badge variant="secondary" className="text-xs">
                       {dateRange.days} hari
@@ -489,7 +488,7 @@ const Analytics: React.FC = () => {
                     </span>
                   </div>
                 </div>
-              </Card>
+              </Card> */}
 
               {/* Collection Status */}
               {/* {selectedAccount && collectionStatus && (
@@ -783,16 +782,22 @@ const Analytics: React.FC = () => {
                         accountInsight?.mediaCount ||
                         0,
 
-                      // Growth metrics (use followerGrowth data or defaults)
-                      followerGrowth: accountInsight?.followerGrowth as any,
-                      followersGrowthPercent:
-                        accountInsight?.followerGrowth &&
-                        !Array.isArray(accountInsight.followerGrowth)
-                          ? accountInsight.followerGrowth.changePercent || 0
-                          : 0,
-                      mediaGrowthPercent: 0, // Not available in current data
-                      engagementGrowthPercent: 0, // Not available in current data
-                      reachGrowthPercent: 0, // Not available in current data
+                      // Growth metrics
+                      followerGrowth: accountInsight?.followerGrowth || null,
+                      mediaGrowth: accountInsight?.mediaGrowth || null,
+                      engagementGrowth:
+                        accountInsight?.engagementGrowth || null,
+                      reachGrowth: accountInsight?.reachGrowth || null,
+
+                      // Previous period values
+                      previousFollowersCount:
+                        accountInsight?.followerGrowth?.previous || 0,
+                      previousMediaCount:
+                        accountInsight?.mediaGrowth?.previous || 0,
+                      previousEngagementRate:
+                        accountInsight?.engagementGrowth?.previous || 0,
+                      previousAvgReachPerPost:
+                        accountInsight?.reachGrowth?.previous || 0,
 
                       // Platform specific
                       platform: selectedPlatform as "INSTAGRAM" | "FACEBOOK",

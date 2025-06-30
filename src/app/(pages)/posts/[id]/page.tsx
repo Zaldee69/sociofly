@@ -299,15 +299,6 @@ const AccountAnalytics = ({
         </div>
       )}
 
-      {/* Show success message for real data */}
-      {!isLoading && (
-        <div className="text-center py-2">
-          <div className="text-xs text-green-600 bg-green-50 inline-block px-3 py-1 rounded-full">
-            ✅ Real analytics data loaded
-          </div>
-        </div>
-      )}
-
       {/* Insights Summary Card */}
       {/* <Card className="p-6">
         <div className="space-y-4">

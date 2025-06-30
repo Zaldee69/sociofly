@@ -66,11 +66,36 @@ interface OverviewSectionProps {
     totalPostsOnPlatform?: number; // Total posts on the platform
 
     // Growth metrics
-    followerGrowth?: Array<{ name: string; followers: number }>;
-    followersGrowthPercent?: number;
-    mediaGrowthPercent?: number;
-    engagementGrowthPercent?: number;
-    reachGrowthPercent?: number;
+    followerGrowth?: {
+      current: number;
+      previous: number;
+      change: number;
+      changePercent: number;
+    } | null;
+    mediaGrowth?: {
+      current: number;
+      previous: number;
+      change: number;
+      changePercent: number;
+    } | null;
+    engagementGrowth?: {
+      current: number;
+      previous: number;
+      change: number;
+      changePercent: number;
+    } | null;
+    reachGrowth?: {
+      current: number;
+      previous: number;
+      change: number;
+      changePercent: number;
+    } | null;
+
+    // Previous period values
+    previousFollowersCount?: number;
+    previousMediaCount?: number;
+    previousEngagementRate?: number;
+    previousAvgReachPerPost?: number;
 
     // Platform specific
     platform?: "INSTAGRAM" | "FACEBOOK";
@@ -111,11 +136,10 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
     // Analytics metadata
     postsAnalyzed: 0,
     totalPostsOnPlatform: 0,
-    followerGrowth: [],
-    followersGrowthPercent: 0,
-    mediaGrowthPercent: 0,
-    engagementGrowthPercent: 0,
-    reachGrowthPercent: 0,
+    followerGrowth: null,
+    mediaGrowth: null,
+    engagementGrowth: null,
+    reachGrowth: null,
     bioLinkClicks: 0,
     storyViews: 0,
     profileVisits: 0,
@@ -147,23 +171,25 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
 
   // Helper functions for growth comparison
   const getTrendIcon = (percentage: number) => {
-    if (percentage > 0.5) {
+    if (percentage > 2) {
       return <TrendingUp className="h-3 w-3 text-green-600" />;
-    } else if (percentage < -0.5) {
+    } else if (percentage < -2) {
       return <TrendingDown className="h-3 w-3 text-red-600" />;
     }
     return <Minus className="h-3 w-3 text-gray-600" />;
   };
 
   const getTrendColor = (percentage: number) => {
-    if (percentage > 0.5) return "text-green-600";
-    if (percentage < -0.5) return "text-red-600";
+    if (percentage > 2) return "text-green-600";
+    if (percentage < -2) return "text-red-600";
     return "text-gray-600";
   };
 
   const formatPercentage = (percentage: number) => {
     const absPercentage = Math.abs(percentage);
     const sign = percentage > 0 ? "+" : percentage < 0 ? "-" : "";
+    if (absPercentage < 0.1) return "0%";
+    if (absPercentage < 10) return `${sign}${absPercentage.toFixed(2)}%`;
     return `${sign}${absPercentage.toFixed(1)}%`;
   };
 
@@ -241,11 +267,15 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             <div className="flex items-center justify-between text-xs mt-2">
               <span className="text-muted-foreground">vs yesterday</span>
               <div
-                className={`flex items-center gap-1 ${getTrendColor(accountInsight.followersGrowthPercent || 0)}`}
+                className={`flex items-center gap-1 ${getTrendColor(accountInsight.followerGrowth?.changePercent || 0)}`}
               >
-                {getTrendIcon(accountInsight.followersGrowthPercent || 0)}
+                {getTrendIcon(
+                  accountInsight.followerGrowth?.changePercent || 0
+                )}
                 <span className="font-medium">
-                  {formatPercentage(accountInsight.followersGrowthPercent || 0)}
+                  {formatPercentage(
+                    accountInsight.followerGrowth?.changePercent || 0
+                  )}
                 </span>
               </div>
             </div>
@@ -271,12 +301,14 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             <div className="flex items-center justify-between text-xs mt-2">
               <span className="text-muted-foreground">vs yesterday</span>
               <div
-                className={`flex items-center gap-1 ${getTrendColor(accountInsight.engagementGrowthPercent || 0)}`}
+                className={`flex items-center gap-1 ${getTrendColor(accountInsight.engagementGrowth?.changePercent || 0)}`}
               >
-                {getTrendIcon(accountInsight.engagementGrowthPercent || 0)}
+                {getTrendIcon(
+                  accountInsight.engagementGrowth?.changePercent || 0
+                )}
                 <span className="font-medium">
                   {formatPercentage(
-                    accountInsight.engagementGrowthPercent || 0
+                    accountInsight.engagementGrowth?.changePercent || 0
                   )}
                 </span>
               </div>
@@ -313,11 +345,13 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             <div className="flex items-center justify-between text-xs mt-2 pt-2 border-t">
               <span className="text-muted-foreground">reach growth</span>
               <div
-                className={`flex items-center gap-1 ${getTrendColor(accountInsight.reachGrowthPercent || 0)}`}
+                className={`flex items-center gap-1 ${getTrendColor(accountInsight.reachGrowth?.changePercent || 0)}`}
               >
-                {getTrendIcon(accountInsight.reachGrowthPercent || 0)}
+                {getTrendIcon(accountInsight.reachGrowth?.changePercent || 0)}
                 <span className="font-medium">
-                  {formatPercentage(accountInsight.reachGrowthPercent || 0)}
+                  {formatPercentage(
+                    accountInsight.reachGrowth?.changePercent || 0
+                  )}
                 </span>
               </div>
             </div>
@@ -336,11 +370,13 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             <div className="flex items-center justify-between text-xs mt-2">
               <span className="text-muted-foreground">vs yesterday</span>
               <div
-                className={`flex items-center gap-1 ${getTrendColor(accountInsight.mediaGrowthPercent || 0)}`}
+                className={`flex items-center gap-1 ${getTrendColor(accountInsight.mediaGrowth?.changePercent || 0)}`}
               >
-                {getTrendIcon(accountInsight.mediaGrowthPercent || 0)}
+                {getTrendIcon(accountInsight.mediaGrowth?.changePercent || 0)}
                 <span className="font-medium">
-                  {formatPercentage(accountInsight.mediaGrowthPercent || 0)}
+                  {formatPercentage(
+                    accountInsight.mediaGrowth?.changePercent || 0
+                  )}
                 </span>
               </div>
             </div>
@@ -358,51 +394,83 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <span className="text-muted-foreground">Followers</span>
+            {[
+              {
+                label: "Followers",
+                value: accountInsight.followerGrowth?.changePercent || 0,
+                prevValue: accountInsight.previousFollowersCount || 0,
+                currentValue: accountInsight.totalFollowers || 0,
+                loading: isLoading,
+              },
+              {
+                label: "Engagement",
+                value: accountInsight.engagementGrowth?.changePercent || 0,
+                prevValue: accountInsight.previousEngagementRate || 0,
+                currentValue: calculatedEngagementRate || 0,
+                loading: isLoading,
+              },
+              {
+                label: "Reach",
+                value: accountInsight.reachGrowth?.changePercent || 0,
+                prevValue: accountInsight.previousAvgReachPerPost || 0,
+                currentValue: accountInsight.totalReach || 0,
+                loading: isLoading,
+              },
+              {
+                label: "Posts",
+                value: accountInsight.mediaGrowth?.changePercent || 0,
+                prevValue: accountInsight.previousMediaCount || 0,
+                currentValue: accountInsight.totalPosts || 0,
+                loading: isLoading,
+              },
+            ].map((metric, index) => (
               <div
-                className={`flex items-center gap-1 font-medium ${getTrendColor(accountInsight.followersGrowthPercent || 0)}`}
+                key={metric.label}
+                className="flex flex-col p-3 bg-muted/50 rounded-lg"
               >
-                {getTrendIcon(accountInsight.followersGrowthPercent || 0)}
-                <span>
-                  {formatPercentage(accountInsight.followersGrowthPercent || 0)}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <span className="text-muted-foreground">Engagement</span>
-              <div
-                className={`flex items-center gap-1 font-medium ${getTrendColor(accountInsight.engagementGrowthPercent || 0)}`}
-              >
-                {getTrendIcon(accountInsight.engagementGrowthPercent || 0)}
-                <span>
-                  {formatPercentage(
-                    accountInsight.engagementGrowthPercent || 0
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-muted-foreground">{metric.label}</span>
+                  {metric.loading ? (
+                    <Skeleton className="h-4 w-16" />
+                  ) : (
+                    <div
+                      className={`flex items-center gap-1 font-medium ${getTrendColor(metric.value)}`}
+                    >
+                      {getTrendIcon(metric.value)}
+                      <span>{formatPercentage(metric.value)}</span>
+                    </div>
                   )}
-                </span>
+                </div>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  {metric.loading ? (
+                    <>
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-full" />
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Current:</span>
+                        <span>{metric.currentValue.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Previous:</span>
+                        <span>{metric.prevValue.toLocaleString()}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <span className="text-muted-foreground">Reach</span>
-              <div
-                className={`flex items-center gap-1 font-medium ${getTrendColor(accountInsight.reachGrowthPercent || 0)}`}
-              >
-                {getTrendIcon(accountInsight.reachGrowthPercent || 0)}
-                <span>
-                  {formatPercentage(accountInsight.reachGrowthPercent || 0)}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <span className="text-muted-foreground">Posts</span>
-              <div
-                className={`flex items-center gap-1 font-medium ${getTrendColor(accountInsight.mediaGrowthPercent || 0)}`}
-              >
-                {getTrendIcon(accountInsight.mediaGrowthPercent || 0)}
-                <span>
-                  {formatPercentage(accountInsight.mediaGrowthPercent || 0)}
-                </span>
-              </div>
+            ))}
+          </div>
+          <div className="mt-4 text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Info className="h-4 w-4" />
+              <span>
+                Growth percentages are calculated by comparing current values
+                with yesterday's data. A change greater than 2% is considered
+                significant.
+              </span>
             </div>
           </div>
         </CardContent>
@@ -512,9 +580,6 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
               ).toLocaleString()}
             </div>
             <div className="text-xs text-muted-foreground space-y-1">
-              <div>
-                Likes: {(accountInsight.totalLikes || 0).toLocaleString()}
-              </div>
               {accountInsight.platform === "FACEBOOK" && (
                 <div>
                   Reactions:{" "}
