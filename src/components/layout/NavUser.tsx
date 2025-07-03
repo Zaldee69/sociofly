@@ -173,10 +173,12 @@ export function NavUser({ variant = "default" }: NavUserProps) {
             <UserCircleIcon className="mr-2 h-4 w-4" />
             Account
           </DropdownMenuItem>
-          <DropdownMenuItem className="hover:cursor-pointer">
-            <CreditCardIcon className="mr-2 h-4 w-4" />
-            Billing
-          </DropdownMenuItem>
+          <Link href="/billing" className="flex items-center gap-2">
+            <DropdownMenuItem className="hover:cursor-pointer">
+              <CreditCardIcon className="mr-2 h-4 w-4" />
+              Billing
+            </DropdownMenuItem>
+          </Link>
           <Link href="/teams" className="flex items-center gap-2">
             <DropdownMenuItem className="w-full hover:cursor-pointer">
               <Users className="mr-2 h-4 w-4" />
