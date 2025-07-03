@@ -9,6 +9,7 @@ import {
   Search,
   PlusCircle,
   Loader2,
+  ShieldOff,
 } from "lucide-react";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,7 +51,10 @@ import { cn } from "@/lib/utils";
 
 import { useTeam } from "@/lib/hooks/use-teams";
 import { useTeamContext } from "@/lib/contexts/team-context";
-import { useIsMobile } from "@/lib/hooks";
+import { useIsMobile, useFeatureFlag } from "@/lib/hooks";
+import { Feature } from "@/config/feature-flags";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const Media = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -65,6 +69,13 @@ const Media = () => {
 
   const { currentTeamId, isLoading: isLoadingTeam } = useTeamContext();
   const { team } = useTeam(currentTeamId || "");
+
+  const { hasFeature } = useFeatureFlag();
+  const canAccessBasicMediaStorage = hasFeature(Feature.MEDIA_STORAGE_BASIC);
+  const canAccessProMediaStorage = hasFeature(Feature.MEDIA_STORAGE_PRO);
+  const canAccessUnlimitedMediaStorage = hasFeature(
+    Feature.MEDIA_STORAGE_UNLIMITED
+  );
 
   const { setFiles } = useFiles();
   const utils = trpc.useUtils();
@@ -147,6 +158,16 @@ const Media = () => {
 
   return (
     <Fragment>
+      {!canAccessBasicMediaStorage && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Feature Not Available</AlertTitle>
+          <AlertDescription>
+            Your current plan does not support media storage. Please upgrade
+            your subscription to access this feature.
+          </AlertDescription>
+        </Alert>
+      )}
       <Card className="min-h-[80vh]">
         <CardHeader className="border-b pb-4">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
@@ -175,7 +196,7 @@ const Media = () => {
               >
                 <DialogTrigger className="w-fit" asChild>
                   <Button
-                    disabled={!currentTeamId}
+                    disabled={!currentTeamId || !canAccessBasicMediaStorage}
                     onClick={() => setIsDialogOpen(true)}
                   >
                     <UploadCloud className="w-4 h-4 mr-2" />
@@ -199,7 +220,7 @@ const Media = () => {
                       </div>
                     </DialogDescription>
                   </DialogHeader>
-                  {currentTeamId ? (
+                  {currentTeamId && canAccessBasicMediaStorage ? (
                     <FileUploadArea
                       onUploadStart={() => setIsUploading(true)}
                       onUploadComplete={() => {
@@ -212,7 +233,11 @@ const Media = () => {
                     <div className="flex items-center justify-center h-[300px] border-2 border-dashed rounded-lg">
                       <div className="text-center text-muted-foreground">
                         <UploadCloud className="w-12 h-12 mx-auto mb-2" />
-                        <div>Select a team to upload media</div>
+                        <div>
+                          {currentTeamId
+                            ? "Your current plan does not support media uploads."
+                            : "Select a team to upload media"}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -229,6 +254,7 @@ const Media = () => {
                 className="pl-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                disabled={!canAccessBasicMediaStorage}
               />
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             </div>
@@ -239,6 +265,7 @@ const Media = () => {
                 onValueChange={(value: "all" | "images" | "videos") =>
                   setFilter(value)
                 }
+                disabled={!canAccessBasicMediaStorage}
               >
                 <SelectTrigger className="w-[160px]">
                   <SelectValue placeholder="Filter" />
@@ -256,6 +283,7 @@ const Media = () => {
                   size="icon"
                   className={viewMode === "grid" ? "bg-accent" : ""}
                   onClick={() => setViewMode("grid")}
+                  disabled={!canAccessBasicMediaStorage}
                 >
                   <Grid2x2 size={16} />
                 </Button>
@@ -264,6 +292,7 @@ const Media = () => {
                   size="icon"
                   className={viewMode === "list" ? "bg-accent" : ""}
                   onClick={() => setViewMode("list")}
+                  disabled={!canAccessBasicMediaStorage}
                 >
                   <List size={16} />
                 </Button>
@@ -273,11 +302,18 @@ const Media = () => {
         </CardHeader>
 
         <CardContent className="p-0">
-          {isLoading ? (
+          {isLoading || !canAccessBasicMediaStorage ? (
             <div className="flex items-center justify-center min-h-[420px] p-8 flex-1">
-              <div className="animate-spin">
-                <Loader2 className="w-8 h-8 text-muted-foreground" />
-              </div>
+              {isLoading ? (
+                <div className="animate-spin">
+                  <Loader2 className="w-8 h-8 text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="text-center text-muted-foreground">
+                  <ShieldOff className="w-12 h-12 mx-auto mb-2" />
+                  <p>Media library not available on your current plan.</p>
+                </div>
+              )}
             </div>
           ) : media.length === 0 ? (
             <div className="flex flex-col items-center justify-center min-h-[220px] p-8 flex-1">

@@ -20,6 +20,7 @@ const envSchema = z.object({
 
   // Auth
   CLERK_SECRET_KEY: z.string().min(1),
+  CLERK_WEBHOOK_SECRET: z.string().min(1),
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
   NEXT_PUBLIC_CLERK_SIGN_IN_URL: z.string().default("/auth/sign-in"),
   NEXT_PUBLIC_CLERK_SIGN_UP_URL: z.string().default("/auth/sign-up"),
@@ -58,7 +59,8 @@ function getEnv() {
     NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env?.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
     NEXT_PUBLIC_CLERK_SIGN_UP_URL: process.env?.NEXT_PUBLIC_CLERK_SIGN_UP_URL,
     NEXT_PUBLIC_APP_URL: process.env?.NEXT_PUBLIC_APP_URL,
-    NEXT_PUBLIC_MIDTRANS_CLIENT_KEY: process.env?.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY,
+    NEXT_PUBLIC_MIDTRANS_CLIENT_KEY:
+      process.env?.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY,
     NEXT_PUBLIC_MIDTRANS_SNAP_URL: process.env?.NEXT_PUBLIC_MIDTRANS_SNAP_URL,
   };
 

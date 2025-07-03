@@ -1,12 +1,15 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
+import { createTRPCRouter, protectedProcedure, hasFeature } from "@/server/api/trpc";
+import { Feature } from "@/config/feature-flags";
 import { TRPCError } from "@trpc/server";
 
 export const userRouter = createTRPCRouter({
   /**
    * Get current user's subscription details
    */
-  getSubscriptionDetails: protectedProcedure.query(async ({ ctx }) => {
+  getSubscriptionDetails: protectedProcedure
+    .use(hasFeature(Feature.EMAIL_SUPPORT))
+    .query(async ({ ctx }) => {
     const { userId } = ctx;
 
     if (!userId) {

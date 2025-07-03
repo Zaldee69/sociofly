@@ -22,13 +22,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle, Clock, X } from "lucide-react";
 import { api } from "@/lib/utils/api";
 import PaymentHistory from "./components/payment-history";
-
-// Plan ranking for comparison (higher number = higher tier)
-const PLAN_RANKS = {
-  FREE: 1,
-  PRO: 2,
-  ENTERPRISE: 3,
-};
+import { PLAN_RANKS } from "@/config/feature-flags";
 
 const pricingPlans = [
   {
@@ -39,11 +33,11 @@ const pricingPlans = [
     period: "month",
     description: "Perfect for individuals getting started",
     features: [
-      "Up to 5 projects",
-      "Basic templates",
-      "Email support",
-      "10GB storage",
-      "Standard features",
+      "Basic Post Scheduling (up to 5 projects)",
+      "Connect 1 Social Account",
+      "Basic Post Analytics",
+      "1 GB Media Storage",
+      "Email Support",
     ],
     popular: false,
     icon: Globe,
@@ -57,13 +51,15 @@ const pricingPlans = [
     period: "month",
     description: "Best for growing teams and businesses",
     features: [
-      "Unlimited projects",
-      "Premium templates",
-      "Priority support",
-      "100GB storage",
-      "Advanced analytics",
-      "Team collaboration",
-      "Custom integrations",
+      "Unlimited Post Scheduling",
+      "Connect up to 10 Social Accounts",
+      "Advanced Analytics & Insights",
+      "Team Collaboration & Role Management",
+      "Basic Approval Workflows",
+      "AI Content Assistant",
+      "Unified Inbox",
+      "100 GB Media Storage",
+      "Priority Email Support",
     ],
     popular: true,
     icon: Zap,
@@ -77,13 +73,15 @@ const pricingPlans = [
     period: "month",
     description: "For large organizations with advanced needs",
     features: [
-      "Everything in Premium",
-      "Dedicated support",
-      "Unlimited storage",
-      "Custom branding",
-      "Advanced security",
-      "API access",
-      "SLA guarantee",
+      "Everything in Pro",
+      "Unlimited Social Accounts & Teams",
+      "Advanced Approval Workflows",
+      "Dedicated Account Manager",
+      "Custom Integrations & API Access",
+      "Advanced Security & Compliance",
+      "SLA Guarantee",
+      "Custom Branding",
+      "Unlimited Media Storage",
     ],
     popular: false,
     icon: Shield,

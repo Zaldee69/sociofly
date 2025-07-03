@@ -6,6 +6,8 @@ import { useTeamContext } from "@/lib/contexts/team-context";
 import { Loader2, Plus, ChevronsUpDown, AudioWaveform } from "lucide-react";
 
 import { trpc } from "@/lib/trpc/client";
+import { useFeatureFlag } from "@/lib/hooks";
+import { Feature } from "@/config/feature-flags";
 
 import {
   DropdownMenu,
@@ -22,6 +24,9 @@ export function TeamSwitcher() {
   const { currentTeamId, setCurrentTeamId, isLoading } = useTeamContext();
   const { data: teams } = trpc.team.getAllTeams.useQuery();
   const currentTeam = teams?.find((team) => team.id === currentTeamId);
+
+  const { hasFeature } = useFeatureFlag();
+  const canCreateTeam = hasFeature(Feature.TEAM_COLLABORATION);
 
   return (
     <DropdownMenu>
@@ -72,12 +77,14 @@ export function TeamSwitcher() {
           ))
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="gap-2 p-2">
-          <div className="flex size-6 items-center justify-center rounded-md border bg-background">
-            <Plus className="size-4" />
-          </div>
-          <div className="font-medium text-muted-foreground">Add team</div>
-        </DropdownMenuItem>
+        {canCreateTeam && (
+          <DropdownMenuItem className="gap-2 p-2">
+            <div className="flex size-6 items-center justify-center rounded-md border bg-background">
+              <Plus className="size-4" />
+            </div>
+            <div className="font-medium text-muted-foreground">Add team</div>
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

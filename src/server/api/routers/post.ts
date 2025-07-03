@@ -4,7 +4,9 @@ import {
   publicProcedure,
   protectedProcedure,
   createTRPCRouter,
+  hasFeature,
 } from "@/server/api/trpc";
+import { Feature } from "@/config/feature-flags";
 import { PostStatus, SocialPlatform } from "@prisma/client";
 import { PostPublisherService } from "@/lib/services/post-publisher";
 
@@ -142,6 +144,7 @@ export const postRouter = createTRPCRouter({
 
   // Buat post baru
   create: protectedProcedure
+    .use(hasFeature(Feature.BASIC_POST_SCHEDULING))
     .input(createPostSchema)
     .mutation(async ({ ctx, input }) => {
       const {
@@ -235,6 +238,7 @@ export const postRouter = createTRPCRouter({
 
   // Update post yang sudah ada
   update: protectedProcedure
+    .use(hasFeature(Feature.BASIC_POST_SCHEDULING))
     .input(
       updatePostSchema.extend({
         socialAccountIds: z.array(z.string()).optional(),
@@ -348,6 +352,7 @@ export const postRouter = createTRPCRouter({
 
   // Hapus post
   delete: protectedProcedure
+    .use(hasFeature(Feature.BASIC_POST_SCHEDULING))
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const { id } = input;
@@ -418,6 +423,7 @@ export const postRouter = createTRPCRouter({
 
   // Publish post secara manual
   publish: protectedProcedure
+    .use(hasFeature(Feature.BASIC_POST_SCHEDULING))
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const { id } = input;
@@ -484,6 +490,7 @@ export const postRouter = createTRPCRouter({
 
   // Publish post immediately (for "Publish Now" action)
   publishNow: protectedProcedure
+    .use(hasFeature(Feature.BASIC_POST_SCHEDULING))
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const { id } = input;
@@ -550,6 +557,7 @@ export const postRouter = createTRPCRouter({
 
   // Mendapatkan daftar post yang gagal dipublikasi
   getFailed: protectedProcedure
+    .use(hasFeature(Feature.BASIC_POST_SCHEDULING))
     .input(
       z.object({
         teamId: z.string(),
@@ -603,6 +611,7 @@ export const postRouter = createTRPCRouter({
 
   // Mencoba kembali publikasi post yang gagal
   retry: protectedProcedure
+    .use(hasFeature(Feature.BASIC_POST_SCHEDULING))
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const { id } = input;
@@ -679,6 +688,7 @@ export const postRouter = createTRPCRouter({
 
   // Get approval instances for a post
   getApprovalInstances: protectedProcedure
+    .use(hasFeature(Feature.BASIC_APPROVAL_WORKFLOWS))
     .input(z.object({ postId: z.string() }))
     .query(async ({ ctx, input }) => {
       const { postId } = input;
@@ -748,6 +758,7 @@ export const postRouter = createTRPCRouter({
 
   // Get analytics for a specific post
   getAnalytics: protectedProcedure
+    .use(hasFeature(Feature.BASIC_POST_ANALYTICS))
     .input(z.object({ postId: z.string() }))
     .query(async ({ ctx, input }) => {
       try {

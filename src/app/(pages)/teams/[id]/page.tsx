@@ -20,8 +20,9 @@ import {
 
 // Hooks
 import { useTeamPageData } from "./hooks";
-import { usePermissions } from "@/lib/hooks";
+import { usePermissions, useFeatureFlag } from "@/lib/hooks";
 import ApprovalWorkflowTab from "./components/approval-workflow-tab";
+import { Feature } from "@/config/feature-flags";
 
 // Animation variants
 const pageTransition = {
@@ -67,10 +68,16 @@ const TeamPage = () => {
   // Use custom hook for loading team data
   const { team, isLoading } = useTeamPageData(teamId as string);
 
-  // Get permissions
+  // Get permissions and feature flags
   const { hasPermission, isPermissionsLoaded } = usePermissions(
     teamId as string
   );
+  const { hasFeature } = useFeatureFlag();
+
+  const canAccessTeamCollaboration = hasFeature(Feature.TEAM_COLLABORATION);
+  const canAccessRoleManagement = hasFeature(Feature.ROLE_MANAGEMENT);
+  const canAccessBasicApprovalWorkflows = hasFeature(Feature.BASIC_APPROVAL_WORKFLOWS);
+  const canConnectSocialAccountsBasic = hasFeature(Feature.CONNECT_SOCIAL_ACCOUNTS_BASIC);
 
   // Set active tab to social-accounts if sessionId is present
   useEffect(() => {
@@ -154,14 +161,16 @@ const TeamPage = () => {
               </TabsTrigger>
             </motion.div>
 
-            <motion.div variants={fadeInUp}>
-              <TabsTrigger value="social-accounts">
-                <Users className="h-4 w-4 mr-2" />
-                Social Accounts
-              </TabsTrigger>
-            </motion.div>
+            {canConnectSocialAccountsBasic && (
+              <motion.div variants={fadeInUp}>
+                <TabsTrigger value="social-accounts">
+                  <Users className="h-4 w-4 mr-2" />
+                  Social Accounts
+                </TabsTrigger>
+              </motion.div>
+            )}
 
-            {hasPermission("team.manage") && (
+            {canAccessTeamCollaboration && (
               <motion.div variants={fadeInUp}>
                 <TabsTrigger value="invites">
                   <Mail className="h-4 w-4 mr-2" />
@@ -170,7 +179,7 @@ const TeamPage = () => {
               </motion.div>
             )}
 
-            {hasPermission("team.manage") && (
+            {canAccessRoleManagement && (
               <motion.div variants={fadeInUp}>
                 <TabsTrigger value="roles">
                   <Settings className="h-4 w-4 mr-2" />
@@ -179,7 +188,7 @@ const TeamPage = () => {
               </motion.div>
             )}
 
-            {hasPermission("team.manage") && (
+            {canAccessBasicApprovalWorkflows && (
               <motion.div variants={fadeInUp}>
                 <TabsTrigger value="approval-workflow">
                   <CheckCircle2 className="h-4 w-4 mr-2" />
@@ -188,7 +197,7 @@ const TeamPage = () => {
               </motion.div>
             )}
 
-            {hasPermission("team.manage") && (
+            {canAccessTeamCollaboration && (
               <motion.div variants={fadeInUp}>
                 <TabsTrigger value="settings">
                   <Settings className="h-4 w-4 mr-2" />
@@ -213,31 +222,31 @@ const TeamPage = () => {
               </TabsContent>
             )}
 
-            {activeTab === "social-accounts" && (
+            {canConnectSocialAccountsBasic && activeTab === "social-accounts" && (
               <TabsContent value="social-accounts" forceMount>
                 <SocialAccountsTab teamId={teamId as string} />
               </TabsContent>
             )}
 
-            {hasPermission("team.manage") && activeTab === "invites" && (
+            {canAccessTeamCollaboration && activeTab === "invites" && (
               <TabsContent value="invites" forceMount>
                 <TeamInvitesTab teamId={teamId as string} team={team} />
               </TabsContent>
             )}
 
-            {hasPermission("team.manage") && activeTab === "roles" && (
+            {canAccessRoleManagement && activeTab === "roles" && (
               <TabsContent value="roles" forceMount>
                 <TeamRolesTab teamId={teamId as string} />
               </TabsContent>
             )}
 
-            {hasPermission("team.manage") && activeTab === "settings" && (
+            {canAccessTeamCollaboration && activeTab === "settings" && (
               <TabsContent value="settings" forceMount>
                 <TeamSettingsTab teamId={teamId as string} team={team} />
               </TabsContent>
             )}
 
-            {hasPermission("team.manage") &&
+            {canAccessBasicApprovalWorkflows &&
               activeTab === "approval-workflow" && (
                 <TabsContent value="approval-workflow" forceMount>
                   <ApprovalWorkflowTab />

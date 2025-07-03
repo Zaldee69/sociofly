@@ -34,6 +34,7 @@ import {
   FileText,
   Filter,
   Clock,
+  ShieldOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -63,6 +64,8 @@ import CustomReports from "@/components/analytics/custom-reports";
 import { trpc } from "@/lib/trpc/client";
 import { useTeamContext } from "@/lib/contexts/team-context";
 import { Loader2 } from "lucide-react";
+import { useFeatureFlag } from "@/lib/hooks";
+import { Feature } from "@/config/feature-flags";
 
 // Components
 import AccountSelector from "@/components/analytics/account-selector";
@@ -74,6 +77,9 @@ const Analytics: React.FC = () => {
   const [isMainNavbarHidden, setIsMainNavbarHidden] = useState(false);
   const [isManualNavigation, setIsManualNavigation] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const { hasFeature } = useFeatureFlag();
+  const canAccessAdvancedAnalytics = hasFeature(Feature.ADVANCED_ANALYTICS);
 
   // Date Range Filter State
   const [dateRange, setDateRange] = useState<{
@@ -428,121 +434,129 @@ const Analytics: React.FC = () => {
 
             <div className="flex items-center gap-3">
               {/* Date Range Filter */}
-              {/* <Card className="px-3 py-2">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Periode:</span>
+              {canAccessAdvancedAnalytics && (
+                <Card className="px-3 py-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Periode:</span>
+                    </div>
+
+                    <Select
+                      value={dateRange.preset}
+                      onValueChange={handleDatePresetChange}
+                    >
+                      <SelectTrigger className="w-[180px] h-8">
+                        <SelectValue placeholder="Pilih periode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <div className="p-2">
+                          <div className="text-xs font-medium text-muted-foreground mb-2 px-2">
+                            Quick Select
+                          </div>
+                          {datePresets.slice(0, 5).map((preset) => (
+                            <SelectItem key={preset.value} value={preset.value}>
+                              {preset.label}
+                            </SelectItem>
+                          ))}
+                        </div>
+
+                        <div className="p-2 border-t">
+                          <div className="text-xs font-medium text-muted-foreground mb-2 px-2">
+                            Weekly & Monthly
+                          </div>
+                          {datePresets.slice(5, 9).map((preset) => (
+                            <SelectItem key={preset.value} value={preset.value}>
+                              {preset.label}
+                            </SelectItem>
+                          ))}
+                        </div>
+
+                        <div className="p-2 border-t">
+                          <div className="text-xs font-medium text-muted-foreground mb-2 px-2">
+                            Long Term
+                          </div>
+                          {datePresets.slice(9, 12).map((preset) => (
+                            <SelectItem key={preset.value} value={preset.value}>
+                              {preset.label}
+                            </SelectItem>
+                          ))}
+                        </div>
+                      </SelectContent>
+                    </Select>
+
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground border-l pl-3">
+                      <Badge variant="secondary" className="text-xs">
+                        {dateRange.days} hari
+                      </Badge>
+                      <span className="text-xs">
+                        {format(dateRange.startDate, "MMM dd")} -{" "}
+                        {format(dateRange.endDate, "MMM dd")}
+                      </span>
+                    </div>
                   </div>
-
-                  <Select
-                    value={dateRange.preset}
-                    onValueChange={handleDatePresetChange}
-                  >
-                    <SelectTrigger className="w-[180px] h-8">
-                      <SelectValue placeholder="Pilih periode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <div className="p-2">
-                        <div className="text-xs font-medium text-muted-foreground mb-2 px-2">
-                          Quick Select
-                        </div>
-                        {datePresets.slice(0, 5).map((preset) => (
-                          <SelectItem key={preset.value} value={preset.value}>
-                            {preset.label}
-                          </SelectItem>
-                        ))}
-                      </div>
-
-                      <div className="p-2 border-t">
-                        <div className="text-xs font-medium text-muted-foreground mb-2 px-2">
-                          Weekly & Monthly
-                        </div>
-                        {datePresets.slice(5, 9).map((preset) => (
-                          <SelectItem key={preset.value} value={preset.value}>
-                            {preset.label}
-                          </SelectItem>
-                        ))}
-                      </div>
-
-                      <div className="p-2 border-t">
-                        <div className="text-xs font-medium text-muted-foreground mb-2 px-2">
-                          Long Term
-                        </div>
-                        {datePresets.slice(9, 12).map((preset) => (
-                          <SelectItem key={preset.value} value={preset.value}>
-                            {preset.label}
-                          </SelectItem>
-                        ))}
-                      </div>
-                    </SelectContent>
-                  </Select>
-
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground border-l pl-3">
-                    <Badge variant="secondary" className="text-xs">
-                      {dateRange.days} hari
-                    </Badge>
-                    <span className="text-xs">
-                      {format(dateRange.startDate, "MMM dd")} -{" "}
-                      {format(dateRange.endDate, "MMM dd")}
-                    </span>
-                  </div>
-                </div>
-              </Card> */}
+                </Card>
+              )}
 
               {/* Collection Status */}
-              {/* {selectedAccount && collectionStatus && (
-                <Card className="px-3 py-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="flex items-center gap-1">
-                      {collectionStatus.status === "collecting" ? (
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                      ) : collectionStatus.status === "ready" ? (
-                        <div className="w-2 h-2 bg-green-500 rounded-full" />
-                      ) : collectionStatus.status === "stale" ? (
-                        <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-                      ) : (
-                        <div className="w-2 h-2 bg-gray-400 rounded-full" />
-                      )}
-                      <span className="text-muted-foreground">
-                        {collectionStatus.status === "collecting"
-                          ? "Mengumpulkan data..."
-                          : collectionStatus.status === "ready"
-                            ? "Data terbaru"
-                            : collectionStatus.status === "stale"
-                              ? "Data lama"
-                              : "Belum ada data"}
-                      </span>
-                      {collectionStatus.lastCollected && (
-                        <Badge variant="secondary" className="text-xs">
-                          {new Date(
-                            collectionStatus.lastCollected
-                          ).toLocaleDateString()}
-                        </Badge>
-                      )}
+              {canAccessAdvancedAnalytics &&
+                selectedAccount &&
+                collectionStatus && (
+                  <Card className="px-3 py-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="flex items-center gap-1">
+                        {collectionStatus.status === "collecting" ? (
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                        ) : collectionStatus.status === "ready" ? (
+                          <div className="w-2 h-2 bg-green-500 rounded-full" />
+                        ) : collectionStatus.status === "stale" ? (
+                          <div className="w-2 h-2 bg-yellow-500 rounded-full" />
+                        ) : (
+                          <div className="w-2 h-2 bg-gray-400 rounded-full" />
+                        )}
+                        <span className="text-muted-foreground">
+                          {collectionStatus.status === "collecting"
+                            ? "Mengumpulkan data..."
+                            : collectionStatus.status === "ready"
+                              ? "Data terbaru"
+                              : collectionStatus.status === "stale"
+                                ? "Data lama"
+                                : "Belum ada data"}
+                        </span>
+                        {collectionStatus.lastCollected && (
+                          <Badge variant="secondary" className="text-xs">
+                            {new Date(
+                              collectionStatus.lastCollected
+                            ).toLocaleDateString()}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              )} */}
+                  </Card>
+                )}
 
               {/* Global Coverage Stats */}
-              {/* {stats && stats.success && stats.data && (
-                <Card className="px-3 py-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                      <span className="text-muted-foreground">Coverage:</span>
-                      <Badge variant="secondary">
-                        {stats.data.summary.uniqueAccountsTracked} accounts
-                      </Badge>
-                      <span className="text-muted-foreground">•</span>
-                      <Badge variant="outline">
-                        {stats.data.summary.totalAccountCollections} collections
-                      </Badge>
+              {canAccessAdvancedAnalytics &&
+                stats &&
+                stats.success &&
+                stats.data && (
+                  <Card className="px-3 py-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                        <span className="text-muted-foreground">Coverage:</span>
+                        <Badge variant="secondary">
+                          {stats.data.summary.uniqueAccountsTracked} accounts
+                        </Badge>
+                        <span className="text-muted-foreground">•</span>
+                        <Badge variant="outline">
+                          {stats.data.summary.totalAccountCollections}{" "}
+                          collections
+                        </Badge>
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              )} */}
+                  </Card>
+                )}
 
               {/* Auto-refresh Indicator */}
               {isFetchingAccountInsight && !isLoadingAccountInsight && (
@@ -732,151 +746,175 @@ const Analytics: React.FC = () => {
               )}
 
             {/* All Analytics Sections - Always Rendered */}
-            {!isLoadingAccountInsight && selectedAccount && (
-              <div className="space-y-12">
-                {/* Overview & Growth Section - MERGED */}
-                <section id="overview" className="scroll-mt-24 space-y-6">
-                  <OverviewSection
-                    accountInsight={{
-                      // Basic metrics
-                      totalFollowers: accountInsight?.followersCount,
-                      totalPosts: accountInsight?.mediaCount,
+            {canAccessAdvancedAnalytics ? (
+              !isLoadingAccountInsight &&
+              selectedAccount && (
+                <div className="space-y-12">
+                  {/* Overview & Growth Section - MERGED */}
+                  <section id="overview" className="scroll-mt-24 space-y-6">
+                    <OverviewSection
+                      accountInsight={{
+                        // Basic metrics
+                        totalFollowers: accountInsight?.followersCount,
+                        totalPosts: accountInsight?.mediaCount,
 
-                      // Engagement metrics (use available data or defaults)
-                      totalLikes: (accountInsight as any)?.totalLikes || 0,
-                      totalReactions: 0, // Facebook reactions (not implemented yet)
-                      totalComments:
-                        (accountInsight as any)?.totalComments || 0,
-                      totalShares: (accountInsight as any)?.totalShares || 0,
-                      totalSaves: (accountInsight as any)?.totalSaves || 0,
-                      totalClicks: (accountInsight as any)?.totalClicks || 0,
+                        // Engagement metrics (use available data or defaults)
+                        totalLikes: (accountInsight as any)?.totalLikes || 0,
+                        totalReactions: 0, // Facebook reactions (not implemented yet)
+                        totalComments:
+                          (accountInsight as any)?.totalComments || 0,
+                        totalShares: (accountInsight as any)?.totalShares || 0,
+                        totalSaves: (accountInsight as any)?.saves || 0,
+                        totalClicks: (accountInsight as any)?.clicks || 0,
 
-                      // Reach & Impressions
-                      totalReach: (accountInsight as any)?.totalReach || 0,
-                      totalImpressions:
-                        (accountInsight as any)?.totalImpressions || 0,
-                      avgReachPerPost: accountInsight?.avgReachPerPost,
+                        // Reach & Impressions
+                        totalReach: (accountInsight as any)?.totalReach || 0,
+                        totalImpressions:
+                          (accountInsight as any)?.impressions || 0,
+                        avgReachPerPost: accountInsight?.avgReachPerPost,
 
-                      // Calculated metrics
-                      engagementRate: accountInsight?.engagementRate,
-                      avgEngagementPerPost:
-                        (accountInsight as any)?.avgEngagementPerPost || 0,
-                      avgClickThroughRate:
-                        (accountInsight as any)?.avgClickThroughRate || 0,
+                        // Calculated metrics
+                        engagementRate: accountInsight?.engagementRate,
+                        avgEngagementPerPost:
+                          (accountInsight as any)?.avgEngagementPerPost || 0,
+                        avgClickThroughRate:
+                          (accountInsight as any)?.avgClickThroughRate || 0,
 
-                      // Pre-calculated averages from database
-                      avgLikesPerPost:
-                        (accountInsight as any)?.avgLikesPerPost || 0,
-                      avgCommentsPerPost:
-                        (accountInsight as any)?.avgCommentsPerPost || 0,
-                      avgSharesPerPost:
-                        (accountInsight as any)?.avgSharesPerPost || 0,
-                      avgSavesPerPost:
-                        (accountInsight as any)?.avgSavesPerPost || 0,
+                        // Pre-calculated averages from database
+                        avgLikesPerPost:
+                          (accountInsight as any)?.avgLikesPerPost || 0,
+                        avgCommentsPerPost:
+                          (accountInsight as any)?.avgCommentsPerPost || 0,
+                        avgSharesPerPost:
+                          (accountInsight as any)?.avgSharesPerPost || 0,
+                        avgSavesPerPost:
+                          (accountInsight as any)?.avgSavesPerPost || 0,
 
-                      // Analytics metadata
-                      postsAnalyzed:
-                        (accountInsight as any)?.postsAnalyzed || 0,
-                      totalPostsOnPlatform:
-                        (accountInsight as any)?.totalPostsOnPlatform ||
-                        accountInsight?.mediaCount ||
-                        0,
+                        // Analytics metadata
+                        postsAnalyzed:
+                          (accountInsight as any)?.postsAnalyzed || 0,
+                        totalPostsOnPlatform:
+                          (accountInsight as any)?.totalPostsOnPlatform ||
+                          accountInsight?.mediaCount ||
+                          0,
 
-                      // Growth metrics
-                      followerGrowth: accountInsight?.followerGrowth || null,
-                      mediaGrowth: accountInsight?.mediaGrowth || null,
-                      engagementGrowth:
-                        accountInsight?.engagementGrowth || null,
-                      reachGrowth: accountInsight?.reachGrowth || null,
+                        // Growth metrics
+                        followerGrowth: accountInsight?.followerGrowth || null,
+                        mediaGrowth: accountInsight?.mediaGrowth || null,
+                        engagementGrowth:
+                          accountInsight?.engagementGrowth || null,
+                        reachGrowth: accountInsight?.reachGrowth || null,
 
-                      // Previous period values
-                      previousFollowersCount:
-                        accountInsight?.followerGrowth?.previous || 0,
-                      previousMediaCount:
-                        accountInsight?.mediaGrowth?.previous || 0,
-                      previousEngagementRate:
-                        accountInsight?.engagementGrowth?.previous || 0,
-                      previousAvgReachPerPost:
-                        accountInsight?.reachGrowth?.previous || 0,
+                        // Previous period values
+                        previousFollowersCount:
+                          accountInsight?.followerGrowth?.previous || 0,
+                        previousMediaCount:
+                          accountInsight?.mediaGrowth?.previous || 0,
+                        previousEngagementRate:
+                          accountInsight?.engagementGrowth?.previous || 0,
+                        previousAvgReachPerPost:
+                          accountInsight?.reachGrowth?.previous || 0,
 
-                      // Platform specific
-                      platform: selectedPlatform as "INSTAGRAM" | "FACEBOOK",
-                      bioLinkClicks:
-                        (accountInsight as any)?.bioLinkClicks || 0,
-                      storyViews: (accountInsight as any)?.storyViews || 0,
-                      profileVisits: accountInsight?.profileVisits,
+                        // Platform specific
+                        platform: selectedPlatform as "INSTAGRAM" | "FACEBOOK",
+                        bioLinkClicks:
+                          (accountInsight as any)?.bioLinkClicks || 0,
+                        storyViews: (accountInsight as any)?.storyViews || 0,
+                        profileVisits: accountInsight?.profileVisits,
 
-                      // New fields for post analytics integration
-                      socialAccountId: selectedAccount,
-                      teamId: currentTeamId!,
-                    }}
-                    stats={stats}
-                    isLoading={isLoadingAccountInsight || isLoadingStats}
-                  />
-                </section>
-
-                {/* Stories Section - Instagram Only */}
-                {selectedPlatform === "INSTAGRAM" && (
-                  <section id="stories" className="scroll-mt-24">
-                    <StoriesPerformance platform="instagram" />
+                        // New fields for post analytics integration
+                        socialAccountId: selectedAccount,
+                        teamId: currentTeamId!,
+                      }}
+                      stats={stats}
+                      isLoading={isLoadingAccountInsight || isLoadingStats}
+                    />
                   </section>
-                )}
 
-                {/* Audience Section */}
-                <section id="audience" className="scroll-mt-24">
-                  <AudienceInsights />
-                </section>
+                  {/* Stories Section - Instagram Only */}
+                  {selectedPlatform === "INSTAGRAM" && (
+                    <section id="stories" className="scroll-mt-24">
+                      <StoriesPerformance platform="instagram" />
+                    </section>
+                  )}
 
-                {/* Hashtags Section - Instagram Only */}
-                {selectedPlatform === "INSTAGRAM" && (
-                  <section id="hashtags" className="scroll-mt-24">
-                    <HashtagAnalytics />
+                  {/* Audience Section */}
+                  <section id="audience" className="scroll-mt-24">
+                    <AudienceInsights />
                   </section>
-                )}
 
-                {/* Links Section */}
-                <section id="links" className="scroll-mt-24">
-                  <LinkAnalytics />
-                </section>
+                  {/* Hashtags Section - Instagram Only */}
+                  {selectedPlatform === "INSTAGRAM" && (
+                    <section id="hashtags" className="scroll-mt-24">
+                      <HashtagAnalytics />
+                    </section>
+                  )}
 
-                {/* Sentiment Section */}
-                <section id="sentiment" className="scroll-mt-24">
-                  <SentimentAnalysis />
-                </section>
+                  {/* Links Section */}
+                  <section id="links" className="scroll-mt-24">
+                    <LinkAnalytics />
+                  </section>
 
-                {/* Optimization Section */}
-                <section id="optimization" className="scroll-mt-24">
-                  <PostTimeOptimizer
-                    socialAccountId={selectedAccount}
-                    teamId={currentTeamId!}
-                  />
-                </section>
+                  {/* Sentiment Section */}
+                  <section id="sentiment" className="scroll-mt-24">
+                    <SentimentAnalysis />
+                  </section>
 
-                {/* Competitors Section */}
-                <section id="competitors" className="scroll-mt-24">
-                  <CompetitorBenchmarking
-                    platform={selectedPlatform.toLowerCase()}
-                  />
-                </section>
+                  {/* Optimization Section */}
+                  <section id="optimization" className="scroll-mt-24">
+                    <PostTimeOptimizer
+                      socialAccountId={selectedAccount}
+                      teamId={currentTeamId!}
+                    />
+                  </section>
 
-                {/* Custom Reports Section */}
-                <section id="custom-reports" className="scroll-mt-24">
-                  <CustomReports
-                    userPlan="enterprise"
-                    socialAccountId={selectedAccount || undefined}
-                    teamId={currentTeamId || undefined}
-                  />
-                </section>
+                  {/* Competitors Section */}
+                  <section id="competitors" className="scroll-mt-24">
+                    <CompetitorBenchmarking
+                      platform={selectedPlatform.toLowerCase()}
+                    />
+                  </section>
 
-                {/* Coming Soon Features Section */}
-                <section id="coming-soon" className="scroll-mt-24">
-                  <ComingSoonFeatures />
-                </section>
+                  {/* Custom Reports Section */}
+                  <section id="custom-reports" className="scroll-mt-24">
+                    <CustomReports
+                      userPlan="enterprise"
+                      socialAccountId={selectedAccount || undefined}
+                      teamId={currentTeamId || undefined}
+                    />
+                  </section>
+
+                  {/* Coming Soon Features Section */}
+                  <section id="coming-soon" className="scroll-mt-24">
+                    <ComingSoonFeatures />
+                  </section>
+                </div>
+              )
+            ) : (
+              <div className="flex items-center justify-center min-h-[60vh]">
+                <div className="text-center max-w-md mx-auto">
+                  <div className="relative mb-8">
+                    <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-red-600 rounded-full blur-3xl opacity-20 animate-pulse"></div>
+                    <ShieldOff className="h-20 w-20 mx-auto text-orange-500 relative z-10" />
+                  </div>
+                  <h3 className="text-2xl font-bold mb-4 text-foreground">
+                    Feature Not Available
+                  </h3>
+                  <p className="text-muted-foreground mb-6 leading-relaxed">
+                    Your current plan does not support advanced analytics
+                    features. Please upgrade your subscription to access
+                    comprehensive insights and reporting.
+                  </p>
+                  <Button asChild className="mt-4">
+                    <Link href="/billing">Upgrade Plan</Link>
+                  </Button>
+                </div>
               </div>
             )}
 
             {/* No Account Selected State - Only show when accounts loaded but none selected */}
-            {!selectedAccount &&
+            {!canAccessAdvancedAnalytics &&
+              !selectedAccount &&
               !isLoadingSocialAccount &&
               !isLoadingAccountInsight &&
               socialAccounts &&
@@ -920,7 +958,76 @@ const Analytics: React.FC = () => {
               )}
 
             {/* No Social Accounts Found State */}
-            {!isLoadingSocialAccount &&
+            {!canAccessAdvancedAnalytics &&
+              !isLoadingSocialAccount &&
+              socialAccounts &&
+              socialAccounts.length === 0 && (
+                <div className="flex items-center justify-center min-h-[60vh]">
+                  <div className="text-center max-w-md mx-auto">
+                    <div className="relative mb-8">
+                      <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-red-600 rounded-full blur-3xl opacity-20 animate-pulse"></div>
+                      <Users className="h-20 w-20 mx-auto text-orange-500 relative z-10" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4 text-foreground">
+                      No Social Accounts Connected
+                    </h3>
+                    <p className="text-muted-foreground mb-6 leading-relaxed">
+                      You need to connect at least one social media account to
+                      view analytics. Head to the onboarding or settings to
+                      connect your accounts.
+                    </p>
+                    <Button asChild className="mt-4">
+                      <Link href="/onboarding">Connect Social Accounts</Link>
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+            {canAccessAdvancedAnalytics &&
+              !selectedAccount &&
+              !isLoadingSocialAccount &&
+              socialAccounts &&
+              socialAccounts.length > 0 && (
+                <div className="flex items-center justify-center min-h-[60vh]">
+                  <div className="text-center max-w-md mx-auto">
+                    <div className="relative mb-8">
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-600 rounded-full blur-3xl opacity-20 animate-pulse"></div>
+                      <BarChart3 className="h-20 w-20 mx-auto text-primary relative z-10" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4 text-foreground">
+                      Welcome to Analytics Dashboard
+                    </h3>
+                    <p className="text-muted-foreground mb-6 leading-relaxed">
+                      Get powerful insights into your social media performance.
+                      Select a social media account from the sidebar to start
+                      exploring your analytics data and audience insights.
+                    </p>
+                    <div className="grid grid-cols-1 gap-4 text-sm">
+                      <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Real-time data updates</span>
+                      </div>
+                      <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <span>Comprehensive performance metrics</span>
+                      </div>
+                      <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                        <span>Growth tracking & comparisons</span>
+                      </div>
+                    </div>
+                    <div className="mt-8 p-4 bg-muted/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-2">
+                        👈 Select from {socialAccounts.length} connected account
+                        {socialAccounts.length > 1 ? "s" : ""}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            {canAccessAdvancedAnalytics &&
+              !isLoadingSocialAccount &&
               socialAccounts &&
               socialAccounts.length === 0 && (
                 <div className="flex items-center justify-center min-h-[60vh]">

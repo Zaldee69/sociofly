@@ -1,8 +1,10 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
+import { createTRPCRouter, protectedProcedure, hasFeature } from "@/server/api/trpc";
+import { Feature } from "@/config/feature-flags";
 
 export const hotspotsRouter = createTRPCRouter({
   getHotspots: protectedProcedure
+    .use(hasFeature(Feature.ADVANCED_ANALYTICS))
     .input(
       z.object({
         teamId: z.string(),
@@ -40,6 +42,7 @@ export const hotspotsRouter = createTRPCRouter({
 
   // Add new procedure to get last analysis time
   getLastAnalysis: protectedProcedure
+    .use(hasFeature(Feature.ADVANCED_ANALYTICS))
     .input(
       z.object({
         socialAccountId: z.string(),

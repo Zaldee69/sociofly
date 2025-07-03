@@ -35,11 +35,31 @@ import { MultiSelect } from "@/components/multi-select";
 import { useScheduleForm } from "./hooks/use-schedule-form";
 import { FileUploadArea } from "@/components/file-management/file-upload-area";
 import { AIContentProvider, useAIContent } from "./contexts/ai-content-context";
-import { useKeyboardShortcut } from "@/lib/hooks";
+import { useKeyboardShortcut, useFeatureFlag } from "@/lib/hooks";
 import { socialAccounts } from "./data/mock-accounts";
+import { Feature } from "@/config/feature-flags";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ShieldOff } from "lucide-react";
 
 const SchedulePostContent = () => {
   const router = useRouter();
+  const { hasFeature } = useFeatureFlag();
+
+  const canScheduleBasic = hasFeature(Feature.BASIC_POST_SCHEDULING);
+  const canUseAI = hasFeature(Feature.AI_CONTENT_ASSISTANT);
+  const canConnectBasicAccounts = hasFeature(Feature.CONNECT_SOCIAL_ACCOUNTS_BASIC);
+  const canConnectProAccounts = hasFeature(Feature.CONNECT_SOCIAL_ACCOUNTS_PRO);
+  const canConnectEnterpriseAccounts = hasFeature(Feature.CONNECT_SOCIAL_ACCOUNTS_ENTERPRISE);
+
+  let maxAccounts = 0;
+  if (canConnectEnterpriseAccounts) {
+    maxAccounts = Infinity; // Or a very large number
+  } else if (canConnectProAccounts) {
+    maxAccounts = 10; // Example limit for Pro
+  } else if (canConnectBasicAccounts) {
+    maxAccounts = 1; // Example limit for Basic/Free
+  }
+
   const {
     content,
     setContent,
@@ -125,6 +145,7 @@ const SchedulePostContent = () => {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   useKeyboardShortcut("k", () => {
+    if (!canUseAI) return;
     const selectedText = textareaRef.current?.value.substring(
       textareaRef.current?.selectionStart || 0,
       textareaRef.current?.selectionEnd || 0
@@ -147,6 +168,7 @@ const SchedulePostContent = () => {
   });
 
   const handleAITrigger = () => {
+    if (!canUseAI) return;
     const selectedText = textareaRef.current?.value.substring(
       textareaRef.current?.selectionStart || 0,
       textareaRef.current?.selectionEnd || 0
@@ -171,6 +193,21 @@ const SchedulePostContent = () => {
       setSelectedText(selectedText);
     }
   };
+
+  if (!canScheduleBasic) {
+    return (
+      <div className="max-w-4xl mx-auto p-4">
+        <Alert variant="destructive">
+          <ShieldOff className="h-4 w-4" />
+          <AlertTitle>Feature Not Available</AlertTitle>
+          <AlertDescription>
+            Your current plan does not support basic post scheduling. Please
+            upgrade your subscription to access this feature.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-4">
@@ -198,7 +235,7 @@ const SchedulePostContent = () => {
                   placeholder="Pilih Akun"
                   variant="secondary"
                   animation={2}
-                  maxCount={5}
+                  maxCount={maxAccounts === Infinity ? undefined : maxAccounts}
                   options={accounts}
                   value={selectedAccounts}
                   onValueChange={setSelectedAccounts}
@@ -246,7 +283,11 @@ const SchedulePostContent = () => {
                                 size="icon"
                                 variant="ghost"
                                 onClick={handleAITrigger}
-                                className="absolute right-2 top-2 h-8 w-8 rounded-full bg-background shadow-sm hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity"
+                                className={cn(
+                                  "absolute right-2 top-2 h-8 w-8 rounded-full bg-background shadow-sm hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity",
+                                  !canUseAI && "opacity-50 cursor-not-allowed"
+                                )}
+                                disabled={!canUseAI}
                               >
                                 <Sparkles className="h-4 w-4" />
                                 <span className="sr-only">

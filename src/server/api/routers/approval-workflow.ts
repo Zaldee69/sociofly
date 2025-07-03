@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Role } from "@prisma/client";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, hasFeature } from "../trpc";
+import { Feature } from "@/config/feature-flags";
 import { prisma } from "@/lib/prisma/client"; // Import prisma directly for fallback
 
 // Schema for workflow creation
@@ -24,6 +25,7 @@ const workflowCreateSchema = z.object({
 
 export const approvalWorkflowRouter = createTRPCRouter({
   getWorkflows: protectedProcedure
+    .use(hasFeature(Feature.BASIC_APPROVAL_WORKFLOWS))
     .input(
       z.object({
         teamId: z.string(),
@@ -69,6 +71,7 @@ export const approvalWorkflowRouter = createTRPCRouter({
     }),
 
   getUsersByRole: protectedProcedure
+    .use(hasFeature(Feature.BASIC_APPROVAL_WORKFLOWS))
     .input(
       z.object({
         teamId: z.string(),
@@ -127,6 +130,7 @@ export const approvalWorkflowRouter = createTRPCRouter({
     }),
 
   createWorkflow: protectedProcedure
+    .use(hasFeature(Feature.BASIC_APPROVAL_WORKFLOWS))
     .input(
       workflowCreateSchema.extend({
         teamId: z.string(),
@@ -211,6 +215,7 @@ export const approvalWorkflowRouter = createTRPCRouter({
     }),
 
   updateWorkflow: protectedProcedure
+    .use(hasFeature(Feature.BASIC_APPROVAL_WORKFLOWS))
     .input(
       workflowCreateSchema.extend({
         id: z.string(), // Required for updates

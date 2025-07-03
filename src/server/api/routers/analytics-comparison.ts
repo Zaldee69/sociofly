@@ -3,7 +3,9 @@ import {
   createTRPCRouter,
   protectedProcedure,
   publicProcedure,
+  hasFeature,
 } from "@/server/api/trpc";
+import { Feature } from "@/config/feature-flags";
 import { TRPCError } from "@trpc/server";
 import { AnalyticsComparisonService } from "@/lib/services/analytics/core/analytics-comparison.service";
 
@@ -12,6 +14,7 @@ export const analyticsComparisonRouter = createTRPCRouter({
    * Get comparison data for a specific social account (Enhanced with Phase 4)
    */
   getAccountComparison: protectedProcedure
+    .use(hasFeature(Feature.ADVANCED_ANALYTICS))
     .input(
       z.object({
         socialAccountId: z.string(),
@@ -74,6 +77,7 @@ export const analyticsComparisonRouter = createTRPCRouter({
    * Get comparison data for all accounts in a team
    */
   getTeamComparison: protectedProcedure
+    .use(hasFeature(Feature.ADVANCED_ANALYTICS))
     .input(
       z.object({
         teamId: z.string(),
@@ -137,6 +141,7 @@ export const analyticsComparisonRouter = createTRPCRouter({
    * Get historical trends for charts
    */
   getHistoricalTrends: protectedProcedure
+    .use(hasFeature(Feature.ADVANCED_ANALYTICS))
     .input(
       z.object({
         socialAccountId: z.string(),
@@ -192,6 +197,7 @@ export const analyticsComparisonRouter = createTRPCRouter({
    * Get benchmark data for industry comparison
    */
   getBenchmarkData: protectedProcedure
+    .use(hasFeature(Feature.ADVANCED_ANALYTICS))
     .input(
       z.object({
         platform: z.enum(["INSTAGRAM", "FACEBOOK", "TWITTER", "LINKEDIN"]),
@@ -222,6 +228,7 @@ export const analyticsComparisonRouter = createTRPCRouter({
    * Get growth summary for dashboard cards
    */
   getGrowthSummary: protectedProcedure
+    .use(hasFeature(Feature.ADVANCED_ANALYTICS))
     .input(
       z.object({
         socialAccountId: z.string(),

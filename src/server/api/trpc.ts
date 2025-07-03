@@ -3,8 +3,9 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma/client";
-import { type PrismaClient, Role } from "@prisma/client";
+import { type PrismaClient, Role, BillingPlan } from "@prisma/client";
 import { getEffectivePermissions, can } from "../permissions/helpers";
+import { PLAN_RANKS, Feature, FEATURE_MIN_PLAN } from "@/config/feature-flags";
 
 interface CreateContextOptions {
   prisma: PrismaClient;
@@ -13,12 +14,13 @@ interface CreateContextOptions {
     userId: string | null;
     clerkId: string | null;
   };
+  userSubscriptionPlan: BillingPlan;
 }
 
 export const createTRPCContext = async (): Promise<CreateContextOptions> => {
   const { userId: clerkUserId } = await auth();
 
-  // If no Clerk user ID, return context with null userId
+  // If no Clerk user ID, return context with null userId and default FREE plan
   if (!clerkUserId) {
     return {
       prisma,
@@ -27,12 +29,14 @@ export const createTRPCContext = async (): Promise<CreateContextOptions> => {
         userId: null,
         clerkId: null,
       },
+      userSubscriptionPlan: BillingPlan.FREE,
     };
   }
 
   // Try to find the user in our database
   const user = await prisma.user.findUnique({
     where: { clerkId: clerkUserId },
+    select: { id: true, subscriptionPlan: true },
   });
 
   // If no user found in our DB but Clerk authenticated, create a new user
@@ -49,6 +53,7 @@ export const createTRPCContext = async (): Promise<CreateContextOptions> => {
       userId: user?.id ?? null,
       clerkId: clerkUserId,
     },
+    userSubscriptionPlan: user?.subscriptionPlan ?? BillingPlan.FREE,
   };
 };
 
@@ -80,11 +85,55 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
     ctx: {
       ...ctx,
       auth: { userId: ctx.userId },
+      userSubscriptionPlan: ctx.userSubscriptionPlan,
     },
   });
 });
 
 export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
+
+/**
+ * Middleware to check if the user's subscription plan meets the
+ * minimum requirement for a given feature.
+ */
+export const hasFeature = (feature: Feature) =>
+  t.middleware(async ({ ctx, next }) => {
+    // First check if user is authenticated
+    if (!ctx.userId) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "You must be logged in to access this resource",
+      });
+    }
+
+    const requiredPlan = FEATURE_MIN_PLAN[feature];
+    const userPlan = ctx.userSubscriptionPlan;
+
+    if (!userPlan) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "Subscription plan not found for user.",
+      });
+    }
+
+    const userPlanRank = PLAN_RANKS[userPlan];
+    const requiredPlanRank = PLAN_RANKS[requiredPlan];
+
+    if (userPlanRank < requiredPlanRank) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Access denied. This feature requires the ${requiredPlan} plan.`,
+      });
+    }
+
+    return next({
+      ctx: {
+        ...ctx,
+        auth: { userId: ctx.userId },
+        userSubscriptionPlan: ctx.userSubscriptionPlan,
+      },
+    });
+  });
 
 /**
  * Middleware untuk memeriksa apakah user memiliki permission yang diperlukan
