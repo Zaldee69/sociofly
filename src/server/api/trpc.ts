@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma/client";
 import { type PrismaClient, Role, BillingPlan } from "@prisma/client";
 import { getEffectivePermissions, can } from "../permissions/helpers";
 import { PLAN_RANKS, Feature, FEATURE_MIN_PLAN } from "@/config/feature-flags";
+import { TeamSubscriptionService } from "@/lib/services/team-subscription.service";
 
 interface CreateContextOptions {
   prisma: PrismaClient;
@@ -95,6 +96,7 @@ export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
 /**
  * Middleware to check if the user's subscription plan meets the
  * minimum requirement for a given feature.
+ * Now supports team context - team members inherit from team owner's subscription
  */
 export const hasFeature = (feature: Feature) =>
   t.middleware(async ({ ctx, next }) => {
@@ -131,6 +133,70 @@ export const hasFeature = (feature: Feature) =>
         ...ctx,
         auth: { userId: ctx.userId },
         userSubscriptionPlan: ctx.userSubscriptionPlan,
+      },
+    });
+  });
+
+/**
+ * Enhanced middleware that checks feature access in team context
+ * Team members inherit subscription features from team owner
+ */
+export const hasTeamFeature = (feature: Feature) =>
+  t.middleware(async ({ ctx, input, next }) => {
+    // First check if user is authenticated
+    if (!ctx.userId) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "You must be logged in to access this resource",
+      });
+    }
+
+    const requiredPlan = FEATURE_MIN_PLAN[feature];
+
+    // Extract teamId from input if available
+    const teamId = (input as any)?.teamId;
+
+    if (teamId) {
+      // Use team context - check owner's subscription
+      const hasAccess = await TeamSubscriptionService.hasFeatureAccess(
+        ctx.userId,
+        teamId,
+        requiredPlan
+      );
+
+      if (!hasAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Access denied. This feature requires the ${requiredPlan} plan for this team.`,
+        });
+      }
+    } else {
+      // Fallback to individual subscription check
+      const userPlan = ctx.userSubscriptionPlan;
+
+      if (!userPlan) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Subscription plan not found for user.",
+        });
+      }
+
+      const userPlanRank = PLAN_RANKS[userPlan];
+      const requiredPlanRank = PLAN_RANKS[requiredPlan];
+
+      if (userPlanRank < requiredPlanRank) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Access denied. This feature requires the ${requiredPlan} plan.`,
+        });
+      }
+    }
+
+    return next({
+      ctx: {
+        ...ctx,
+        auth: { userId: ctx.userId },
+        teamId,
       },
     });
   });

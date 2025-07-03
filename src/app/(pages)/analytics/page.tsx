@@ -64,7 +64,7 @@ import CustomReports from "@/components/analytics/custom-reports";
 import { trpc } from "@/lib/trpc/client";
 import { useTeamContext } from "@/lib/contexts/team-context";
 import { Loader2 } from "lucide-react";
-import { useFeatureFlag } from "@/lib/hooks";
+import { useTeamFeatureFlag } from "@/lib/hooks/use-team-feature-flag";
 import { Feature } from "@/config/feature-flags";
 
 // Components
@@ -77,9 +77,6 @@ const Analytics: React.FC = () => {
   const [isMainNavbarHidden, setIsMainNavbarHidden] = useState(false);
   const [isManualNavigation, setIsManualNavigation] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const { hasFeature } = useFeatureFlag();
-  const canAccessAdvancedAnalytics = hasFeature(Feature.ADVANCED_ANALYTICS);
 
   // Date Range Filter State
   const [dateRange, setDateRange] = useState<{
@@ -103,6 +100,9 @@ const Analytics: React.FC = () => {
   const [isCustomDateOpen, setIsCustomDateOpen] = useState(false);
 
   const { currentTeamId } = useTeamContext();
+
+  const { hasFeature } = useTeamFeatureFlag(currentTeamId || undefined);
+  const canAccessAdvancedAnalytics = hasFeature(Feature.ADVANCED_ANALYTICS);
 
   const { data: socialAccounts, isLoading: isLoadingSocialAccount } =
     trpc.onboarding.getSocialAccounts.useQuery(
@@ -434,7 +434,7 @@ const Analytics: React.FC = () => {
 
             <div className="flex items-center gap-3">
               {/* Date Range Filter */}
-              {canAccessAdvancedAnalytics && (
+              {/* {canAccessAdvancedAnalytics && (
                 <Card className="px-3 py-2">
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
@@ -496,10 +496,10 @@ const Analytics: React.FC = () => {
                     </div>
                   </div>
                 </Card>
-              )}
+              )} */}
 
               {/* Collection Status */}
-              {canAccessAdvancedAnalytics &&
+              {/* {canAccessAdvancedAnalytics &&
                 selectedAccount &&
                 collectionStatus && (
                   <Card className="px-3 py-2">
@@ -533,10 +533,10 @@ const Analytics: React.FC = () => {
                       </div>
                     </div>
                   </Card>
-                )}
+                )} */}
 
               {/* Global Coverage Stats */}
-              {canAccessAdvancedAnalytics &&
+              {/* {canAccessAdvancedAnalytics &&
                 stats &&
                 stats.success &&
                 stats.data && (
@@ -556,7 +556,7 @@ const Analytics: React.FC = () => {
                       </div>
                     </div>
                   </Card>
-                )}
+                )} */}
 
               {/* Auto-refresh Indicator */}
               {isFetchingAccountInsight && !isLoadingAccountInsight && (

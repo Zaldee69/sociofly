@@ -51,7 +51,8 @@ import { cn } from "@/lib/utils";
 
 import { useTeam } from "@/lib/hooks/use-teams";
 import { useTeamContext } from "@/lib/contexts/team-context";
-import { useIsMobile, useFeatureFlag } from "@/lib/hooks";
+import { useIsMobile } from "@/lib/hooks";
+import { useTeamFeatureFlag } from "@/lib/hooks/use-team-feature-flag";
 import { Feature } from "@/config/feature-flags";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -70,7 +71,7 @@ const Media = () => {
   const { currentTeamId, isLoading: isLoadingTeam } = useTeamContext();
   const { team } = useTeam(currentTeamId || "");
 
-  const { hasFeature } = useFeatureFlag();
+  const { hasFeature } = useTeamFeatureFlag(currentTeamId || undefined);
   const canAccessBasicMediaStorage = hasFeature(Feature.MEDIA_STORAGE_BASIC);
   const canAccessProMediaStorage = hasFeature(Feature.MEDIA_STORAGE_PRO);
   const canAccessUnlimitedMediaStorage = hasFeature(

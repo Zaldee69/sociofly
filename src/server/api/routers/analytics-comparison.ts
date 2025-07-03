@@ -4,6 +4,7 @@ import {
   protectedProcedure,
   publicProcedure,
   hasFeature,
+  hasTeamFeature,
 } from "@/server/api/trpc";
 import { Feature } from "@/config/feature-flags";
 import { TRPCError } from "@trpc/server";
@@ -77,7 +78,7 @@ export const analyticsComparisonRouter = createTRPCRouter({
    * Get comparison data for all accounts in a team
    */
   getTeamComparison: protectedProcedure
-    .use(hasFeature(Feature.ADVANCED_ANALYTICS))
+    .use(hasTeamFeature(Feature.ADVANCED_ANALYTICS))
     .input(
       z.object({
         teamId: z.string(),

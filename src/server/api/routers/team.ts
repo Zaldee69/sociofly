@@ -4,13 +4,15 @@ import {
   protectedProcedure,
   requirePermission,
   hasFeature,
+  hasTeamFeature,
 } from "../trpc";
 import { Feature } from "@/config/feature-flags";
 import { TRPCError } from "@trpc/server";
-import { Role, SocialPlatform } from "@prisma/client";
+import { Role, SocialPlatform, BillingPlan } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
 import { SchedulerService } from "@/lib/services/scheduling/scheduler.service";
 import { HotspotAnalyzer } from "@/lib/services/analytics/hotspots/hotspot-analyzer";
+import { TeamSubscriptionService } from "@/lib/services/team-subscription.service";
 
 export const teamRouter = createTRPCRouter({
   // Get all teams user is a member of
@@ -216,7 +218,7 @@ export const teamRouter = createTRPCRouter({
 
   // Invite member
   inviteMember: protectedProcedure
-    .use(hasFeature(Feature.TEAM_COLLABORATION))
+    .use(hasTeamFeature(Feature.TEAM_COLLABORATION))
     .input(
       z.object({
         email: z.string().email(),
@@ -364,7 +366,7 @@ export const teamRouter = createTRPCRouter({
 
   // Get pending invites for a team
   getTeamInvites: protectedProcedure
-    .use(hasFeature(Feature.TEAM_COLLABORATION))
+    .use(hasTeamFeature(Feature.TEAM_COLLABORATION))
     .input(
       z.object({
         teamId: z.string(),
@@ -738,7 +740,7 @@ export const teamRouter = createTRPCRouter({
 
   // Add a social account
   addSocialAccount: protectedProcedure
-    .use(hasFeature(Feature.CONNECT_SOCIAL_ACCOUNTS_BASIC))
+    .use(hasTeamFeature(Feature.CONNECT_SOCIAL_ACCOUNTS_BASIC))
     .input(
       z.object({
         teamId: z.string(),
@@ -878,7 +880,7 @@ export const teamRouter = createTRPCRouter({
 
   // Remove a social account
   removeSocialAccount: protectedProcedure
-    .use(hasFeature(Feature.CONNECT_SOCIAL_ACCOUNTS_BASIC))
+    .use(hasTeamFeature(Feature.CONNECT_SOCIAL_ACCOUNTS_BASIC))
     .input(
       z.object({
         teamId: z.string(),
@@ -933,7 +935,7 @@ export const teamRouter = createTRPCRouter({
 
   // Update a team member's role
   updateMemberRole: protectedProcedure
-    .use(hasFeature(Feature.ROLE_MANAGEMENT))
+    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .input(
       z.object({
         teamId: z.string(),
@@ -1004,7 +1006,7 @@ export const teamRouter = createTRPCRouter({
 
   // Remove a team member
   removeMember: protectedProcedure
-    .use(hasFeature(Feature.ROLE_MANAGEMENT))
+    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .input(
       z.object({
         teamId: z.string(),
@@ -1057,7 +1059,7 @@ export const teamRouter = createTRPCRouter({
 
   // Update team settings
   updateTeam: protectedProcedure
-    .use(hasFeature(Feature.TEAM_COLLABORATION))
+    .use(hasTeamFeature(Feature.TEAM_COLLABORATION))
     .input(
       z.object({
         teamId: z.string(),
@@ -1116,7 +1118,7 @@ export const teamRouter = createTRPCRouter({
 
   // Delete a team
   deleteTeam: protectedProcedure
-    .use(hasFeature(Feature.TEAM_COLLABORATION))
+    .use(hasTeamFeature(Feature.TEAM_COLLABORATION))
     .input(
       z.object({
         teamId: z.string(),
@@ -1262,7 +1264,7 @@ export const teamRouter = createTRPCRouter({
 
   // Get all custom roles for a team
   getCustomRoles: protectedProcedure
-    .use(hasFeature(Feature.ROLE_MANAGEMENT))
+    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .input(z.object({ teamId: z.string() }))
     .query(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
@@ -1325,7 +1327,7 @@ export const teamRouter = createTRPCRouter({
 
   // Create a new custom role
   createCustomRole: protectedProcedure
-    .use(hasFeature(Feature.ROLE_MANAGEMENT))
+    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .input(
       z.object({
         teamId: z.string(),
@@ -1411,7 +1413,7 @@ export const teamRouter = createTRPCRouter({
 
   // Update an existing custom role
   updateCustomRole: protectedProcedure
-    .use(hasFeature(Feature.ROLE_MANAGEMENT))
+    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .input(
       z.object({
         teamId: z.string(),
@@ -1501,7 +1503,7 @@ export const teamRouter = createTRPCRouter({
 
   // Delete a custom role
   deleteCustomRole: protectedProcedure
-    .use(hasFeature(Feature.ROLE_MANAGEMENT))
+    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .input(
       z.object({
         teamId: z.string(),
@@ -1595,7 +1597,7 @@ export const teamRouter = createTRPCRouter({
 
   // Assign custom role to member
   assignCustomRole: protectedProcedure
-    .use(hasFeature(Feature.ROLE_MANAGEMENT))
+    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .input(
       z.object({
         teamId: z.string(),
@@ -1665,7 +1667,7 @@ export const teamRouter = createTRPCRouter({
 
   // Update permissions for a built-in role
   updateRolePermissions: protectedProcedure
-    .use(hasFeature(Feature.ROLE_MANAGEMENT))
+    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .input(
       z.object({
         teamId: z.string(),
@@ -1723,7 +1725,7 @@ export const teamRouter = createTRPCRouter({
 
   // Get role permissions
   getRolePermissions: protectedProcedure
-    .use(hasFeature(Feature.ROLE_MANAGEMENT))
+    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .input(
       z.object({
         role: z.nativeEnum(Role),
@@ -1757,7 +1759,7 @@ export const teamRouter = createTRPCRouter({
 
   // Set default permissions for a role
   setDefaultRolePermissions: protectedProcedure
-    .use(hasFeature(Feature.ROLE_MANAGEMENT))
+    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .input(
       z.object({
         role: z.nativeEnum(Role),
@@ -1833,7 +1835,7 @@ export const teamRouter = createTRPCRouter({
 
   // Get default permissions for a role from the database
   getDefaultRolePermissions: protectedProcedure
-    .use(hasFeature(Feature.ROLE_MANAGEMENT))
+    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .input(
       z.object({
         role: z.nativeEnum(Role),
@@ -1858,30 +1860,30 @@ export const teamRouter = createTRPCRouter({
 
   // Get permissions for all roles in one call
   getAllRolePermissions: protectedProcedure
-    .use(hasFeature(Feature.ROLE_MANAGEMENT))
+    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .query(async ({ ctx }) => {
-    if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
 
-    // Get all role permissions
-    const rolePermissions = await ctx.prisma.rolePermission.findMany({
-      include: {
-        permission: true,
-      },
-    });
+      // Get all role permissions
+      const rolePermissions = await ctx.prisma.rolePermission.findMany({
+        include: {
+          permission: true,
+        },
+      });
 
-    // Group by role
-    const permissionsByRole: Record<string, string[]> = {};
+      // Group by role
+      const permissionsByRole: Record<string, string[]> = {};
 
-    rolePermissions.forEach((rp) => {
-      const role = rp.role;
-      if (!permissionsByRole[role]) {
-        permissionsByRole[role] = [];
-      }
-      permissionsByRole[role].push(rp.permission.code);
-    });
+      rolePermissions.forEach((rp) => {
+        const role = rp.role;
+        if (!permissionsByRole[role]) {
+          permissionsByRole[role] = [];
+        }
+        permissionsByRole[role].push(rp.permission.code);
+      });
 
-    return permissionsByRole;
-  }),
+      return permissionsByRole;
+    }),
 
   // Get current user's membership for a team
   getTeamMembership: protectedProcedure
@@ -1913,7 +1915,7 @@ export const teamRouter = createTRPCRouter({
 
   // Count members using a custom role
   countMembersWithCustomRole: protectedProcedure
-    .use(hasFeature(Feature.ROLE_MANAGEMENT))
+    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .input(
       z.object({
         teamId: z.string(),
@@ -1958,9 +1960,83 @@ export const teamRouter = createTRPCRouter({
       return { count };
     }),
 
+  // Get effective subscription for team context
+  getEffectiveSubscription: protectedProcedure
+    .input(z.object({ teamId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      try {
+        const effectiveSubscription =
+          await TeamSubscriptionService.getEffectiveSubscription(
+            ctx.userId,
+            input.teamId
+          );
+
+        return effectiveSubscription;
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to get effective subscription",
+        });
+      }
+    }),
+
+  // Get teams where user has specific plan access
+  getTeamsWithPlanAccess: protectedProcedure
+    .input(
+      z.object({
+        minimumPlan: z.nativeEnum(BillingPlan).default(BillingPlan.FREE),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      try {
+        const teamsWithAccess =
+          await TeamSubscriptionService.getTeamsWithPlanAccess(
+            ctx.userId,
+            input.minimumPlan
+          );
+
+        return teamsWithAccess;
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to get teams with plan access",
+        });
+      }
+    }),
+
+  // Get subscription summary for team owner
+  getOwnerSubscriptionSummary: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+    try {
+      const summary = await TeamSubscriptionService.getOwnerSubscriptionSummary(
+        ctx.userId
+      );
+      return summary;
+    } catch (error) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to get owner subscription summary",
+      });
+    }
+  }),
+
   // Get invitation history for a team
   getTeamInvitesHistory: protectedProcedure
-    .use(hasFeature(Feature.TEAM_COLLABORATION))
+    .use(hasTeamFeature(Feature.TEAM_COLLABORATION))
     .input(z.object({ teamId: z.string() }))
     .query(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });

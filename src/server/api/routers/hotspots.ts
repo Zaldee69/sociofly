@@ -1,10 +1,15 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, hasFeature } from "@/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  hasFeature,
+  hasTeamFeature,
+} from "@/server/api/trpc";
 import { Feature } from "@/config/feature-flags";
 
 export const hotspotsRouter = createTRPCRouter({
   getHotspots: protectedProcedure
-    .use(hasFeature(Feature.ADVANCED_ANALYTICS))
+    .use(hasTeamFeature(Feature.ADVANCED_ANALYTICS))
     .input(
       z.object({
         teamId: z.string(),
