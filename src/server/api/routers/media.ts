@@ -4,14 +4,14 @@ import {
   requirePermission,
   hasFeature,
   hasTeamFeature,
+  protectedProcedure,
 } from "../trpc";
 import { Feature } from "@/config/feature-flags";
 import { MediaType, Prisma } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 
 export const mediaRouter = createTRPCRouter({
-  getAll: requirePermission("media.view")
-    .use(hasTeamFeature(Feature.MEDIA_STORAGE_BASIC))
+  getAll: protectedProcedure
     .input(
       z.object({
         filter: z.enum(["all", "images", "videos"]).default("all"),
@@ -120,8 +120,7 @@ export const mediaRouter = createTRPCRouter({
       };
     }),
 
-  delete: requirePermission("media.delete")
-    .use(hasTeamFeature(Feature.MEDIA_STORAGE_BASIC))
+  delete: protectedProcedure
     .input(
       z.object({
         id: z.string(),
@@ -154,8 +153,7 @@ export const mediaRouter = createTRPCRouter({
       return media;
     }),
 
-  updateTags: requirePermission("media.edit")
-    .use(hasTeamFeature(Feature.MEDIA_STORAGE_BASIC))
+  updateTags: protectedProcedure
     .input(
       z.object({
         id: z.string(),
@@ -193,8 +191,7 @@ export const mediaRouter = createTRPCRouter({
     }),
 
   // New procedure to copy media to another team
-  copyToTeam: requirePermission("media.copy")
-    .use(hasTeamFeature(Feature.MEDIA_STORAGE_PRO))
+  copyToTeam: protectedProcedure
     .input(
       z.object({
         mediaId: z.string(),
@@ -258,8 +255,8 @@ export const mediaRouter = createTRPCRouter({
       return newMedia;
     }),
 
-  upload: requirePermission("media.upload")
-    .use(hasTeamFeature(Feature.MEDIA_STORAGE_BASIC))
+  upload: protectedProcedure
+    .use(requirePermission("media.upload"))
     .input(
       z.object({
         url: z.string(),

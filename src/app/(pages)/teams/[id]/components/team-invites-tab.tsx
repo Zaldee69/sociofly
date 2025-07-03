@@ -40,6 +40,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { getRoleBadge } from "../../utils/team-utils";
+import { useFeatureFlag, usePermissions } from "@/lib/hooks";
+import { Feature } from "@/config/feature-flags";
 
 interface TeamInvitesTabProps {
   teamId: string;
@@ -74,11 +76,16 @@ export const TeamInvitesTab = ({ teamId, team }: TeamInvitesTabProps) => {
   const [selectedInvite, setSelectedInvite] = useState<Invite | null>(null);
   const [activeTab, setActiveTab] = useState<string>("pending");
 
+  const { hasFeature } = useFeatureFlag();
+
+  const canAccessTeamCollaboration = hasFeature(Feature.TEAM_COLLABORATION);
+  const { hasPermission } = usePermissions(teamId as string);
+
   // Fetch all team invites (we'll filter on client side)
   const { data: allInvites, isLoading } = trpc.team.getTeamInvites.useQuery(
     { teamId, includeProcessed: true },
     {
-      enabled: !!teamId,
+      enabled: !!teamId && canAccessTeamCollaboration,
     }
   );
 
@@ -87,15 +94,19 @@ export const TeamInvitesTab = ({ teamId, team }: TeamInvitesTabProps) => {
     trpc.team.getTeamInvitesHistory.useQuery(
       { teamId },
       {
-        enabled: !!teamId,
+        enabled:
+          (!!teamId && canAccessTeamCollaboration) ||
+          hasPermission("team.manage"),
       }
     );
 
   // Invalidate queries when tab changes to ensure we have fresh data
   useEffect(() => {
     if (activeTab === "history") {
-      utils.team.getTeamInvites.invalidate({ teamId });
-      utils.team.getTeamInvitesHistory.invalidate({ teamId });
+      if (canAccessTeamCollaboration) {
+        utils.team.getTeamInvites.invalidate({ teamId });
+        utils.team.getTeamInvitesHistory.invalidate({ teamId });
+      }
     }
   }, [
     activeTab,
@@ -150,9 +161,11 @@ export const TeamInvitesTab = ({ teamId, team }: TeamInvitesTabProps) => {
   const inviteMutation = trpc.team.inviteMember.useMutation({
     onSuccess: () => {
       toast.success("Invitation sent successfully");
-      utils.team.getTeamInvites.invalidate({ teamId });
-      // Also refresh the team members list
-      utils.team.getTeamMembers.invalidate({ teamId });
+      if (canAccessTeamCollaboration) {
+        utils.team.getTeamInvites.invalidate({ teamId });
+        // Also refresh the team members list
+        utils.team.getTeamMembers.invalidate({ teamId });
+      }
     },
     onError: (error) => {
       toast.error(error.message);
@@ -163,7 +176,9 @@ export const TeamInvitesTab = ({ teamId, team }: TeamInvitesTabProps) => {
   const cancelInviteMutation = trpc.team.cancelInvite.useMutation({
     onSuccess: () => {
       toast.success("Invitation cancelled successfully");
-      utils.team.getTeamInvites.invalidate({ teamId });
+      if (canAccessTeamCollaboration) {
+        utils.team.getTeamInvites.invalidate({ teamId });
+      }
       setCancelConfirmOpen(false);
       setSelectedInvite(null);
     },

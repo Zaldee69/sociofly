@@ -5,6 +5,7 @@ import {
   requirePermission,
   hasFeature,
   hasTeamFeature,
+  checkPermission,
 } from "../trpc";
 import { Feature } from "@/config/feature-flags";
 import { TRPCError } from "@trpc/server";
@@ -219,6 +220,7 @@ export const teamRouter = createTRPCRouter({
   // Invite member
   inviteMember: protectedProcedure
     .use(hasTeamFeature(Feature.TEAM_COLLABORATION))
+    .use(requirePermission("team.manage"))
     .input(
       z.object({
         email: z.string().email(),
@@ -237,16 +239,6 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
-
-      // Check if user has permission to manage this team
-      const hasPermission = requirePermission("team.manage", input.teamId);
-
-      if (!hasPermission) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You don't have permission to invite team members",
-        });
-      }
 
       // Cek apakah ada undangan yang masih pending (belum diaccept/reject)
       const pendingInvitation = await ctx.prisma.invitation.findFirst({
@@ -366,29 +358,15 @@ export const teamRouter = createTRPCRouter({
 
   // Get pending invites for a team
   getTeamInvites: protectedProcedure
-    .use(hasTeamFeature(Feature.TEAM_COLLABORATION))
     .input(
       z.object({
         teamId: z.string(),
         includeProcessed: z.boolean().optional().default(false),
       })
     )
+    .use(hasTeamFeature(Feature.TEAM_COLLABORATION))
+    .use(requirePermission("team.manage"))
     .query(async ({ ctx, input }) => {
-      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
-
-      console.log("getTeamInvites called with input:", input);
-      console.log("teamId from input:", input.teamId);
-
-      // Check if user has permission to manage this team
-      const hasPermission = requirePermission("team.manage", input.teamId);
-
-      if (!hasPermission) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You don't have permission to view team invites",
-        });
-      }
-
       // Create a base query
       const baseQuery = {
         teamId: input.teamId,
@@ -643,18 +621,9 @@ export const teamRouter = createTRPCRouter({
         inviteId: z.string(),
       })
     )
+    .use(requirePermission("team.manage"))
     .mutation(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
-
-      // Check if user has permission to manage this team
-      const hasPermission = requirePermission("team.manage", input.teamId);
-
-      if (!hasPermission) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You don't have permission to cancel invitations",
-        });
-      }
 
       const invite = await ctx.prisma.invitation.findFirst({
         where: {
@@ -1264,7 +1233,6 @@ export const teamRouter = createTRPCRouter({
 
   // Get all custom roles for a team
   getCustomRoles: protectedProcedure
-    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
     .input(z.object({ teamId: z.string() }))
     .query(async ({ ctx, input }) => {
       if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
@@ -1859,31 +1827,29 @@ export const teamRouter = createTRPCRouter({
     }),
 
   // Get permissions for all roles in one call
-  getAllRolePermissions: protectedProcedure
-    .use(hasTeamFeature(Feature.ROLE_MANAGEMENT))
-    .query(async ({ ctx }) => {
-      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+  getAllRolePermissions: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
 
-      // Get all role permissions
-      const rolePermissions = await ctx.prisma.rolePermission.findMany({
-        include: {
-          permission: true,
-        },
-      });
+    // Get all role permissions
+    const rolePermissions = await ctx.prisma.rolePermission.findMany({
+      include: {
+        permission: true,
+      },
+    });
 
-      // Group by role
-      const permissionsByRole: Record<string, string[]> = {};
+    // Group by role
+    const permissionsByRole: Record<string, string[]> = {};
 
-      rolePermissions.forEach((rp) => {
-        const role = rp.role;
-        if (!permissionsByRole[role]) {
-          permissionsByRole[role] = [];
-        }
-        permissionsByRole[role].push(rp.permission.code);
-      });
+    rolePermissions.forEach((rp) => {
+      const role = rp.role;
+      if (!permissionsByRole[role]) {
+        permissionsByRole[role] = [];
+      }
+      permissionsByRole[role].push(rp.permission.code);
+    });
 
-      return permissionsByRole;
-    }),
+    return permissionsByRole;
+  }),
 
   // Get current user's membership for a team
   getTeamMembership: protectedProcedure

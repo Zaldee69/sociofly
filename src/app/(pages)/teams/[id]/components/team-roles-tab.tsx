@@ -38,8 +38,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { usePermissions } from "@/lib/hooks";
+import { useFeatureFlag, usePermissions } from "@/lib/hooks";
 import { motion } from "framer-motion";
+import { Feature } from "@/config/feature-flags";
 
 interface TeamRolesTabProps {
   teamId: string;
@@ -95,19 +96,27 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
     { enabled: !!teamId }
   );
 
+  const { hasFeature } = useFeatureFlag();
+
+  const canAccessRoleManagement = hasFeature(Feature.ROLE_MANAGEMENT);
+  const { hasPermission } = usePermissions(teamId as string);
+
   // Get custom roles from API
   const { data: customRoles, isLoading: isLoadingCustomRoles } =
     trpc.team.getCustomRoles.useQuery(
       { teamId },
       {
-        enabled: !!teamId && team?.role === Role.OWNER,
+        enabled:
+          (!!teamId && team?.role === Role.OWNER && canAccessRoleManagement) ||
+          hasPermission("team.manage"),
       }
     );
 
   // Get available permissions from API
   const { data: availablePermissionsData, isLoading: isLoadingPermissions } =
     trpc.team.getAvailablePermissions.useQuery(undefined, {
-      enabled: !!teamId,
+      enabled:
+        (!!teamId && canAccessRoleManagement) || hasPermission("team.manage"),
       retry: false,
     });
 
@@ -115,8 +124,10 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
   const createCustomRoleMutation = trpc.team.createCustomRole.useMutation({
     onSuccess: () => {
       toast.success("Custom role created successfully");
-      utils.team.getCustomRoles.invalidate({ teamId });
-      utils.team.getAllRolePermissions.invalidate(); // Invalidate permissions cache to refresh
+      if (canAccessRoleManagement) {
+        utils.team.getCustomRoles.invalidate({ teamId });
+        utils.team.getAllRolePermissions.invalidate(); // Invalidate permissions cache to refresh
+      }
       setIsCreateRoleOpen(false);
       setNewRoleName("");
       setNewRoleDescription("");
@@ -131,8 +142,10 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
   const updateCustomRoleMutation = trpc.team.updateCustomRole.useMutation({
     onSuccess: () => {
       toast.success("Role permissions updated successfully");
-      utils.team.getCustomRoles.invalidate({ teamId });
-      utils.team.getAllRolePermissions.invalidate(); // Invalidate permissions cache to refresh
+      if (canAccessRoleManagement) {
+        utils.team.getCustomRoles.invalidate({ teamId });
+        utils.team.getAllRolePermissions.invalidate(); // Invalidate permissions cache to refresh
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to update role permissions");
@@ -143,8 +156,10 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
   const deleteCustomRoleMutation = trpc.team.deleteCustomRole.useMutation({
     onSuccess: () => {
       toast.success("Role deleted successfully");
-      utils.team.getCustomRoles.invalidate({ teamId });
-      utils.team.getAllRolePermissions.invalidate(); // Invalidate permissions cache to refresh
+      if (canAccessRoleManagement) {
+        utils.team.getCustomRoles.invalidate({ teamId });
+        utils.team.getAllRolePermissions.invalidate(); // Invalidate permissions cache to refresh
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to delete role");
@@ -156,7 +171,9 @@ export const TeamRolesTab = ({ teamId }: TeamRolesTabProps) => {
     trpc.team.setDefaultRolePermissions.useMutation({
       onSuccess: () => {
         toast.success("Default role permissions updated successfully");
-        utils.team.getAllRolePermissions.invalidate(); // Invalidate all permissions instead of just one role
+        if (canAccessRoleManagement) {
+          utils.team.getAllRolePermissions.invalidate(); // Invalidate all permissions instead of just one role
+        }
       },
       onError: (error: any) => {
         toast.error(
