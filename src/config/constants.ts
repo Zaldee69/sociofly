@@ -34,3 +34,16 @@ export const ALLOWED_MEDIA_TYPES = [
   "video/mp4",
 ];
 export const MAX_MEDIA_SIZE = 10 * 1024 * 1024; // 10MB
+
+export const SUBSCRIPTION_PRICES = {
+  FREE: 0,
+  PRO: 199000,
+  ENTERPRISE: 499000,
+} as const;
+
+// Plan Display Names
+export const PLAN_DISPLAY_NAMES = {
+  FREE: "Basic",
+  PRO: "Professional",
+  ENTERPRISE: "Enterprise",
+} as const;

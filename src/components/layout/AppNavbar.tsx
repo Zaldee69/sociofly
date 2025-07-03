@@ -3,16 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import {
-  Calendar,
-  ChartBar,
-  FileText,
-  Home,
-  Image,
-  Menu,
-  X,
-  Bell,
-} from "lucide-react";
+import { Calendar, ChartBar, Home, Image, Menu, X, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavUser } from "./NavUser";
 import { TeamSwitcher } from "../team-switcher";

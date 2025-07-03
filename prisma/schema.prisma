@@ -9,20 +9,24 @@ datasource db {
 }
 
 model User {
-  id                  String               @id @default(cuid())
-  clerkId             String               @unique
-  email               String               @unique
-  name                String?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  onboardingStatus    OnboardingStatus     @default(NOT_STARTED)
-  subscriptionPlan    BillingPlan          @default(FREE)
-  approvalAssignments ApprovalAssignment[]
-  media               Media[]
-  memberships         Membership[]
-  posts               Post[]
-  socialAccounts      SocialAccount[]
-  teams               Team[]
+  id                    String               @id @default(cuid())
+  clerkId               String               @unique
+  name                  String?
+  email                 String               @unique
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  onboardingStatus      OnboardingStatus     @default(NOT_STARTED)
+  subscriptionPlan      BillingPlan          @default(FREE)
+  subscriptionExpiresAt DateTime?
+  subscriptionUpdatedAt DateTime?
+  subscriptionActive    Boolean              @default(false)
+  approvalAssignments   ApprovalAssignment[]
+  media                 Media[]
+  memberships           Membership[]
+  posts                 Post[]
+  socialAccounts        SocialAccount[]
+  teams                 Team[]
+  transactions          Transaction[]
 }
 
 model Team {
@@ -640,6 +644,11 @@ enum BillingPlan {
   ENTERPRISE
 }
 
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
 enum ContentFormat {
   IMAGE
   VIDEO
@@ -663,4 +672,25 @@ enum LinkType {
   STORY
   BUTTON
   SWIPE_UP
+}
+
+model Transaction {
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id])
+  amount          Int
+  plan            BillingPlan
+  billingCycle    BillingCycle      @default(MONTHLY)
+  status          TransactionStatus @default(PENDING)
+  midtransToken   String?           @unique
+  midtransOrderId String            @unique
+  paymentDetails  String? // JSON string containing payment response details
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
 }

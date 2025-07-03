@@ -35,6 +35,10 @@ export default function RootLayout({
               <main className="flex-1">{children}</main>
             </TeamProvider>
           </TRPCProvider>
+          <script
+            src={process.env.NEXT_PUBLIC_MIDTRANS_SNAP_URL || 'https://app.sandbox.midtrans.com/snap/snap.js'}
+            data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
+          ></script>
         </body>
       </html>
     </ClerkProvider>
