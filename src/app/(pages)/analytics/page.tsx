@@ -60,6 +60,7 @@ import PostTimeOptimizer from "@/components/analytics/post-time-optimizer";
 import CompetitorBenchmarking from "@/components/analytics/competitor-benchmarking";
 import ComingSoonFeatures from "@/components/analytics/coming-soon-features";
 import CustomReports from "@/components/analytics/custom-reports";
+import UpgradeOverlay from "@/components/analytics/upgrade-overlay";
 
 import { trpc } from "@/lib/trpc/client";
 import { useTeamContext } from "@/lib/contexts/team-context";
@@ -746,169 +747,234 @@ const Analytics: React.FC = () => {
               )}
 
             {/* All Analytics Sections - Always Rendered */}
-            {canAccessAdvancedAnalytics ? (
-              !isLoadingAccountInsight &&
-              selectedAccount && (
-                <div className="space-y-12">
-                  {/* Overview & Growth Section - MERGED */}
-                  <section id="overview" className="scroll-mt-24 space-y-6">
-                    <OverviewSection
-                      accountInsight={{
-                        // Basic metrics
-                        totalFollowers: accountInsight?.followersCount,
-                        totalPosts: accountInsight?.mediaCount,
+            {!isLoadingAccountInsight && selectedAccount && (
+              <div className="space-y-12">
+                {/* Overview & Growth Section - MERGED */}
+                <section id="overview" className="scroll-mt-24 space-y-6">
+                  <OverviewSection
+                    accountInsight={{
+                      // Basic metrics
+                      totalFollowers: accountInsight?.followersCount,
+                      totalPosts: accountInsight?.mediaCount,
 
-                        // Engagement metrics (use available data or defaults)
-                        totalLikes: (accountInsight as any)?.totalLikes || 0,
-                        totalReactions: 0, // Facebook reactions (not implemented yet)
-                        totalComments:
-                          (accountInsight as any)?.totalComments || 0,
-                        totalShares: (accountInsight as any)?.totalShares || 0,
-                        totalSaves: (accountInsight as any)?.saves || 0,
-                        totalClicks: (accountInsight as any)?.clicks || 0,
+                      // Engagement metrics (use available data or defaults)
+                      totalLikes: (accountInsight as any)?.totalLikes || 0,
+                      totalReactions: 0, // Facebook reactions (not implemented yet)
+                      totalComments:
+                        (accountInsight as any)?.totalComments || 0,
+                      totalShares: (accountInsight as any)?.totalShares || 0,
+                      totalSaves: (accountInsight as any)?.totalSaves || 0,
+                      totalClicks: (accountInsight as any)?.totalClicks || 0,
 
-                        // Reach & Impressions
-                        totalReach: (accountInsight as any)?.totalReach || 0,
-                        totalImpressions:
-                          (accountInsight as any)?.impressions || 0,
-                        avgReachPerPost: accountInsight?.avgReachPerPost,
+                      // Reach & Impressions
+                      totalReach: (accountInsight as any)?.totalReach || 0,
+                      totalImpressions:
+                        (accountInsight as any)?.totalImpressions || 0,
+                      avgReachPerPost: accountInsight?.avgReachPerPost,
 
-                        // Calculated metrics
-                        engagementRate: accountInsight?.engagementRate,
-                        avgEngagementPerPost:
-                          (accountInsight as any)?.avgEngagementPerPost || 0,
-                        avgClickThroughRate:
-                          (accountInsight as any)?.avgClickThroughRate || 0,
+                      // Calculated metrics
+                      engagementRate: accountInsight?.engagementRate,
+                      avgEngagementPerPost:
+                        (accountInsight as any)?.avgEngagementPerPost || 0,
+                      avgClickThroughRate:
+                        (accountInsight as any)?.avgClickThroughRate || 0,
 
-                        // Pre-calculated averages from database
-                        avgLikesPerPost:
-                          (accountInsight as any)?.avgLikesPerPost || 0,
-                        avgCommentsPerPost:
-                          (accountInsight as any)?.avgCommentsPerPost || 0,
-                        avgSharesPerPost:
-                          (accountInsight as any)?.avgSharesPerPost || 0,
-                        avgSavesPerPost:
-                          (accountInsight as any)?.avgSavesPerPost || 0,
+                      // Pre-calculated averages from database
+                      avgLikesPerPost:
+                        (accountInsight as any)?.avgLikesPerPost || 0,
+                      avgCommentsPerPost:
+                        (accountInsight as any)?.avgCommentsPerPost || 0,
+                      avgSharesPerPost:
+                        (accountInsight as any)?.avgSharesPerPost || 0,
+                      avgSavesPerPost:
+                        (accountInsight as any)?.avgSavesPerPost || 0,
 
-                        // Analytics metadata
-                        postsAnalyzed:
-                          (accountInsight as any)?.postsAnalyzed || 0,
-                        totalPostsOnPlatform:
-                          (accountInsight as any)?.totalPostsOnPlatform ||
-                          accountInsight?.mediaCount ||
-                          0,
+                      // Analytics metadata
+                      postsAnalyzed:
+                        (accountInsight as any)?.postsAnalyzed || 0,
+                      totalPostsOnPlatform:
+                        (accountInsight as any)?.totalPostsOnPlatform ||
+                        accountInsight?.mediaCount ||
+                        0,
 
-                        // Growth metrics
-                        followerGrowth: accountInsight?.followerGrowth || null,
-                        mediaGrowth: accountInsight?.mediaGrowth || null,
-                        engagementGrowth:
-                          accountInsight?.engagementGrowth || null,
-                        reachGrowth: accountInsight?.reachGrowth || null,
+                      // Growth metrics
+                      followerGrowth: accountInsight?.followerGrowth || null,
+                      mediaGrowth: accountInsight?.mediaGrowth || null,
+                      engagementGrowth:
+                        accountInsight?.engagementGrowth || null,
+                      reachGrowth: accountInsight?.reachGrowth || null,
 
-                        // Previous period values
-                        previousFollowersCount:
-                          accountInsight?.followerGrowth?.previous || 0,
-                        previousMediaCount:
-                          accountInsight?.mediaGrowth?.previous || 0,
-                        previousEngagementRate:
-                          accountInsight?.engagementGrowth?.previous || 0,
-                        previousAvgReachPerPost:
-                          accountInsight?.reachGrowth?.previous || 0,
+                      // Previous period values
+                      previousFollowersCount:
+                        accountInsight?.followerGrowth?.previous || 0,
+                      previousMediaCount:
+                        accountInsight?.mediaGrowth?.previous || 0,
+                      previousEngagementRate:
+                        accountInsight?.engagementGrowth?.previous || 0,
+                      previousAvgReachPerPost:
+                        accountInsight?.reachGrowth?.previous || 0,
 
-                        // Platform specific
-                        platform: selectedPlatform as "INSTAGRAM" | "FACEBOOK",
-                        bioLinkClicks:
-                          (accountInsight as any)?.bioLinkClicks || 0,
-                        storyViews: (accountInsight as any)?.storyViews || 0,
-                        profileVisits: accountInsight?.profileVisits,
+                      // Platform specific
+                      platform: selectedPlatform as "INSTAGRAM" | "FACEBOOK",
+                      bioLinkClicks:
+                        (accountInsight as any)?.bioLinkClicks || 0,
+                      storyViews: (accountInsight as any)?.storyViews || 0,
+                      profileVisits: accountInsight?.profileVisits,
 
-                        // New fields for post analytics integration
-                        socialAccountId: selectedAccount,
-                        teamId: currentTeamId!,
-                      }}
-                      stats={stats}
-                      isLoading={isLoadingAccountInsight || isLoadingStats}
-                    />
-                  </section>
+                      // New fields for post analytics integration
+                      socialAccountId: selectedAccount,
+                      teamId: currentTeamId!,
+                    }}
+                    stats={stats}
+                    isLoading={isLoadingAccountInsight || isLoadingStats}
+                  />
+                </section>
 
-                  {/* Stories Section - Instagram Only */}
-                  {selectedPlatform === "INSTAGRAM" && (
-                    <section id="stories" className="scroll-mt-24">
+                {/* Stories Section - Instagram Only */}
+                {selectedPlatform === "INSTAGRAM" && (
+                  <section id="stories" className="scroll-mt-24">
+                    <UpgradeOverlay
+                      title="Stories Performance"
+                      description="Analyze your Instagram Stories performance with detailed metrics and engagement insights."
+                      features={[
+                        "Story views tracking",
+                        "Engagement metrics",
+                        "Performance trends",
+                      ]}
+                      showOverlay={!canAccessAdvancedAnalytics}
+                    >
                       <StoriesPerformance platform="instagram" />
-                    </section>
-                  )}
+                    </UpgradeOverlay>
+                  </section>
+                )}
 
-                  {/* Audience Section */}
-                  <section id="audience" className="scroll-mt-24">
+                {/* Audience Section */}
+                <section id="audience" className="scroll-mt-24">
+                  <UpgradeOverlay
+                    title="Audience Insights"
+                    description="Understand your audience demographics, interests, and behavior patterns."
+                    features={[
+                      "Demographics analysis",
+                      "Interest insights",
+                      "Behavior patterns",
+                    ]}
+                    showOverlay={!canAccessAdvancedAnalytics}
+                  >
                     <AudienceInsights />
-                  </section>
+                  </UpgradeOverlay>
+                </section>
 
-                  {/* Hashtags Section - Instagram Only */}
-                  {selectedPlatform === "INSTAGRAM" && (
-                    <section id="hashtags" className="scroll-mt-24">
+                {/* Hashtags Section - Instagram Only */}
+                {selectedPlatform === "INSTAGRAM" && (
+                  <section id="hashtags" className="scroll-mt-24">
+                    <UpgradeOverlay
+                      title="Hashtag Analytics"
+                      description="Optimize your hashtag strategy with performance insights and recommendations."
+                      features={[
+                        "Hashtag performance",
+                        "Reach analysis",
+                        "Strategy recommendations",
+                      ]}
+                      showOverlay={!canAccessAdvancedAnalytics}
+                    >
                       <HashtagAnalytics />
-                    </section>
-                  )}
+                    </UpgradeOverlay>
+                  </section>
+                )}
 
-                  {/* Links Section */}
-                  <section id="links" className="scroll-mt-24">
+                {/* Links Section */}
+                <section id="links" className="scroll-mt-24">
+                  <UpgradeOverlay
+                    title="Link Analytics"
+                    description="Track link clicks, traffic sources, and conversion metrics."
+                    features={[
+                      "Click tracking",
+                      "Traffic analysis",
+                      "Conversion metrics",
+                    ]}
+                    showOverlay={!canAccessAdvancedAnalytics}
+                  >
                     <LinkAnalytics />
-                  </section>
+                  </UpgradeOverlay>
+                </section>
 
-                  {/* Sentiment Section */}
-                  <section id="sentiment" className="scroll-mt-24">
+                {/* Sentiment Section */}
+                <section id="sentiment" className="scroll-mt-24">
+                  <UpgradeOverlay
+                    title="Sentiment Analysis"
+                    description="Analyze audience sentiment and emotional responses to your content."
+                    features={[
+                      "Sentiment tracking",
+                      "Emotion analysis",
+                      "Content insights",
+                    ]}
+                    showOverlay={!canAccessAdvancedAnalytics}
+                  >
                     <SentimentAnalysis />
-                  </section>
+                  </UpgradeOverlay>
+                </section>
 
-                  {/* Optimization Section */}
-                  <section id="optimization" className="scroll-mt-24">
+                {/* Optimization Section */}
+                <section id="optimization" className="scroll-mt-24">
+                  <UpgradeOverlay
+                    title="Post Time Optimization"
+                    description="Find the best times to post for maximum engagement and reach."
+                    features={[
+                      "Optimal timing",
+                      "Engagement patterns",
+                      "Posting recommendations",
+                    ]}
+                    showOverlay={!canAccessAdvancedAnalytics}
+                  >
                     <PostTimeOptimizer
                       socialAccountId={selectedAccount}
                       teamId={currentTeamId!}
                     />
-                  </section>
+                  </UpgradeOverlay>
+                </section>
 
-                  {/* Competitors Section */}
-                  <section id="competitors" className="scroll-mt-24">
+                {/* Competitors Section */}
+                <section id="competitors" className="scroll-mt-24">
+                  <UpgradeOverlay
+                    title="Competitor Benchmarking"
+                    description="Compare your performance against competitors and industry benchmarks."
+                    features={[
+                      "Competitor analysis",
+                      "Industry benchmarks",
+                      "Performance comparison",
+                    ]}
+                    showOverlay={!canAccessAdvancedAnalytics}
+                  >
                     <CompetitorBenchmarking
                       platform={selectedPlatform.toLowerCase()}
                     />
-                  </section>
+                  </UpgradeOverlay>
+                </section>
 
-                  {/* Custom Reports Section */}
-                  <section id="custom-reports" className="scroll-mt-24">
+                {/* Custom Reports Section */}
+                <section id="custom-reports" className="scroll-mt-24">
+                  <UpgradeOverlay
+                    title="Custom Reports"
+                    description="Create and schedule custom reports tailored to your specific needs."
+                    features={[
+                      "Custom reporting",
+                      "Scheduled reports",
+                      "Data export",
+                    ]}
+                    showOverlay={!canAccessAdvancedAnalytics}
+                  >
                     <CustomReports
                       userPlan="enterprise"
                       socialAccountId={selectedAccount || undefined}
                       teamId={currentTeamId || undefined}
                     />
-                  </section>
+                  </UpgradeOverlay>
+                </section>
 
-                  {/* Coming Soon Features Section */}
-                  <section id="coming-soon" className="scroll-mt-24">
-                    <ComingSoonFeatures />
-                  </section>
-                </div>
-              )
-            ) : (
-              <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="text-center max-w-md mx-auto">
-                  <div className="relative mb-8">
-                    <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-red-600 rounded-full blur-3xl opacity-20 animate-pulse"></div>
-                    <ShieldOff className="h-20 w-20 mx-auto text-orange-500 relative z-10" />
-                  </div>
-                  <h3 className="text-2xl font-bold mb-4 text-foreground">
-                    Feature Not Available
-                  </h3>
-                  <p className="text-muted-foreground mb-6 leading-relaxed">
-                    Your current plan does not support advanced analytics
-                    features. Please upgrade your subscription to access
-                    comprehensive insights and reporting.
-                  </p>
-                  <Button asChild className="mt-4">
-                    <Link href="/billing">Upgrade Plan</Link>
-                  </Button>
-                </div>
+                {/* Coming Soon Features Section */}
+                <section id="coming-soon" className="scroll-mt-24">
+                  <ComingSoonFeatures />
+                </section>
               </div>
             )}
 
