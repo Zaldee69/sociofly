@@ -77,7 +77,7 @@ export function NotificationDropdown() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-9 w-9 relative hover:bg-slate-100"
+        className="h-9 w-9 relative hover:bg-gradient-to-br hover:from-slate-50 hover:to-blue-50 hover:shadow-sm transition-all duration-200 rounded-lg"
         disabled
       >
         <Bell className="h-4 w-4 text-slate-600" />
@@ -122,73 +122,81 @@ export function NotificationDropdown() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 relative hover:bg-slate-100"
+          className="h-9 w-9 relative hover:bg-gradient-to-br hover:from-slate-50 hover:to-blue-50 hover:shadow-sm transition-all duration-200 rounded-lg"
         >
-          <Bell className="h-4 w-4 text-slate-600" />
+          <Bell className="h-4 w-4 text-slate-600 hover:text-slate-700 transition-colors" />
           {unreadCount > 0 && (
-            <Badge
-              variant="destructive"
-              className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] font-medium"
-            >
+            <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[10px] font-bold bg-gradient-to-r from-red-500 to-rose-500 text-white border-2 border-white shadow-lg animate-pulse">
               {unreadCount > 9 ? "9+" : unreadCount}
             </Badge>
           )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="w-80 rounded-lg"
+        className="w-96 rounded-xl border-0 bg-white/95 backdrop-blur-md shadow-xl ring-1 ring-slate-200/50"
         side="bottom"
         align="end"
-        sideOffset={8}
+        sideOffset={12}
       >
-        <DropdownMenuLabel className="flex items-center justify-between">
-          <span>Notifications</span>
+        <DropdownMenuLabel className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-50 to-blue-50/50 rounded-t-xl border-b border-slate-100">
+          <span className="font-semibold text-slate-800">Notifications</span>
           {unreadCount > 0 && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-auto p-1 text-xs"
+              className="h-7 px-2 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors"
               onClick={handleMarkAllAsRead}
             >
               Mark all read
             </Button>
           )}
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
 
         {notifications.length === 0 ? (
-          <div className="p-4 text-center text-sm text-muted-foreground">
-            No notifications
+          <div className="p-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+              <Bell className="h-6 w-6 text-slate-400" />
+            </div>
+            <p className="text-sm font-medium text-slate-600 mb-1">
+              No notifications
+            </p>
+            <p className="text-xs text-slate-400">You're all caught up!</p>
           </div>
         ) : (
-          <ScrollArea className="h-64">
-            <div className="space-y-1">
+          <ScrollArea className="h-80 px-2">
+            <div className="space-y-2 py-2">
               {notifications.map((notification) => {
                 const Icon = notification.icon;
                 return (
                   <DropdownMenuItem
                     key={notification.id}
-                    className="p-3 cursor-pointer hover:bg-slate-50 focus:bg-slate-50"
+                    className={`p-4 cursor-pointer rounded-lg transition-all duration-200 border ${
+                      !notification.read
+                        ? "bg-gradient-to-r from-blue-50/50 to-indigo-50/30 border-blue-100/50 hover:from-blue-50 hover:to-indigo-50 shadow-sm"
+                        : "bg-white/50 border-transparent hover:bg-slate-50/80"
+                    }`}
                     onClick={() => handleMarkAsRead(notification.id)}
                   >
                     <div className="flex gap-3 w-full">
                       <div
-                        className={`p-1.5 rounded-full ${
-                          !notification.read ? "bg-blue-100" : "bg-slate-100"
+                        className={`p-2 rounded-full flex-shrink-0 w-10 h-10 flex items-center justify-center shadow-sm ${
+                          !notification.read
+                            ? "bg-gradient-to-br from-blue-100 to-indigo-200"
+                            : "bg-gradient-to-br from-slate-100 to-slate-200"
                         }`}
                       >
                         <Icon
-                          className={`h-3 w-3 ${
+                          className={`h-4 w-4 ${
                             !notification.read
                               ? "text-blue-600"
-                              : "text-slate-600"
+                              : "text-slate-500"
                           }`}
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start justify-between gap-2 mb-1">
                           <p
-                            className={`text-sm font-medium truncate ${
+                            className={`text-sm font-semibold leading-tight ${
                               !notification.read
                                 ? "text-slate-900"
                                 : "text-slate-700"
@@ -197,13 +205,13 @@ export function NotificationDropdown() {
                             {notification.title}
                           </p>
                           {!notification.read && (
-                            <div className="h-2 w-2 bg-blue-500 rounded-full flex-shrink-0 mt-1.5" />
+                            <div className="h-2.5 w-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex-shrink-0 mt-1 shadow-sm" />
                           )}
                         </div>
-                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                        <p className="text-xs text-slate-600 leading-relaxed line-clamp-2 mb-2">
                           {notification.message}
                         </p>
-                        <p className="text-xs text-slate-400 mt-1">
+                        <p className="text-xs text-slate-400 font-medium">
                           {formatTimestamp(notification.timestamp)}
                         </p>
                       </div>
@@ -215,10 +223,11 @@ export function NotificationDropdown() {
           </ScrollArea>
         )}
 
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="p-3 justify-center text-sm font-medium text-slate-600 hover:text-slate-900">
-          View all notifications
-        </DropdownMenuItem>
+        <div className="border-t border-slate-100 bg-gradient-to-r from-slate-50/50 to-blue-50/30 rounded-b-xl">
+          <DropdownMenuItem className="p-4 justify-center text-sm font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 transition-colors rounded-b-xl">
+            View all notifications
+          </DropdownMenuItem>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
