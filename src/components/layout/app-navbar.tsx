@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Calendar, ChartBar, Home, Image, Menu, X, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NavUser } from "./NavUser";
+import { NavUser } from "./nav-user";
 import { TeamSwitcher } from "../team-switcher";
-import { NotificationDropdown } from "./NotificationDropdown";
+import { NotificationDropdown } from "./notification-dropdown";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,

@@ -23,6 +23,7 @@ model User {
   approvalAssignments   ApprovalAssignment[]
   media                 Media[]
   memberships           Membership[]
+  notifications         Notification[]
   posts                 Post[]
   socialAccounts        SocialAccount[]
   teams                 Team[]
@@ -42,6 +43,7 @@ model Team {
   invitations       Invitation[]
   Media             Media[]
   memberships       Membership[]
+  notifications     Notification[]
   posts             Post[]
   socialAccounts    SocialAccount[]
   owner             User                @relation(fields: [ownerId], references: [id])
@@ -689,8 +691,51 @@ model Transaction {
   updatedAt       DateTime          @updatedAt
 }
 
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  teamId    String?
+  title     String
+  body      String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  link      String?
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  readAt    DateTime?
+  expiresAt DateTime?
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team      Team?            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([teamId])
+  @@index([type])
+  @@index([isRead])
+  @@index([createdAt])
+  @@index([expiresAt])
+}
+
 enum TransactionStatus {
   PENDING
   SUCCESS
   FAILED
+}
+
+enum NotificationType {
+  POST_SCHEDULED
+  POST_PUBLISHED
+  POST_FAILED
+  COMMENT_RECEIVED
+  APPROVAL_NEEDED
+  APPROVAL_REQUEST
+  APPROVAL_APPROVED
+  APPROVAL_REJECTED
+  TOKEN_EXPIRED
+  ACCOUNT_DISCONNECTED
+  TEAM_MEMBER_JOINED
+  TEAM_MEMBER_LEFT
+  TEAM_INVITATION
+  WORKFLOW_ASSIGNED
+  ANALYTICS_READY
+  SYSTEM_MAINTENANCE
 }

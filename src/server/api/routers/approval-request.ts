@@ -3,6 +3,7 @@ import { ApprovalStatus, Role } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { sendApprovalRequestEmail, sendApprovalStatusEmail } from "@/lib/email";
+import { NotificationService } from "@/lib/services/notification.service";
 import { randomBytes } from "crypto";
 
 // Helper function to send approval request notifications
@@ -50,9 +51,10 @@ async function sendApprovalNotifications(
 
     console.log("assignments", assignments);
 
-    // Send email to each assigned user
+    // Send email and in-app notification to each assigned user
     for (const assignment of assignments) {
       if (assignment.user) {
+        // Send email notification
         await sendApprovalRequestEmail({
           approverEmail: assignment.user.email,
           approverName: assignment.user.name || assignment.user.email,
@@ -60,6 +62,20 @@ async function sendApprovalNotifications(
           teamName: postWithDetails.team.name,
           authorName: postWithDetails.user.name || postWithDetails.user.email,
           assignmentId: assignment.id,
+        });
+
+        // Send in-app notification
+        await NotificationService.send({
+          userId: assignment.assignedUserId!,
+          type: 'APPROVAL_REQUEST',
+          title: 'New Approval Request',
+          body: `Post from ${postWithDetails.user.name || postWithDetails.user.email} in ${postWithDetails.team.name} needs your approval`,
+          metadata: {
+            assignmentId: assignment.id,
+            postId: postWithDetails.id,
+            teamId: postWithDetails.teamId,
+            authorName: postWithDetails.user.name || postWithDetails.user.email
+          }
         });
       }
     }
@@ -102,6 +118,7 @@ async function sendApprovalStatusNotification(
 
     if (!assignment?.instance.post || !assignment.user) return;
 
+    // Send email notification
     await sendApprovalStatusEmail({
       authorEmail: assignment.instance.post.user.email,
       authorName:
@@ -112,6 +129,24 @@ async function sendApprovalStatusNotification(
       approverName: assignment.user.name || assignment.user.email,
       status: approved ? "approved" : "rejected",
       feedback,
+    });
+
+    // Send in-app notification to post author
+    await NotificationService.send({
+      userId: assignment.instance.post.userId,
+      type: approved ? 'APPROVAL_APPROVED' : 'APPROVAL_REJECTED',
+      title: approved ? 'Post Approved' : 'Post Rejected',
+      body: approved 
+        ? `Your post in ${assignment.instance.post.team.name} has been approved by ${assignment.user.name || assignment.user.email}`
+        : `Your post in ${assignment.instance.post.team.name} has been rejected by ${assignment.user.name || assignment.user.email}${feedback ? `: ${feedback}` : ''}`,
+      metadata: {
+        assignmentId: assignment.id,
+        postId: assignment.instance.post.id,
+        teamId: assignment.instance.post.teamId,
+        approverName: assignment.user.name || assignment.user.email,
+        status: approved ? 'approved' : 'rejected',
+        feedback
+      }
     });
   } catch (error) {
     console.error("Error sending approval status notification:", error);

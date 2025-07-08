@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma/client";
 import { PostPublisherService } from "../post-publisher";
 import { PostStatus, ApprovalStatus } from "@prisma/client";
+import { NotificationService } from "../notification.service";
 
 // Add tracking for posts currently being processed
 const processingPosts = new Set<string>();
@@ -193,6 +194,44 @@ export class SchedulerService {
 
           if (allSuccessful) {
             console.log(`✅ Successfully published post ${post.id}`);
+            
+            // Send success notification to post author
+            try {
+              const postDetails = await prisma.post.findUnique({
+                where: { id: post.id },
+                include: {
+                  postSocialAccounts: {
+                    include: {
+                      socialAccount: {
+                        select: { platform: true }
+                      }
+                    }
+                  },
+                  team: {
+                    select: { name: true }
+                  }
+                }
+              });
+              
+              if (postDetails) {
+                const platforms = postDetails.postSocialAccounts.map(psa => psa.socialAccount.platform).join(', ');
+                
+                await NotificationService.send({
+                  userId: postDetails.userId,
+                  type: 'POST_PUBLISHED',
+                  title: 'Post Published Successfully',
+                  body: `Your post in ${postDetails.team.name} has been published to ${platforms}`,
+                  metadata: {
+                    postId: post.id,
+                    teamId: postDetails.teamId,
+                    platforms: postDetails.postSocialAccounts.map(psa => psa.socialAccount.platform)
+                  }
+                });
+              }
+            } catch (notificationError) {
+              console.error(`Failed to send success notification for post ${post.id}:`, notificationError);
+            }
+            
             return { status: "success", postId: post.id };
           } else {
             const errorMessage = publishResult
@@ -219,6 +258,35 @@ export class SchedulerService {
             console.error(
               `❌ Failed to publish post ${post.id}: ${errorMessage}`
             );
+            
+            // Send failure notification to post author
+            try {
+              const postDetails = await prisma.post.findUnique({
+                where: { id: post.id },
+                include: {
+                  team: {
+                    select: { name: true }
+                  }
+                }
+              });
+              
+              if (postDetails) {
+                await NotificationService.send({
+                  userId: postDetails.userId,
+                  type: 'POST_FAILED',
+                  title: 'Post Publishing Failed',
+                  body: `Failed to publish your post in ${postDetails.team.name}: ${errorMessage}`,
+                  metadata: {
+                    postId: post.id,
+                    teamId: postDetails.teamId,
+                    error: errorMessage
+                  }
+                });
+              }
+            } catch (notificationError) {
+              console.error(`Failed to send failure notification for post ${post.id}:`, notificationError);
+            }
+            
             return { status: "failed", postId: post.id, error: errorMessage };
           }
         } catch (error) {

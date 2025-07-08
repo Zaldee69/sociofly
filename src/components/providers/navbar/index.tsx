@@ -1,5 +1,5 @@
 import { ThemeProvider } from "next-themes";
-import { AppNavbar } from "@/components/layout/AppNavbar";
+import { AppNavbar } from "@/components/layout/app-navbar";
 
 type ProviderProps = {
   children: React.ReactNode;
