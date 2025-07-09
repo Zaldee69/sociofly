@@ -86,10 +86,10 @@ const Analytics: React.FC = () => {
     endDate: Date;
     days: number;
   }>({
-    preset: "7days",
-    startDate: subDays(new Date(), 7),
+    preset: "30days",
+    startDate: subDays(new Date(), 30),
     endDate: new Date(),
-    days: 7,
+    days: 30,
   });
   const [customDateRange, setCustomDateRange] = useState<{
     from: Date | undefined;

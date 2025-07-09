@@ -241,6 +241,9 @@ export type JobData =
   | CollectAnalyticsJobData
   | AnalyzeComprehensiveInsightsJobData
   | CollectHistoricalDataJobData
+  | InitialSyncJobData
+  | IncrementalSyncJobData
+  | DailySyncJobData
   // Legacy types (deprecated)
   | CollectPostsAnalyticsJobData
   | AnalyzeHotspotsJobData

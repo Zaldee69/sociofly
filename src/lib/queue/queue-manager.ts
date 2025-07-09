@@ -52,7 +52,13 @@ export class QueueManager {
       // Get Redis manager instance
       this.redisManager = UnifiedRedisManager.getInstance();
 
-      // Ensure Redis is available
+      // Initialize Redis connection if not already connected
+      if (!this.redisManager.isAvailable()) {
+        console.log("🔗 Initializing Redis connection for Queue Manager...");
+        await this.redisManager.initialize();
+      }
+
+      // Ensure Redis is available after initialization
       if (!this.redisManager.isAvailable()) {
         throw new Error("Redis is not available for Queue Manager");
       }

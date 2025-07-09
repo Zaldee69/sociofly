@@ -75,12 +75,25 @@ export class JobProcessor {
       const { prisma } = await import("@/lib/prisma/client");
       const syncService = new SocialSyncService(prisma);
 
+      // Perform initial sync
       const result = await syncService.performInitialSync({
         accountId: data.accountId,
         teamId: data.teamId,
         platform: data.platform,
         daysBack: data.daysBack || 30,
       });
+
+      // Also fetch initial heatmap data for supported platforms
+      if (data.platform === "INSTAGRAM" || data.platform === "FACEBOOK") {
+        try {
+          const { HotspotAnalyzer } = await import("@/lib/services/analytics/hotspots/hotspot-analyzer");
+          await HotspotAnalyzer.fetchInitialHeatmapData(data.accountId);
+          console.log(`✅ Initial heatmap data collected for ${data.accountId}`);
+        } catch (heatmapError) {
+          console.warn(`⚠️ Failed to collect heatmap data for ${data.accountId}:`, heatmapError);
+          // Don't fail the entire job if heatmap collection fails
+        }
+      }
 
       console.log(`✅ Initial sync completed for ${data.accountId}:`, {
         success: result.success,

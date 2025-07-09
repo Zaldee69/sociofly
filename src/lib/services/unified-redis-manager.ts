@@ -47,6 +47,11 @@ export class UnifiedRedisManager {
 
       this.setupEventHandlers();
 
+      // Force connection since lazyConnect is true
+      if (this.connection) {
+        await this.connection.connect();
+      }
+
       // Test connection with timeout
       await Promise.race([
         this.testConnection(),

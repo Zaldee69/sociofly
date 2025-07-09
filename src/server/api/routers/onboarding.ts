@@ -3,36 +3,79 @@ import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { OnboardingStatus, Role, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
-import { HotspotAnalyzer } from "@/lib/services/analytics/hotspots/hotspot-analyzer";
-import { SocialSyncService } from "@/lib/services/analytics";
+import { QueueManager } from "@/lib/queue/queue-manager";
+import { JobType } from "@/lib/queue/job-types";
 import { clerkClient } from "@clerk/nextjs/server";
 
-// Helper function to handle initial analytics collection
-async function performInitialAnalyticsCollection(
-  socialAccount: { id: string; platform: string },
+// Helper function to queue initial analytics collection as background job
+async function queueInitialAnalyticsCollection(
+  socialAccount: { id: string; platform: string; name: string },
   teamId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     console.log(
-      `🚀 Starting initial analytics collection for ${socialAccount.platform} account`
+      `🚀 Queueing initial analytics collection for ${socialAccount.platform} account: ${socialAccount.name}`
     );
 
-    // Import and initialize sync service
-    const syncService = new SocialSyncService();
+    // Get queue manager instance
+    const queueManager = QueueManager.getInstance();
+    await queueManager.initialize();
 
-    // Perform initial sync
-    await syncService.performInitialSync({
-      accountId: socialAccount.id,
-      teamId: teamId,
-      platform: socialAccount.platform as "INSTAGRAM" | "FACEBOOK",
-      daysBack: 30,
-    });
+    // Queue initial sync job for background processing
+    await queueManager.addJob(
+      QueueManager.QUEUES.SOCIAL_SYNC,
+      JobType.INITIAL_SYNC,
+      {
+        accountId: socialAccount.id,
+        teamId: teamId,
+        platform: socialAccount.platform as
+          | "INSTAGRAM"
+          | "FACEBOOK"
+          | "TWITTER"
+          | "LINKEDIN"
+          | "TIKTOK"
+          | "YOUTUBE",
+        daysBack: 30,
+        priority: "normal",
+      },
+      {
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 5000,
+        },
+        delay: 4000, // Start after 4 seconds to allow onboarding to complete
+      }
+    );
 
-    // Fetch initial heatmap data
-    await HotspotAnalyzer.fetchInitialHeatmapData(socialAccount.id);
+    await queueManager.addJob(
+      QueueManager.QUEUES.SOCIAL_SYNC,
+      JobType.DAILY_SYNC,
+      {
+        accountId: socialAccount.id,
+        teamId: teamId,
+        platform: socialAccount.platform as
+          | "INSTAGRAM"
+          | "FACEBOOK"
+          | "TWITTER"
+          | "LINKEDIN"
+          | "TIKTOK"
+          | "YOUTUBE",
+        daysBack: 30,
+        priority: "normal",
+      },
+      {
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 5000,
+        },
+        delay: 2000, // Start after 2 seconds to allow onboarding to complete
+      }
+    );
 
     console.log(
-      `✅ Initial analytics collection completed for ${socialAccount.platform} account`
+      `✅ Initial analytics collection queued for ${socialAccount.platform} account: ${socialAccount.name}`
     );
 
     return { success: true };
@@ -40,7 +83,7 @@ async function performInitialAnalyticsCollection(
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
     console.error(
-      `❌ Initial analytics collection failed for ${socialAccount.platform}:`,
+      `❌ Failed to queue initial analytics collection for ${socialAccount.platform}:`,
       errorMessage
     );
 
@@ -296,21 +339,25 @@ export const onboardingRouter = createTRPCRouter({
                 `Created social account: ${page.platform} - ${page.name}`
               );
 
-              // Trigger initial analytics collection for supported platforms
+              // Queue initial analytics collection for supported platforms
               if (
                 page.platform === "INSTAGRAM" ||
                 page.platform === "FACEBOOK"
               ) {
-                const analyticsResult = await performInitialAnalyticsCollection(
-                  { id: socialAccount.id, platform: page.platform },
+                const analyticsResult = await queueInitialAnalyticsCollection(
+                  {
+                    id: socialAccount.id,
+                    platform: page.platform,
+                    name: page.name,
+                  },
                   team.id
                 );
 
                 if (!analyticsResult.success) {
                   console.warn(
-                    `⚠️ Analytics collection failed for ${page.name}: ${analyticsResult.error}`
+                    `⚠️ Failed to queue analytics collection for ${page.name}: ${analyticsResult.error}`
                   );
-                  // Don't fail onboarding if analytics collection fails
+                  // Don't fail onboarding if analytics queueing fails
                 }
               }
             } catch (error) {
@@ -554,18 +601,18 @@ export const onboardingRouter = createTRPCRouter({
         },
       });
 
-      // Trigger initial analytics collection for supported platforms
+      // Queue initial analytics collection for supported platforms
       if (input.platform === "INSTAGRAM" || input.platform === "FACEBOOK") {
-        const analyticsResult = await performInitialAnalyticsCollection(
-          { id: socialAccount.id, platform: input.platform },
+        const analyticsResult = await queueInitialAnalyticsCollection(
+          { id: socialAccount.id, platform: input.platform, name: input.name },
           input.teamId
         );
 
         if (!analyticsResult.success) {
           console.warn(
-            `⚠️ Analytics collection failed for ${input.name}: ${analyticsResult.error}`
+            `⚠️ Failed to queue analytics collection for ${input.name}: ${analyticsResult.error}`
           );
-          // Don't fail the account linking if analytics collection fails
+          // Don't fail the account linking if analytics queueing fails
         }
       }
 
