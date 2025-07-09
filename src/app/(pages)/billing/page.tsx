@@ -33,8 +33,8 @@ const pricingPlans = [
     period: "month",
     description: "Perfect for individuals getting started",
     features: [
-      "Basic Post Scheduling (up to 5 projects)",
-      "Connect 1 Social Account",
+      "Max 10 Posts per month",
+      "Manage 2 Social Accounts",
       "Basic Post Analytics",
       "1 GB Media Storage",
       "Email Support",

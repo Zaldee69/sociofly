@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
-import { SocialPlatform, Role } from "@prisma/client";
+import { SocialPlatform, Role, BillingPlan } from "@prisma/client";
 import {
   Card,
   CardContent,
@@ -19,6 +19,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   Users,
   X,
@@ -30,12 +32,18 @@ import {
   Youtube,
   ExternalLink,
   AlertCircle,
+  Crown,
+  Zap,
+  Shield,
 } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useUser } from "@clerk/nextjs";
 import { AccountSelectionDialog } from "@/app/onboarding/components/account-selection-dialog";
 import { usePermissions } from "@/lib/hooks";
+import { SocialAccountQuotaService } from "@/lib/services/social-account-quota.service";
+import { PLAN_DISPLAY_NAMES } from "@/config/constants";
+import { useRouter as useNextRouter } from "next/navigation";
 
 interface SocialAccountsTabProps {
   teamId: string;
@@ -49,10 +57,18 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
     undefined
   );
   const [isRemovingAccount, setIsRemovingAccount] = useState(false);
+  const [quotaInfo, setQuotaInfo] = useState<{
+    current: number;
+    limit: number | string;
+    percentage: number;
+    isUnlimited: boolean;
+    canAdd: boolean;
+  } | null>(null);
   const { hasPermission } = usePermissions(teamId);
   const searchParams = useSearchParams();
   const authUser = useUser();
-  const sessionId = searchParams.get("sessionId") ?? "";
+  const sessionId = searchParams?.get("sessionId") ?? "";
+  const router = useNextRouter();
 
   // Function to remove sessionId from URL
   const removeSessionIdFromUrl = useCallback(() => {
@@ -75,6 +91,12 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
     {
       enabled: !!teamId,
     }
+  );
+
+  // Get team subscription data
+  const { data: teamSubscription } = trpc.team.getEffectiveSubscription.useQuery(
+    { teamId },
+    { enabled: !!teamId }
   );
 
   const { data: availableSocialAccounts } =
@@ -105,6 +127,29 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
       }
     }
   }, [temporaryData]);
+
+  // Update quota info when social accounts or subscription changes
+  useEffect(() => {
+    const updateQuotaInfo = async () => {
+      if (!teamSubscription || !socialAccounts) return;
+      
+      const plan = teamSubscription.subscriptionPlan || BillingPlan.FREE;
+      const currentCount = socialAccounts.length;
+      const limit = SocialAccountQuotaService.getSocialAccountLimit(plan);
+      const isUnlimited = limit === Infinity;
+      const canAdd = currentCount < limit;
+      
+      setQuotaInfo({
+        current: currentCount,
+        limit: isUnlimited ? "Unlimited" : limit,
+        percentage: isUnlimited ? 0 : Math.min(100, (currentCount / limit) * 100),
+        isUnlimited,
+        canAdd,
+      });
+    };
+    
+    updateQuotaInfo();
+  }, [socialAccounts, teamSubscription]);
 
   const utils = trpc.useUtils();
 
@@ -337,6 +382,24 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
 
   // Handlers for social accounts
   const handleAddSocialAccount = (platform: SocialPlatform) => {
+    // Check quota before adding
+    if (quotaInfo && !quotaInfo.canAdd) {
+      const plan = teamSubscription?.subscriptionPlan || BillingPlan.FREE;
+      const planName = PLAN_DISPLAY_NAMES[plan as keyof typeof PLAN_DISPLAY_NAMES];
+      
+      toast.error(
+        `You've reached the limit of ${quotaInfo.limit} social accounts for the ${planName} plan. Upgrade to connect more accounts.`,
+        {
+          action: {
+            label: "Upgrade Plan",
+            onClick: () => router.push("/billing"),
+          },
+        }
+      );
+      setIsAddAccountOpen(false);
+      return;
+    }
+
     // For FACEBOOK and INSTAGRAM, use OAuth flow
     if (
       platform === SocialPlatform.FACEBOOK ||
@@ -378,16 +441,67 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
     return platformIcons[platform] || null;
   };
 
+  // Get plan icon and color
+  const getPlanIcon = (plan: BillingPlan) => {
+    switch (plan) {
+      case BillingPlan.FREE:
+        return <Crown className="h-4 w-4" />;
+      case BillingPlan.PRO:
+        return <Zap className="h-4 w-4" />;
+      case BillingPlan.ENTERPRISE:
+        return <Shield className="h-4 w-4" />;
+      default:
+        return <Crown className="h-4 w-4" />;
+    }
+  };
+
+  const getPlanColor = (plan: BillingPlan) => {
+    switch (plan) {
+      case BillingPlan.FREE:
+        return "secondary";
+      case BillingPlan.PRO:
+        return "default";
+      case BillingPlan.ENTERPRISE:
+        return "destructive";
+      default:
+        return "secondary";
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Social Accounts
-        </CardTitle>
-        <CardDescription>
-          Manage connected social media accounts
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Social Accounts
+            </CardTitle>
+            <CardDescription>
+              Manage connected social media accounts
+            </CardDescription>
+          </div>
+          {teamSubscription && quotaInfo && (
+            <div className="text-right space-y-2">
+              <Badge 
+                variant={getPlanColor(teamSubscription.subscriptionPlan || BillingPlan.FREE)}
+                className="flex items-center gap-1"
+              >
+                {getPlanIcon(teamSubscription.subscriptionPlan || BillingPlan.FREE)}
+                {PLAN_DISPLAY_NAMES[teamSubscription.subscriptionPlan as keyof typeof PLAN_DISPLAY_NAMES] || "Basic"}
+              </Badge>
+              <div className="text-sm text-muted-foreground">
+                {quotaInfo.current} / {quotaInfo.limit} accounts
+              </div>
+              {!quotaInfo.isUnlimited && (
+                <Progress 
+                  value={quotaInfo.percentage} 
+                  className="w-24 h-2"
+                />
+              )}
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {errorMessage && (
@@ -465,11 +579,30 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
 
         {hasPermission("account.manage") && (
           <div className="mt-6">
+            {quotaInfo && !quotaInfo.canAdd && (
+              <Alert className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Account Limit Reached</AlertTitle>
+                <AlertDescription className="flex items-center justify-between">
+                  <span>
+                    You've reached the limit of {quotaInfo.limit} social accounts for your current plan.
+                  </span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => router.push("/billing")}
+                    className="ml-2"
+                  >
+                    Upgrade Plan
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
             <Dialog open={isAddAccountOpen} onOpenChange={setIsAddAccountOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button disabled={quotaInfo?.canAdd === false}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Connect Account
+                  {quotaInfo?.canAdd === false ? "Limit Reached" : "Connect Account"}
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -478,6 +611,22 @@ export const SocialAccountsTab = ({ teamId }: SocialAccountsTabProps) => {
                   <DialogDescription>
                     Choose a platform to connect a new social media account
                   </DialogDescription>
+                  {quotaInfo && teamSubscription && (
+                    <div className="flex items-center justify-between p-3 bg-muted rounded-lg mt-4">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={getPlanColor(teamSubscription.subscriptionPlan || BillingPlan.FREE)}>
+                          {getPlanIcon(teamSubscription.subscriptionPlan || BillingPlan.FREE)}
+                          {PLAN_DISPLAY_NAMES[teamSubscription.subscriptionPlan as keyof typeof PLAN_DISPLAY_NAMES] || "Basic"}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {quotaInfo.current} / {quotaInfo.limit} accounts used
+                        </span>
+                      </div>
+                      {!quotaInfo.isUnlimited && (
+                        <Progress value={quotaInfo.percentage} className="w-20 h-2" />
+                      )}
+                    </div>
+                  )}
                 </DialogHeader>
                 <div className="space-y-4">
                   {availableSocialAccounts?.map((platform) => (
