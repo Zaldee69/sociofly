@@ -10,6 +10,20 @@ import {
 import { Feature } from "@/config/feature-flags";
 import { PostStatus, SocialPlatform } from "@prisma/client";
 import { PostPublisherService } from "@/lib/services/post-publisher";
+import { PostQuotaService } from "@/lib/services/post-quota.service";
+import { TeamSubscriptionService } from "@/lib/services/team-subscription.service";
+
+// Helper function to safely get user ID
+const getUserId = (ctx: any) => {
+  const userId = ctx.auth.userId;
+  if (!userId) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "User ID not found in context",
+    });
+  }
+  return userId;
+};
 
 // Validasi untuk pembuatan post baru
 const createPostSchema = z.object({
@@ -49,11 +63,33 @@ const getPostsSchema = z.object({
 });
 
 export const postRouter = createTRPCRouter({
+  // Get post quota information for a team
+  getPostQuota: protectedProcedure
+    .input(z.object({ teamId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const { teamId } = input;
+      const userId = getUserId(ctx);
+
+      // Get the effective subscription for this user in this team
+      const subscription =
+        await TeamSubscriptionService.getEffectiveSubscription(userId, teamId);
+
+      // Check post quota based on the subscription plan
+      const quotaInfo = await PostQuotaService.checkPostQuota(
+        userId,
+        teamId,
+        subscription.subscriptionPlan
+      );
+
+      return quotaInfo;
+    }),
+
   // Dapatkan semua post untuk organisasi
   getAll: protectedProcedure
     .input(getPostsSchema)
     .query(async ({ ctx, input }) => {
       const { teamId, status, platform, fromDate, toDate } = input;
+      const userId = getUserId(ctx);
 
       // Bangun filter berdasarkan input
       const where: any = { teamId };
@@ -114,6 +150,7 @@ export const postRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const { id } = input;
+      const userId = getUserId(ctx);
 
       const post = await ctx.prisma.post.findUnique({
         where: { id },
@@ -158,11 +195,13 @@ export const postRouter = createTRPCRouter({
         postStatus,
       } = input;
 
+      const userId = getUserId(ctx);
+
       // Periksa apakah pengguna memiliki akses ke organisasi
       const membership = await ctx.prisma.membership.findUnique({
         where: {
           userId_teamId: {
-            userId: ctx.auth.userId,
+            userId,
             teamId,
           },
         },
@@ -202,7 +241,7 @@ export const postRouter = createTRPCRouter({
             scheduledAt,
             platform,
             status: postStatus,
-            userId: ctx.auth.userId,
+            userId,
             teamId,
           },
         });
@@ -247,6 +286,7 @@ export const postRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, socialAccountIds, ...updateData } = input;
+      const userId = getUserId(ctx);
 
       // Periksa apakah post ada dan pengguna memiliki akses
       const post = await ctx.prisma.post.findUnique({
@@ -267,7 +307,7 @@ export const postRouter = createTRPCRouter({
       const membership = await ctx.prisma.membership.findUnique({
         where: {
           userId_teamId: {
-            userId: ctx.auth.userId,
+            userId,
             teamId: post.teamId,
           },
         },
@@ -357,6 +397,7 @@ export const postRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const { id } = input;
+      const userId = getUserId(ctx);
 
       // Periksa apakah post ada dan pengguna memiliki akses
       const post = await ctx.prisma.post.findUnique({
@@ -377,7 +418,7 @@ export const postRouter = createTRPCRouter({
       const membership = await ctx.prisma.membership.findUnique({
         where: {
           userId_teamId: {
-            userId: ctx.auth.userId,
+            userId,
             teamId: post.teamId,
           },
         },
@@ -428,6 +469,7 @@ export const postRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const { id } = input;
+      const userId = getUserId(ctx);
 
       // Periksa apakah post ada dan pengguna memiliki akses
       const post = await ctx.prisma.post.findUnique({
@@ -448,7 +490,7 @@ export const postRouter = createTRPCRouter({
       const membership = await ctx.prisma.membership.findUnique({
         where: {
           userId_teamId: {
-            userId: ctx.auth.userId,
+            userId,
             teamId: post.teamId,
           },
         },
@@ -495,6 +537,7 @@ export const postRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const { id } = input;
+      const userId = getUserId(ctx);
 
       // Get the post and check access
       const post = await ctx.prisma.post.findUnique({
@@ -515,7 +558,7 @@ export const postRouter = createTRPCRouter({
       const membership = await ctx.prisma.membership.findUnique({
         where: {
           userId_teamId: {
-            userId: ctx.auth.userId,
+            userId,
             teamId: post.teamId,
           },
         },
@@ -568,6 +611,7 @@ export const postRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       const { teamId, page, limit } = input;
+      const userId = getUserId(ctx);
       const skip = (page - 1) * limit;
 
       const where = {
@@ -616,6 +660,7 @@ export const postRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const { id } = input;
+      const userId = getUserId(ctx);
 
       // Periksa apakah post ada dan statusnya FAILED
       const post = await ctx.prisma.post.findUnique({
@@ -643,7 +688,7 @@ export const postRouter = createTRPCRouter({
       const membership = await ctx.prisma.membership.findUnique({
         where: {
           userId_teamId: {
-            userId: ctx.auth.userId,
+            userId,
             teamId: post.teamId,
           },
         },
@@ -693,6 +738,7 @@ export const postRouter = createTRPCRouter({
     .input(z.object({ postId: z.string() }))
     .query(async ({ ctx, input }) => {
       const { postId } = input;
+      const userId = getUserId(ctx);
 
       // Get the post to check access
       const post = await ctx.prisma.post.findUnique({
@@ -710,7 +756,7 @@ export const postRouter = createTRPCRouter({
       const membership = await ctx.prisma.membership.findUnique({
         where: {
           userId_teamId: {
-            userId: ctx.auth.userId,
+            userId,
             teamId: post.teamId,
           },
         },
@@ -764,6 +810,7 @@ export const postRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       try {
         const { postId } = input;
+        const userId = getUserId(ctx);
 
         // Get post with analytics data
         const post = await ctx.prisma.post.findUnique({
@@ -792,7 +839,7 @@ export const postRouter = createTRPCRouter({
         const membership = await ctx.prisma.membership.findUnique({
           where: {
             userId_teamId: {
-              userId: ctx.auth.userId,
+              userId,
               teamId: post.teamId,
             },
           },

@@ -156,47 +156,66 @@ export const hasTeamFeature = (feature: Feature) =>
     // Extract teamId from input if available
     const teamId = (input as any)?.teamId;
 
-    if (teamId) {
-      // Use team context - check owner's subscription
-      const hasAccess = await TeamSubscriptionService.hasFeatureAccess(
-        ctx.userId,
-        teamId,
-        requiredPlan
-      );
+    // For post-related features, try to get teamId from postId
+    let resolvedTeamId = teamId;
+    if (!resolvedTeamId && (input as any)?.postId) {
+      const post = await ctx.prisma.post.findUnique({
+        where: { id: (input as any).postId },
+        select: { teamId: true },
+      });
+      resolvedTeamId = post?.teamId;
+    }
 
-      if (!hasAccess) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: `Access denied. This feature requires the ${requiredPlan} plan for this team.`,
-        });
-      }
-    } else {
-      // Fallback to individual subscription check
-      const userPlan = ctx.userSubscriptionPlan;
+    // If still no teamId, try to get from user's activeTeamId
+    if (!resolvedTeamId) {
+      const user = await ctx.prisma.user.findUnique({
+        where: { id: ctx.userId },
+        select: { activeTeamId: true },
+      });
+      resolvedTeamId = user?.activeTeamId;
+    }
 
-      if (!userPlan) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "Subscription plan not found for user.",
-        });
-      }
+    if (!resolvedTeamId) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Team ID is required for this operation",
+      });
+    }
 
-      const userPlanRank = PLAN_RANKS[userPlan];
-      const requiredPlanRank = PLAN_RANKS[requiredPlan];
+    // Check if user has access to this team
+    const membership = await ctx.prisma.membership.findFirst({
+      where: {
+        userId: ctx.userId,
+        teamId: resolvedTeamId,
+        status: "ACTIVE",
+      },
+    });
 
-      if (userPlanRank < requiredPlanRank) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: `Access denied. This feature requires the ${requiredPlan} plan.`,
-        });
-      }
+    if (!membership) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "You don't have access to this team",
+      });
+    }
+
+    // Check if team has access to this feature based on required plan
+    const hasAccess = await TeamSubscriptionService.hasFeatureAccess(
+      ctx.userId,
+      resolvedTeamId,
+      requiredPlan
+    );
+
+    if (!hasAccess) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Access denied. This feature requires the ${requiredPlan} plan.`,
+      });
     }
 
     return next({
       ctx: {
         ...ctx,
-        auth: { userId: ctx.userId },
-        teamId,
+        teamId: resolvedTeamId,
       },
     });
   });

@@ -13,6 +13,9 @@ import {
 import { format, formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
 import { useNotifications } from "@/lib/hooks/useNotifications";
+import { trpc } from "@/lib/trpc/client";
+import { NotificationType } from "@prisma/client";
+import type { JsonValue } from "@prisma/client/runtime/library";
 
 import {
   DropdownMenu,
@@ -28,27 +31,17 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-interface NotificationDropdownProps {
-  teamId?: string;
-}
-
-export function NotificationDropdown({ teamId }: NotificationDropdownProps) {
+export function NotificationDropdown() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const utils = trpc.useUtils();
 
-  const {
-    notifications,
-    unreadCount,
-    isLoading,
-    markAsRead,
-    markAllAsRead,
-    refresh,
-  } = useNotifications({
-    teamId,
-    limit: 10,
-    enableRealtime: true,
-  });
+  const { notifications, unreadCount, isLoading, markAsRead, markAllAsRead } =
+    useNotifications({
+      limit: 10,
+      enableRealtime: true,
+    });
 
   useEffect(() => {
     setIsMounted(true);
@@ -57,9 +50,9 @@ export function NotificationDropdown({ teamId }: NotificationDropdownProps) {
   // Refresh notifications when dropdown opens
   useEffect(() => {
     if (open) {
-      refresh();
+      utils.notification.getAll.invalidate();
     }
-  }, [open, refresh]);
+  }, [open, utils]);
 
   // Get icon based on notification type
   const getNotificationIcon = (type: string) => {
@@ -112,12 +105,51 @@ export function NotificationDropdown({ teamId }: NotificationDropdownProps) {
   };
 
   // Handle notification click
-  const handleNotificationClick = (notificationId: string, link?: string) => {
-    markAsRead(notificationId);
-    if (link) {
-      router.push(link);
-      setOpen(false);
+  const handleNotificationClick = (notification: {
+    id: string;
+    type: NotificationType;
+    link: string | null;
+    metadata: JsonValue;
+  }) => {
+    markAsRead(notification.id);
+
+    const metadata = notification.metadata
+      ? ((typeof notification.metadata === "string"
+          ? JSON.parse(notification.metadata)
+          : notification.metadata) as Record<string, any>)
+      : null;
+
+    console.log("metadata", metadata);
+
+    // Handle routing based on notification type
+    switch (notification.type) {
+      case "APPROVAL_NEEDED":
+      case "APPROVAL_REQUEST":
+        if (metadata?.assignmentId) {
+          router.push(`/approvals?assignment=${metadata.assignmentId}`);
+        }
+        break;
+      case "POST_PUBLISHED":
+      case "POST_FAILED":
+      case "APPROVAL_APPROVED":
+      case "APPROVAL_REJECTED":
+        if (metadata?.postId) {
+          router.push(`/posts/${metadata.postId}`);
+        }
+        break;
+      case "TEAM_INVITATION":
+        if (metadata?.teamId) {
+          router.push(`/teams/${metadata.teamId}`);
+        }
+        break;
+      default:
+        // Fallback to link if provided
+        if (notification.link) {
+          router.push(notification.link);
+        }
     }
+
+    setOpen(false);
   };
 
   // Prevent hydration mismatch by showing consistent state until mounted
@@ -221,9 +253,7 @@ export function NotificationDropdown({ teamId }: NotificationDropdownProps) {
                       notification.isRead
                     )
                   )}
-                  onClick={() =>
-                    handleNotificationClick(notification.id, notification.link)
-                  }
+                  onClick={() => handleNotificationClick(notification)}
                 >
                   <div className="flex gap-3 w-full">
                     <div className="p-2 rounded-full flex-shrink-0 w-10 h-10 flex items-center justify-center shadow-sm bg-white dark:bg-slate-800">

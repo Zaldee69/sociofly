@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useTeams } from "../hooks/use-teams";
 import { usePathname } from "next/navigation";
+import { trpc } from "../trpc/client";
 
 interface TeamContextType {
   currentTeamId: string | null;
@@ -18,20 +19,26 @@ const TeamContext = createContext<TeamContextType>({
 
 export const useTeamContext = () => useContext(TeamContext);
 
-const CURRENT_TEAM_KEY = "current-team-id";
-
 export function TeamProvider({ children }: { children: React.ReactNode }) {
-  const { teams, isLoading } = useTeams();
+  const { teams, isLoading: teamsLoading } = useTeams();
   const [currentTeamId, setCurrentTeamId] = useState<string | null>(null);
   const pathname = usePathname();
+  const utils = trpc.useUtils();
 
-  // Load current team from localStorage on mount
-  useEffect(() => {
-    const savedTeamId = localStorage.getItem(CURRENT_TEAM_KEY);
-    if (savedTeamId) {
-      setCurrentTeamId(savedTeamId);
-    }
-  }, []);
+  // Get active team from server
+  const { data: activeTeam, isLoading: activeTeamLoading } =
+    trpc.team.getActiveTeam.useQuery(undefined, {
+      // Only fetch if we have teams
+      enabled: teams !== undefined && teams.length > 0,
+    });
+
+  // Set active team on server
+  const { mutate: setActiveTeam } = trpc.team.setActiveTeam.useMutation({
+    onSuccess: () => {
+      // Refetch active team instead of relying on return value
+      utils.team.getActiveTeam.invalidate();
+    },
+  });
 
   // If we're on a team-specific page, use that team ID
   useEffect(() => {
@@ -40,39 +47,44 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
       const urlTeamId = teamIdMatch[1];
       // Only update if it's different from current
       if (urlTeamId !== currentTeamId) {
-        setCurrentTeamId(urlTeamId);
-        localStorage.setItem(CURRENT_TEAM_KEY, urlTeamId);
+        setActiveTeam({ teamId: urlTeamId });
       }
     }
-  }, [pathname, currentTeamId]);
+  }, [pathname, currentTeamId, setActiveTeam]);
 
   // Set default team if none is selected and teams are loaded
   useEffect(() => {
-    if (!isLoading && teams?.length > 0 && !currentTeamId) {
+    if (!teamsLoading && teams?.length > 0 && !currentTeamId && !activeTeam) {
       const defaultTeamId = teams[0].id;
-      setCurrentTeamId(defaultTeamId);
-      localStorage.setItem(CURRENT_TEAM_KEY, defaultTeamId);
+      setActiveTeam({ teamId: defaultTeamId });
     }
-  }, [teams, isLoading, currentTeamId]);
+  }, [teams, teamsLoading, currentTeamId, activeTeam, setActiveTeam]);
+
+  // Set currentTeamId when activeTeam is loaded
+  useEffect(() => {
+    if (activeTeam && activeTeam.id !== currentTeamId) {
+      setCurrentTeamId(activeTeam.id);
+    }
+  }, [activeTeam, currentTeamId]);
 
   // Validate that current team still exists in user's teams
   useEffect(() => {
-    if (!isLoading && teams?.length > 0 && currentTeamId) {
+    if (!teamsLoading && teams?.length > 0 && currentTeamId) {
       const teamExists = teams.some((team) => team.id === currentTeamId);
       if (!teamExists) {
         // Current team no longer exists, switch to first available team
         const defaultTeamId = teams[0].id;
-        setCurrentTeamId(defaultTeamId);
-        localStorage.setItem(CURRENT_TEAM_KEY, defaultTeamId);
+        setActiveTeam({ teamId: defaultTeamId });
       }
     }
-  }, [teams, isLoading, currentTeamId]);
+  }, [teams, teamsLoading, currentTeamId, setActiveTeam]);
 
-  // Handle team switching (without navigation)
+  // Handle team switching
   const handleSetCurrentTeam = (teamId: string) => {
-    setCurrentTeamId(teamId);
-    localStorage.setItem(CURRENT_TEAM_KEY, teamId);
+    setActiveTeam({ teamId });
   };
+
+  const isLoading = teamsLoading || activeTeamLoading;
 
   return (
     <TeamContext.Provider

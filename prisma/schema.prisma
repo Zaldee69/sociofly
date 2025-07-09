@@ -20,6 +20,8 @@ model User {
   subscriptionExpiresAt DateTime?
   subscriptionUpdatedAt DateTime?
   subscriptionActive    Boolean              @default(false)
+  activeTeamId          String?
+  activeTeam            Team?                @relation("ActiveTeam", fields: [activeTeamId], references: [id])
   approvalAssignments   ApprovalAssignment[]
   media                 Media[]
   memberships           Membership[]
@@ -28,6 +30,8 @@ model User {
   socialAccounts        SocialAccount[]
   teams                 Team[]
   transactions          Transaction[]
+
+  @@index([activeTeamId])
 }
 
 model Team {
@@ -47,7 +51,10 @@ model Team {
   posts             Post[]
   socialAccounts    SocialAccount[]
   owner             User                @relation(fields: [ownerId], references: [id])
+  activeUsers       User[]              @relation("ActiveTeam")
   EngagementHotspot EngagementHotspot[]
+
+  @@index([ownerId])
 }
 
 model Membership {

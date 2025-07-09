@@ -114,6 +114,11 @@ export function AddPostDialog({
     post,
   });
 
+  // Add approval status check
+  const { isRejected, isApproved, isInProgress } = usePostApprovalStatus(
+    post?.id || ""
+  );
+
   console.log(selectedAccounts);
 
   // Fetch social accounts
@@ -520,6 +525,7 @@ export function AddPostDialog({
                         isUploading={isUploading}
                         postId={post?.id}
                         postStatus={post?.status}
+                        teamId={currentTeamId || ""}
                         onActionChange={(action) => {
                           form.setValue("postAction", action, {
                             shouldDirty: true,
@@ -562,6 +568,12 @@ export function AddPostDialog({
             </div>
           </div>
         </div>
+
+        {post?.id && (
+          <div className="mb-6">
+            <ApprovalStatusDisplay postId={post.id} />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

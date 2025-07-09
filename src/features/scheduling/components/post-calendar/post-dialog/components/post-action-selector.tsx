@@ -4,8 +4,10 @@ import {
   RefreshCw,
   Loader2,
   CheckCircle,
+  AlertCircle,
+  Lock,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import {
   Popover,
@@ -21,6 +23,10 @@ import {
 import { cn } from "@/lib/utils";
 import { PostAction } from "../schema";
 import { usePostApprovalStatus } from "./approval-status";
+import { usePostQuota } from "../hooks/use-post-quota";
+import { useTeamFeatureFlag } from "@/lib/hooks/use-team-feature-flag";
+import { Feature } from "@/config/feature-flags";
+import { Badge } from "@/components/ui/badge";
 
 interface TAction {
   value: PostAction | "RESUBMIT";
@@ -90,6 +96,7 @@ interface PostActionSelectorProps {
   onActionChange: (action: PostAction) => void;
   postId?: string; // Add postId to detect rejection status
   postStatus?: string; // Add post status to detect if published
+  teamId: string; // Add teamId to check quota
 }
 
 export function PostActionSelector({
@@ -98,15 +105,51 @@ export function PostActionSelector({
   onActionChange,
   postId,
   postStatus,
+  teamId,
 }: PostActionSelectorProps) {
   const [isOpenPopover, setIsOpenPopover] = useState(false);
 
   // Check if post is rejected
   const { isRejected } = usePostApprovalStatus(postId || "");
 
+  // Check post quota
+  const {
+    hasQuotaRemaining,
+    currentCount,
+    limit,
+    remaining,
+    isLoading: isQuotaLoading,
+  } = usePostQuota(teamId);
+
+  // Check feature access based on team subscription
+  const { hasFeature, isLoading: isFeatureLoading } =
+    useTeamFeatureFlag(teamId);
+  const hasBasicSchedulingAccess = hasFeature(Feature.BASIC_POST_SCHEDULING);
+  const hasApprovalAccess = hasFeature(Feature.BASIC_APPROVAL_WORKFLOWS);
+
   // Check if post is published or failed
   const isPublished = postStatus === "PUBLISHED";
   const isFailed = postStatus === "FAILED";
+
+  // Determine if actions should be disabled due to quota
+  const isQuotaExceeded = !hasQuotaRemaining;
+  const isScheduleAction = currentAction === PostAction.SCHEDULE;
+  const isQuotaDisabled = isQuotaExceeded && isScheduleAction;
+
+  // Determine if actions should be disabled due to feature access
+  const isScheduleDisabled =
+    !hasBasicSchedulingAccess && currentAction === PostAction.SCHEDULE;
+  const isPublishNowDisabled =
+    !hasBasicSchedulingAccess && currentAction === PostAction.PUBLISH_NOW;
+  const isRequestReviewDisabled =
+    !hasApprovalAccess && currentAction === PostAction.REQUEST_REVIEW;
+
+  // Combined disabled state
+  const isActionDisabled =
+    isQuotaDisabled ||
+    isScheduleDisabled ||
+    isPublishNowDisabled ||
+    isRequestReviewDisabled;
 
   // If post is published, show read-only status
   if (isPublished) {
@@ -157,14 +200,26 @@ export function PostActionSelector({
     return action?.loadingText || "Processing...";
   };
 
+  // Show quota info only for schedule action
+  const showQuotaInfo = isScheduleAction;
+
+  // Show feature access warning
+  const showFeatureWarning = isRequestReviewDisabled;
+
   return (
     <div className={buttonVariants({ className: "pr-0" })}>
       <button
         form="event-form"
         type="submit"
-        className="cursor-pointer flex items-center gap-2"
-        disabled={isUploading}
+        className={cn("cursor-pointer flex items-center gap-2", {
+          "cursor-not-allowed opacity-70": isActionDisabled,
+        })}
+        disabled={isUploading || isActionDisabled}
       >
+        {isScheduleAction && isQuotaDisabled && (
+          <AlertCircle className="w-4 h-4 text-red-500" />
+        )}
+        {showFeatureWarning && <Lock className="w-4 h-4 text-amber-500" />}
         {isUploading && <Loader2 className="w-4 h-4 animate-spin" />}
         {(isRejected || isFailed) && !isUploading && (
           <RefreshCw className="w-4 h-4" />
@@ -176,10 +231,35 @@ export function PostActionSelector({
             : isFailed
               ? retryActions[0].title
               : defaultAction?.title}
+        {showFeatureWarning && (
+          <Badge
+            variant="outline"
+            className="ml-2 text-xs bg-amber-50 text-amber-800 border-amber-200"
+          >
+            Pro
+          </Badge>
+        )}
+        {showQuotaInfo && (
+          <Badge
+            variant="outline"
+            className={cn(
+              "ml-2 text-xs border px-2 py-0.5",
+              isQuotaDisabled
+                ? "bg-red-50 text-red-700 border-red-200"
+                : "bg-amber-50 text-amber-700 border-amber-200"
+            )}
+          >
+            {currentCount}/{limit} Post
+          </Badge>
+        )}
       </button>
+
       <Popover open={isOpenPopover} onOpenChange={setIsOpenPopover}>
         <PopoverTrigger asChild>
-          <button className="p-2 border-l" disabled={isUploading}>
+          <button
+            className="p-2 border-l"
+            disabled={isUploading || isQuotaLoading || isFeatureLoading}
+          >
             <ChevronDown className="w-4 h-4" />
           </button>
         </PopoverTrigger>
@@ -187,55 +267,109 @@ export function PostActionSelector({
           <Command>
             <CommandList>
               <CommandGroup>
-                {actions.map((actionItem) => (
-                  <CommandItem
-                    className="justify-between"
-                    key={actionItem.value}
-                    value={actionItem.value}
-                    onSelect={handleActionSelect}
-                  >
-                    <div className="flex items-center gap-2">
-                      {actionItem.value === "RESUBMIT" && (
-                        <RefreshCw className="w-4 h-4" />
-                      )}
-                      <div>
-                        <p
-                          className={cn({
-                            "font-semibold":
-                              (isRejected && actionItem.value === "RESUBMIT") ||
-                              (!isRejected &&
-                                actionItem.value === currentAction),
-                          })}
-                        >
-                          {actionItem.title}
-                        </p>
-                        <p
-                          className={cn(
-                            "text-xs italic text-muted-foreground",
-                            {
-                              "font-medium":
-                                (isRejected &&
-                                  actionItem.value === "RESUBMIT") ||
-                                (!isRejected &&
-                                  actionItem.value === currentAction),
-                            }
+                {actions.map((actionItem) => {
+                  // Check if this action is disabled due to quota
+                  const isItemQuotaDisabled =
+                    !hasQuotaRemaining &&
+                    actionItem.value === PostAction.SCHEDULE;
+
+                  // Check if this action is disabled due to feature access
+                  const isFeatureDisabled =
+                    actionItem.value === PostAction.REQUEST_REVIEW &&
+                    !hasApprovalAccess;
+
+                  // Combined disabled state
+                  const isItemDisabled =
+                    isItemQuotaDisabled || isFeatureDisabled;
+
+                  // Show quota info for schedule action
+                  const showItemQuota =
+                    actionItem.value === PostAction.SCHEDULE;
+
+                  return (
+                    <CommandItem
+                      className={cn("justify-between", {
+                        "opacity-50 cursor-not-allowed": isItemDisabled,
+                      })}
+                      key={actionItem.value}
+                      value={actionItem.value}
+                      onSelect={handleActionSelect}
+                      disabled={isItemDisabled}
+                    >
+                      <div className="flex items-center gap-2">
+                        {actionItem.value === "RESUBMIT" && (
+                          <RefreshCw className="w-4 h-4" />
+                        )}
+                        {actionItem.value === PostAction.SCHEDULE &&
+                          isItemQuotaDisabled && (
+                            <AlertCircle className="w-4 h-4 text-red-500" />
                           )}
-                        >
-                          {actionItem.description}
-                        </p>
+                        {isFeatureDisabled && (
+                          <Lock className="w-4 h-4 text-amber-500" />
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p
+                              className={cn({
+                                "font-semibold":
+                                  (isRejected &&
+                                    actionItem.value === "RESUBMIT") ||
+                                  (!isRejected &&
+                                    actionItem.value === currentAction),
+                              })}
+                            >
+                              {actionItem.title}
+                            </p>
+                            {isFeatureDisabled && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs bg-amber-50 text-amber-800 border-amber-200"
+                              >
+                                Pro
+                              </Badge>
+                            )}
+                            {showItemQuota && (
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-xs px-2 py-0.5",
+                                  isItemQuotaDisabled
+                                    ? "bg-red-50 text-red-700 border-red-200"
+                                    : "bg-amber-50 text-amber-700 border-amber-200"
+                                )}
+                              >
+                                {currentCount}/{limit} Post
+                              </Badge>
+                            )}
+                          </div>
+                          <p
+                            className={cn(
+                              "text-xs italic text-muted-foreground",
+                              {
+                                "font-medium":
+                                  (isRejected &&
+                                    actionItem.value === "RESUBMIT") ||
+                                  (!isRejected &&
+                                    actionItem.value === currentAction),
+                              }
+                            )}
+                          >
+                            {actionItem.description}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        (isRejected && actionItem.value === "RESUBMIT") ||
-                          (!isRejected && actionItem.value === currentAction)
-                          ? "opacity-100"
-                          : "opacity-0"
-                      )}
-                    />
-                  </CommandItem>
-                ))}
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          (isRejected && actionItem.value === "RESUBMIT") ||
+                            (!isRejected && actionItem.value === currentAction)
+                            ? "opacity-100"
+                            : "opacity-0"
+                        )}
+                      />
+                    </CommandItem>
+                  );
+                })}
               </CommandGroup>
             </CommandList>
           </Command>

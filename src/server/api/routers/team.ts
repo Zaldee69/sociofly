@@ -2060,4 +2060,105 @@ export const teamRouter = createTRPCRouter({
 
       return teamInviteHistory;
     }),
+
+  // Set active team for current user
+  setActiveTeam: protectedProcedure
+    .input(z.object({ teamId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user is a member of this team
+      const membership = await ctx.prisma.membership.findFirst({
+        where: {
+          userId: ctx.userId,
+          teamId: input.teamId,
+          status: "ACTIVE",
+        },
+      });
+
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You are not a member of this team",
+        });
+      }
+
+      // Update user's active team
+      await ctx.prisma.user.update({
+        where: { id: ctx.userId },
+        data: { activeTeamId: input.teamId },
+      });
+
+      return { success: true };
+    }),
+
+  // Get current user's active team
+  getActiveTeam: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+    const user = await ctx.prisma.user.findUnique({
+      where: { id: ctx.userId },
+      include: {
+        activeTeam: {
+          include: {
+            _count: {
+              select: { memberships: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user?.activeTeam) {
+      // If no active team, try to get the first team the user is a member of
+      const firstMembership = await ctx.prisma.membership.findFirst({
+        where: {
+          userId: ctx.userId,
+          status: "ACTIVE",
+        },
+        include: {
+          team: {
+            include: {
+              _count: {
+                select: { memberships: true },
+              },
+            },
+          },
+        },
+      });
+
+      if (firstMembership) {
+        // Set this team as active
+        await ctx.prisma.user.update({
+          where: { id: ctx.userId },
+          data: { activeTeamId: firstMembership.teamId },
+        });
+
+        return {
+          id: firstMembership.team.id,
+          name: firstMembership.team.name,
+          description: firstMembership.team.slug,
+          role: firstMembership.role,
+          memberCount: firstMembership.team._count.memberships,
+        };
+      }
+
+      return null;
+    }
+
+    return {
+      id: user.activeTeam.id,
+      name: user.activeTeam.name,
+      description: user.activeTeam.slug,
+      role: (
+        await ctx.prisma.membership.findFirst({
+          where: {
+            userId: ctx.userId,
+            teamId: user.activeTeam.id,
+          },
+        })
+      )?.role,
+      memberCount: user.activeTeam._count.memberships,
+    };
+  }),
 });

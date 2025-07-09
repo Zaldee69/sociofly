@@ -4,7 +4,13 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,11 +20,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CheckCircle,
   XCircle,
-  Clock,
-  User,
-  Calendar,
-  MessageSquare,
-  Eye,
+  Loader2,
+  UserCircle,
+  CalendarCheck,
+  FileText,
+  Image as ImageIcon,
+  Share2,
+  Info,
+  SendHorizonal,
+  FileCheck,
+  ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ApprovalStatus } from "@prisma/client";
@@ -27,11 +38,13 @@ import {
   FileWithStablePreview,
   SocialAccount,
 } from "@/features/scheduling/components/post-calendar/post-dialog/types";
+import { NextApprovalSuggestion } from "@/components/approval/next-approval-suggestion";
+import Link from "next/link";
 
 export default function ApprovalsPage() {
   const searchParams = useSearchParams();
-  const token = searchParams.get("token");
-  const assignmentId = searchParams.get("assignment");
+  const token = searchParams?.get("token");
+  const assignmentId = searchParams?.get("assignment");
 
   const [feedback, setFeedback] = useState("");
   const [reviewerName, setReviewerName] = useState("");
@@ -111,19 +124,10 @@ export default function ApprovalsPage() {
     }
   };
 
-  // Loading states
-  if (token && isLoadingMagicLink) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Clock className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Verifying access...</p>
-        </div>
-      </div>
-    );
-  }
+  // Get assignment data
+  const assignment = token ? magicLinkData?.assignment : regularAssignment;
 
-  // Error states
+  // Error states for magic link
   if (token && magicLinkError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -144,10 +148,20 @@ export default function ApprovalsPage() {
     );
   }
 
-  // Get assignment data
-  const assignment = token ? magicLinkData?.assignment : regularAssignment;
+  // Show loading state
+  if (isLoadingMagicLink || isLoadingRegular) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading approval request...</p>
+        </div>
+      </div>
+    );
+  }
 
-  if (!assignment || !assignment.instance.post) {
+  // Show not found if no assignment is found
+  if (!assignment) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="w-full max-w-md">
@@ -165,7 +179,46 @@ export default function ApprovalsPage() {
     );
   }
 
-  const post = assignment.instance.post;
+  // Show error if post is deleted
+  if (!assignment.instance.post) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8 px-4">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle className="text-red-600 flex items-center gap-2">
+                <XCircle className="h-5 w-5" />
+                Post Not Available
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="p-4 rounded-lg bg-red-50">
+                <p className="text-red-600 font-medium">
+                  The post associated with this approval request has been
+                  deleted.
+                </p>
+                <p className="text-gray-600 mt-2">
+                  This can happen if the content creator removed the post before
+                  it was approved.
+                </p>
+              </div>
+              <div className="mt-4 text-sm text-gray-500">
+                <p>Workflow: {assignment.instance.workflow.name}</p>
+                <p>Step: {assignment.step.name}</p>
+                <p>
+                  Created: {new Date(assignment.createdAt).toLocaleString()}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <NextApprovalSuggestion />
+        </div>
+      </div>
+    );
+  }
+
+  const { post } = assignment.instance;
 
   // Check if already reviewed
   if (assignment.status !== ApprovalStatus.PENDING) {
@@ -183,7 +236,7 @@ export default function ApprovalsPage() {
         text: "Rejected",
       },
       [ApprovalStatus.IN_PROGRESS]: {
-        icon: Clock,
+        icon: Loader2,
         color: "text-yellow-600",
         bg: "bg-yellow-50",
         text: "In Progress",
@@ -200,69 +253,82 @@ export default function ApprovalsPage() {
     const Icon = config.icon;
 
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="w-full max-w-2xl">
-          <CardHeader>
-            <CardTitle className={`flex items-center gap-2 ${config.color}`}>
-              <Icon className="h-5 w-5" />
-              Already Reviewed
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`p-4 rounded-lg ${config.bg} mb-4`}>
-              <p className={`font-medium ${config.color}`}>
-                This assignment has been {config.text.toLowerCase()}
-              </p>
-              {assignment.feedback && (
-                <p className="text-gray-600 mt-2">
-                  <strong>Feedback:</strong> {assignment.feedback}
+      <div className="min-h-screen bg-gray-50 py-8 px-4">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle className={`flex items-center gap-2 ${config.color}`}>
+                <Icon className="h-5 w-5" />
+                Already Reviewed
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`p-4 rounded-lg ${config.bg}`}>
+                <p className={`font-medium ${config.color}`}>
+                  This assignment has been {config.text.toLowerCase()}
                 </p>
-              )}
-              {assignment.completedAt && (
-                <p className="text-gray-500 text-sm mt-2">
-                  Completed on:{" "}
-                  {new Date(assignment.completedAt).toLocaleString()}
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                {assignment.feedback && (
+                  <p className="text-gray-600 mt-2">
+                    <strong>Feedback:</strong> {assignment.feedback}
+                  </p>
+                )}
+                {assignment.completedAt && (
+                  <p className="text-gray-500 text-sm mt-2">
+                    Completed on:{" "}
+                    {new Date(assignment.completedAt).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <NextApprovalSuggestion />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+    <div className="min-h-screen bg-gradient-to-b from-white to-slate-50">
+      <div className="container max-w-6xl mx-auto px-4 py-12">
+        {/* Header Section */}
+        <div className="text-center mb-12">
+          <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-3">
             Content Approval Request
           </h1>
-          <p className="text-gray-600">
+          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
             {token
               ? `Review requested for ${magicLinkData?.reviewerEmail}`
-              : "Please review the content below"}
+              : "Please review and approve the content below"}
           </p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Post Preview */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Eye className="h-5 w-5" />
-                  Post Preview
+        <div className="grid gap-8 lg:grid-cols-12">
+          {/* Main Content - Post Preview & Details */}
+          <div className="lg:col-span-8 space-y-8">
+            {/* Post Preview Card */}
+            <Card className="overflow-hidden border-indigo-100">
+              <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-indigo-50 to-transparent" />
+              <CardHeader className="relative z-10 border-b bg-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-indigo-100">
+                      <FileCheck className="h-5 w-5 text-indigo-600" />
+                    </div>
+                    <CardTitle>Post Preview</CardTitle>
+                  </div>
                   {post.postSocialAccounts &&
                     post.postSocialAccounts.length > 1 && (
-                      <Badge variant="outline" className="ml-auto">
+                      <Badge
+                        variant="outline"
+                        className="bg-indigo-50 text-indigo-700"
+                      >
                         {post.postSocialAccounts.length} Platforms
                       </Badge>
                     )}
-                </CardTitle>
+                </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="relative z-10 p-6">
                 {(() => {
                   // Transform post data for PostPreview component
                   const selectedFiles: FileWithStablePreview[] =
@@ -272,7 +338,6 @@ export default function ApprovalsPage() {
                           stableId: `media-${index}`,
                           name: `media-${index}.jpg`,
                           preview: url,
-                          // Required File properties (mock values for preview)
                           lastModified: Date.now(),
                           webkitRelativePath: "",
                           size: 0,
@@ -373,21 +438,24 @@ export default function ApprovalsPage() {
               </CardContent>
             </Card>
 
-            {/* Content Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Content Details
-                </CardTitle>
+            {/* Content Details Card */}
+            <Card className="overflow-hidden border-violet-100">
+              <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-violet-50 to-transparent" />
+              <CardHeader className="relative z-10 border-b bg-white">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-violet-100">
+                    <FileText className="h-5 w-5 text-violet-600" />
+                  </div>
+                  <CardTitle>Content Details</CardTitle>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="relative z-10 p-6 space-y-8">
                 {/* Post Content */}
                 <div>
-                  <Label className="text-sm font-medium text-gray-700">
+                  <Label className="text-sm font-medium text-slate-700">
                     Content
                   </Label>
-                  <div className="mt-1 p-4 bg-gray-50 rounded-lg border">
+                  <div className="mt-2 p-4 bg-white rounded-lg border shadow-sm">
                     <p className="whitespace-pre-wrap">{post.content}</p>
                   </div>
                 </div>
@@ -395,16 +463,19 @@ export default function ApprovalsPage() {
                 {/* Media URLs */}
                 {post.mediaUrls && post.mediaUrls.length > 0 && (
                   <div>
-                    <Label className="text-sm font-medium text-gray-700">
+                    <Label className="text-sm font-medium text-slate-700">
                       Media Files ({post.mediaUrls.length})
                     </Label>
-                    <div className="mt-1 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-4">
                       {post.mediaUrls.map((url, index) => (
-                        <div key={index} className="relative aspect-square">
+                        <div
+                          key={index}
+                          className="relative aspect-square group"
+                        >
                           <img
                             src={url}
                             alt={`Media ${index + 1}`}
-                            className="w-full h-full object-cover rounded-lg border"
+                            className="w-full h-full object-cover rounded-lg border shadow-sm transition-all duration-200 group-hover:shadow-md group-hover:scale-[1.02]"
                           />
                         </div>
                       ))}
@@ -416,12 +487,16 @@ export default function ApprovalsPage() {
                 {post.postSocialAccounts &&
                   post.postSocialAccounts.length > 0 && (
                     <div>
-                      <Label className="text-sm font-medium text-gray-700">
+                      <Label className="text-sm font-medium text-slate-700">
                         Publishing to
                       </Label>
-                      <div className="mt-1 flex flex-wrap gap-2">
+                      <div className="mt-2 flex flex-wrap gap-2">
                         {post.postSocialAccounts.map((psa) => (
-                          <Badge key={psa.id} variant="secondary">
+                          <Badge
+                            key={psa.id}
+                            variant="secondary"
+                            className="bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          >
                             {psa.socialAccount.platform} -{" "}
                             {psa.socialAccount.name ||
                               psa.socialAccount.profileId}
@@ -431,119 +506,170 @@ export default function ApprovalsPage() {
                     </div>
                   )}
 
-                {/* Author Info */}
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">
-                    Author
-                  </Label>
-                  <div className="mt-1 flex items-center gap-2">
-                    <User className="h-4 w-4 text-gray-400" />
-                    <span>{post.user.name || post.user.email}</span>
-                  </div>
-                </div>
-
-                {/* Created Date */}
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">
-                    Created
-                  </Label>
-                  <div className="mt-1 flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <span>
-                      {new Date(assignment.createdAt).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Scheduled Date */}
-                {post.scheduledAt && (
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">
-                      Scheduled for
+                {/* Metadata Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t">
+                  <div className="bg-slate-50 p-4 rounded-lg">
+                    <Label className="text-sm font-medium text-slate-700">
+                      Author
                     </Label>
-                    <div className="mt-1 flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      <span>{new Date(post.scheduledAt).toLocaleString()}</span>
+                    <div className="mt-2 flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-slate-200">
+                        <UserCircle className="h-5 w-5 text-slate-600" />
+                      </div>
+                      <span className="text-slate-900">
+                        {post.user.name || post.user.email}
+                      </span>
                     </div>
                   </div>
-                )}
+
+                  <div className="bg-slate-50 p-4 rounded-lg">
+                    <Label className="text-sm font-medium text-slate-700">
+                      Created
+                    </Label>
+                    <div className="mt-2 flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-slate-200">
+                        <CalendarCheck className="h-5 w-5 text-slate-600" />
+                      </div>
+                      <span className="text-slate-900">
+                        {new Date(assignment.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {post.scheduledAt && (
+                    <div className="md:col-span-2 bg-slate-50 p-4 rounded-lg">
+                      <Label className="text-sm font-medium text-slate-700">
+                        Scheduled for
+                      </Label>
+                      <div className="mt-2 flex items-center gap-3">
+                        <div className="p-2 rounded-full bg-slate-200">
+                          <Share2 className="h-5 w-5 text-slate-600" />
+                        </div>
+                        <span className="text-slate-900">
+                          {new Date(post.scheduledAt).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Review Panel */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle>Submit Review</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Reviewer Name (for magic link only) */}
-                {token && (
+          {/* Sidebar - Review Panel */}
+          <div className="lg:col-span-4">
+            <div className="lg:sticky lg:top-24 space-y-6">
+              <Card className="overflow-hidden border-green-100">
+                <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-green-50 to-transparent" />
+                <CardHeader className="relative z-10 border-b bg-white">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-green-100">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    </div>
+                    <CardTitle>Submit Review</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="relative z-10 p-6 space-y-6">
+                  {/* Reviewer Name (for magic link only) */}
+                  {token && (
+                    <div>
+                      <Label htmlFor="reviewerName">Your Name (Optional)</Label>
+                      <Input
+                        id="reviewerName"
+                        value={reviewerName}
+                        onChange={(e) => setReviewerName(e.target.value)}
+                        placeholder="Enter your name"
+                        className="mt-2"
+                      />
+                    </div>
+                  )}
+
+                  {/* Feedback */}
                   <div>
-                    <Label htmlFor="reviewerName">Your Name (Optional)</Label>
-                    <Input
-                      id="reviewerName"
-                      value={reviewerName}
-                      onChange={(e) => setReviewerName(e.target.value)}
-                      placeholder="Enter your name"
+                    <Label htmlFor="feedback">Feedback (Optional)</Label>
+                    <Textarea
+                      id="feedback"
+                      value={feedback}
+                      onChange={(e) => setFeedback(e.target.value)}
+                      placeholder="Add your comments or feedback..."
+                      rows={4}
+                      className="mt-2"
                     />
                   </div>
-                )}
 
-                {/* Feedback */}
-                <div>
-                  <Label htmlFor="feedback">Feedback (Optional)</Label>
-                  <Textarea
-                    id="feedback"
-                    value={feedback}
-                    onChange={(e) => setFeedback(e.target.value)}
-                    placeholder="Add your comments or feedback..."
-                    rows={4}
-                  />
-                </div>
+                  <Separator className="my-6" />
 
-                <Separator />
+                  {/* Action Buttons */}
+                  <div className="space-y-3">
+                    <Button
+                      onClick={() => handleSubmitReview(true)}
+                      disabled={isSubmitting}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white h-11"
+                    >
+                      <CheckCircle className="h-5 w-5 mr-2" />
+                      {isSubmitting ? "Submitting..." : "Approve"}
+                    </Button>
 
-                {/* Action Buttons */}
-                <div className="space-y-3">
-                  <Button
-                    onClick={() => handleSubmitReview(true)}
-                    disabled={isSubmitting}
-                    className="w-full bg-green-600 hover:bg-green-700"
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    {isSubmitting ? "Submitting..." : "Approve"}
-                  </Button>
-
-                  <Button
-                    onClick={() => handleSubmitReview(false)}
-                    disabled={isSubmitting}
-                    variant="destructive"
-                    className="w-full"
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    {isSubmitting ? "Submitting..." : "Reject"}
-                  </Button>
-                </div>
-
-                {/* Workflow Info */}
-                <div className="pt-4 border-t">
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p>
-                      <strong>Workflow:</strong>{" "}
-                      {assignment.instance.workflow.name}
-                    </p>
-                    <p>
-                      <strong>Step:</strong> {assignment.step.name}
-                    </p>
-                    <p>
-                      <strong>Role:</strong> {assignment.step.role}
-                    </p>
+                    <Button
+                      onClick={() => handleSubmitReview(false)}
+                      disabled={isSubmitting}
+                      variant="destructive"
+                      className="w-full h-11"
+                    >
+                      <XCircle className="h-5 w-5 mr-2" />
+                      {isSubmitting ? "Submitting..." : "Reject"}
+                    </Button>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+
+                  {/* Workflow Info */}
+                  <div className="pt-6 border-t">
+                    <div className="bg-slate-50 rounded-lg p-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="p-1.5 rounded-full bg-slate-200">
+                            <Info className="h-4 w-4 text-slate-600" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-slate-500">
+                              Workflow
+                            </Label>
+                            <p className="text-sm font-medium text-slate-900">
+                              {assignment.instance.workflow.name}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="p-1.5 rounded-full bg-slate-200">
+                            <SendHorizonal className="h-4 w-4 text-slate-600" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-slate-500">
+                              Step
+                            </Label>
+                            <p className="text-sm font-medium text-slate-900">
+                              {assignment.step.name}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="p-1.5 rounded-full bg-slate-200">
+                            <UserCircle className="h-4 w-4 text-slate-600" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-slate-500">
+                              Role
+                            </Label>
+                            <p className="text-sm font-medium text-slate-900">
+                              {assignment.step.role}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
