@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { ChevronRight, ArrowLeft, Instagram, Facebook } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-import { UserTypeStep } from "./components/user-type-step";
 import { TeamStep } from "./components/team-step";
 import { SocialAccountsStep } from "./components/social-account-step";
 import { AccountSelectionDialog } from "./components/account-selection-dialog";
@@ -16,7 +15,7 @@ import { toast } from "sonner";
 // Separate component to handle search params with Suspense boundary
 const OnboardingWithSearchParams: React.FC = () => {
   const searchParams = useSearchParams();
-  const refresh = searchParams.get("refresh");
+  const refresh = searchParams?.get("refresh");
   const [isAccountSelectionOpen, setIsAccountSelectionOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
 
@@ -107,12 +106,6 @@ const OnboardingWithSearchParams: React.FC = () => {
           className="w-full"
         >
           {step === 1 && (
-            <UserTypeStep
-              userType={userType ?? null}
-              onUserTypeSelect={handleUserTypeSelect}
-            />
-          )}
-          {step === 2 && (
             <TeamStep
               teamName={orgName}
               onTeamNameChange={setOrgName}
@@ -126,7 +119,7 @@ const OnboardingWithSearchParams: React.FC = () => {
               onRemoveEmail={removeEmail}
             />
           )}
-          {step === 3 && (
+          {step === 2 && (
             <SocialAccountsStep
               isAccountConnected={(platform: string) =>
                 isAccountConnected(platform) ?? false
@@ -144,7 +137,7 @@ const OnboardingWithSearchParams: React.FC = () => {
   };
 
   const renderActionButtons = () => {
-    const accounts = pagesData?.map((account: any) => account.platform);
+    const accounts = Array.isArray(pagesData) ? pagesData.map((account: any) => account.platform) : [];
     const hasMultipleAccounts =
       Array.isArray(pagesData) && pagesData.length > 1;
     const hasSelectedAccount = !!selectedAccount;
@@ -175,7 +168,7 @@ const OnboardingWithSearchParams: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.2 }}
       >
-        {step === 3 ? (
+        {step === 2 ? (
           <div className="flex space-x-4">
             {(!accounts || accounts.length === 0) && (
               <Button
@@ -202,9 +195,9 @@ const OnboardingWithSearchParams: React.FC = () => {
             <Button
               onClick={handleNext}
               disabled={
-                completeOnboarding.isPending || (step === 1 && !userType)
+                completeOnboarding.isPending || (step === 1 && !orgName.trim())
               }
-              className={step > 1 ? "flex-1" : "w-full"}
+              className="w-full"
             >
               {completeOnboarding.isPending ? "Memproses..." : "Lanjutkan"}
               <ChevronRight className="ml-2 h-4 w-4" />
@@ -216,16 +209,13 @@ const OnboardingWithSearchParams: React.FC = () => {
   };
 
   const renderStepIndicator = () => {
-    const totalSteps = userType === "team" ? 3 : 2;
+    const totalSteps = 2; // Always 2 steps: team creation and social accounts
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.3 }}
-        className={cn(
-          "grid gap-2 mb-8 mt-16 w-full justify-center",
-          userType === "team" ? "grid-cols-3" : "grid-cols-2"
-        )}
+        className="grid gap-2 mb-8 mt-16 w-full justify-center grid-cols-2"
       >
         {Array.from({ length: totalSteps }).map((_, idx) => (
           <motion.div

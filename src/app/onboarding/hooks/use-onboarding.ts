@@ -5,8 +5,8 @@ import { trpc } from "@/lib/trpc/client";
 import { useUser } from "@clerk/nextjs";
 
 export const useOnboarding = () => {
-  const [step, setStep] = useState<number>(1);
-  const [userType, setUserType] = useState<"solo" | "team" | null>();
+  const [step, setStep] = useState(1);
+  const [userType, setUserType] = useState<"solo" | "team" | null>("team");
   const [orgName, setOrgName] = useState("");
   const [logo, setLogo] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -42,7 +42,8 @@ export const useOnboarding = () => {
   const completeOnboarding = trpc.onboarding.completeOnboarding.useMutation({
     onSuccess: () => {
       toast.success("Onboarding berhasil diselesaikan!");
-      router.push("/dashboard");
+      // Force a reload to ensure Clerk session is updated with new metadata
+      window.location.href = "/dashboard";
     },
     onError: (error) => {
       console.log(error);
@@ -53,7 +54,7 @@ export const useOnboarding = () => {
     },
   });
 
-  const sessionId = searchParams.get("sessionId") ?? "";
+  const sessionId = searchParams?.get("sessionId") ?? "";
 
   const { data: temporaryData } = trpc.onboarding.getTemporaryData.useQuery({
     sessionId,
@@ -108,14 +109,14 @@ export const useOnboarding = () => {
   };
 
   useEffect(() => {
-    const step = searchParams.get("step");
-    const savedUserType = searchParams.get("userType") as
+    const step = searchParams?.get("step");
+    const savedUserType = searchParams?.get("userType") as
       | "solo"
       | "team"
       | null;
 
     if (step === "add_social_accounts") {
-      setStep(3);
+      setStep(2); // Changed from 3 to 2 for the new 2-step onboarding
       if (savedUserType) {
         setUserType(savedUserType);
       }
@@ -192,33 +193,20 @@ export const useOnboarding = () => {
   };
 
   const handleBack = () => {
-    if (step === 3) {
-      setStep(userType === "team" ? 2 : 1);
-    } else if (step === 2) {
+    if (step === 2) {
       setStep(1);
     }
   };
 
   const handleNext = (selectedAccount?: any) => {
     if (step === 1) {
-      if (!userType) {
-        toast.error("Pilih salah satu opsi");
-        return;
-      }
       // Update onboarding status to IN_PROGRESS when first clicking next
       updateOnboardingStatus.mutate({ status: "IN_PROGRESS" });
-      setStep(userType === "team" ? 2 : 3);
-    } else if (step === 2) {
-      if (!orgName.trim()) {
-        toast.error("Nama tim diperlukan");
-        return;
-      }
-
-      setStep(3);
+      setStep(2); // Always go to team creation step
     } else {
-      const teams = searchParams.get("teamEmails");
+      const teams = searchParams?.get("teamEmails");
       const types =
-        userType || (searchParams.get("userType") as "solo" | "team");
+        userType || (searchParams?.get("userType") as "solo" | "team");
       const emails =
         teamEmails.length > 0
           ? teamEmails
@@ -228,7 +216,7 @@ export const useOnboarding = () => {
 
       const organizationName =
         types === "team"
-          ? orgName || (searchParams.get("orgName") as string)
+          ? orgName || (searchParams?.get("orgName") as string)
           : undefined;
 
       // If selectedAccount is provided, use only that account for pagesData
@@ -253,15 +241,16 @@ export const useOnboarding = () => {
   };
 
   const skipSocialConnect = () => {
-    const teams = searchParams.get("teamEmails");
+    const teams = searchParams?.get("teamEmails");
     const emails =
       teamEmails.length > 0
         ? teamEmails
         : teams?.split(",").map((email) => email.trim()) || [];
-    const types = userType || (searchParams.get("userType") as "solo" | "team");
+    const types =
+      userType || (searchParams?.get("userType") as "solo" | "team");
     const organizationName =
       types === "team"
-        ? orgName || (searchParams.get("orgName") as string)
+        ? orgName || (searchParams?.get("orgName") as string)
         : undefined;
 
     completeOnboarding.mutate({

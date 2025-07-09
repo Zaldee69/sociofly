@@ -1,5 +1,10 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import {
+  hasCompletedOnboarding,
+  createOnboardingRedirect,
+  createSignInRedirect,
+} from "@/lib/clerk";
 
 // Tentukan rute publik yang tidak memerlukan autentikasi
 const isPublicRoute = createRouteMatcher([
@@ -16,6 +21,9 @@ const isPublicRoute = createRouteMatcher([
   "/contact",
 ]);
 
+// Tentukan rute onboarding yang tidak memerlukan onboarding selesai
+const isOnboardingRoute = createRouteMatcher(["/onboarding(.*)"]);
+
 export default clerkMiddleware(async (auth, req) => {
   try {
     // Skip authentication entirely for cron API routes and init
@@ -31,7 +39,7 @@ export default clerkMiddleware(async (auth, req) => {
     // Cek apakah rute memerlukan autentikasi
     if (!isPublicRoute(req)) {
       // Check if user is authenticated
-      const { userId } = await auth();
+      const { userId, sessionClaims } = await auth();
 
       if (!userId) {
         // Handle unauthenticated users
@@ -40,9 +48,21 @@ export default clerkMiddleware(async (auth, req) => {
         }
 
         // Redirect to sign-in for non-API routes
-        const signInUrl = new URL("/sign-in", req.url);
-        signInUrl.searchParams.set("redirect_url", req.url);
-        return NextResponse.redirect(signInUrl);
+        return createSignInRedirect(req);
+      }
+
+      // Check if user has completed onboarding
+      const onboardingComplete = hasCompletedOnboarding(sessionClaims);
+
+      // If user is authenticated but hasn't completed onboarding and isn't on the onboarding route
+      if (userId && !onboardingComplete && !isOnboardingRoute(req)) {
+        // Don't redirect API routes to onboarding
+        if (req.nextUrl.pathname.startsWith("/api/")) {
+          return NextResponse.next();
+        }
+
+        // Redirect to onboarding for non-API routes
+        return createOnboardingRedirect(req);
       }
     }
 
@@ -67,10 +87,7 @@ export default clerkMiddleware(async (auth, req) => {
     }
 
     // Handle auth errors by redirecting to sign-in for non-API routes
-    const signInUrl = new URL("/sign-in", req.url);
-    signInUrl.searchParams.set("redirect_url", req.url);
-
-    return NextResponse.redirect(signInUrl);
+    return createSignInRedirect(req);
   }
 });
 

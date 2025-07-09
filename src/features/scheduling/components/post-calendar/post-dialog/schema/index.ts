@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { SocialPlatform, PostStatus } from "@prisma/client";
+import { PostStatus } from "@prisma/client";
 
 export enum PostAction {
   PUBLISH_NOW = "PUBLISH_NOW",

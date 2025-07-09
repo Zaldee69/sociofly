@@ -2,6 +2,7 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma/client";
+import { clerkClient } from "@clerk/nextjs/server";
 
 const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET!;
 
@@ -69,11 +70,104 @@ export async function POST(req: Request) {
         },
       });
 
+      // Update Clerk user metadata to match onboarding status
+      const clerk = await clerkClient();
+      await clerk.users.updateUser(user.id, {
+        publicMetadata: {
+          onboardingComplete: onboardingStatus === "COMPLETED",
+        },
+      });
+
       console.log(
         `✅ User created with status ${onboardingStatus} and invitations processed:`,
         user.id
       );
       return new NextResponse("User created", { status: 200 });
+    }
+
+    // Handle user.updated event to sync onboarding status
+    if (type === "user.updated") {
+      const user = data;
+      const clerkId = user.id;
+
+      // Find the user in our database
+      const dbUser = await prisma.user.findUnique({
+        where: { clerkId },
+      });
+
+      if (dbUser) {
+        // Sync the onboardingComplete metadata with our database
+        const isOnboardingComplete = dbUser.onboardingStatus === "COMPLETED";
+        const currentMetadata = user.public_metadata || {};
+
+        // Check if the metadata already matches to prevent infinite loop
+        if (currentMetadata.onboardingComplete === isOnboardingComplete) {
+          console.log(
+            `⏭️ Skipping metadata update for user ${clerkId} - already in sync`
+          );
+          return new NextResponse("Already in sync", { status: 200 });
+        }
+
+        try {
+          const clerk = await clerkClient();
+
+          // Update user metadata
+          await clerk.users.updateUser(clerkId, {
+            publicMetadata: {
+              ...currentMetadata,
+              onboardingComplete: isOnboardingComplete,
+            },
+          });
+
+          console.log(
+            `✅ Updated Clerk metadata for user ${clerkId}. onboardingComplete: ${isOnboardingComplete}`
+          );
+        } catch (error) {
+          console.error("Failed to update user:", error);
+        }
+      }
+
+      return new NextResponse("User updated", { status: 200 });
+    }
+
+    if (type === "user.deleted") {
+      const user = data;
+      const clerkId = user.id;
+      // Delete user and their owned teams
+      const dbUser = await prisma.user.findUnique({
+        where: { clerkId },
+        include: { teams: true },
+      });
+
+      if (dbUser) {
+        const teamIds = dbUser.teams.map((team) => team.id);
+
+        // Delete all related records in the correct order
+        await prisma.$transaction([
+          // First delete records from tables that reference teams
+          prisma.membership.deleteMany({ where: { teamId: { in: teamIds } } }),
+          prisma.socialAccount.deleteMany({
+            where: { teamId: { in: teamIds } },
+          }),
+          prisma.post.deleteMany({ where: { teamId: { in: teamIds } } }),
+          prisma.invitation.deleteMany({ where: { teamId: { in: teamIds } } }),
+          prisma.media.deleteMany({ where: { teamId: { in: teamIds } } }),
+          prisma.customRole.deleteMany({ where: { teamId: { in: teamIds } } }),
+          prisma.approvalWorkflow.deleteMany({
+            where: { teamId: { in: teamIds } },
+          }),
+          prisma.engagementHotspot.deleteMany({
+            where: { teamId: { in: teamIds } },
+          }),
+
+          // Then delete the teams
+          prisma.team.deleteMany({ where: { ownerId: dbUser.id } }),
+
+          // Finally delete the user
+          prisma.user.delete({ where: { clerkId } }),
+        ]);
+      }
+      return new NextResponse("User deleted", { status: 200 });
     }
 
     return new NextResponse("Event ignored", { status: 200 });

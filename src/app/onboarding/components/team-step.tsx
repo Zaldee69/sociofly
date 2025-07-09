@@ -30,7 +30,7 @@ export const TeamStep: React.FC<TeamStepProps> = ({
 }) => {
   return (
     <>
-      <h1 className="text-2xl font-bold mb-2">🧾 Langkah 2: Detail Team</h1>
+      <h1 className="text-2xl font-bold mb-2">🧾 Langkah 1: Detail Team</h1>
       <p className="text-gray-600 mb-8">Buat tim kamu</p>
 
       <div className="space-y-6 mb-8">

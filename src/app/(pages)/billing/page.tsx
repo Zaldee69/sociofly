@@ -132,14 +132,14 @@ const Pricing = () => {
     setShowAlert(false);
 
     // Remove status and order_id parameters from URL
-    if (searchParams.has("status") || searchParams.has("order_id")) {
+    if (searchParams?.has("status") || searchParams?.has("order_id")) {
       // Create URL without the parameters
-      router.replace(pathname, { scroll: false });
+      router.replace(pathname || "/billing", { scroll: false });
     }
   };
 
   useEffect(() => {
-    const status = searchParams.get("status");
+    const status = searchParams?.get("status");
 
     if (status) {
       setShowAlert(true); // Show alert when status parameter is present
@@ -164,7 +164,7 @@ const Pricing = () => {
 
   // Status alert banner
   const renderStatusAlert = () => {
-    const status = searchParams.get("status");
+    const status = searchParams?.get("status");
 
     if (!status || !showAlert) return null;
 

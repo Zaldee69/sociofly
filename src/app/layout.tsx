@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { TRPCProvider } from "@/components/providers/trpc-provider";
@@ -35,10 +36,14 @@ export default function RootLayout({
               <main className="flex-1">{children}</main>
             </TeamProvider>
           </TRPCProvider>
-          <script
-            src={process.env.NEXT_PUBLIC_MIDTRANS_SNAP_URL || 'https://app.sandbox.midtrans.com/snap/snap.js'}
+          <Script
+            src={
+              process.env.NEXT_PUBLIC_MIDTRANS_SNAP_URL ||
+              "https://app.sandbox.midtrans.com/snap/snap.js"
+            }
+            strategy="afterInteractive"
             data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
-          ></script>
+          />
         </body>
       </html>
     </ClerkProvider>

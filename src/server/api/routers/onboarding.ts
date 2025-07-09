@@ -5,6 +5,7 @@ import { OnboardingStatus, Role, SocialPlatform } from "@prisma/client";
 import { sendInviteEmail } from "@/lib/email/send-invite-email";
 import { HotspotAnalyzer } from "@/lib/services/analytics/hotspots/hotspot-analyzer";
 import { SocialSyncService } from "@/lib/services/analytics";
+import { clerkClient } from "@clerk/nextjs/server";
 
 // Helper function to handle initial analytics collection
 async function performInitialAnalyticsCollection(
@@ -325,11 +326,30 @@ export const onboardingRouter = createTRPCRouter({
           });
         }
 
-        // Update user onboarding status
-        await ctx.prisma.user.update({
+        // Update user onboarding status in our database
+        const updatedUser = await ctx.prisma.user.update({
           where: { id: userId },
           data: { onboardingStatus: OnboardingStatus.COMPLETED },
+          select: { clerkId: true },
         });
+
+        // Update Clerk user metadata to reflect completed onboarding
+        if (updatedUser.clerkId) {
+          try {
+            const clerk = await clerkClient();
+            await clerk.users.updateUser(updatedUser.clerkId, {
+              publicMetadata: {
+                onboardingComplete: true,
+              },
+            });
+            console.log(
+              `✅ Updated Clerk metadata for user ${updatedUser.clerkId}`
+            );
+          } catch (clerkError) {
+            console.error("Error updating Clerk metadata:", clerkError);
+            // Don't fail onboarding if Clerk update fails
+          }
+        }
 
         console.log("Onboarding completed successfully");
         return {
@@ -427,7 +447,28 @@ export const onboardingRouter = createTRPCRouter({
           data: {
             onboardingStatus: input.status as OnboardingStatus,
           },
+          select: {
+            clerkId: true,
+            onboardingStatus: true,
+          },
         });
+
+        // Update Clerk user metadata to reflect onboarding status
+        if (user.clerkId) {
+          try {
+            const clerk = await clerkClient();
+            await clerk.users.updateUser(user.clerkId, {
+              publicMetadata: {
+                onboardingComplete:
+                  user.onboardingStatus === OnboardingStatus.COMPLETED,
+              },
+            });
+            console.log(`✅ Updated Clerk metadata for user ${user.clerkId}`);
+          } catch (clerkError) {
+            console.error("Error updating Clerk metadata:", clerkError);
+            // Don't fail the status update if Clerk update fails
+          }
+        }
 
         return user;
       } catch (error) {

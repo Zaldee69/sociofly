@@ -91,9 +91,8 @@ async function testViewFix() {
       accountId: socialAccount.id,
       teamId: socialAccount.teamId,
       platform: socialAccount.platform as any,
-      includeAudience: false,
-      includeHashtags: false,
-      includeLinks: false,
+      limit: 25,
+      priority: "normal",
     });
 
     console.log(`\n📊 SYNC RESULT:`);
