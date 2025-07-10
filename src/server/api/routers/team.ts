@@ -14,6 +14,7 @@ import { sendInviteEmail } from "@/lib/email/send-invite-email";
 import { SchedulerService } from "@/lib/services/scheduling/scheduler.service";
 import { HotspotAnalyzer } from "@/lib/services/analytics/hotspots/hotspot-analyzer";
 import { TeamSubscriptionService } from "@/lib/services/team-subscription.service";
+import { MemberQuotaService } from "@/lib/services/member-quota.service";
 
 export const teamRouter = createTRPCRouter({
   // Get all teams user is a member of
@@ -2161,4 +2162,51 @@ export const teamRouter = createTRPCRouter({
       memberCount: user.activeTeam._count.memberships,
     };
   }),
+
+  // Get member quota information for a team
+  getMemberQuota: protectedProcedure
+    .input(z.object({ teamId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if user is a member of this team
+      const membership = await ctx.prisma.membership.findFirst({
+        where: {
+          userId: ctx.userId,
+          teamId: input.teamId,
+          status: "ACTIVE",
+        },
+      });
+
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You are not a member of this team",
+        });
+      }
+
+      try {
+        // Get team's effective subscription
+        const teamSubscription = await TeamSubscriptionService.getEffectiveSubscription(
+          ctx.userId,
+          input.teamId
+        );
+
+        const plan = teamSubscription.subscriptionPlan || BillingPlan.FREE;
+        const quotaInfo = await MemberQuotaService.getMemberQuotaInfo(
+          input.teamId,
+          plan
+        );
+
+        return quotaInfo;
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to get member quota information",
+        });
+      }
+    }),
 });

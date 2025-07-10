@@ -2,10 +2,14 @@ import React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { Mail, UserPlus, Loader2 } from "lucide-react";
+import { Mail, UserPlus, Loader2, Crown, Zap, Shield, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc/client";
-import { Role } from "@prisma/client";
+import { Role, BillingPlan } from "@prisma/client";
+import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import {
   Dialog,
@@ -34,6 +38,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+// Helper functions for plan display
+const getPlanIcon = (plan: string) => {
+  switch (plan) {
+    case "FREE":
+      return Crown;
+    case "PRO":
+      return Zap;
+    case "ENTERPRISE":
+      return Shield;
+    default:
+      return Crown;
+  }
+};
+
+const getPlanColor = (plan: string) => {
+  switch (plan) {
+    case "FREE":
+      return "bg-slate-100 text-slate-800 border-slate-200";
+    case "PRO":
+      return "bg-indigo-100 text-indigo-800 border-indigo-200";
+    case "ENTERPRISE":
+      return "bg-violet-100 text-violet-800 border-violet-200";
+    default:
+      return "bg-slate-100 text-slate-800 border-slate-200";
+  }
+};
 
 // Define the form schema with validation
 const formSchema = z.object({
@@ -110,6 +141,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   teams,
   onAddMember,
 }) => {
+  const router = useRouter();
   const { isInviting, inviteMember, isDialogOpen, handleDialogChange } =
     useInviteMember(onAddMember);
 
@@ -118,8 +150,29 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     { label: string; value: string; description: string }[]
   >([]);
 
+  // Member quota state
+  const [quotaInfo, setQuotaInfo] = useState<{
+    current: number;
+    limit: number | string;
+    percentage: number;
+    isUnlimited: boolean;
+    canAdd: boolean;
+  } | null>(null);
+
   // Get custom roles from API
   const { data: customRoles } = trpc.team.getCustomRoles.useQuery(
+    { teamId: teams.id },
+    { enabled: !!teams.id }
+  );
+
+  // Get team subscription for quota info
+  const { data: teamSubscription } = trpc.team.getEffectiveSubscription.useQuery(
+    { teamId: teams.id },
+    { enabled: !!teams.id }
+  );
+
+  // Get member quota information
+  const { data: memberQuota } = trpc.team.getMemberQuota.useQuery(
     { teamId: teams.id },
     { enabled: !!teams.id }
   );
@@ -135,6 +188,13 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       message: "",
     },
   });
+
+  // Update quota info when member quota changes
+  useEffect(() => {
+    if (memberQuota) {
+      setQuotaInfo(memberQuota);
+    }
+  }, [memberQuota]);
 
   // Combine built-in roles and custom roles
   useEffect(() => {
@@ -174,6 +234,19 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   }, [customRoles]);
 
   const onSubmit = async (values: FormValues) => {
+    // Check quota before inviting
+    if (quotaInfo && !quotaInfo.canAdd) {
+      const plan = teamSubscription?.subscriptionPlan || "FREE";
+      const message = plan === "FREE" 
+        ? "FREE plan doesn't allow adding team members. Upgrade to PRO or ENTERPRISE to invite team members."
+        : `Member limit reached. Your ${plan} plan allows up to ${quotaInfo.limit} team members.`;
+      
+      form.setError("root", {
+        message,
+      });
+      return;
+    }
+
     const success = await inviteMember(values);
     if (success) {
       form.reset();
@@ -186,9 +259,10 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
         <Button
           className="flex items-center gap-2"
           onClick={() => handleDialogChange(true)}
+          disabled={quotaInfo?.canAdd === false}
         >
           <UserPlus className="h-4 w-4" />
-          Invite Member
+          {quotaInfo?.canAdd === false ? "Limit Reached" : "Invite Member"}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[525px]">
@@ -198,6 +272,56 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
             <DialogDescription>
               Send an invitation to add a new member to your team.
             </DialogDescription>
+            
+            {/* Tier and Quota Information */}
+            {teamSubscription && quotaInfo && (
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={`${getPlanColor(teamSubscription.subscriptionPlan || "FREE")} font-medium`}
+                  >
+                    {React.createElement(getPlanIcon(teamSubscription.subscriptionPlan || "FREE"), {
+                      className: "h-3 w-3 mr-1",
+                    })}
+                    {teamSubscription.subscriptionPlan || "FREE"}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                     {quotaInfo.current} / {quotaInfo.isUnlimited ? '∞' : quotaInfo.limit} members
+                   </span>
+                </div>
+                {!quotaInfo.isUnlimited && (
+                  <div className="flex-1 max-w-[120px] ml-4">
+                    <Progress value={quotaInfo.percentage} className="h-2" />
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Member Limit Reached Alert */}
+             {quotaInfo && !quotaInfo.canAdd && (
+               <Alert className="mt-4 border-amber-200 bg-amber-50">
+                 <AlertTriangle className="h-4 w-4 text-amber-600" />
+                 <AlertDescription className="text-amber-800">
+                   <div className="flex items-center justify-between">
+                     <span>
+                       {(teamSubscription?.subscriptionPlan || "FREE") === "FREE" 
+                         ? "FREE plan doesn't allow team members. Upgrade to invite team members."
+                         : "Member limit reached. Upgrade your plan to invite more team members."
+                       }
+                     </span>
+                     <Button
+                       variant="outline"
+                       size="sm"
+                       className="ml-2 border-amber-300 text-amber-700 hover:bg-amber-100"
+                       onClick={() => router.push("/billing")}
+                     >
+                       Upgrade Plan
+                     </Button>
+                   </div>
+                 </AlertDescription>
+               </Alert>
+             )}
           </DialogHeader>
 
           <Form {...form}>
@@ -291,10 +415,17 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
                 )}
               />
 
+              {/* Display form errors */}
+              {form.formState.errors.root && (
+                <div className="text-sm text-red-600 mt-2">
+                  {form.formState.errors.root.message}
+                </div>
+              )}
+
               <DialogFooter className="pt-4">
                 <Button
                   type="submit"
-                  disabled={isInviting}
+                  disabled={isInviting || quotaInfo?.canAdd === false}
                   className="w-full sm:w-auto"
                 >
                   {isInviting ? (
@@ -302,6 +433,8 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Sending Invitation...
                     </>
+                  ) : quotaInfo?.canAdd === false ? (
+                    "Limit Reached"
                   ) : (
                     "Send Invitation"
                   )}

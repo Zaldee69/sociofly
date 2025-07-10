@@ -1,5 +1,6 @@
 import { JobType, JobData } from "./job-types";
 import { SocialSyncService } from "@/lib/services/analytics";
+import { AnalyticsAccessService } from "@/lib/services/analytics-access.service";
 
 /**
  * Simplified Job Processor
@@ -72,15 +73,41 @@ export class JobProcessor {
     console.log(`🚀 Starting initial sync for account ${data.accountId}...`);
 
     try {
+      // Validasi akses analytics berdasarkan tier plan
+      const accessCheck = await AnalyticsAccessService.hasAnalyticsAccessByTeam(
+        data.teamId,
+        'initialSync'
+      );
+
+      if (!accessCheck.hasAccess) {
+        console.warn(`❌ Initial sync blocked for team ${data.teamId}: ${accessCheck.reason}`);
+        return {
+          success: false,
+          message: `Analytics feature not available: ${accessCheck.reason}`,
+          plan: accessCheck.plan,
+          upgradeRequired: true,
+        };
+      }
+
+      // Validasi dan adjust parameter sync berdasarkan plan limits
+      const syncLimits = AnalyticsAccessService.validateSyncParams(
+        accessCheck.plan,
+        data.daysBack
+      );
+
+      if (syncLimits.warnings.length > 0) {
+        console.warn(`⚠️ Sync parameters adjusted:`, syncLimits.warnings);
+      }
+
       const { prisma } = await import("@/lib/prisma/client");
       const syncService = new SocialSyncService(prisma);
 
-      // Perform initial sync
+      // Perform initial sync dengan parameter yang sudah disesuaikan
       const result = await syncService.performInitialSync({
         accountId: data.accountId,
         teamId: data.teamId,
         platform: data.platform,
-        daysBack: data.daysBack || 30,
+        daysBack: syncLimits.adjustedDaysBack || 30,
       });
 
       // Also fetch initial heatmap data for supported platforms
@@ -117,6 +144,33 @@ export class JobProcessor {
     );
 
     try {
+      // Validasi akses analytics berdasarkan tier plan
+      const accessCheck = await AnalyticsAccessService.hasAnalyticsAccessByTeam(
+        data.teamId,
+        'incrementalSync'
+      );
+
+      if (!accessCheck.hasAccess) {
+        console.warn(`❌ Incremental sync blocked for team ${data.teamId}: ${accessCheck.reason}`);
+        return {
+          success: false,
+          message: `Analytics feature not available: ${accessCheck.reason}`,
+          plan: accessCheck.plan,
+          upgradeRequired: true,
+        };
+      }
+
+      // Validasi dan adjust parameter sync berdasarkan plan limits
+      const syncLimits = AnalyticsAccessService.validateSyncParams(
+        accessCheck.plan,
+        undefined,
+        data.limit
+      );
+
+      if (syncLimits.warnings.length > 0) {
+        console.warn(`⚠️ Sync parameters adjusted:`, syncLimits.warnings);
+      }
+
       const { prisma } = await import("@/lib/prisma/client");
       const syncService = new SocialSyncService(prisma);
 
@@ -124,7 +178,7 @@ export class JobProcessor {
         accountId: data.accountId,
         teamId: data.teamId,
         platform: data.platform,
-        limit: data.limit || 25,
+        limit: syncLimits.adjustedLimit || 25,
         lastSyncDate: data.lastSyncDate,
       });
 
@@ -148,6 +202,24 @@ export class JobProcessor {
     console.log(`📊 Starting daily sync for account ${data.accountId}...`);
 
     try {
+      // Validasi akses analytics berdasarkan tier plan
+      const accessCheck = await AnalyticsAccessService.hasAnalyticsAccessByTeam(
+        data.teamId,
+        'dailySync'
+      );
+
+      if (!accessCheck.hasAccess) {
+        console.warn(`❌ Daily sync blocked for team ${data.teamId}: ${accessCheck.reason}`);
+        return {
+          success: false,
+          message: `Analytics feature not available: ${accessCheck.reason}`,
+          plan: accessCheck.plan,
+          upgradeRequired: true,
+        };
+      }
+
+      console.log(`✅ Daily sync authorized for team ${data.teamId} with ${accessCheck.plan} plan`);
+
       const { prisma } = await import("@/lib/prisma/client");
       const syncService = new SocialSyncService(prisma);
 
@@ -184,7 +256,14 @@ export class JobProcessor {
       // Get post social accounts to trigger sync for each
       const postSocialAccounts = await prisma.postSocialAccount.findMany({
         where: { postId: data.postId },
-        include: { socialAccount: true },
+        include: { 
+          socialAccount: true,
+          post: {
+            select: {
+              teamId: true
+            }
+          }
+        },
       });
 
       if (postSocialAccounts.length === 0) {
@@ -195,6 +274,27 @@ export class JobProcessor {
           errors: [],
         };
       }
+
+      // Validasi akses analytics berdasarkan tier plan (menggunakan team dari post pertama)
+      const teamId = postSocialAccounts[0].post.teamId;
+      const accessCheck = await AnalyticsAccessService.hasAnalyticsAccessByTeam(
+        teamId,
+        'postAnalytics'
+      );
+
+      if (!accessCheck.hasAccess) {
+        console.warn(`❌ Post analytics collection blocked for team ${teamId}: ${accessCheck.reason}`);
+        return {
+          success: false,
+          message: `Analytics feature not available: ${accessCheck.reason}`,
+          plan: accessCheck.plan,
+          upgradeRequired: true,
+          results: [],
+          errors: [],
+        };
+      }
+
+      console.log(`✅ Post analytics collection authorized for team ${teamId} with ${accessCheck.plan} plan`);
 
       const syncService = new SocialSyncService(prisma);
       const results = [];

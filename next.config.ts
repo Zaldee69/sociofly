@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
       "images.unsplash.com",
       "utfs.io",
       "scontent.cdninstagram.com",
+      "scontent-cgk2-2.cdninstagram.com",
     ],
     formats: ["image/avif", "image/webp"],
   },
