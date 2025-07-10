@@ -2,6 +2,7 @@ import { Queue, Worker, Job } from "bullmq";
 import { redisConnectionOptions } from "@/lib/queue/redis-connection";
 import { prisma } from "@/lib/prisma/client";
 import { NotificationType } from "@prisma/client";
+import { JobType } from "@/lib/queue/job-types";
 
 // Redis connection options for BullMQ are imported from @/lib/queue/redis-connection
 
@@ -38,7 +39,7 @@ export class NotificationService {
    */
   static async send(data: NotificationJobData) {
     try {
-      await notificationQueue.add("send-notification", data, {
+      await notificationQueue.add(JobType.SEND_NOTIFICATION, data, {
         priority: this.getPriority(data.type),
       });
     } catch (error) {
@@ -53,7 +54,7 @@ export class NotificationService {
   static async sendBulk(notifications: NotificationJobData[]) {
     try {
       const jobs = notifications.map((data, index) => ({
-        name: "send-notification",
+        name: JobType.SEND_NOTIFICATION,
         data,
         opts: {
           priority: this.getPriority(data.type),

@@ -36,6 +36,9 @@ export class JobProcessor {
         case JobType.CLEANUP_OLD_LOGS:
           return await this.processCleanupOldLogs(data);
 
+        case JobType.SEND_NOTIFICATION:
+          return await this.processSendNotification(data);
+
         default:
           console.warn(`⚠️ Unknown job type: ${jobType}`);
           return { success: false, message: `Unknown job type: ${jobType}` };
@@ -407,6 +410,52 @@ export class JobProcessor {
       };
     } catch (error) {
       console.error(`❌ Failed to cleanup old logs:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process send notification
+   */
+  private static async processSendNotification(data: any): Promise<any> {
+    console.log(`📧 Processing notification for user ${data.userId}...`);
+
+    try {
+      const { prisma } = await import("@/lib/prisma/client");
+
+      // Create notification in database
+      const notification = await prisma.notification.create({
+        data: {
+          userId: data.userId,
+          teamId: data.teamId,
+          title: data.title,
+          body: data.body,
+          type: data.type,
+          link: data.link,
+          metadata: data.metadata,
+          expiresAt: data.expiresAt,
+        },
+        include: {
+          team: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+        },
+      });
+
+      console.log(`✅ Notification sent to user ${data.userId}: ${data.title}`);
+
+      return {
+        success: true,
+        notificationId: notification.id,
+        userId: data.userId,
+        type: data.type,
+      };
+    } catch (error) {
+      console.error(`❌ Failed to send notification to user ${data.userId}:`, error);
       throw error;
     }
   }

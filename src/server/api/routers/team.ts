@@ -15,6 +15,7 @@ import { SchedulerService } from "@/lib/services/scheduling/scheduler.service";
 import { HotspotAnalyzer } from "@/lib/services/analytics/hotspots/hotspot-analyzer";
 import { TeamSubscriptionService } from "@/lib/services/team-subscription.service";
 import { MemberQuotaService } from "@/lib/services/member-quota.service";
+import { NotificationService } from "@/lib/services/notification.service";
 
 export const teamRouter = createTRPCRouter({
   // Get all teams user is a member of
@@ -336,6 +337,7 @@ export const teamRouter = createTRPCRouter({
               acceptedAt: null,
               rejectedAt: null,
               createdAt: new Date(), // Refresh creation date
+              invitedBy: ctx.userId as string,
             },
             include: {
               team: true,
@@ -350,6 +352,7 @@ export const teamRouter = createTRPCRouter({
           email: input.email,
           role: input.role,
           teamId: input.teamId,
+          invitedBy: ctx.userId as string,
         },
         include: {
           team: true,
@@ -442,6 +445,7 @@ export const teamRouter = createTRPCRouter({
         select: {
           id: true,
           email: true,
+          name: true,
         },
       });
 
@@ -456,6 +460,19 @@ export const teamRouter = createTRPCRouter({
       const invitation = await ctx.prisma.invitation.findUnique({
         where: {
           id: input.inviteId,
+        },
+        include: {
+          team: {
+            select: {
+              name: true,
+            },
+          },
+          inviter: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
         },
       });
 
@@ -534,6 +551,26 @@ export const teamRouter = createTRPCRouter({
           },
         });
 
+        console.log(invitation);
+
+        // Send notification to inviter if exists
+        if (invitation.invitedBy) {
+          await NotificationService.send({
+            userId: invitation.invitedBy,
+            teamId: invitation.teamId,
+            title: "Invitation Accepted",
+            body: `${user.email} has accepted your invitation to join ${invitation.team.name}`,
+            type: "TEAM_MEMBER_JOINED",
+            link: `/teams/${invitation.teamId}`,
+            metadata: {
+              inviteeEmail: user.email,
+              inviteeName: null,
+              teamName: invitation.team.name,
+              role: invitation.role,
+            },
+          });
+        }
+
         return {
           success: true,
           membership,
@@ -574,6 +611,19 @@ export const teamRouter = createTRPCRouter({
         where: {
           id: input.inviteId,
         },
+        include: {
+          team: {
+            select: {
+              name: true,
+            },
+          },
+          inviter: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+        },
       });
 
       if (!invitation) {
@@ -608,6 +658,25 @@ export const teamRouter = createTRPCRouter({
           rejectedAt: new Date(),
         },
       });
+
+      // Send notification to inviter if exists
+      if (invitation.invitedBy) {
+        await NotificationService.send({
+          userId: invitation.invitedBy,
+          teamId: invitation.teamId,
+          title: "Invitation Declined",
+          body: `${user.email} has declined your invitation to join ${invitation.team.name}`,
+          type: "TEAM_MEMBER_LEFT",
+          link: `/teams/${invitation.teamId}`,
+          metadata: {
+            inviteeEmail: user.email,
+            inviteeName: null,
+            teamName: invitation.team.name,
+            role: invitation.role,
+            action: "declined",
+          },
+        });
+      }
 
       return {
         success: true,
@@ -2187,10 +2256,11 @@ export const teamRouter = createTRPCRouter({
 
       try {
         // Get team's effective subscription
-        const teamSubscription = await TeamSubscriptionService.getEffectiveSubscription(
-          ctx.userId,
-          input.teamId
-        );
+        const teamSubscription =
+          await TeamSubscriptionService.getEffectiveSubscription(
+            ctx.userId,
+            input.teamId
+          );
 
         const plan = teamSubscription.subscriptionPlan || BillingPlan.FREE;
         const quotaInfo = await MemberQuotaService.getMemberQuotaInfo(

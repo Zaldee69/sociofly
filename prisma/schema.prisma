@@ -30,6 +30,7 @@ model User {
   socialAccounts        SocialAccount[]
   teams                 Team[]
   transactions          Transaction[]
+  sentInvitations       Invitation[]         @relation("UserInvitations")
 
   @@index([activeTeamId])
 }
@@ -142,9 +143,12 @@ model Invitation {
   acceptedAt DateTime?
   rejectedAt DateTime?
   teamId     String
+  invitedBy  String
   team       Team      @relation(fields: [teamId], references: [id])
+  inviter    User      @relation("UserInvitations", fields: [invitedBy], references: [id])
 
   @@unique([email, teamId])
+  @@index([invitedBy])
 }
 
 model Media {

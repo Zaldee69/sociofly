@@ -67,7 +67,7 @@ export function ApprovalFlowViewer({
   isLoading,
 }: ApprovalFlowViewerProps) {
   const params = useParams();
-  const teamId = params.id as string;
+  const teamId = params?.id as string;
 
   const [steps, setSteps] = useState<Step[]>([]);
   const [draggedStep, setDraggedStep] = useState<Step | null>(null);

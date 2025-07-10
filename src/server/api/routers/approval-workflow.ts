@@ -1,11 +1,6 @@
 import { z } from "zod";
 import { Role } from "@prisma/client";
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  hasFeature,
-  hasTeamFeature,
-} from "../trpc";
+import { createTRPCRouter, protectedProcedure, hasTeamFeature } from "../trpc";
 import { Feature } from "@/config/feature-flags";
 import { prisma } from "@/lib/prisma/client"; // Import prisma directly for fallback
 
@@ -40,6 +35,10 @@ export const approvalWorkflowRouter = createTRPCRouter({
       const { teamId } = input;
       // Use the prisma client from context, or fallback to the imported client
       const db = ctx.prisma || prisma;
+
+      if (!ctx.auth.userId) {
+        throw new Error("User not authenticated");
+      }
 
       try {
         // Check if user has access to this team
@@ -87,6 +86,10 @@ export const approvalWorkflowRouter = createTRPCRouter({
       const { teamId, role } = input;
       // Use the prisma client from context, or fallback to the imported client
       const db = ctx.prisma || prisma;
+
+      if (!ctx.auth.userId) {
+        throw new Error("User not authenticated");
+      }
 
       try {
         // Check if user has access to this team
@@ -145,6 +148,10 @@ export const approvalWorkflowRouter = createTRPCRouter({
       // Use the prisma client from context, or fallback to the imported client
       const db = ctx.prisma || prisma;
       const { teamId, ...workflowData } = input;
+
+      if (!ctx.auth.userId) {
+        throw new Error("User not authenticated");
+      }
 
       try {
         // Check if user has permission to create workflow in this team
@@ -231,6 +238,10 @@ export const approvalWorkflowRouter = createTRPCRouter({
       // Use the prisma client from context, or fallback to the imported client
       const db = ctx.prisma || prisma;
       const { id, teamId, ...workflowData } = input;
+
+      if (!ctx.auth.userId) {
+        throw new Error("User not authenticated");
+      }
 
       try {
         // Check if user has permission to update workflow in this team
