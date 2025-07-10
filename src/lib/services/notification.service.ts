@@ -1,19 +1,19 @@
-import { Queue, Worker, Job } from 'bullmq';
-import { redisConnectionOptions } from '@/lib/queue/redis-connection';
-import { prisma } from '@/lib/prisma/client';
-import { NotificationType } from '@prisma/client';
+import { Queue, Worker, Job } from "bullmq";
+import { redisConnectionOptions } from "@/lib/queue/redis-connection";
+import { prisma } from "@/lib/prisma/client";
+import { NotificationType } from "@prisma/client";
 
 // Redis connection options for BullMQ are imported from @/lib/queue/redis-connection
 
 // Notification queue
-export const notificationQueue = new Queue('notifications', {
+export const notificationQueue = new Queue("notifications", {
   connection: redisConnectionOptions,
   defaultJobOptions: {
     removeOnComplete: 100,
     removeOnFail: 50,
     attempts: 3,
     backoff: {
-      type: 'exponential',
+      type: "exponential",
       delay: 2000,
     },
   },
@@ -38,11 +38,11 @@ export class NotificationService {
    */
   static async send(data: NotificationJobData) {
     try {
-      await notificationQueue.add('send-notification', data, {
+      await notificationQueue.add("send-notification", data, {
         priority: this.getPriority(data.type),
       });
     } catch (error) {
-      console.error('Failed to queue notification:', error);
+      console.error("Failed to queue notification:", error);
       throw error;
     }
   }
@@ -53,7 +53,7 @@ export class NotificationService {
   static async sendBulk(notifications: NotificationJobData[]) {
     try {
       const jobs = notifications.map((data, index) => ({
-        name: 'send-notification',
+        name: "send-notification",
         data,
         opts: {
           priority: this.getPriority(data.type),
@@ -63,7 +63,7 @@ export class NotificationService {
 
       await notificationQueue.addBulk(jobs);
     } catch (error) {
-      console.error('Failed to queue bulk notifications:', error);
+      console.error("Failed to queue bulk notifications:", error);
       throw error;
     }
   }
@@ -89,7 +89,7 @@ export class NotificationService {
 
       return notification;
     } catch (error) {
-      console.error('Failed to mark notification as read:', error);
+      console.error("Failed to mark notification as read:", error);
       throw error;
     }
   }
@@ -119,7 +119,7 @@ export class NotificationService {
       // Note: Real-time updates can be implemented with WebSockets or Server-Sent Events
       // For now, we rely on polling from the frontend
     } catch (error) {
-      console.error('Failed to mark all notifications as read:', error);
+      console.error("Failed to mark all notifications as read:", error);
       throw error;
     }
   }
@@ -143,10 +143,7 @@ export class NotificationService {
     try {
       const whereClause: any = {
         userId,
-        OR: [
-          { expiresAt: null },
-          { expiresAt: { gt: new Date() } },
-        ],
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       };
 
       if (teamId) {
@@ -160,7 +157,7 @@ export class NotificationService {
       const [notifications, total] = await Promise.all([
         prisma.notification.findMany({
           where: whereClause,
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: "desc" },
           take: limit,
           skip: offset,
           include: {
@@ -182,7 +179,7 @@ export class NotificationService {
         hasMore: offset + limit < total,
       };
     } catch (error) {
-      console.error('Failed to get notifications:', error);
+      console.error("Failed to get notifications:", error);
       throw error;
     }
   }
@@ -195,10 +192,7 @@ export class NotificationService {
       const whereClause: any = {
         userId,
         isRead: false,
-        OR: [
-          { expiresAt: null },
-          { expiresAt: { gt: new Date() } },
-        ],
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       };
 
       if (teamId) {
@@ -207,7 +201,7 @@ export class NotificationService {
 
       return await prisma.notification.count({ where: whereClause });
     } catch (error) {
-      console.error('Failed to get unread count:', error);
+      console.error("Failed to get unread count:", error);
       throw error;
     }
   }
@@ -238,7 +232,7 @@ export class NotificationService {
         },
       });
     } catch (error) {
-      console.error('Failed to cleanup notifications:', error);
+      console.error("Failed to cleanup notifications:", error);
       throw error;
     }
   }
@@ -263,6 +257,7 @@ export class NotificationService {
       POST_SCHEDULED: 13,
       COMMENT_RECEIVED: 14,
       ANALYTICS_READY: 15, // Lowest priority
+      APPROVAL_REQUEST: 16,
     };
 
     return priorityMap[type] || 10;
@@ -271,9 +266,10 @@ export class NotificationService {
 
 // Worker to process notification jobs
 export const notificationWorker = new Worker(
-  'notifications',
+  "notifications",
   async (job: Job<NotificationJobData>) => {
-    const { userId, teamId, title, body, type, link, metadata, expiresAt } = job.data;
+    const { userId, teamId, title, body, type, link, metadata, expiresAt } =
+      job.data;
 
     try {
       // Save to database
@@ -304,7 +300,7 @@ export const notificationWorker = new Worker(
 
       console.log(`Notification sent to user ${userId}:`, title);
     } catch (error) {
-      console.error('Failed to process notification job:', error);
+      console.error("Failed to process notification job:", error);
       throw error;
     }
   },
@@ -316,10 +312,10 @@ export const notificationWorker = new Worker(
 
 // Cleanup worker (runs daily)
 export const cleanupWorker = new Worker(
-  'notification-cleanup',
+  "notification-cleanup",
   async () => {
     await NotificationService.cleanup();
-    console.log('Notification cleanup completed');
+    console.log("Notification cleanup completed");
   },
   {
     connection: redisConnectionOptions,
@@ -328,12 +324,12 @@ export const cleanupWorker = new Worker(
 
 // Schedule cleanup job to run daily
 notificationQueue.add(
-  'cleanup',
+  "cleanup",
   {},
   {
     repeat: {
-      pattern: '0 2 * * *', // Run at 2 AM daily
+      pattern: "0 2 * * *", // Run at 2 AM daily
     },
-    jobId: 'notification-cleanup',
+    jobId: "notification-cleanup",
   }
 );

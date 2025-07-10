@@ -479,19 +479,18 @@ export function AddPostDialog({
                       </Button>
                     </DialogClose>
 
-                    {/* Delete button - only show for existing posts */}
-                    {post?.id && isReadOnly && (
+                    {/* Delete button - show for existing posts (both published and draft) */}
+                    {post?.id && (
                       <Button
                         type="button"
                         variant="destructive"
                         size="sm"
                         disabled={isUploading}
                         onClick={() => {
-                          if (
-                            confirm(
-                              "Are you sure you want to delete this post?"
-                            )
-                          ) {
+                          const confirmMessage = isReadOnly 
+                            ? "Are you sure you want to delete this published post?"
+                            : "Are you sure you want to delete this draft?";
+                          if (confirm(confirmMessage)) {
                             handleDelete(post.id);
                           }
                         }}
