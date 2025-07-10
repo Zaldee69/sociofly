@@ -487,7 +487,7 @@ export function AddPostDialog({
                         size="sm"
                         disabled={isUploading}
                         onClick={() => {
-                          const confirmMessage = isReadOnly 
+                          const confirmMessage = isReadOnly
                             ? "Are you sure you want to delete this published post?"
                             : "Are you sure you want to delete this draft?";
                           if (confirm(confirmMessage)) {
