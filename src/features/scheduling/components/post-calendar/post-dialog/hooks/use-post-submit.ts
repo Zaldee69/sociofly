@@ -38,24 +38,28 @@ export function usePostSubmit({
   const updatePostMutation = trpc.post.update.useMutation({
     onSuccess: (result) => {
       console.log("Post updated successfully:", result);
+      setIsUploading(false);
       onSave?.(result);
       form.reset();
       onClose();
     },
     onError: (error) => {
       console.error("Error updating post:", error);
+      setIsUploading(false);
     },
   });
 
   // Add resubmit mutation
   const resubmitPostMutation = trpc.approvalRequest.resubmitPost.useMutation({
     onSuccess: () => {
+      setIsUploading(false);
       toast.success("Post resubmitted for review!");
       onSave?.(null);
       form.reset();
       onClose();
     },
     onError: (error) => {
+      setIsUploading(false);
       toast.error(`Failed to resubmit: ${error.message}`);
     },
   });
@@ -64,12 +68,14 @@ export function usePostSubmit({
   const submitForApprovalMutation =
     trpc.approvalRequest.submitForApproval.useMutation({
       onSuccess: () => {
+        setIsUploading(false);
         toast.success("Post submitted for review!");
         onSave?.(null);
         form.reset();
         onClose();
       },
       onError: (error) => {
+        setIsUploading(false);
         toast.error(`Failed to submit for review: ${error.message}`);
       },
     });
@@ -78,6 +84,7 @@ export function usePostSubmit({
   const createPostMutation = trpc.post.create.useMutation({
     onSuccess: (result) => {
       console.log("Post created successfully:", result);
+      setIsUploading(false);
       toast.success("Post created successfully!");
       onSave?.(result);
       form.reset();
@@ -85,6 +92,7 @@ export function usePostSubmit({
     },
     onError: (error) => {
       console.error("Error creating post:", error);
+      setIsUploading(false);
       toast.error(`Failed to create post: ${error.message}`);
     },
   });
@@ -93,6 +101,7 @@ export function usePostSubmit({
   const publishNowMutation = trpc.post.publishNow.useMutation({
     onSuccess: (result) => {
       console.log("Post published successfully:", result);
+      setIsUploading(false);
 
       // Check publishing results
       const allSuccessful = result.results.every(
@@ -115,6 +124,7 @@ export function usePostSubmit({
     },
     onError: (error) => {
       console.error("Error publishing post:", error);
+      setIsUploading(false);
       toast.error(`Failed to publish post: ${error.message}`);
     },
   });
@@ -123,6 +133,7 @@ export function usePostSubmit({
   const deletePostMutation = trpc.post.delete.useMutation({
     onSuccess: () => {
       console.log("Post deleted successfully");
+      setIsUploading(false);
       toast.success("Post deleted successfully!");
       // Signal to parent to refresh data by calling onSave with null
       // This will trigger the calendar to refresh its data
@@ -132,6 +143,7 @@ export function usePostSubmit({
     },
     onError: (error) => {
       console.error("Error deleting post:", error);
+      setIsUploading(false);
       toast.error(`Failed to delete post: ${error.message}`);
     },
   });
@@ -155,12 +167,14 @@ export function usePostSubmit({
         throw new Error("No team selected");
       }
 
+      // Set loading state immediately when form is submitted
+      setIsUploading(true);
+
       const mediaToUpload = values.mediaUrls.filter(
         (media) => media.preview.startsWith("blob:") && !media.uploadedUrl
       );
 
       if (mediaToUpload.length > 0) {
-        setIsUploading(true);
 
         const filesToUpload = mediaToUpload
           .map((media) => {
@@ -197,11 +211,11 @@ export function usePostSubmit({
               values.mediaUrls = updatedMediaUrls;
             }
           } catch (error) {
-            console.error("Error uploading media:", error);
-            throw new Error("Failed to upload media");
-          } finally {
-            setIsUploading(false);
-          }
+              console.error("Error uploading media:", error);
+              setIsUploading(false);
+              throw new Error("Failed to upload media");
+            }
+            // Note: Don't reset isUploading here as mutations will handle it
         }
       }
 
@@ -356,6 +370,11 @@ export function usePostSubmit({
       }
     } catch (error) {
       console.error("Error submitting post:", error);
+      setIsUploading(false);
+      // Show error toast if it's not handled by mutations
+      if (error instanceof Error) {
+        toast.error(`Failed to submit post: ${error.message}`);
+      }
     }
   };
 
