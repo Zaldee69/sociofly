@@ -10,6 +10,7 @@ export interface Step {
   name: string;
   assignedUserId?: string;
   requireAllUsersInRole: boolean;
+  externalReviewerEmails?: string[];
 }
 
 export interface OrganizationUser {
@@ -153,6 +154,7 @@ export function useApprovalWorkflow(teamId: string) {
           name: step.name,
           assignedUserId: step.assignedUserId || undefined,
           requireAllUsersInRole: step.requireAllUsersInRole,
+          externalReviewerEmails: step.externalReviewerEmails || [],
         }));
 
         setSteps(workflowSteps);
@@ -186,6 +188,7 @@ export function useApprovalWorkflow(teamId: string) {
             role: step.role,
             assignedUserId: step.assignedUserId,
             requireAllUsersInRole: step.requireAllUsersInRole,
+            externalReviewerEmails: step.externalReviewerEmails || [],
           })),
         });
       } else {
@@ -200,6 +203,7 @@ export function useApprovalWorkflow(teamId: string) {
             role: step.role,
             assignedUserId: step.assignedUserId,
             requireAllUsersInRole: step.requireAllUsersInRole,
+            externalReviewerEmails: step.externalReviewerEmails || [],
           })),
         });
       }

@@ -19,7 +19,56 @@ const isPublicRoute = createRouteMatcher([
   "/legal/(.*)",
   "/about",
   "/contact",
+  "/approvals(.*)", // Allow external reviewers to access approval pages via magic link
 ]);
+
+// Helper function to check if tRPC request is for public procedures
+// This provides granular security by only allowing specific public procedures
+// instead of opening all tRPC endpoints to unauthenticated access
+const isPublicTRPCRequest = async (req: Request): Promise<boolean> => {
+  if (!req.url.includes('/api/trpc')) return false;
+  
+  const url = new URL(req.url);
+  const pathname = url.pathname;
+  
+  // Check URL path for public procedures
+  if (pathname.includes('approvalRequest.verifyMagicLink') || 
+      pathname.includes('approvalRequest.submitMagicLinkReview')) {
+    return true;
+  }
+  
+  // For GET requests, check query parameters
+  if (req.method === 'GET') {
+    const searchParams = url.searchParams;
+    const input = searchParams.get('input');
+    if (input) {
+      try {
+        const parsedInput = JSON.parse(input);
+        if (parsedInput?.path?.includes('approvalRequest.verifyMagicLink') ||
+            parsedInput?.path?.includes('approvalRequest.submitMagicLinkReview')) {
+          return true;
+        }
+      } catch {
+        return false;
+      }
+    }
+  }
+  
+  // For POST requests, check request body
+  if (req.method === 'POST') {
+    try {
+      const body = await req.clone().text();
+      if (body.includes('approvalRequest.verifyMagicLink') ||
+          body.includes('approvalRequest.submitMagicLinkReview')) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
+  
+  return false;
+};
 
 // Tentukan rute onboarding yang tidak memerlukan onboarding selesai
 const isOnboardingRoute = createRouteMatcher(["/onboarding(.*)"]);
@@ -38,6 +87,12 @@ export default clerkMiddleware(async (auth, req) => {
 
     // Cek apakah rute memerlukan autentikasi
     if (!isPublicRoute(req)) {
+      // Special handling for tRPC public procedures
+      if (req.nextUrl.pathname.startsWith("/api/trpc") && await isPublicTRPCRequest(req)) {
+        // Allow public tRPC procedures to proceed without authentication
+        return NextResponse.next();
+      }
+      
       // Check if user is authenticated
       const { userId, sessionClaims } = await auth();
 

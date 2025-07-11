@@ -285,17 +285,18 @@ model ApprovalWorkflow {
 }
 
 model ApprovalStep {
-  id                    String               @id @default(cuid())
-  name                  String
-  order                 Int
-  role                  Role
-  assignedUserId        String?
-  requireAllUsersInRole Boolean              @default(false)
-  workflowId            String
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  assignments           ApprovalAssignment[]
-  workflow              ApprovalWorkflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  id                     String               @id @default(cuid())
+  name                   String
+  order                  Int
+  role                   Role
+  assignedUserId         String?
+  requireAllUsersInRole  Boolean              @default(false)
+  externalReviewerEmails String[]             @default([])
+  workflowId             String
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  assignments            ApprovalAssignment[]
+  workflow               ApprovalWorkflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
   @@unique([workflowId, order])
 }
@@ -314,18 +315,19 @@ model ApprovalInstance {
 }
 
 model ApprovalAssignment {
-  id             String           @id @default(cuid())
-  stepId         String
-  instanceId     String
-  assignedUserId String?
-  status         ApprovalStatus   @default(PENDING)
-  feedback       String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  completedAt    DateTime?
-  user           User?            @relation(fields: [assignedUserId], references: [id])
-  instance       ApprovalInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
-  step           ApprovalStep     @relation(fields: [stepId], references: [id])
+  id                    String           @id @default(cuid())
+  stepId                String
+  instanceId            String
+  assignedUserId        String?
+  externalReviewerEmail String?
+  status                ApprovalStatus   @default(PENDING)
+  feedback              String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  completedAt           DateTime?
+  user                  User?            @relation(fields: [assignedUserId], references: [id])
+  instance              ApprovalInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  step                  ApprovalStep     @relation(fields: [stepId], references: [id])
 
   @@unique([stepId, instanceId, assignedUserId])
 }

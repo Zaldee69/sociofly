@@ -59,6 +59,7 @@ interface ApprovalNotificationData {
   teamName: string;
   authorName: string;
   assignmentId: string;
+  magicLink?: string; // Optional magic link for external reviewers
 }
 
 interface MagicLinkApprovalData {
@@ -79,8 +80,12 @@ export async function sendApprovalRequestEmail(data: ApprovalNotificationData) {
     teamName,
     authorName,
     assignmentId,
+    magicLink,
   } = data;
-  const approvalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/approvals?assignment=${assignmentId}`;
+  console.log("magis", magicLink);
+  const approvalUrl =
+    magicLink ||
+    `${process.env.NEXT_PUBLIC_APP_URL}/approvals?assignment=${assignmentId}`;
 
   // Truncate content for preview
   const contentPreview =
@@ -88,59 +93,124 @@ export async function sendApprovalRequestEmail(data: ApprovalNotificationData) {
       ? postContent.substring(0, 100) + "..."
       : postContent;
 
+  const isExternalReviewer = !!magicLink;
+  const emailSubject = isExternalReviewer
+    ? `Content Review Request from ${authorName} - ${teamName}`
+    : `Permintaan Approval Post dari ${authorName} - ${teamName}`;
+
+  const emailContent = isExternalReviewer
+    ? `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+      <h2 style="color: #333; margin-bottom: 20px;">🔔 Content Review Request</h2>
+      
+      <p>Hello,</p>
+      
+      <p>You have been invited to review content from <strong>${authorName}</strong> in the <strong>${teamName}</strong> team.</p>
+      
+      <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <h3 style="margin: 0 0 10px 0; color: #495057;">Content Preview:</h3>
+        <p style="margin: 0; font-style: italic; color: #6c757d;">"${contentPreview}"</p>
+      </div>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${approvalUrl}" 
+           style="background-color: #28a745; color: white; padding: 12px 24px; 
+                  text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+          Review Content
+        </a>
+      </div>
+      
+      <p style="color: #666; font-size: 14px;">
+        Click the button above to review the content and provide your approval or feedback. No account registration is required.
+      </p>
+      
+      <p style="color: #666; font-size: 14px;">
+        <strong>Note:</strong> This link will expire in 72 hours for security purposes.
+      </p>
+      
+      <hr style="margin: 30px 0; border: none; border-top: 1px solid #e0e0e0;">
+      
+      <p style="color: #999; font-size: 12px;">
+        This email was sent automatically by SocioFly. If you believe you received this email in error, please ignore it.
+      </p>
+    </div>
+  `
+    : `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+      <h2 style="color: #333; margin-bottom: 20px;">🔔 Permintaan Approval Post</h2>
+      
+      <p>Halo ${approverName},</p>
+      
+      <p>Anda memiliki permintaan approval post baru dari <strong>${authorName}</strong> di tim <strong>${teamName}</strong>.</p>
+      
+      <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <h3 style="margin: 0 0 10px 0; color: #495057;">Preview Konten:</h3>
+        <p style="margin: 0; font-style: italic; color: #6c757d;">"${contentPreview}"</p>
+      </div>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${approvalUrl}" 
+           style="background-color: #28a745; color: white; padding: 12px 24px; 
+                  text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+          Review & Approve
+        </a>
+      </div>
+      
+      <p style="color: #666; font-size: 14px;">
+        Klik tombol di atas untuk melihat detail lengkap dan memberikan approval atau feedback.
+      </p>
+      
+      <hr style="margin: 30px 0; border: none; border-top: 1px solid #e0e0e0;">
+      
+      <p style="color: #999; font-size: 12px;">
+        Email ini dikirim secara otomatis oleh sistem SocioFly. Jika Anda tidak seharusnya menerima email ini, silakan abaikan.
+      </p>
+    </div>
+  `;
+
+  const emailText = isExternalReviewer
+    ? `
+    Content Review Request - ${teamName}
+
+    Hello,
+
+    You have been invited to review content from ${authorName} in the ${teamName} team.
+
+    Content Preview:
+    "${contentPreview}"
+
+    To review and provide approval, visit:
+    ${approvalUrl}
+
+    Note: This link will expire in 72 hours for security purposes.
+
+    ---
+    This email was sent automatically by SocioFly.
+  `
+    : `
+    Permintaan Approval Post - ${teamName}
+
+    Halo ${approverName},
+
+    Anda memiliki permintaan approval post baru dari ${authorName} di tim ${teamName}.
+
+    Preview Konten:
+    "${contentPreview}"
+
+    Untuk review dan approval, kunjungi:
+    ${approvalUrl}
+
+    ---
+    Email ini dikirim secara otomatis oleh sistem SocioFly.
+  `;
+
   try {
     await resend.emails.send({
       from: "SocioFly <notifications@resend.dev>",
       to: "muhammadrizaldy19@gmail.com",
-      subject: `Permintaan Approval Post dari ${authorName} - ${teamName}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
-          <h2 style="color: #333; margin-bottom: 20px;">🔔 Permintaan Approval Post</h2>
-          
-          <p>Halo ${approverName},</p>
-          
-          <p>Anda memiliki permintaan approval post baru dari <strong>${authorName}</strong> di tim <strong>${teamName}</strong>.</p>
-          
-          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <h3 style="margin: 0 0 10px 0; color: #495057;">Preview Konten:</h3>
-            <p style="margin: 0; font-style: italic; color: #6c757d;">"${contentPreview}"</p>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${approvalUrl}" 
-               style="background-color: #28a745; color: white; padding: 12px 24px; 
-                      text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
-              Review & Approve
-            </a>
-          </div>
-          
-          <p style="color: #666; font-size: 14px;">
-            Klik tombol di atas untuk melihat detail lengkap dan memberikan approval atau feedback.
-          </p>
-          
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #e0e0e0;">
-          
-          <p style="color: #999; font-size: 12px;">
-            Email ini dikirim secara otomatis oleh sistem SocioFly. Jika Anda tidak seharusnya menerima email ini, silakan abaikan.
-          </p>
-        </div>
-      `,
-      text: `
-        Permintaan Approval Post - ${teamName}
-
-        Halo ${approverName},
-
-        Anda memiliki permintaan approval post baru dari ${authorName} di tim ${teamName}.
-
-        Preview Konten:
-        "${contentPreview}"
-
-        Untuk review dan approval, kunjungi:
-        ${approvalUrl}
-
-        ---
-        Email ini dikirim secara otomatis oleh sistem SocioFly.
-      `,
+      subject: emailSubject,
+      html: emailContent,
+      text: emailText,
     });
 
     console.log("Approval request email sent successfully to:", approverEmail);
@@ -171,7 +241,7 @@ export async function sendMagicLinkApprovalEmail(data: MagicLinkApprovalData) {
   try {
     await resend.emails.send({
       from: "SocioFly <notifications@resend.dev>",
-      to: approverEmail,
+      to: "muhammadrizaldy19@gmail.com",
       subject: `Content Approval Request from ${authorName} - ${teamName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">

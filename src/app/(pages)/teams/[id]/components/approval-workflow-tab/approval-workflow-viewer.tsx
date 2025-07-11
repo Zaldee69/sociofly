@@ -96,9 +96,20 @@ export function ApprovalFlowViewer({
 
   // Handle property change for a step
   const handleStepChange = (id: string, field: keyof Step, value: any) => {
-    const newSteps = steps.map((step) =>
-      step.id === id ? { ...step, [field]: value } : step
-    );
+    const newSteps = steps.map((step) => {
+      if (step.id === id) {
+        const updatedStep = { ...step, [field]: value };
+
+        // If role is changed to CLIENT_REVIEWER, clear user assignment and require all users
+        if (field === "role" && value === "CLIENT_REVIEWER") {
+          updatedStep.assignedUserId = undefined;
+          updatedStep.requireAllUsersInRole = false;
+        }
+
+        return updatedStep;
+      }
+      return step;
+    });
     updateSteps(newSteps);
   };
 
@@ -118,6 +129,7 @@ export function ApprovalFlowViewer({
       role: "CONTENT_CREATOR",
       name: `Step ${newOrder}`,
       requireAllUsersInRole: false,
+      externalReviewerEmails: [],
     };
 
     updateSteps([...steps, newStep]);
@@ -298,103 +310,181 @@ export function ApprovalFlowViewer({
                           </DropdownMenu>
                         </div>
 
-                        {/* User assignment */}
-                        <div className="flex flex-col mt-3">
-                          <Label className="text-xs text-gray-500 mb-1">
-                            User Assignment
-                          </Label>
-                          <div className="flex items-center gap-2">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  className="h-8 text-sm w-full justify-start"
-                                  disabled={step.requireAllUsersInRole}
+                        {/* User assignment - Hidden for CLIENT_REVIEWER */}
+                        {step.role !== "CLIENT_REVIEWER" && (
+                          <div className="flex flex-col mt-3">
+                            <Label className="text-xs text-gray-500 mb-1">
+                              User Assignment
+                            </Label>
+                            <div className="flex items-center gap-2">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    className="h-8 text-sm w-full justify-start"
+                                    disabled={step.requireAllUsersInRole}
+                                  >
+                                    {step.assignedUserId
+                                      ? findUserById(step.assignedUserId)
+                                          ?.name || "Unknown user"
+                                      : "Any user with role"}
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                  align="start"
+                                  className="w-56"
                                 >
-                                  {step.assignedUserId
-                                    ? findUserById(step.assignedUserId)?.name ||
-                                      "Unknown user"
-                                    : "Any user with role"}
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="start"
-                                className="w-56"
-                              >
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    handleStepChange(
-                                      step.id,
-                                      "assignedUserId",
-                                      undefined
-                                    )
-                                  }
-                                  className="gap-2"
-                                >
-                                  <Users size={16} />
-                                  <span>Any user with this role</span>
-                                </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      handleStepChange(
+                                        step.id,
+                                        "assignedUserId",
+                                        undefined
+                                      )
+                                    }
+                                    className="gap-2"
+                                  >
+                                    <Users size={16} />
+                                    <span>Any user with this role</span>
+                                  </DropdownMenuItem>
 
-                                {getUsersByRole(step.role).length > 0 ? (
-                                  getUsersByRole(step.role).map((user) => (
+                                  {getUsersByRole(step.role).length > 0 ? (
+                                    getUsersByRole(step.role).map((user) => (
+                                      <DropdownMenuItem
+                                        key={user.id}
+                                        onClick={() =>
+                                          handleStepChange(
+                                            step.id,
+                                            "assignedUserId",
+                                            user.id
+                                          )
+                                        }
+                                        className="gap-2"
+                                      >
+                                        <User size={16} />
+                                        {user.name}
+                                      </DropdownMenuItem>
+                                    ))
+                                  ) : (
                                     <DropdownMenuItem
-                                      key={user.id}
-                                      onClick={() =>
-                                        handleStepChange(
-                                          step.id,
-                                          "assignedUserId",
-                                          user.id
-                                        )
-                                      }
-                                      className="gap-2"
+                                      disabled
+                                      className="gap-2 text-muted-foreground"
                                     >
                                       <User size={16} />
-                                      {user.name}
+                                      No users with this role
                                     </DropdownMenuItem>
-                                  ))
-                                ) : (
-                                  <DropdownMenuItem
-                                    disabled
-                                    className="gap-2 text-muted-foreground"
-                                  >
-                                    <User size={16} />
-                                    No users with this role
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
-                        </div>
+                        )}
 
-                        {/* Require all users checkbox */}
-                        <div className="flex items-center space-x-2 mt-3">
-                          <Checkbox
-                            id={`require-all-${step.id}`}
-                            checked={step.requireAllUsersInRole}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                // When requiring all users, clear any specific assigned user
+                        {/* Require all users checkbox - Hidden for CLIENT_REVIEWER */}
+                        {step.role !== "CLIENT_REVIEWER" && (
+                          <div className="flex items-center space-x-2 mt-3">
+                            <Checkbox
+                              id={`require-all-${step.id}`}
+                              checked={step.requireAllUsersInRole}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  // When requiring all users, clear any specific assigned user
+                                  handleStepChange(
+                                    step.id,
+                                    "assignedUserId",
+                                    undefined
+                                  );
+                                }
                                 handleStepChange(
                                   step.id,
-                                  "assignedUserId",
-                                  undefined
+                                  "requireAllUsersInRole",
+                                  !!checked
                                 );
-                              }
-                              handleStepChange(
-                                step.id,
-                                "requireAllUsersInRole",
-                                !!checked
-                              );
-                            }}
-                            disabled={!!step.assignedUserId}
-                          />
-                          <Label
-                            htmlFor={`require-all-${step.id}`}
-                            className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                          >
-                            Require approval from all users with this role
-                          </Label>
-                        </div>
+                              }}
+                              disabled={!!step.assignedUserId}
+                            />
+                            <Label
+                              htmlFor={`require-all-${step.id}`}
+                              className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              Require approval from all users with this role
+                            </Label>
+                          </div>
+                        )}
+
+                        {/* External reviewer emails for CLIENT_REVIEWER */}
+                        {step.role === "CLIENT_REVIEWER" && (
+                          <div className="flex flex-col mt-3">
+                            <Label className="text-xs text-gray-500 mb-1">
+                              External Reviewer Emails
+                            </Label>
+                            <div className="space-y-2">
+                              {(step.externalReviewerEmails || []).map(
+                                (email, index) => (
+                                  <div
+                                    key={index}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <Input
+                                      value={email}
+                                      onChange={(e) => {
+                                        const newEmails = [
+                                          ...(step.externalReviewerEmails ||
+                                            []),
+                                        ];
+                                        newEmails[index] = e.target.value;
+                                        handleStepChange(
+                                          step.id,
+                                          "externalReviewerEmails",
+                                          newEmails
+                                        );
+                                      }}
+                                      placeholder="reviewer@example.com"
+                                      className="h-8 text-sm"
+                                      type="email"
+                                    />
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                      onClick={() => {
+                                        const newEmails = (
+                                          step.externalReviewerEmails || []
+                                        ).filter((_, i) => i !== index);
+                                        handleStepChange(
+                                          step.id,
+                                          "externalReviewerEmails",
+                                          newEmails
+                                        );
+                                      }}
+                                    >
+                                      <Trash2 size={14} />
+                                    </Button>
+                                  </div>
+                                )
+                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-sm"
+                                onClick={() => {
+                                  const newEmails = [
+                                    ...(step.externalReviewerEmails || []),
+                                    "",
+                                  ];
+                                  handleStepChange(
+                                    step.id,
+                                    "externalReviewerEmails",
+                                    newEmails
+                                  );
+                                }}
+                              >
+                                <Plus size={14} className="mr-1" />
+                                Add Email
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Delete button */}

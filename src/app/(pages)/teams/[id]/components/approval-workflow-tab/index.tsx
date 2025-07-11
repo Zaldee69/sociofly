@@ -21,7 +21,7 @@ export type { Step };
 
 export default function ApprovalWorkflowTab() {
   const params = useParams();
-  const teamId = params.id as string;
+  const teamId = params?.id as string;
 
   // Use our custom hook
   const { steps, setSteps, isLoading, isError, error, saveWorkflow, isSaving } =

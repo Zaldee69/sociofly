@@ -769,7 +769,7 @@ export default function PostDetailPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  const postId = params.id as string;
+  const postId = params?.id as string;
 
   // Fetch post data
   const {

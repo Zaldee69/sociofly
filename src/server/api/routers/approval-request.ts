@@ -4,7 +4,87 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { sendApprovalRequestEmail, sendApprovalStatusEmail } from "@/lib/email";
 import { NotificationService } from "@/lib/services/notification.service";
+import { UnifiedRedisManager } from "@/lib/services/unified-redis-manager";
 import { randomBytes } from "crypto";
+
+// Helper function to send approval request notifications to external reviewers
+async function sendExternalReviewerNotifications(
+  ctx: any,
+  assignmentIds: string[],
+  postId: string,
+  teamId: string,
+  tx?: any
+) {
+  try {
+    const prisma = tx || ctx.prisma;
+
+    // Get post and team details
+    const postWithDetails = await prisma.post.findUnique({
+      where: { id: postId },
+      include: {
+        user: {
+          select: { name: true, email: true },
+        },
+        team: {
+          select: { name: true },
+        },
+      },
+    });
+
+    if (!postWithDetails) return;
+
+    // Get assignment details
+    const assignments = await prisma.approvalAssignment.findMany({
+      where: {
+        id: {
+          in: assignmentIds,
+        },
+      },
+    });
+
+    // Generate magic links and send emails to external reviewers
+    for (const assignment of assignments) {
+      if (assignment.externalReviewerEmail) {
+        // Generate secure token
+        const token = randomBytes(32).toString("hex");
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 72); // 3 days expiry
+
+        // Store the magic link token
+        await prisma.temporaryData.create({
+          data: {
+            id: token,
+            data: JSON.stringify({
+              type: "approval_magic_link",
+              assignmentId: assignment.id,
+              reviewerEmail: assignment.externalReviewerEmail,
+              createdBy: ctx.auth?.userId || "system",
+            }),
+            expiresAt,
+          },
+        });
+
+        // Generate the magic link URL
+        const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+        const magicLink = `${baseUrl}/approvals?token=${token}`;
+
+        console.log("send to client");
+        // Send email with magic link
+        await sendApprovalRequestEmail({
+          approverEmail: assignment.externalReviewerEmail,
+          approverName: assignment.externalReviewerEmail,
+          postContent: postWithDetails.content,
+          teamName: postWithDetails.team.name,
+          authorName: postWithDetails.user.name || postWithDetails.user.email,
+          assignmentId: assignment.id,
+          magicLink, // Add magic link to email
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error sending external reviewer notifications:", error);
+  }
+}
 
 // Helper function to send approval request notifications
 async function sendApprovalNotifications(
@@ -67,15 +147,15 @@ async function sendApprovalNotifications(
         // Send in-app notification
         await NotificationService.send({
           userId: assignment.assignedUserId!,
-          type: 'APPROVAL_REQUEST',
-          title: 'New Approval Request',
+          type: "APPROVAL_REQUEST",
+          title: "New Approval Request",
           body: `Post from ${postWithDetails.user.name || postWithDetails.user.email} in ${postWithDetails.team.name} needs your approval`,
           metadata: {
             assignmentId: assignment.id,
             postId: postWithDetails.id,
             teamId: postWithDetails.teamId,
-            authorName: postWithDetails.user.name || postWithDetails.user.email
-          }
+            authorName: postWithDetails.user.name || postWithDetails.user.email,
+          },
         });
       }
     }
@@ -99,6 +179,9 @@ async function sendApprovalStatusNotification(
         user: {
           select: { name: true, email: true },
         },
+        step: {
+          select: { role: true },
+        },
         instance: {
           include: {
             post: {
@@ -116,7 +199,20 @@ async function sendApprovalStatusNotification(
       },
     });
 
-    if (!assignment?.instance.post || !assignment.user) return;
+    if (!assignment?.instance.post) return;
+
+    // Determine approver name based on assignment type
+    let approverName: string;
+    if (assignment.user) {
+      // Internal reviewer (has assignedUserId)
+      approverName = assignment.user.name || assignment.user.email;
+    } else if (assignment.externalReviewerEmail) {
+      // External reviewer (has externalReviewerEmail)
+      approverName = assignment.externalReviewerEmail;
+    } else {
+      // Fallback for external reviewers without stored email
+      approverName = "External Reviewer";
+    }
 
     // Send email notification
     await sendApprovalStatusEmail({
@@ -126,7 +222,7 @@ async function sendApprovalStatusNotification(
         assignment.instance.post.user.email,
       postContent: assignment.instance.post.content,
       teamName: assignment.instance.post.team.name,
-      approverName: assignment.user.name || assignment.user.email,
+      approverName,
       status: approved ? "approved" : "rejected",
       feedback,
     });
@@ -134,19 +230,19 @@ async function sendApprovalStatusNotification(
     // Send in-app notification to post author
     await NotificationService.send({
       userId: assignment.instance.post.userId,
-      type: approved ? 'APPROVAL_APPROVED' : 'APPROVAL_REJECTED',
-      title: approved ? 'Post Approved' : 'Post Rejected',
-      body: approved 
-        ? `Your post in ${assignment.instance.post.team.name} has been approved by ${assignment.user.name || assignment.user.email}`
-        : `Your post in ${assignment.instance.post.team.name} has been rejected by ${assignment.user.name || assignment.user.email}${feedback ? `: ${feedback}` : ''}`,
+      type: approved ? "APPROVAL_APPROVED" : "APPROVAL_REJECTED",
+      title: approved ? "Post Approved" : "Post Rejected",
+      body: approved
+        ? `Your post in ${assignment.instance.post.team.name} has been approved by ${approverName}`
+        : `Your post in ${assignment.instance.post.team.name} has been rejected by ${approverName}${feedback ? `: ${feedback}` : ""}`,
       metadata: {
         assignmentId: assignment.id,
         postId: assignment.instance.post.id,
         teamId: assignment.instance.post.teamId,
-        approverName: assignment.user.name || assignment.user.email,
-        status: approved ? 'approved' : 'rejected',
-        feedback
-      }
+        approverName,
+        status: approved ? "approved" : "rejected",
+        feedback,
+      },
     });
   } catch (error) {
     console.error("Error sending approval status notification:", error);
@@ -493,6 +589,86 @@ export const approvalRequestRouter = createTRPCRouter({
             post.teamId,
             tx
           );
+        } else if (firstStep.role === "CLIENT_REVIEWER") {
+          // Handle CLIENT_REVIEWER role - check for external reviewer emails first
+          if (
+            firstStep.externalReviewerEmails &&
+            firstStep.externalReviewerEmails.length > 0
+          ) {
+            // Handle external reviewer emails for CLIENT_REVIEWER role
+            const assignments = [];
+
+            for (const email of firstStep.externalReviewerEmails) {
+              const assignment = await tx.approvalAssignment.create({
+                data: {
+                  stepId: firstStep.id,
+                  instanceId: instance.id,
+                  status: ApprovalStatus.PENDING,
+                  externalReviewerEmail: email,
+                  // No assignedUserId for external reviewers
+                },
+              });
+              assignments.push(assignment);
+            }
+
+            // Send magic link emails to external reviewers
+            await sendExternalReviewerNotifications(
+              ctx,
+              assignments.map((a) => a.id),
+              postId,
+              post.teamId,
+              tx
+            );
+          } else {
+            // CLIENT_REVIEWER without external emails - treat as regular role-based
+            const assignment = await tx.approvalAssignment.create({
+              data: {
+                stepId: firstStep.id,
+                instanceId: instance.id,
+                status: ApprovalStatus.PENDING,
+                // No specific assignedUserId means any user with the role can approve
+              },
+            });
+
+            // For role-based assignments, get all users with CLIENT_REVIEWER role
+            const membersWithRole = await tx.membership.findMany({
+              where: {
+                teamId: post.teamId,
+                role: firstStep.role,
+                status: "ACTIVE",
+              },
+              include: {
+                user: {
+                  select: { name: true, email: true },
+                },
+              },
+            });
+
+            // Send notifications to all users with the role
+            if (membersWithRole.length > 0) {
+              const postWithDetails = await tx.post.findUnique({
+                where: { id: postId },
+                include: {
+                  user: { select: { name: true, email: true } },
+                  team: { select: { name: true } },
+                },
+              });
+
+              if (postWithDetails) {
+                for (const member of membersWithRole) {
+                  await sendApprovalRequestEmail({
+                    approverEmail: member.user.email,
+                    approverName: member.user.name || member.user.email,
+                    postContent: postWithDetails.content,
+                    teamName: postWithDetails.team.name,
+                    authorName:
+                      postWithDetails.user.name || postWithDetails.user.email,
+                    assignmentId: assignment.id,
+                  });
+                }
+              }
+            }
+          }
         } else if (firstStep.requireAllUsersInRole) {
           // If all users with a specific role are required
           const membersWithRole = await tx.membership.findMany({
@@ -661,22 +837,35 @@ export const approvalRequestRouter = createTRPCRouter({
       }
 
       return ctx.prisma.$transaction(async (tx) => {
+        // Get reviewer information for consistent feedback format
+        const reviewer = await tx.user.findUnique({
+          where: { id: ctx.auth.userId },
+          select: { name: true, email: true }
+        });
+        
+        const reviewerName = reviewer?.name || reviewer?.email || 'Internal Reviewer';
+        
+        // Prepare the complete feedback with reviewer information
+        const completeFeedback = feedback
+          ? `${feedback} (Reviewed by: ${reviewerName})`
+          : `Reviewed by: ${reviewerName}`;
+
         // Update the assignment
         await tx.approvalAssignment.update({
           where: { id: assignmentId },
           data: {
             status: approve ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
-            feedback,
+            feedback: completeFeedback,
             completedAt: new Date(),
           },
         });
 
-        // Send status notification to the author
+        // Send status notification to the author with complete feedback
         await sendApprovalStatusNotification(
           ctx,
           assignmentId,
           approve,
-          feedback
+          completeFeedback
         );
 
         if (!approve) {
@@ -776,6 +965,78 @@ export const approvalRequestRouter = createTRPCRouter({
             assignment.instance.workflow.teamId,
             tx
           );
+        } else if (
+          nextStep.role === "CLIENT_REVIEWER" &&
+          nextStep.externalReviewerEmails &&
+          nextStep.externalReviewerEmails.length > 0
+        ) {
+          // Handle CLIENT_REVIEWER with external emails
+          const nextAssignments = await Promise.all(
+            nextStep.externalReviewerEmails.map((email) =>
+              tx.approvalAssignment.create({
+                data: {
+                  stepId: nextStep.id,
+                  instanceId: assignment.instanceId,
+                  externalReviewerEmail: email,
+                  status: ApprovalStatus.PENDING,
+                },
+              })
+            )
+          );
+
+          // Send notification emails to external reviewers with magic links
+          if (assignment.instance.postId) {
+            const postWithDetails = await tx.post.findUnique({
+              where: { id: assignment.instance.postId },
+              include: {
+                user: { select: { name: true, email: true } },
+                team: { select: { name: true } },
+              },
+            });
+
+            if (postWithDetails) {
+              for (let i = 0; i < nextStep.externalReviewerEmails.length; i++) {
+                const email = nextStep.externalReviewerEmails[i];
+                const assignmentId = nextAssignments[i]?.id;
+                if (assignmentId) {
+                  // Generate secure token for magic link
+                  const token = randomBytes(32).toString("hex");
+                  const expiresAt = new Date();
+                  expiresAt.setHours(expiresAt.getHours() + 72); // 3 days expiry
+
+                  // Store the magic link token
+                  await tx.temporaryData.create({
+                    data: {
+                      id: token,
+                      data: JSON.stringify({
+                        type: "approval_magic_link",
+                        assignmentId: assignmentId,
+                        reviewerEmail: email,
+                        createdBy: ctx.auth?.userId || "system",
+                      }),
+                      expiresAt,
+                    },
+                  });
+
+                  // Generate the magic link URL
+                  const baseUrl =
+                    process.env.NEXTAUTH_URL || "http://localhost:3000";
+                  const magicLink = `${baseUrl}/approvals?token=${token}`;
+
+                  await sendApprovalRequestEmail({
+                    approverEmail: email,
+                    approverName: email, // Use email as name for external reviewers
+                    postContent: postWithDetails.content,
+                    teamName: postWithDetails.team.name,
+                    authorName:
+                      postWithDetails.user.name || postWithDetails.user.email,
+                    assignmentId: assignmentId,
+                    magicLink, // Add magic link to email
+                  });
+                }
+              }
+            }
+          }
         } else if (nextStep.requireAllUsersInRole) {
           // If all users with a specific role are required
           const membersWithRole = await tx.membership.findMany({
@@ -1020,6 +1281,118 @@ export const approvalRequestRouter = createTRPCRouter({
       };
     }),
 
+  // Submit external approval via magic link
+  submitExternalApproval: publicProcedure
+    .input(
+      z.object({
+        token: z.string(),
+        status: z.enum(["APPROVED", "REJECTED"]),
+        feedback: z.string().nullable().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { token, status, feedback } = input;
+
+      // Verify magic link from Redis
+      const redisManager = UnifiedRedisManager.getInstance();
+      const redis = redisManager.getConnection();
+      if (!redis) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Redis connection not available",
+        });
+      }
+      const magicLinkData = await redis.get(`magic_link:${token}`);
+      if (!magicLinkData) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Invalid or expired magic link",
+        });
+      }
+
+      const { assignmentId, email } = JSON.parse(magicLinkData) as {
+        assignmentId: string;
+        email: string;
+        expiresAt: string;
+      };
+
+      // Get assignment with post data
+      const assignment = await ctx.prisma.approvalAssignment.findUnique({
+        where: { id: assignmentId },
+        include: {
+          instance: {
+            include: {
+              post: {
+                include: {
+                  user: {
+                    select: {
+                      name: true,
+                      email: true,
+                    },
+                  },
+                  team: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                  postSocialAccounts: {
+                    include: {
+                      socialAccount: {
+                        select: {
+                          platform: true,
+                          name: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          step: {
+            include: {
+              workflow: true,
+            },
+          },
+        },
+      });
+
+      if (!assignment) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Assignment not found",
+        });
+      }
+
+      if (assignment.status !== "PENDING") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This content has already been reviewed",
+        });
+      }
+
+      // Update the assignment
+      const updatedAssignment = await ctx.prisma.approvalAssignment.update({
+        where: { id: assignmentId },
+        data: {
+          status,
+          feedback: feedback
+            ? `${feedback} (External reviewer: ${email})`
+            : `External reviewer: ${email}`,
+          completedAt: new Date(),
+        },
+      });
+
+      // Clean up the magic link
+      await redis.del(`magic_link:${token}`);
+
+      return {
+        success: true,
+        assignment: updatedAssignment,
+        message: `Review submitted successfully. Status: ${status}`,
+      };
+    }),
+
   // Submit review via magic link
   submitMagicLinkReview: publicProcedure
     .input(
@@ -1085,24 +1458,27 @@ export const approvalRequestRouter = createTRPCRouter({
 
       // Process the review (similar to reviewAssignment but for external reviewers)
       const result = await ctx.prisma.$transaction(async (tx) => {
+        // Prepare the complete feedback with reviewer information
+        const completeFeedback = feedback
+          ? `${feedback} (Reviewed by: ${reviewerName || linkData.reviewerEmail})`
+          : `Reviewed by: ${reviewerName || linkData.reviewerEmail}`;
+
         // Update the assignment
         await tx.approvalAssignment.update({
           where: { id: linkData.assignmentId },
           data: {
             status: approve ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
-            feedback: feedback
-              ? `${feedback} (Reviewed by: ${reviewerName || linkData.reviewerEmail})`
-              : `Reviewed by: ${reviewerName || linkData.reviewerEmail}`,
+            feedback: completeFeedback,
             completedAt: new Date(),
           },
         });
 
-        // Send status notification to the author
+        // Send status notification to the author with complete feedback
         await sendApprovalStatusNotification(
           ctx,
           linkData.assignmentId,
           approve,
-          feedback
+          completeFeedback
         );
 
         if (!approve) {

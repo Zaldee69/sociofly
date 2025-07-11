@@ -18,6 +18,10 @@ const workflowCreateSchema = z.object({
         role: z.string(),
         assignedUserId: z.string().optional().nullable(),
         requireAllUsersInRole: z.boolean().default(false),
+        externalReviewerEmails: z
+          .array(z.string().email())
+          .optional()
+          .default([]),
       })
     )
     .min(1, "At least one step is required"),
@@ -208,6 +212,7 @@ export const approvalWorkflowRouter = createTRPCRouter({
                   role: step.role as Role,
                   assignedUserId: step.assignedUserId ?? undefined,
                   requireAllUsersInRole: step.requireAllUsersInRole,
+                  externalReviewerEmails: step.externalReviewerEmails ?? [],
                   workflowId: workflowRecord.id,
                 },
               })
@@ -319,6 +324,7 @@ export const approvalWorkflowRouter = createTRPCRouter({
                   role: step.role as Role,
                   assignedUserId: step.assignedUserId ?? undefined,
                   requireAllUsersInRole: step.requireAllUsersInRole,
+                  externalReviewerEmails: step.externalReviewerEmails ?? [],
                   workflowId: id,
                 },
               })
