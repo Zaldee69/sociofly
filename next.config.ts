@@ -28,6 +28,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "scontent-cgk2-2.cdninstagram.com",
       },
+      {
+        protocol: "https",
+        hostname: "scontent-cgk1-2.cdninstagram.com",
+      },
     ],
     formats: ["image/avif", "image/webp"],
   },

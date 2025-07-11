@@ -57,18 +57,20 @@ export class JobProcessor {
 
     try {
       // Use SchedulerService to process all due publications
-      const { SchedulerService } = await import("@/lib/services/scheduling/scheduler.service");
+      const { SchedulerService } = await import(
+        "@/lib/services/scheduling/scheduler.service"
+      );
       const result = await SchedulerService.processDuePublications();
-      
+
       console.log(`✅ Due publications processed:`, {
         success: result.success,
         failed: result.failed,
         skipped: result.skipped,
         rate_limited: result.rate_limited,
         processed: result.processed,
-        total: result.total
+        total: result.total,
       });
-      
+
       return result;
     } catch (error) {
       console.error(`❌ Failed to process due publications:`, error);
@@ -86,18 +88,20 @@ export class JobProcessor {
       // Validasi akses analytics berdasarkan tier plan
       const accessCheck = await AnalyticsAccessService.hasAnalyticsAccessByTeam(
         data.teamId,
-        'initialSync'
+        "initialSync"
       );
 
-      if (!accessCheck.hasAccess) {
-        console.warn(`❌ Initial sync blocked for team ${data.teamId}: ${accessCheck.reason}`);
-        return {
-          success: false,
-          message: `Analytics feature not available: ${accessCheck.reason}`,
-          plan: accessCheck.plan,
-          upgradeRequired: true,
-        };
-      }
+      // if (!accessCheck.hasAccess) {
+      //   console.warn(
+      //     `❌ Initial sync blocked for team ${data.teamId}: ${accessCheck.reason}`
+      //   );
+      //   return {
+      //     success: false,
+      //     message: `Analytics feature not available: ${accessCheck.reason}`,
+      //     plan: accessCheck.plan,
+      //     upgradeRequired: true,
+      //   };
+      // }
 
       // Validasi dan adjust parameter sync berdasarkan plan limits
       const syncLimits = AnalyticsAccessService.validateSyncParams(
@@ -123,11 +127,18 @@ export class JobProcessor {
       // Also fetch initial heatmap data for supported platforms
       if (data.platform === "INSTAGRAM" || data.platform === "FACEBOOK") {
         try {
-          const { HotspotAnalyzer } = await import("@/lib/services/analytics/hotspots/hotspot-analyzer");
+          const { HotspotAnalyzer } = await import(
+            "@/lib/services/analytics/hotspots/hotspot-analyzer"
+          );
           await HotspotAnalyzer.fetchInitialHeatmapData(data.accountId);
-          console.log(`✅ Initial heatmap data collected for ${data.accountId}`);
+          console.log(
+            `✅ Initial heatmap data collected for ${data.accountId}`
+          );
         } catch (heatmapError) {
-          console.warn(`⚠️ Failed to collect heatmap data for ${data.accountId}:`, heatmapError);
+          console.warn(
+            `⚠️ Failed to collect heatmap data for ${data.accountId}:`,
+            heatmapError
+          );
           // Don't fail the entire job if heatmap collection fails
         }
       }
@@ -157,18 +168,20 @@ export class JobProcessor {
       // Validasi akses analytics berdasarkan tier plan
       const accessCheck = await AnalyticsAccessService.hasAnalyticsAccessByTeam(
         data.teamId,
-        'incrementalSync'
+        "incrementalSync"
       );
 
-      if (!accessCheck.hasAccess) {
-        console.warn(`❌ Incremental sync blocked for team ${data.teamId}: ${accessCheck.reason}`);
-        return {
-          success: false,
-          message: `Analytics feature not available: ${accessCheck.reason}`,
-          plan: accessCheck.plan,
-          upgradeRequired: true,
-        };
-      }
+      // if (!accessCheck.hasAccess) {
+      //   console.warn(
+      //     `❌ Incremental sync blocked for team ${data.teamId}: ${accessCheck.reason}`
+      //   );
+      //   return {
+      //     success: false,
+      //     message: `Analytics feature not available: ${accessCheck.reason}`,
+      //     plan: accessCheck.plan,
+      //     upgradeRequired: true,
+      //   };
+      // }
 
       // Validasi dan adjust parameter sync berdasarkan plan limits
       const syncLimits = AnalyticsAccessService.validateSyncParams(
@@ -215,20 +228,22 @@ export class JobProcessor {
       // Validasi akses analytics berdasarkan tier plan
       const accessCheck = await AnalyticsAccessService.hasAnalyticsAccessByTeam(
         data.teamId,
-        'dailySync'
+        "dailySync"
       );
 
-      if (!accessCheck.hasAccess) {
-        console.warn(`❌ Daily sync blocked for team ${data.teamId}: ${accessCheck.reason}`);
-        return {
-          success: false,
-          message: `Analytics feature not available: ${accessCheck.reason}`,
-          plan: accessCheck.plan,
-          upgradeRequired: true,
-        };
-      }
+      // if (!accessCheck.hasAccess) {
+      //   console.warn(`❌ Daily sync blocked for team ${data.teamId}: ${accessCheck.reason}`);
+      //   return {
+      //     success: false,
+      //     message: `Analytics feature not available: ${accessCheck.reason}`,
+      //     plan: accessCheck.plan,
+      //     upgradeRequired: true,
+      //   };
+      // }
 
-      console.log(`✅ Daily sync authorized for team ${data.teamId} with ${accessCheck.plan} plan`);
+      console.log(
+        `✅ Daily sync authorized for team ${data.teamId} with ${accessCheck.plan} plan`
+      );
 
       const { prisma } = await import("@/lib/prisma/client");
       const syncService = new SocialSyncService(prisma);
@@ -266,13 +281,13 @@ export class JobProcessor {
       // Get post social accounts to trigger sync for each
       const postSocialAccounts = await prisma.postSocialAccount.findMany({
         where: { postId: data.postId },
-        include: { 
+        include: {
           socialAccount: true,
           post: {
             select: {
-              teamId: true
-            }
-          }
+              teamId: true,
+            },
+          },
         },
       });
 
@@ -289,11 +304,13 @@ export class JobProcessor {
       const teamId = postSocialAccounts[0].post.teamId;
       const accessCheck = await AnalyticsAccessService.hasAnalyticsAccessByTeam(
         teamId,
-        'postAnalytics'
+        "postAnalytics"
       );
 
       if (!accessCheck.hasAccess) {
-        console.warn(`❌ Post analytics collection blocked for team ${teamId}: ${accessCheck.reason}`);
+        console.warn(
+          `❌ Post analytics collection blocked for team ${teamId}: ${accessCheck.reason}`
+        );
         return {
           success: false,
           message: `Analytics feature not available: ${accessCheck.reason}`,
@@ -304,7 +321,9 @@ export class JobProcessor {
         };
       }
 
-      console.log(`✅ Post analytics collection authorized for team ${teamId} with ${accessCheck.plan} plan`);
+      console.log(
+        `✅ Post analytics collection authorized for team ${teamId} with ${accessCheck.plan} plan`
+      );
 
       const syncService = new SocialSyncService(prisma);
       const results = [];
@@ -462,7 +481,10 @@ export class JobProcessor {
         type: data.type,
       };
     } catch (error) {
-      console.error(`❌ Failed to send notification to user ${data.userId}:`, error);
+      console.error(
+        `❌ Failed to send notification to user ${data.userId}:`,
+        error
+      );
       throw error;
     }
   }

@@ -16,6 +16,7 @@ import { HotspotAnalyzer } from "@/lib/services/analytics/hotspots/hotspot-analy
 import { TeamSubscriptionService } from "@/lib/services/team-subscription.service";
 import { MemberQuotaService } from "@/lib/services/member-quota.service";
 import { NotificationService } from "@/lib/services/notification.service";
+import { queueInitialAnalyticsCollection } from "./onboarding";
 
 export const teamRouter = createTRPCRouter({
   // Get all teams user is a member of
@@ -845,70 +846,25 @@ export const teamRouter = createTRPCRouter({
         },
       });
 
-      // Schedule background analytics collection for the newly created social account
-      try {
-        console.log(
-          `📋 Scheduling background analytics collection for ${socialAccount.name}...`
-        );
-
-        // Import queue manager for background job scheduling
-        const { QueueManager } = await import("@/lib/queue/queue-manager");
-        const { JobType } = await import("@/lib/queue/job-types");
-        const { getStandardParams, logCollectionParams } = await import(
-          "@/config/analytics-config"
-        );
-
-        const queueManager = QueueManager.getInstance();
-
-        // Ensure QueueManager is initialized
-        if (!queueManager.isReady()) {
-          console.log(
-            "🚀 Initializing QueueManager for background analytics..."
-          );
-          // Initialize QueueManager directly for analytics collection
-          await queueManager.initialize();
-        }
-
-        // Get standardized parameters for collection
-        const standardParams = getStandardParams("QUICK_COLLECTION");
-
-        // Log parameters for debugging
-        logCollectionParams(
-          "ONBOARDING_BACKGROUND",
-          standardParams,
-          socialAccount.name || undefined
-        );
-
-        // Schedule initial sync for the new account (webhook-free strategy)
-        await queueManager.addJob(
-          QueueManager.QUEUES.SOCIAL_SYNC,
-          JobType.INITIAL_SYNC,
+      if (
+        socialAccount.platform === "INSTAGRAM" ||
+        socialAccount.platform === "FACEBOOK"
+      ) {
+        const analyticsResult = await queueInitialAnalyticsCollection(
           {
-            accountId: socialAccount.id,
-            teamId: input.teamId,
+            id: socialAccount.id,
             platform: socialAccount.platform,
-            daysBack: 30, // Initial historical data collection
-            priority: "normal",
+            name: socialAccount.name || "",
           },
-          {
-            delay: 5000, // Start after 5 seconds to allow onboarding to complete
-            attempts: 3,
-            backoff: {
-              type: "exponential",
-              delay: 10000,
-            },
-          }
+          socialAccount.teamId
         );
 
-        console.log(
-          `✅ Background analytics jobs scheduled for ${socialAccount.name}`
-        );
-      } catch (error: any) {
-        console.error(
-          `⚠️ Failed to schedule analytics collection for ${socialAccount.name}:`,
-          error.message
-        );
-        // Analytics collection will be handled by the background job above
+        if (!analyticsResult.success) {
+          console.warn(
+            `⚠️ Failed to queue analytics collection for ${socialAccount.name}: ${analyticsResult.error}`
+          );
+          // Don't fail onboarding if analytics queueing fails
+        }
       }
 
       return socialAccount;

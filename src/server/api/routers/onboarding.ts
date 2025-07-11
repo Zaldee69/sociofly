@@ -8,7 +8,7 @@ import { JobType } from "@/lib/queue/job-types";
 import { clerkClient } from "@clerk/nextjs/server";
 
 // Helper function to queue initial analytics collection as background job
-async function queueInitialAnalyticsCollection(
+export async function queueInitialAnalyticsCollection(
   socialAccount: { id: string; platform: string; name: string },
   teamId: string
 ): Promise<{ success: boolean; error?: string }> {
