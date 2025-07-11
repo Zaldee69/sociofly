@@ -3,13 +3,31 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   images: {
-    domains: [
-      "localhost",
-      "res.cloudinary.com",
-      "images.unsplash.com",
-      "utfs.io",
-      "scontent.cdninstagram.com",
-      "scontent-cgk2-2.cdninstagram.com",
+    remotePatterns: [
+      {
+        protocol: "http",
+        hostname: "localhost",
+      },
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+      },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
+      {
+        protocol: "https",
+        hostname: "utfs.io",
+      },
+      {
+        protocol: "https",
+        hostname: "scontent.cdninstagram.com",
+      },
+      {
+        protocol: "https",
+        hostname: "scontent-cgk2-2.cdninstagram.com",
+      },
     ],
     formats: ["image/avif", "image/webp"],
   },

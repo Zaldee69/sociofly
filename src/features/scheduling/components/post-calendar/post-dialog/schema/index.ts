@@ -24,7 +24,7 @@ export const postSchema = z
   .object({
     content: z.string(),
     mediaUrls: z.array(mediaItemSchema).default([]),
-    scheduledAt: z.date(),
+    scheduledAt: z.date().optional(), // Make optional since not all actions need it
     status: z.nativeEnum(PostStatus).default("DRAFT"),
     userId: z.string().optional(),
     teamId: z.string().optional(),
@@ -38,20 +38,39 @@ export const postSchema = z
   })
   .refine(
     (data) => {
-      // Only validate future date when scheduling posts
+      // Only require scheduledAt for actions that need scheduling
       if (
         data.postAction === PostAction.SCHEDULE ||
         data.postAction === PostAction.REQUEST_REVIEW
       ) {
+        if (!data.scheduledAt) {
+          return false;
+        }
         const now = new Date();
-        const oneMinuteFromNow = new Date(now.getTime() + 60 * 1000); // Add 1 minute
-        return data.scheduledAt >= oneMinuteFromNow;
+        const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000); // Changed to 5 minutes
+        return data.scheduledAt >= fiveMinutesFromNow;
       }
       return true;
     },
     {
-      message: "Waktu posting harus minimal 1 menit dari sekarang",
-      path: ["scheduledAt"], // This will show the error on the scheduledAt field
+      message: "Waktu posting harus minimal 5 menit dari sekarang",
+      path: ["scheduledAt"],
+    }
+  )
+  .refine(
+    (data) => {
+      // Ensure scheduledAt is provided for SCHEDULE and REQUEST_REVIEW
+      if (
+        data.postAction === PostAction.SCHEDULE ||
+        data.postAction === PostAction.REQUEST_REVIEW
+      ) {
+        return !!data.scheduledAt;
+      }
+      return true;
+    },
+    {
+      message: "Waktu posting wajib diisi untuk penjadwalan dan pengajuan review",
+      path: ["scheduledAt"],
     }
   );
 

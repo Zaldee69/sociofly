@@ -7,6 +7,7 @@ import { submitPostWithApproval } from "../components/approval-workflow-integrat
 import { FileWithStablePreview } from "./use-media-files";
 import { CalendarPost } from "../../types";
 import { toast } from "sonner";
+import { addMinutes } from "date-fns";
 
 interface UsePostSubmitProps {
   form: UseFormReturn<PostFormValues>;
@@ -170,12 +171,26 @@ export function usePostSubmit({
       // Set loading state immediately when form is submitted
       setIsUploading(true);
 
+      // Determine the final scheduled time based on post action
+        let finalScheduledAt: Date;
+        
+        if (values.postAction === PostAction.PUBLISH_NOW) {
+          finalScheduledAt = new Date(); // Use current time for immediate publishing
+        } else if (values.postAction === PostAction.SAVE_AS_DRAFT) {
+          finalScheduledAt = values.scheduledAt || new Date(); // Use current time as default for drafts
+        } else if (values.postAction === PostAction.SCHEDULE || values.postAction === PostAction.REQUEST_REVIEW) {
+          // For scheduling and review, use provided time or default to 5 minutes from now
+          finalScheduledAt = values.scheduledAt || addMinutes(new Date(), 5);
+        } else {
+          // Fallback to current time for any other action
+          finalScheduledAt = values.scheduledAt || new Date();
+        }
+
       const mediaToUpload = values.mediaUrls.filter(
         (media) => media.preview.startsWith("blob:") && !media.uploadedUrl
       );
 
       if (mediaToUpload.length > 0) {
-
         const filesToUpload = mediaToUpload
           .map((media) => {
             return selectedFiles.find((file) => file.stableId === media.fileId);
@@ -211,11 +226,11 @@ export function usePostSubmit({
               values.mediaUrls = updatedMediaUrls;
             }
           } catch (error) {
-              console.error("Error uploading media:", error);
-              setIsUploading(false);
-              throw new Error("Failed to upload media");
-            }
-            // Note: Don't reset isUploading here as mutations will handle it
+            console.error("Error uploading media:", error);
+            setIsUploading(false);
+            throw new Error("Failed to upload media");
+          }
+          // Note: Don't reset isUploading here as mutations will handle it
         }
       }
 
@@ -234,7 +249,7 @@ export function usePostSubmit({
           id: post.id,
           content: values.content,
           mediaUrls,
-          scheduledAt: values.scheduledAt,
+          scheduledAt: finalScheduledAt,
           status: "DRAFT",
           socialAccountIds: values.socialAccounts,
         });
@@ -261,7 +276,7 @@ export function usePostSubmit({
             id: post.id,
             content: values.content,
             mediaUrls,
-            scheduledAt: values.scheduledAt,
+            scheduledAt: finalScheduledAt,
             status: "DRAFT", // Keep as DRAFT until approved
             socialAccountIds: values.socialAccounts,
           });
@@ -282,7 +297,7 @@ export function usePostSubmit({
             id: post.id,
             content: values.content,
             mediaUrls,
-            scheduledAt: values.scheduledAt,
+            scheduledAt: finalScheduledAt,
             status: "DRAFT", // Update to DRAFT first
             socialAccountIds: values.socialAccounts,
           });
@@ -303,7 +318,7 @@ export function usePostSubmit({
             id: post.id,
             content: values.content,
             mediaUrls,
-            scheduledAt: values.scheduledAt,
+            scheduledAt: finalScheduledAt,
             status,
             socialAccountIds: values.socialAccounts,
           });
@@ -336,7 +351,7 @@ export function usePostSubmit({
             const createdPost = await createPostMutation.mutateAsync({
               content: values.content,
               mediaUrls,
-              scheduledAt: values.scheduledAt,
+              scheduledAt: finalScheduledAt,
               platform: "ALL", // This is determined by social accounts selection
               teamId: teamId!,
               socialAccountIds: values.socialAccounts,
@@ -359,7 +374,7 @@ export function usePostSubmit({
             await createPostMutation.mutateAsync({
               content: values.content,
               mediaUrls,
-              scheduledAt: values.scheduledAt,
+              scheduledAt: finalScheduledAt,
               platform: "ALL", // This is determined by social accounts selection
               teamId: teamId!,
               socialAccountIds: values.socialAccounts,

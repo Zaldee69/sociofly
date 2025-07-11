@@ -305,6 +305,16 @@ async function retryFailedPost(userId: string, searchParams: URLSearchParams) {
       },
     });
 
+    // Update post scheduledAt to current time for immediate retry
+    // This ensures the post can be processed immediately without waiting
+    await prisma.post.update({
+      where: { id: postId },
+      data: {
+        scheduledAt: new Date(), // Set to current time for immediate processing
+        status: "SCHEDULED",
+      },
+    });
+
     // Log the retry action
     console.log(
       `Retrying failed post ${postId} for user ${userId}. Updated ${updatedAccounts.count} accounts.`

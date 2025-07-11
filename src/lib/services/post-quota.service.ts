@@ -18,7 +18,10 @@ export class PostQuotaService {
    * @returns The monthly post limit
    */
   static getMonthlyPostLimit(plan: BillingPlan): number {
-    return this.MONTHLY_POST_LIMITS[plan] || this.MONTHLY_POST_LIMITS[BillingPlan.FREE];
+    return (
+      this.MONTHLY_POST_LIMITS[plan] ||
+      this.MONTHLY_POST_LIMITS[BillingPlan.FREE]
+    );
   }
 
   /**
@@ -27,7 +30,10 @@ export class PostQuotaService {
    * @param teamId - The team ID
    * @returns The number of posts published this month
    */
-  static async getMonthlyPostCount(userId: string, teamId: string): Promise<number> {
+  static async getMonthlyPostCount(
+    userId: string,
+    teamId: string
+  ): Promise<number> {
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -55,7 +61,11 @@ export class PostQuotaService {
    * @param plan - The billing plan
    * @returns Object containing quota information
    */
-  static async checkPostQuota(userId: string, teamId: string, plan: BillingPlan): Promise<{
+  static async checkPostQuota(
+    userId: string,
+    teamId: string,
+    plan: BillingPlan
+  ): Promise<{
     hasQuotaRemaining: boolean;
     currentCount: number;
     limit: number;

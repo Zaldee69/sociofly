@@ -34,17 +34,17 @@ export function DateTimePicker24hForm({
 }: {
   disabled?: boolean;
 }) {
-  const [minTime, setMinTime] = useState<Date>(addMinutes(new Date(), 1));
+  const [minTime, setMinTime] = useState<Date>(addMinutes(new Date(), 5));
 
   const form = useFormContext();
 
   // Update minimum time whenever component renders (every minute)
   useEffect(() => {
-    setMinTime(addMinutes(new Date(), 1));
+    setMinTime(addMinutes(new Date(), 5));
 
     // Update minTime every minute to keep it current
     const interval = setInterval(() => {
-      setMinTime(addMinutes(new Date(), 1));
+      setMinTime(addMinutes(new Date(), 5));
     }, 60000); // Update every minute
 
     return () => clearInterval(interval);
@@ -91,7 +91,7 @@ export function DateTimePicker24hForm({
 
     // If the new date is today, ensure time is not in the past
     if (isToday(newDate) && isBefore(newDate, minTime)) {
-      toast.error("Waktu posting harus minimal 1 menit dari sekarang");
+      toast.error("Waktu posting harus minimal 5 menit dari sekarang");
       return;
     }
 

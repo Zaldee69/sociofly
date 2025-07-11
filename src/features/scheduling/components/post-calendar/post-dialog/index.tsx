@@ -504,20 +504,24 @@ export function AddPostDialog({
 
                   {!isReadOnly && (
                     <div className="flex gap-2">
-                      <FormField
-                        control={form.control}
-                        name="scheduledAt"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormControl>
-                              <DateTimePicker24hForm
-                                disabled={isUploading || isReadOnly}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      {/* Only show DateTimePicker for actions that require scheduling */}
+                      {(postAction === PostAction.SCHEDULE ||
+                        postAction === PostAction.REQUEST_REVIEW) && (
+                        <FormField
+                          control={form.control}
+                          name="scheduledAt"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <DateTimePicker24hForm
+                                  disabled={isUploading || isReadOnly}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
 
                       <PostActionSelector
                         currentAction={postAction}
@@ -530,12 +534,29 @@ export function AddPostDialog({
                             shouldDirty: true,
                             shouldValidate: true,
                           });
-                          // Trigger validation for scheduledAt when action changes to SCHEDULE or REQUEST_REVIEW
+                          
+                          // Set default scheduledAt for actions that require it
                           if (
                             action === PostAction.SCHEDULE ||
                             action === PostAction.REQUEST_REVIEW
                           ) {
+                            // Set default time to 5 minutes from now if not already set
+                            const currentScheduledAt = form.getValues("scheduledAt");
+                            if (!currentScheduledAt) {
+                              const defaultTime = new Date();
+                              defaultTime.setMinutes(defaultTime.getMinutes() + 5);
+                              form.setValue("scheduledAt", defaultTime, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+                            }
                             form.trigger("scheduledAt");
+                          } else {
+                            // Clear scheduledAt for actions that don't need it
+                            form.setValue("scheduledAt", undefined, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
                           }
                         }}
                       />

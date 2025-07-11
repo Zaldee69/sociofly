@@ -71,9 +71,20 @@ export class SchedulerService {
             ],
           },
           // Additional filter: exclude posts that were recently updated (to prevent race conditions)
-          updatedAt: {
-            lt: fiveMinutesAgo, // Only process posts that haven't been updated in the last 5 minutes
-          },
+          // BUT allow posts that were just scheduled for retry (scheduledAt within last minute)
+          OR: [
+            {
+              updatedAt: {
+                lt: fiveMinutesAgo, // Only process posts that haven't been updated in the last 5 minutes
+              },
+            },
+            {
+              // Allow immediate processing for retry posts (scheduledAt set to current time)
+              scheduledAt: {
+                gte: new Date(Date.now() - 60 * 1000), // Within last minute (retry posts)
+              },
+            },
+          ],
         },
         include: {
           postSocialAccounts: {
