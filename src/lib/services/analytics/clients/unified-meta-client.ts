@@ -417,7 +417,7 @@ export class UnifiedMetaClient {
   ): Promise<UnifiedAnalyticsData[]> {
     // Step 1: Get posts list
     const postsParams: any = {
-      fields: "id,message,created_time,type",
+      fields: "id,message,created_time", // Removed 'type' field (deprecated in v3.3+)
       limit: limit.toString(),
       access_token: this.credentials.accessToken,
     };
@@ -503,7 +503,7 @@ export class UnifiedMetaClient {
     const postResponse = await this.httpClient.get(`/${postId}`, {
       params: {
         access_token: this.credentials.accessToken,
-        fields: "id,message,created_time,type",
+        fields: "id,message,created_time", // Removed 'type' field (deprecated in v3.3+)
       },
     });
 
@@ -629,11 +629,15 @@ export class UnifiedMetaClient {
   }
 
   private async getFacebookPostInsights(postId: string) {
+    // Updated metrics for Facebook Graph API v22.0+
+    // Note: post_engaged_users and post_clicks were deprecated on September 16, 2024
+    // Reference: https://developers.facebook.com/docs/graph-api/changelog/version22.0
     const metrics = [
-      "post_impressions",
-      "post_engaged_users",
-      "post_clicks",
-      "post_reactions_like_total",
+      "post_impressions", // Still available
+      "post_reactions_like_total", // Still available
+      // Removed deprecated metrics:
+      // - "post_engaged_users" (deprecated Sept 16, 2024)
+      // - "post_clicks" (deprecated Sept 16, 2024)
     ];
 
     try {
@@ -654,11 +658,11 @@ export class UnifiedMetaClient {
       return {
         impressions: insights.post_impressions || 0,
         reach: 0, // Not directly available
-        engagement: insights.post_engaged_users || 0,
+        engagement: 0, // post_engaged_users deprecated, would need alternative calculation
         likes: insights.post_reactions_like_total || 0,
         comments: 0, // Would need separate API call
         shares: 0, // Would need separate API call
-        clicks: insights.post_clicks || 0,
+        clicks: 0, // post_clicks deprecated, no direct replacement available
         reactions: insights.post_reactions_like_total || 0,
       };
     } catch (error) {

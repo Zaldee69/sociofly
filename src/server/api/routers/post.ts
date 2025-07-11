@@ -883,7 +883,7 @@ export const postRouter = createTRPCRouter({
               insights.post_impressions_organic ||
               insights.impressions_organic ||
               0,
-            clicks: insights.post_clicks || insights.clicks || 0,
+            clicks: 0, // post_clicks deprecated as of Sept 16, 2024 - no direct replacement
 
             // Detailed reactions
             reactions: {

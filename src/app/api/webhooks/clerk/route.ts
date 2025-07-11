@@ -143,29 +143,52 @@ export async function POST(req: Request) {
         const teamIds = dbUser.teams.map((team) => team.id);
 
         // Delete all related records in the correct order
-        await prisma.$transaction([
-          // First delete records from tables that reference teams
-          prisma.membership.deleteMany({ where: { teamId: { in: teamIds } } }),
-          prisma.socialAccount.deleteMany({
+        await prisma.$transaction(async (tx) => {
+          // First, get all workflow IDs to delete their dependent records
+          const workflows = await tx.approvalWorkflow.findMany({
             where: { teamId: { in: teamIds } },
-          }),
-          prisma.post.deleteMany({ where: { teamId: { in: teamIds } } }),
-          prisma.invitation.deleteMany({ where: { teamId: { in: teamIds } } }),
-          prisma.media.deleteMany({ where: { teamId: { in: teamIds } } }),
-          prisma.customRole.deleteMany({ where: { teamId: { in: teamIds } } }),
-          prisma.approvalWorkflow.deleteMany({
-            where: { teamId: { in: teamIds } },
-          }),
-          prisma.engagementHotspot.deleteMany({
-            where: { teamId: { in: teamIds } },
-          }),
+            select: { id: true },
+          });
+          const workflowIds = workflows.map(w => w.id);
 
-          // Then delete the teams
-          prisma.team.deleteMany({ where: { ownerId: dbUser.id } }),
+          // Delete approval-related records in correct dependency order
+          if (workflowIds.length > 0) {
+            // Delete ApprovalAssignment first (depends on ApprovalInstance and ApprovalStep)
+            await tx.approvalAssignment.deleteMany({
+              where: {
+                instance: {
+                  workflowId: { in: workflowIds }
+                }
+              }
+            });
+            
+            // Delete ApprovalInstance (depends on ApprovalWorkflow)
+            await tx.approvalInstance.deleteMany({
+              where: { workflowId: { in: workflowIds } }
+            });
+            
+            // Delete ApprovalStep (depends on ApprovalWorkflow, has onDelete: Cascade)
+            // This will be handled automatically by Cascade
+          }
+
+          // Delete other team-related records
+          await tx.membership.deleteMany({ where: { teamId: { in: teamIds } } });
+          await tx.socialAccount.deleteMany({ where: { teamId: { in: teamIds } } });
+          await tx.post.deleteMany({ where: { teamId: { in: teamIds } } });
+          await tx.invitation.deleteMany({ where: { teamId: { in: teamIds } } });
+          await tx.media.deleteMany({ where: { teamId: { in: teamIds } } });
+          await tx.customRole.deleteMany({ where: { teamId: { in: teamIds } } });
+          await tx.engagementHotspot.deleteMany({ where: { teamId: { in: teamIds } } });
+          
+          // Now safe to delete ApprovalWorkflow
+          await tx.approvalWorkflow.deleteMany({ where: { teamId: { in: teamIds } } });
+
+          // Delete the teams
+          await tx.team.deleteMany({ where: { ownerId: dbUser.id } });
 
           // Finally delete the user
-          prisma.user.delete({ where: { clerkId } }),
-        ]);
+          await tx.user.delete({ where: { clerkId } });
+        });
       }
       return new NextResponse("User deleted", { status: 200 });
     }

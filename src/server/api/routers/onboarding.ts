@@ -302,6 +302,7 @@ export const onboardingRouter = createTRPCRouter({
                   email,
                   teamId: team.id,
                   role: Role.CONTENT_CREATOR,
+                  invitedBy: userId,
                 },
               });
 

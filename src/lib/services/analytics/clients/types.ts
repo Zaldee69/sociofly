@@ -34,12 +34,14 @@ export interface RateLimitInfo {
 }
 
 // Facebook specific types
+// Updated for Facebook Graph API v22.0+ (deprecated metrics removed)
 export interface FacebookInsights {
   post_impressions: Array<{ value: number }>;
-  post_engaged_users: Array<{ value: number }>;
-  post_clicks: Array<{ value: number }>;
   post_reactions_like_total: Array<{ value: number }>;
   post_video_views?: Array<{ value: number }>;
+  // Removed deprecated metrics (as of Sept 16, 2024):
+  // post_engaged_users: Array<{ value: number }>;
+  // post_clicks: Array<{ value: number }>;
 }
 
 export interface FacebookPostData {

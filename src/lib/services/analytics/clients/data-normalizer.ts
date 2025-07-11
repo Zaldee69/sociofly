@@ -45,7 +45,8 @@ export class SocialMediaDataNormalizer {
     const impressionsUnique = getMetricValue("post_impressions_unique");
     const impressionsPaid = getMetricValue("post_impressions_paid");
     const impressionsOrganic = getMetricValue("post_impressions_organic");
-    const clicks = getMetricValue("post_clicks");
+    // Note: post_clicks deprecated as of Sept 16, 2024
+    const clicks = 0; // getMetricValue("post_clicks"); - deprecated
 
     // Reactions (all still valid)
     const likesReactions = getMetricValue("post_reactions_like_total");

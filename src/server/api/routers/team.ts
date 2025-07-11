@@ -884,7 +884,7 @@ export const teamRouter = createTRPCRouter({
           QueueManager.QUEUES.SOCIAL_SYNC,
           JobType.INITIAL_SYNC,
           {
-            socialAccountId: socialAccount.id,
+            accountId: socialAccount.id,
             teamId: input.teamId,
             platform: socialAccount.platform,
             daysBack: 30, // Initial historical data collection
