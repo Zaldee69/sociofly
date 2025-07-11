@@ -1,3 +1,0 @@
--- AlterTable
-ALTER TABLE "AccountAnalytics" ADD COLUMN     "avgSavesPerPost" DOUBLE PRECISION NOT NULL DEFAULT 0,
-ADD COLUMN     "avgSharesPerPost" DOUBLE PRECISION NOT NULL DEFAULT 0;
