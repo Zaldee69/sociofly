@@ -178,14 +178,16 @@ export function AddPostDialog({
                 uploadedUrl: url,
               }))
             : [],
-          scheduledAt: new Date(post.scheduledAt),
+          scheduledAt: post.status === "FAILED" 
+            ? addMinutes(new Date(), 5) // Set 5 minutes from now for failed posts
+            : new Date(post.scheduledAt),
           status: post.status,
           postAction: (() => {
             const actionMap: Record<PostStatus, PostAction> = {
               SCHEDULED: PostAction.SCHEDULE,
               PUBLISHED: PostAction.PUBLISH_NOW,
               DRAFT: PostAction.SAVE_AS_DRAFT,
-              FAILED: PostAction.SAVE_AS_DRAFT,
+              FAILED: PostAction.SCHEDULE, // Default to SCHEDULE for failed posts to enable retry
             };
             return actionMap[post.status] || PostAction.SAVE_AS_DRAFT;
           })(),
