@@ -6,6 +6,7 @@ import {
   hasTeamFeature,
 } from "@/server/api/trpc";
 import { Feature } from "@/config/feature-flags";
+import { TRPCError } from "@trpc/server";
 
 export const hotspotsRouter = createTRPCRouter({
   getHotspots: protectedProcedure
@@ -18,6 +19,14 @@ export const hotspotsRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       // Verify team membership
+
+      if (!ctx.auth.userId) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "User not authenticated",
+        });
+      }
+
       const membership = await ctx.prisma.membership.findUnique({
         where: {
           userId_teamId: {

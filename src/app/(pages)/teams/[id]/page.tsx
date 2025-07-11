@@ -66,10 +66,11 @@ const fadeInUp = {
 };
 
 const TeamPage = () => {
-  const { id: teamId } = useParams();
+  const params = useParams();
+  const teamId = params?.id as string;
   const router = useRouter();
   const searchParams = useSearchParams();
-  const sessionId = searchParams.get("sessionId");
+  const sessionId = searchParams?.get("sessionId");
   const [activeTab, setActiveTab] = React.useState<string>("members");
 
   // Use custom hook for loading team data

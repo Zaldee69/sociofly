@@ -16,7 +16,7 @@ import { BillingPlan } from "@prisma/client";
 import { SUBSCRIPTION_PRICES, PLAN_DISPLAY_NAMES } from "@/config/constants";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle, Clock, X } from "lucide-react";
@@ -94,7 +94,8 @@ const calculateYearlyPrice = (monthlyPrice: number) => {
   return monthlyPrice === 0 ? 0 : Math.round(monthlyPrice * 12 * 0.8);
 };
 
-const Pricing = () => {
+// Component that handles search params (needs Suspense)
+const PricingWithSearchParams = () => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -602,6 +603,32 @@ const Pricing = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+// Loading component for Suspense fallback
+const PricingLoading = () => (
+  <div className="min-h-screen bg-gradient-to-b from-white to-slate-50">
+    <div className="container max-w-6xl mx-auto px-4 py-12">
+      <div className="text-center mb-12">
+        <div className="h-8 bg-slate-200 rounded-lg w-96 mx-auto mb-3 animate-pulse" />
+        <div className="h-6 bg-slate-200 rounded-lg w-80 mx-auto animate-pulse" />
+      </div>
+      <div className="grid md:grid-cols-3 gap-6">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-96 bg-slate-200 rounded-lg animate-pulse" />
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+// Main component with Suspense boundary
+const Pricing = () => {
+  return (
+    <Suspense fallback={<PricingLoading />}>
+      <PricingWithSearchParams />
+    </Suspense>
   );
 };
 

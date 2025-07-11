@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +41,8 @@ import {
 import { NextApprovalSuggestion } from "@/components/approval/next-approval-suggestion";
 import Link from "next/link";
 
-export default function ApprovalsPage() {
+// Component that handles search params (needs Suspense)
+function ApprovalsPageWithSearchParams() {
   const searchParams = useSearchParams();
   const token = searchParams?.get("token");
   const assignmentId = searchParams?.get("assignment");
@@ -674,5 +675,24 @@ export default function ApprovalsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Loading component for Suspense fallback
+const ApprovalsLoading = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="text-center">
+      <div className="h-8 w-8 border-4 border-slate-200 border-t-slate-600 rounded-full animate-spin mx-auto mb-4" />
+      <p className="text-slate-600">Loading approval request...</p>
+    </div>
+  </div>
+);
+
+// Main component with Suspense boundary
+export default function ApprovalsPage() {
+  return (
+    <Suspense fallback={<ApprovalsLoading />}>
+      <ApprovalsPageWithSearchParams />
+    </Suspense>
   );
 }

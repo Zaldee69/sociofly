@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 
 import { AppSidebarInset } from "./app-sidebar-inset";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/layout/Sidebar";
+import { AppSidebar } from "@/components/layout/sidebar";
 
 type ProviderProps = {
   children: React.ReactNode;

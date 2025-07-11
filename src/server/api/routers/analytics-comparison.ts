@@ -26,6 +26,13 @@ export const analyticsComparisonRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       try {
         // Verify user has access to this social account
+        if (!ctx.auth.userId) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "User not authenticated",
+          });
+        }
+
         const socialAccount = await ctx.prisma.socialAccount.findFirst({
           where: {
             id: input.socialAccountId,
@@ -88,6 +95,13 @@ export const analyticsComparisonRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       try {
         // Verify user has access to this team
+        if (!ctx.auth.userId) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "User not authenticated",
+          });
+        }
+
         const membership = await ctx.prisma.membership.findFirst({
           where: {
             teamId: input.teamId,
@@ -152,6 +166,13 @@ export const analyticsComparisonRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       try {
         // Verify user has access to this social account
+        if (!ctx.auth.userId) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "User not authenticated",
+          });
+        }
+
         const socialAccount = await ctx.prisma.socialAccount.findFirst({
           where: {
             id: input.socialAccountId,
@@ -238,6 +259,13 @@ export const analyticsComparisonRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       try {
         // Verify user has access to this social account
+        if (!ctx.auth.userId) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "User not authenticated",
+          });
+        }
+
         const socialAccount = await ctx.prisma.socialAccount.findFirst({
           where: {
             id: input.socialAccountId,
@@ -347,6 +375,13 @@ export const analyticsComparisonRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       try {
         // Verify user has access to this social account
+        if (!ctx.auth.userId) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "User not authenticated",
+          });
+        }
+
         const socialAccount = await ctx.prisma.socialAccount.findFirst({
           where: {
             id: input.socialAccountId,
@@ -445,6 +480,13 @@ export const analyticsComparisonRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       try {
         // Verify user has access to this social account
+        if (!ctx.auth.userId) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "User not authenticated",
+          });
+        }
+
         const socialAccount = await ctx.prisma.socialAccount.findFirst({
           where: {
             id: input.socialAccountId,

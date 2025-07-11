@@ -4,8 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:redis": "ENABLE_CRON_JOBS=true next dev",
-    "dev:cluster": "REDIS_USE_CLUSTER=true ENABLE_CRON_JOBS=true ENABLE_SYSTEM_MONITORING=true ENABLE_AUTO_SCALING=true next dev",
     "dev:auto": "scripts/start-with-redis.sh",
     "build": "next build",
     "start": "next start",

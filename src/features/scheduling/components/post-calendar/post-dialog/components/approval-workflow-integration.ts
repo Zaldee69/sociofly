@@ -33,7 +33,7 @@ export async function submitPostWithApproval(
     mediaUrls: post.mediaUrls.map(
       (media) => media.uploadedUrl || media.preview
     ),
-    scheduledAt: post.scheduledAt,
+    scheduledAt: post.scheduledAt || new Date(), // Provide default if undefined
     platform: "ALL", // This is determined by the social accounts selection
     teamId: teamId,
     socialAccountIds: post.socialAccounts,
@@ -50,7 +50,7 @@ export async function submitPostWithApproval(
       id: createdPost.id,
       postSocialAccounts: [], // Will be populated by the backend
       content: post.content,
-      scheduledAt: post.scheduledAt,
+      scheduledAt: post.scheduledAt || new Date(), // Provide default if undefined
       status: "DRAFT" as PostStatus, // Keep as DRAFT until approved
       mediaUrls: post.mediaUrls.map(
         (media) => media.uploadedUrl || media.preview
@@ -63,7 +63,7 @@ export async function submitPostWithApproval(
     id: createdPost.id,
     postSocialAccounts: [], // Will be populated by the backend
     content: post.content,
-    scheduledAt: post.scheduledAt,
+    scheduledAt: post.scheduledAt || new Date(), // Provide default if undefined
     status: (post.postAction === PostAction.PUBLISH_NOW
       ? "PUBLISHED"
       : post.postAction === PostAction.SCHEDULE
