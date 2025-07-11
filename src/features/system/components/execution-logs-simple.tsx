@@ -32,6 +32,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
+import {
   RefreshCw,
   Download,
   Search,
@@ -44,6 +53,12 @@ import {
   FileText,
   Database,
   AlertTriangle,
+  ArrowLeft,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +105,10 @@ export function ExecutionLogsAdvanced() {
     sortOrder: "desc",
     dateFilter: "week",
   });
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   const apiKey = process.env.NEXT_PUBLIC_CRON_API_KEY || "test-scheduler-key";
 
@@ -127,7 +146,7 @@ export function ExecutionLogsAdvanced() {
 
       // Get database logs
       const response = await fetch(
-        `/api/cron-manager?action=logs&hours=168&apiKey=${apiKey}` // 7 days
+        `/api/queue-status?action=logs&hours=168&apiKey=${apiKey}` // 7 days
       );
 
       if (response.ok) {
@@ -469,6 +488,17 @@ export function ExecutionLogsAdvanced() {
   // Get filtered logs with memoization
   const filteredLogs = useMemo(() => applyFilters(), [applyFilters]);
 
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedLogs = filteredLogs.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
+
   // Load logs on mount and set up optimized real-time updates
   useEffect(() => {
     initializeSampleData(); // Initialize sample data if needed
@@ -600,14 +630,14 @@ export function ExecutionLogsAdvanced() {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Activity className="h-6 w-6 text-blue-600" />
+            <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg">
+              <Activity className="h-7 w-7 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">
+              <h1 className="text-3xl font-bold tracking-tight text-gray-900">
                 Execution Logs
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-gray-600">
                 Real-time job execution monitoring and analytics
               </p>
             </div>
@@ -615,8 +645,8 @@ export function ExecutionLogsAdvanced() {
         </div>
 
         {/* Status Bar */}
-        <Card className="lg:w-auto w-full">
-          <CardContent className="py-0">
+        <Card className="lg:w-auto w-full border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50 to-white">
+          <CardContent className="py-3 px-4">
             <div className="flex flex-wrap items-center gap-4 text-sm">
               {/* Live Status */}
               <div className="flex items-center gap-2">
@@ -629,19 +659,22 @@ export function ExecutionLogsAdvanced() {
                       : "bg-gray-400"
                   }`}
                 />
-                <span className="font-semibold">
+                <span className="font-semibold text-gray-700">
                   {isAutoRefresh ? "Live" : "Paused"}
                 </span>
-                <Badge variant="secondary" className="text-xs">
+                <Badge
+                  variant="secondary"
+                  className="text-xs bg-blue-100 text-blue-700"
+                >
                   {refreshInterval / 1000}s
                 </Badge>
               </div>
 
               {/* Last Update */}
               {lastUpdate && (
-                <div className="flex items-center gap-1 text-muted-foreground">
+                <div className="flex items-center gap-1 text-gray-600">
                   <Clock className="h-3 w-3" />
-                  <span className="text-xs">
+                  <span className="text-xs font-medium">
                     {lastUpdate.toLocaleTimeString()}
                   </span>
                 </div>
@@ -649,7 +682,7 @@ export function ExecutionLogsAdvanced() {
 
               {/* New Logs Counter */}
               {newLogsCount > 0 && (
-                <Badge className="bg-blue-500 hover:bg-blue-600 animate-bounce">
+                <Badge className="bg-blue-500 hover:bg-blue-600 animate-bounce shadow-sm">
                   +{newLogsCount} new
                 </Badge>
               )}
@@ -781,55 +814,57 @@ export function ExecutionLogsAdvanced() {
       {/* Quick Stats */}
       {logs.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="p-4">
+          <Card className="p-4 border-l-4 border-l-green-500 bg-gradient-to-r from-green-50 to-white">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
+              <div className="p-2 bg-green-100 rounded-lg shadow-sm">
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-green-600">
+                <p className="text-2xl font-bold text-green-700">
                   {logs.filter((log) => log.status === "completed").length}
                 </p>
-                <p className="text-xs text-muted-foreground">Completed</p>
+                <p className="text-xs text-green-600 font-medium">Completed</p>
               </div>
             </div>
           </Card>
-          <Card className="p-4">
+          <Card className="p-4 border-l-4 border-l-red-500 bg-gradient-to-r from-red-50 to-white">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 rounded-lg">
+              <div className="p-2 bg-red-100 rounded-lg shadow-sm">
                 <XCircle className="h-5 w-5 text-red-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-red-600">
+                <p className="text-2xl font-bold text-red-700">
                   {logs.filter((log) => log.status === "failed").length}
                 </p>
-                <p className="text-xs text-muted-foreground">Failed</p>
+                <p className="text-xs text-red-600 font-medium">Failed</p>
               </div>
             </div>
           </Card>
-          <Card className="p-4">
+          <Card className="p-4 border-l-4 border-l-yellow-500 bg-gradient-to-r from-yellow-50 to-white">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-yellow-100 rounded-lg">
+              <div className="p-2 bg-yellow-100 rounded-lg shadow-sm">
                 <Clock className="h-5 w-5 text-yellow-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-yellow-600">
+                <p className="text-2xl font-bold text-yellow-700">
                   {logs.filter((log) => log.status === "processing").length}
                 </p>
-                <p className="text-xs text-muted-foreground">Processing</p>
+                <p className="text-xs text-yellow-600 font-medium">
+                  Processing
+                </p>
               </div>
             </div>
           </Card>
-          <Card className="p-4">
+          <Card className="p-4 border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50 to-white">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
+              <div className="p-2 bg-blue-100 rounded-lg shadow-sm">
                 <Activity className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-blue-600">
+                <p className="text-2xl font-bold text-blue-700">
                   {logs.length}
                 </p>
-                <p className="text-xs text-muted-foreground">Total</p>
+                <p className="text-xs text-blue-600 font-medium">Total</p>
               </div>
             </div>
           </Card>
@@ -1066,9 +1101,8 @@ export function ExecutionLogsAdvanced() {
               </Button>
             </div>
           ) : (
-            <div className="max-h-[600px] overflow-y-auto">
-              <div className="divide-y divide-gray-100">
-                {filteredLogs.map((log, index) => {
+            <div className="divide-y divide-gray-100">
+              {paginatedLogs.map((log, index) => {
                   const isNewLog =
                     log.jobId.startsWith("live-") &&
                     new Date().getTime() - log.timestamp.getTime() < 15000;
@@ -1176,10 +1210,106 @@ export function ExecutionLogsAdvanced() {
                     </div>
                   );
                 })}
-              </div>
             </div>
           )}
         </CardContent>
+        
+        {/* Pagination */}
+        {filteredLogs.length > 0 && totalPages > 1 && (
+          <div className="border-t bg-gray-50/30 px-6 py-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              {/* Items per page selector */}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Show</span>
+                <Select
+                  value={itemsPerPage.toString()}
+                  onValueChange={(value) => {
+                    setItemsPerPage(Number(value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-16">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span>of {filteredLogs.length} logs</span>
+              </div>
+
+              {/* Pagination controls */}
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage > 1) setCurrentPage(currentPage - 1);
+                      }}
+                      className={currentPage <= 1 ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                  
+                  {/* Page numbers */}
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNumber;
+                    if (totalPages <= 5) {
+                      pageNumber = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNumber = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNumber = totalPages - 4 + i;
+                    } else {
+                      pageNumber = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <PaginationItem key={pageNumber}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setCurrentPage(pageNumber);
+                          }}
+                          isActive={currentPage === pageNumber}
+                        >
+                          {pageNumber}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  })}
+                  
+                  {totalPages > 5 && currentPage < totalPages - 2 && (
+                    <PaginationItem>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  )}
+                  
+                  <PaginationItem>
+                    <PaginationNext 
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                      }}
+                      className={currentPage >= totalPages ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+              
+              {/* Page info */}
+              <div className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );

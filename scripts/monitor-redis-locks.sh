@@ -78,7 +78,7 @@ check_redis_memory() {
 
 # Function to check application health
 check_app_health() {
-    local app_status=$(curl -s "http://localhost:3000/api/cron-manager?action=status&apiKey=test-scheduler-key" 2>/dev/null)
+    local app_status=$(curl -s "http://localhost:3000/api/queue-status?action=status&apiKey=test-scheduler-key" 2>/dev/null)
     
     if [ $? -eq 0 ]; then
         local running_jobs=$(echo "$app_status" | grep -o '"running":true' | wc -l)
@@ -149,4 +149,4 @@ while true; do
     
     echo "---"
     sleep $CHECK_INTERVAL
-done 
+done

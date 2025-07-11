@@ -75,12 +75,9 @@ const isOnboardingRoute = createRouteMatcher(["/onboarding(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
   try {
-    // Skip authentication entirely for cron API routes and init
-    if (
-      req.nextUrl.pathname.startsWith("/api/cron-manager") ||
-      req.nextUrl.pathname.startsWith("/api/cron/") ||
-      req.nextUrl.pathname.startsWith("/api/init")
-    ) {
+    // Skip authentication entirely for init and queue-status API routes
+    if (req.nextUrl.pathname.startsWith("/api/init") || 
+        req.nextUrl.pathname.startsWith("/api/queue-status")) {
       console.log(`🔓 Bypassing Clerk auth for: ${req.nextUrl.pathname}`);
       return NextResponse.next();
     }

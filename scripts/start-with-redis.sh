@@ -38,7 +38,7 @@ initialize_jobs() {
     sleep 5  # Wait for server to be ready
     
     # Try to initialize jobs
-    response=$(curl -s -X POST localhost:3000/api/cron-manager \
+    response=$(curl -s -X POST localhost:3000/api/queue-status \
         -H "Content-Type: application/json" \
         -d '{"action": "initialize", "apiKey": "test-scheduler-key"}' 2>/dev/null)
     
@@ -46,7 +46,7 @@ initialize_jobs() {
         echo "✅ Redis jobs initialized successfully"
         
         # Check status
-        status=$(curl -s "localhost:3000/api/cron-manager?action=status&apiKey=test-scheduler-key" 2>/dev/null)
+        status=$(curl -s "localhost:3000/api/queue-status?action=status&apiKey=test-scheduler-key" 2>/dev/null)
         running_count=$(echo "$status" | grep -o '"running":true' | wc -l)
         echo "📊 Running jobs: $running_count/7"
         
@@ -104,7 +104,7 @@ while true; do
     fi
     
     # Check if any jobs stopped
-    status=$(curl -s "localhost:3000/api/cron-manager?action=status&apiKey=test-scheduler-key" 2>/dev/null)
+    status=$(curl -s "localhost:3000/api/queue-status?action=status&apiKey=test-scheduler-key" 2>/dev/null)
     if [ $? -eq 0 ]; then
         running_count=$(echo "$status" | grep -o '"running":true' | wc -l)
         redis_available=$(echo "$status" | grep -o '"redisAvailable":true' | wc -l)
@@ -120,4 +120,4 @@ while true; do
 done
 
 # Cleanup on exit
-trap 'echo "🛑 Stopping..."; kill $DEV_PID 2>/dev/null; exit' INT TERM 
+trap 'echo "🛑 Stopping..."; kill $DEV_PID 2>/dev/null; exit' INT TERM

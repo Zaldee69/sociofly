@@ -1,34 +1,34 @@
 import { NextResponse } from "next/server";
-import { initializeJobScheduler } from "@/lib/cron-startup";
 
 let isInitialized = false;
 
 export async function GET() {
   try {
     if (!isInitialized) {
-      console.log("🚀 Auto-initializing job scheduler via API route...");
-      await initializeJobScheduler();
+      console.log("🚀 Auto-initializing queue manager via API route...");
+      const { QueueManager } = await import("@/lib/queue/queue-manager");
+      const queueManager = QueueManager.getInstance();
+      await queueManager.initialize();
       isInitialized = true;
-      console.log("✅ Job scheduler auto-initialized successfully");
+      console.log("✅ Queue manager auto-initialized successfully");
     }
 
     // Get actual status after initialization attempt
-    const { JobSchedulerManager } = await import("@/lib/services/cron-manager");
-    const status = await JobSchedulerManager.getStatus();
+    const { QueueManager } = await import("@/lib/queue/queue-manager");
+    const queueManager = QueueManager.getInstance();
+    const isReady = queueManager.isReady();
 
     return NextResponse.json({
       success: true,
-      message: "Job scheduler initialization attempted",
+      message: "Queue manager initialization attempted",
       alreadyInitialized: isInitialized,
       actualStatus: {
-        initialized: status.initialized,
-        redisAvailable: status.redisAvailable,
-        queueManagerReady: status.queueManagerReady,
-        jobCount: status.scheduledJobs?.length || 0,
+        initialized: isInitialized,
+        queueManagerReady: isReady,
       },
     });
   } catch (error) {
-    console.error("❌ Failed to auto-initialize job scheduler:", error);
+    console.error("❌ Failed to auto-initialize queue manager:", error);
     return NextResponse.json(
       {
         success: false,

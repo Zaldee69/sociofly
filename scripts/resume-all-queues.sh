@@ -4,7 +4,7 @@
 echo "🔄 Resuming all Redis job queues..."
 
 API_KEY="${CRON_API_KEY:-test-scheduler-key}"
-BASE_URL="http://localhost:3000/api/cron-manager"
+BASE_URL="http://localhost:3000/api/queue-status"
 
 # List of all queues to resume
 QUEUES=(
@@ -53,4 +53,4 @@ else
   echo "❌ Failed to get system status"
 fi
 
-echo "📝 Dashboard: http://localhost:3000/admin/cron" 
+echo "📝 Dashboard: http://localhost:3000/admin/cron"

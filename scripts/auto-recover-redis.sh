@@ -4,7 +4,7 @@
 echo "🔧 Auto Redis Recovery System..."
 
 API_KEY="${CRON_API_KEY:-test-scheduler-key}"
-BASE_URL="http://localhost:3000/api/cron-manager"
+BASE_URL="http://localhost:3000/api/queue-status"
 
 # Function to check system status
 check_system_status() {
@@ -134,4 +134,4 @@ if [ $# -eq 0 ]; then
   echo ""
 fi
 
-main "$@" 
+main "$@"

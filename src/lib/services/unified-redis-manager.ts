@@ -35,9 +35,8 @@ export class UnifiedRedisManager {
     console.log("🔗 Initializing Unified Redis Manager...");
 
     try {
-      // Temporarily disable cluster mode to avoid infinite reconnection issues
-      // TODO: Fix cluster configuration once Redis cluster is properly set up
-      this.isClusterMode = false; // process.env.REDIS_USE_CLUSTER === "true";
+      // Use environment variable to determine cluster mode
+      this.isClusterMode = process.env.REDIS_USE_CLUSTER === "true";
 
       if (this.isClusterMode) {
         await this.initializeCluster();

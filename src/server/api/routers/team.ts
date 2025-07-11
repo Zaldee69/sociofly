@@ -854,9 +854,6 @@ export const teamRouter = createTRPCRouter({
         // Import queue manager for background job scheduling
         const { QueueManager } = await import("@/lib/queue/queue-manager");
         const { JobType } = await import("@/lib/queue/job-types");
-        const { JobSchedulerManager } = await import(
-          "@/lib/services/cron-manager"
-        );
         const { getStandardParams, logCollectionParams } = await import(
           "@/config/analytics-config"
         );
@@ -869,7 +866,7 @@ export const teamRouter = createTRPCRouter({
             "🚀 Initializing QueueManager for background analytics..."
           );
           // Initialize QueueManager directly for analytics collection
-          await JobSchedulerManager.initialize();
+          await queueManager.initialize();
         }
 
         // Get standardized parameters for collection

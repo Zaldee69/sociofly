@@ -136,7 +136,7 @@ export function JobSchedulerMonitor() {
 
       // Get system status
       const response = await fetch(
-        `/api/cron-manager?action=status&apiKey=${apiKey}`
+        `/api/queue-status?action=status&apiKey=${apiKey}`
       );
 
       if (!response.ok) {
@@ -161,7 +161,7 @@ export function JobSchedulerMonitor() {
     try {
       // Get database logs
       const response = await fetch(
-        `/api/cron-manager?action=logs&hours=24&apiKey=${apiKey}`
+        `/api/queue-status?action=logs&hours=24&apiKey=${apiKey}`
       );
 
       if (response.ok) {
@@ -271,7 +271,7 @@ export function JobSchedulerMonitor() {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch("/api/cron-manager", {
+      const response = await fetch("/api/queue-status", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -305,7 +305,7 @@ export function JobSchedulerMonitor() {
 
   const triggerJob = async (jobName: string) => {
     try {
-      const response = await fetch("/api/cron-manager", {
+      const response = await fetch("/api/queue-status", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -370,7 +370,7 @@ export function JobSchedulerMonitor() {
       try {
         // First, try to get specific job details
         const jobDetailResponse = await fetch(
-          `/api/cron-manager?action=job_details&jobId=${jobId}&queueName=${relevantQueue}&apiKey=${apiKey}`
+          `/api/queue-status?action=job_details&jobId=${jobId}&queueName=${relevantQueue}&apiKey=${apiKey}`
         );
 
         if (jobDetailResponse.ok) {
@@ -478,7 +478,7 @@ export function JobSchedulerMonitor() {
 
         // Always check queue metrics as a fallback
         const response = await fetch(
-          `/api/cron-manager?action=queue_metrics&apiKey=${apiKey}`
+          `/api/queue-status?action=queue_metrics&apiKey=${apiKey}`
         );
 
         if (response.ok) {
@@ -755,11 +755,11 @@ export function JobSchedulerMonitor() {
                       onClick={async () => {
                         try {
                           // Try system recovery
-                          const response = await fetch("/api/cron-manager", {
+                          const response = await fetch("/api/queue-status", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
-                              action: "system_recovery",
+                              action: "initialize",
                               apiKey: "test-scheduler-key",
                             }),
                           });

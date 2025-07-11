@@ -137,7 +137,7 @@ export function JobExecutionMonitor() {
   const fetchQueueMetrics = async (): Promise<QueueMetrics | null> => {
     try {
       const response = await fetch(
-        `/api/cron-manager?action=queue_metrics&apiKey=${apiKey}`
+        `/api/queue-status?action=queue_metrics&apiKey=${apiKey}`
       );
 
       if (response.ok) {

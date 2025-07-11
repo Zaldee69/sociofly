@@ -53,18 +53,25 @@ export class JobProcessor {
    * Process post publishing
    */
   private static async processPublishPost(data: any): Promise<any> {
-    console.log(`📤 Publishing post ${data.postId}...`);
+    console.log(`📤 Processing due publications...`);
 
     try {
-      // Placeholder for post publishing logic
-      console.log(`✅ Post published successfully: ${data.postId}`);
-      return {
-        success: true,
-        postId: data.postId,
-        publishedAt: new Date(),
-      };
+      // Use SchedulerService to process all due publications
+      const { SchedulerService } = await import("@/lib/services/scheduling/scheduler.service");
+      const result = await SchedulerService.processDuePublications();
+      
+      console.log(`✅ Due publications processed:`, {
+        success: result.success,
+        failed: result.failed,
+        skipped: result.skipped,
+        rate_limited: result.rate_limited,
+        processed: result.processed,
+        total: result.total
+      });
+      
+      return result;
     } catch (error) {
-      console.error(`❌ Failed to publish post ${data.postId}:`, error);
+      console.error(`❌ Failed to process due publications:`, error);
       throw error;
     }
   }
