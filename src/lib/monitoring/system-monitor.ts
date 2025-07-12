@@ -1,9 +1,5 @@
 import { QueueManager } from "@/lib/queue/queue-manager";
-import {
-  getRedisClusterStatus,
-  getRedisPerformanceMetrics,
-  checkRedisConnection,
-} from "@/lib/queue/redis-cluster-connection";
+import { UnifiedRedisManager } from "@/lib/services/unified-redis-manager";
 import { prisma } from "@/lib/prisma/client";
 import os from "os";
 
@@ -198,9 +194,10 @@ export class SystemMonitor {
     const timestamp = new Date();
 
     // Redis metrics
-    const redisHealthy = await checkRedisConnection();
-    const clusterStatus = await getRedisClusterStatus();
-    const redisPerformance = await getRedisPerformanceMetrics();
+    const redisManager = UnifiedRedisManager.getInstance();
+    const redisHealthy = await redisManager.healthCheck();
+    const clusterStatus = redisManager.getConnectionInfo();
+    const redisPerformance = await redisManager.getPerformanceMetrics();
 
     // Queue metrics
     const queueManager = QueueManager.getInstance();

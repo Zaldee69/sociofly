@@ -1,5 +1,5 @@
 import { QueueManager } from "@/lib/queue/queue-manager";
-import { getRedisPerformanceMetrics } from "@/lib/queue/redis-cluster-connection";
+import { UnifiedRedisManager } from "@/lib/services/unified-redis-manager";
 
 interface ScalingConfig {
   queueName: string;

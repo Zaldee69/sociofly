@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SystemMonitor } from "@/lib/monitoring/system-monitor";
 import { WorkerAutoScaler } from "@/lib/scaling/worker-autoscaler";
-import {
-  getRedisClusterStatus,
-  getRedisPerformanceMetrics,
-  checkRedisConnection,
-} from "@/lib/queue/redis-cluster-connection";
+import { UnifiedRedisManager } from "@/lib/services/unified-redis-manager";
 import { QueueManager } from "@/lib/queue/queue-manager";
 
 // Validate API key
@@ -141,13 +137,14 @@ async function handleSystemMetrics() {
 }
 
 async function handleRedisCluster() {
-  const clusterStatus = await getRedisClusterStatus();
-  const connectionHealthy = await checkRedisConnection();
+  const redisManager = UnifiedRedisManager.getInstance();
+  const connectionInfo = redisManager.getConnectionInfo();
+  const connectionHealthy = await redisManager.healthCheck();
 
   return NextResponse.json({
     success: true,
     data: {
-      ...clusterStatus,
+      ...connectionInfo,
       connectionHealthy,
     },
     timestamp: new Date().toISOString(),
@@ -155,7 +152,8 @@ async function handleRedisCluster() {
 }
 
 async function handleRedisPerformance() {
-  const performance = await getRedisPerformanceMetrics();
+  const redisManager = UnifiedRedisManager.getInstance();
+  const performance = await redisManager.getPerformanceMetrics();
 
   return NextResponse.json({
     success: true,
@@ -213,7 +211,8 @@ async function handleScalingMetrics() {
 }
 
 async function handleHealthCheck() {
-  const redisHealthy = await checkRedisConnection();
+  const redisManager = UnifiedRedisManager.getInstance();
+  const redisHealthy = await redisManager.healthCheck();
   const queueManager = QueueManager.getInstance();
   const queueHealthy = queueManager !== null;
 
@@ -263,6 +262,7 @@ async function handleOverallStatus() {
   const queueManager = QueueManager.getInstance();
 
   // Get all status information
+  const redisManager = UnifiedRedisManager.getInstance();
   const [
     systemMetrics,
     redisCluster,
@@ -272,8 +272,8 @@ async function handleOverallStatus() {
     monitoringStatus,
   ] = await Promise.all([
     monitor.collectMetrics(),
-    getRedisClusterStatus(),
-    getRedisPerformanceMetrics(),
+    Promise.resolve(redisManager.getConnectionInfo()),
+    redisManager.getPerformanceMetrics(),
     queueManager ? queueManager.getAllQueueMetrics() : {},
     scaler.getScalingStatus(),
     monitor.getMonitoringStatus(),

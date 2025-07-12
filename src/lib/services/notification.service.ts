@@ -1,14 +1,15 @@
 import { Queue, Worker, Job } from "bullmq";
-import { redisConnectionOptions } from "@/lib/queue/redis-connection";
+import { UnifiedRedisManager } from "@/lib/services/unified-redis-manager";
 import { prisma } from "@/lib/prisma/client";
 import { NotificationType } from "@prisma/client";
 import { JobType } from "@/lib/queue/job-types";
 
-// Redis connection options for BullMQ are imported from @/lib/queue/redis-connection
+// Get Redis connection options from UnifiedRedisManager
+const redisManager = UnifiedRedisManager.getInstance();
 
 // Notification queue
 export const notificationQueue = new Queue("notifications", {
-  connection: redisConnectionOptions,
+  connection: redisManager.getConnectionOptions(),
   defaultJobOptions: {
     removeOnComplete: 100,
     removeOnFail: 50,
@@ -306,7 +307,7 @@ export const notificationWorker = new Worker(
     }
   },
   {
-    connection: redisConnectionOptions,
+    connection: redisManager.getConnectionOptions(),
     concurrency: 10,
   }
 );
@@ -319,7 +320,7 @@ export const cleanupWorker = new Worker(
     console.log("Notification cleanup completed");
   },
   {
-    connection: redisConnectionOptions,
+    connection: redisManager.getConnectionOptions(),
   }
 );
 

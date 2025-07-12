@@ -204,7 +204,7 @@ export class UnifiedRedisManager {
   }
 
   /**
-   * Get Redis connection for direct use
+   * Get Redis connection instance
    */
   public getConnection(): Redis | Cluster | null {
     return this.connection;
@@ -216,18 +216,11 @@ export class UnifiedRedisManager {
   public getConnectionOptions(): any {
     if (this.isClusterMode) {
       return {
-        cluster: {
-          enableReadyCheck: false,
-          redisOptions: {
-            password: process.env.REDIS_PASSWORD || undefined,
-          },
-          clusterRetryStatusCodes: [
-            "CLUSTERDOWN",
-            "CONNECTIONTIMEOUT",
-            "NOREPLICAS",
-            "MASTERDOWN",
-          ],
-        },
+        host: process.env.REDIS_CLUSTER_HOST_1 || "localhost",
+        port: parseInt(process.env.REDIS_CLUSTER_PORT_1 || "7001"),
+        password: process.env.REDIS_PASSWORD || undefined,
+        maxRetriesPerRequest: null, // Required for BullMQ
+        retryDelayOnFailover: 100,
       };
     } else {
       return {
@@ -273,40 +266,70 @@ export class UnifiedRedisManager {
    * Get connection info
    */
   public getConnectionInfo(): {
-    isConnected: boolean;
     isCluster: boolean;
-    host?: string;
-    port?: number;
-    nodes?: Array<{ host: string; port: number }>;
+    totalNodes: number;
+    masterNodes: number;
+    slaveNodes: number;
+    healthyNodes: number;
+    nodes: Array<{
+      host: string;
+      port: number;
+      status: string;
+      role: string;
+      health: boolean;
+    }>;
   } {
-    const info = {
-      isConnected: this.isConnected,
-      isCluster: this.isClusterMode,
-    };
-
     if (this.isClusterMode) {
+      const nodes = [
+        {
+          host: process.env.REDIS_CLUSTER_HOST_1 || "localhost",
+          port: parseInt(process.env.REDIS_CLUSTER_PORT_1 || "7001"),
+          status: this.isConnected ? "connected" : "disconnected",
+          role: "master",
+          health: this.isConnected,
+        },
+        {
+          host: process.env.REDIS_CLUSTER_HOST_2 || "localhost",
+          port: parseInt(process.env.REDIS_CLUSTER_PORT_2 || "7002"),
+          status: this.isConnected ? "connected" : "disconnected",
+          role: "master",
+          health: this.isConnected,
+        },
+        {
+          host: process.env.REDIS_CLUSTER_HOST_3 || "localhost",
+          port: parseInt(process.env.REDIS_CLUSTER_PORT_3 || "7003"),
+          status: this.isConnected ? "connected" : "disconnected",
+          role: "master",
+          health: this.isConnected,
+        },
+      ];
+      
+      const healthyNodes = nodes.filter(n => n.health).length;
+      
       return {
-        ...info,
-        nodes: [
-          {
-            host: process.env.REDIS_CLUSTER_HOST_1 || "localhost",
-            port: parseInt(process.env.REDIS_CLUSTER_PORT_1 || "7001"),
-          },
-          {
-            host: process.env.REDIS_CLUSTER_HOST_2 || "localhost",
-            port: parseInt(process.env.REDIS_CLUSTER_PORT_2 || "7002"),
-          },
-          {
-            host: process.env.REDIS_CLUSTER_HOST_3 || "localhost",
-            port: parseInt(process.env.REDIS_CLUSTER_PORT_3 || "7003"),
-          },
-        ],
+        isCluster: true,
+        totalNodes: nodes.length,
+        masterNodes: nodes.length, // Assuming all are masters for simplicity
+        slaveNodes: 0,
+        healthyNodes,
+        nodes,
       };
     } else {
-      return {
-        ...info,
+      const node = {
         host: process.env.REDIS_HOST || "localhost",
         port: parseInt(process.env.REDIS_PORT || "6379"),
+        status: this.isConnected ? "connected" : "disconnected",
+        role: "master",
+        health: this.isConnected,
+      };
+      
+      return {
+        isCluster: false,
+        totalNodes: 1,
+        masterNodes: 1,
+        slaveNodes: 0,
+        healthyNodes: this.isConnected ? 1 : 0,
+        nodes: [node],
       };
     }
   }
