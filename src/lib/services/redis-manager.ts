@@ -13,19 +13,19 @@ interface RedisClusterNode {
   port: number;
 }
 
-export class UnifiedRedisManager {
-  private static instance: UnifiedRedisManager;
+export class RedisManager {
+  private static instance: RedisManager;
   private connection: Redis | Cluster | null = null;
   private isClusterMode = false;
   private isConnected = false;
 
   private constructor() {}
 
-  public static getInstance(): UnifiedRedisManager {
-    if (!UnifiedRedisManager.instance) {
-      UnifiedRedisManager.instance = new UnifiedRedisManager();
+  public static getInstance(): RedisManager {
+    if (!RedisManager.instance) {
+      RedisManager.instance = new RedisManager();
     }
-    return UnifiedRedisManager.instance;
+    return RedisManager.instance;
   }
 
   /**
@@ -303,9 +303,9 @@ export class UnifiedRedisManager {
           health: this.isConnected,
         },
       ];
-      
-      const healthyNodes = nodes.filter(n => n.health).length;
-      
+
+      const healthyNodes = nodes.filter((n) => n.health).length;
+
       return {
         isCluster: true,
         totalNodes: nodes.length,
@@ -322,7 +322,7 @@ export class UnifiedRedisManager {
         role: "master",
         health: this.isConnected,
       };
-      
+
       return {
         isCluster: false,
         totalNodes: 1,

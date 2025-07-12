@@ -1,5 +1,5 @@
 import { Queue, Worker, Job } from "bullmq";
-import { UnifiedRedisManager } from "@/lib/services/unified-redis-manager";
+import { RedisManager } from "@/lib/services/redis-manager";
 import {
   JobType,
   JobData,
@@ -15,7 +15,7 @@ export class QueueManager {
   private queues: Map<string, Queue> = new Map();
   private workers: Map<string, Worker> = new Map();
   private isInitialized = false;
-  private redisManager: UnifiedRedisManager | null = null;
+  private redisManager: RedisManager | null = null;
 
   // Queue names
   public static readonly QUEUES = {
@@ -50,7 +50,7 @@ export class QueueManager {
 
     try {
       // Get Redis manager instance
-      this.redisManager = UnifiedRedisManager.getInstance();
+      this.redisManager = RedisManager.getInstance();
 
       // Initialize Redis connection if not already connected
       if (!this.redisManager.isAvailable()) {

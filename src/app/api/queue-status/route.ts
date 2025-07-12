@@ -9,7 +9,8 @@ export async function GET(request: NextRequest) {
     const apiKey = searchParams.get("apiKey");
 
     // Simple API key validation
-    const expectedApiKey = process.env.NEXT_PUBLIC_CRON_API_KEY || "test-scheduler-key";
+    const expectedApiKey =
+      process.env.NEXT_PUBLIC_CRON_API_KEY || "test-scheduler-key";
     if (apiKey !== expectedApiKey) {
       return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
     }
@@ -22,13 +23,13 @@ export async function GET(request: NextRequest) {
         let redisAvailable = false;
         let queueMetrics = {};
         let redisInfo = null;
-        
+
         // Check Redis availability
         try {
-          const { UnifiedRedisManager } = await import("@/lib/services/unified-redis-manager");
-          const redisManager = UnifiedRedisManager.getInstance();
+          const { RedisManager } = await import("@/lib/services/redis-manager");
+          const redisManager = RedisManager.getInstance();
           redisAvailable = redisManager.isAvailable();
-          
+
           if (redisAvailable) {
             // Get Redis info if available
             try {
@@ -39,7 +40,9 @@ export async function GET(request: NextRequest) {
                   // For cluster, get info from first available node
                   const cluster = connection as any;
                   const nodes = cluster.nodes ? cluster.nodes() : [];
-                  const masterNode = nodes.find((node: any) => node.status === 'ready');
+                  const masterNode = nodes.find(
+                    (node: any) => node.status === "ready"
+                  );
                   if (masterNode) {
                     redisInfo = await masterNode.info();
                   }
@@ -55,7 +58,7 @@ export async function GET(request: NextRequest) {
           console.error("Failed to check Redis status:", error);
           redisAvailable = false;
         }
-        
+
         // Get queue metrics only if both Redis and Queue Manager are ready
         if (isReady && redisAvailable) {
           try {
@@ -65,7 +68,7 @@ export async function GET(request: NextRequest) {
             queueMetrics = {};
           }
         }
-        
+
         return NextResponse.json({
           success: true,
           result: {
@@ -79,7 +82,10 @@ export async function GET(request: NextRequest) {
               { name: "publish_due_posts", running: isReady && redisAvailable },
               { name: "incremental_sync", running: isReady && redisAvailable },
               { name: "daily_sync", running: isReady && redisAvailable },
-              { name: "system_health_check", running: isReady && redisAvailable },
+              {
+                name: "system_health_check",
+                running: isReady && redisAvailable,
+              },
               { name: "cleanup_old_logs", running: isReady && redisAvailable },
             ],
             systemHealth: {
@@ -97,7 +103,7 @@ export async function GET(request: NextRequest) {
       case "logs":
         const hours = parseInt(searchParams.get("hours") || "24");
         const since = new Date(Date.now() - hours * 60 * 60 * 1000);
-        
+
         const logs = await prisma.taskLog.findMany({
           where: {
             executedAt: {
@@ -121,7 +127,7 @@ export async function GET(request: NextRequest) {
       case "job_details":
         const jobId = searchParams.get("jobId");
         const queueName = searchParams.get("queueName");
-        
+
         if (!jobId || !queueName) {
           return NextResponse.json(
             { error: "Job ID and queue name are required" },
@@ -139,7 +145,7 @@ export async function GET(request: NextRequest) {
           }
 
           const jobDetails = await queueManager.getJobDetails(queueName, jobId);
-          
+
           return NextResponse.json({
             success: true,
             result: jobDetails || { error: "Job not found" },
@@ -162,7 +168,7 @@ export async function GET(request: NextRequest) {
           }
 
           const metrics = await queueManager.getAllQueueMetrics();
-          
+
           return NextResponse.json({
             success: true,
             result: metrics,
@@ -175,10 +181,7 @@ export async function GET(request: NextRequest) {
         }
 
       default:
-        return NextResponse.json(
-          { error: "Invalid action" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
   } catch (error) {
     console.error("Queue status API error:", error);
@@ -198,7 +201,8 @@ export async function POST(request: NextRequest) {
     const { action, apiKey } = body;
 
     // Simple API key validation
-    const expectedApiKey = process.env.NEXT_PUBLIC_CRON_API_KEY || "test-scheduler-key";
+    const expectedApiKey =
+      process.env.NEXT_PUBLIC_CRON_API_KEY || "test-scheduler-key";
     if (apiKey !== expectedApiKey) {
       return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
     }
@@ -209,24 +213,24 @@ export async function POST(request: NextRequest) {
       case "initialize":
         try {
           // First, ensure Redis is available
-          const { UnifiedRedisManager } = await import("@/lib/services/unified-redis-manager");
-          const redisManager = UnifiedRedisManager.getInstance();
-          
+          const { RedisManager } = await import("@/lib/services/redis-manager");
+          const redisManager = RedisManager.getInstance();
+
           if (!redisManager.isAvailable()) {
             console.log("🔗 Initializing Redis connection...");
             await redisManager.initialize();
           }
-          
+
           // Then initialize Queue Manager
           if (!queueManager.isReady()) {
             console.log("🚀 Initializing Queue Manager...");
             await queueManager.initialize();
           }
-          
+
           // Verify both are ready
           const redisReady = redisManager.isAvailable();
           const queueReady = queueManager.isReady();
-          
+
           return NextResponse.json({
             success: true,
             message: "System initialized successfully",
@@ -238,10 +242,16 @@ export async function POST(request: NextRequest) {
           });
         } catch (error) {
           console.error("Failed to initialize system:", error);
-          return NextResponse.json({
-            success: false,
-            error: error instanceof Error ? error.message : "Initialization failed",
-          }, { status: 500 });
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Initialization failed",
+            },
+            { status: 500 }
+          );
         }
 
       case "trigger":
@@ -255,11 +265,26 @@ export async function POST(request: NextRequest) {
 
         // Map job names to queue operations
         const jobMapping: Record<string, { queue: string; type: string }> = {
-          publish_due_posts: { queue: QueueManager.QUEUES.HIGH_PRIORITY, type: "publish_post" },
-          incremental_sync: { queue: QueueManager.QUEUES.SOCIAL_SYNC, type: "incremental_sync" },
-          daily_sync: { queue: QueueManager.QUEUES.SOCIAL_SYNC, type: "daily_sync" },
-          system_health_check: { queue: QueueManager.QUEUES.MAINTENANCE, type: "system_health_check" },
-          cleanup_old_logs: { queue: QueueManager.QUEUES.MAINTENANCE, type: "cleanup_old_logs" },
+          publish_due_posts: {
+            queue: QueueManager.QUEUES.HIGH_PRIORITY,
+            type: "publish_post",
+          },
+          incremental_sync: {
+            queue: QueueManager.QUEUES.SOCIAL_SYNC,
+            type: "incremental_sync",
+          },
+          daily_sync: {
+            queue: QueueManager.QUEUES.SOCIAL_SYNC,
+            type: "daily_sync",
+          },
+          system_health_check: {
+            queue: QueueManager.QUEUES.MAINTENANCE,
+            type: "system_health_check",
+          },
+          cleanup_old_logs: {
+            queue: QueueManager.QUEUES.MAINTENANCE,
+            type: "cleanup_old_logs",
+          },
         };
 
         const jobConfig = jobMapping[jobName];
@@ -279,7 +304,7 @@ export async function POST(request: NextRequest) {
               userId: "system",
               platform: "system",
               scheduledAt: new Date(),
-              content: { text: "Manual trigger" }
+              content: { text: "Manual trigger" },
             };
             break;
           case "incremental_sync":
@@ -287,7 +312,7 @@ export async function POST(request: NextRequest) {
               accountId: "system",
               teamId: "system",
               platform: "INSTAGRAM" as const,
-              priority: "high" as const
+              priority: "high" as const,
             };
             break;
           case "daily_sync":
@@ -295,17 +320,17 @@ export async function POST(request: NextRequest) {
               accountId: "system",
               teamId: "system",
               platform: "INSTAGRAM" as const,
-              priority: "high" as const
+              priority: "high" as const,
             };
             break;
           case "system_health_check":
             jobData = {
-              checkType: "quick" as const
+              checkType: "quick" as const,
             };
             break;
           case "cleanup_old_logs":
             jobData = {
-              olderThanDays: 30
+              olderThanDays: 30,
             };
             break;
           default:
@@ -329,10 +354,7 @@ export async function POST(request: NextRequest) {
         });
 
       default:
-        return NextResponse.json(
-          { error: "Invalid action" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
   } catch (error) {
     console.error("Queue status API error:", error);

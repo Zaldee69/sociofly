@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { ApprovalStatus, Role } from "@prisma/client";
+import { ApprovalStatus } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { sendApprovalRequestEmail, sendApprovalStatusEmail } from "@/lib/email";
 import { NotificationService } from "@/lib/services/notification.service";
-import { UnifiedRedisManager } from "@/lib/services/unified-redis-manager";
+import { RedisManager } from "@/lib/services/redis-manager";
 import { randomBytes } from "crypto";
 
 // Helper function to send approval request notifications to external reviewers
@@ -840,11 +840,12 @@ export const approvalRequestRouter = createTRPCRouter({
         // Get reviewer information for consistent feedback format
         const reviewer = await tx.user.findUnique({
           where: { id: ctx.auth.userId },
-          select: { name: true, email: true }
+          select: { name: true, email: true },
         });
-        
-        const reviewerName = reviewer?.name || reviewer?.email || 'Internal Reviewer';
-        
+
+        const reviewerName =
+          reviewer?.name || reviewer?.email || "Internal Reviewer";
+
         // Prepare the complete feedback with reviewer information
         const completeFeedback = feedback
           ? `${feedback} (Reviewed by: ${reviewerName})`
@@ -1294,7 +1295,7 @@ export const approvalRequestRouter = createTRPCRouter({
       const { token, status, feedback } = input;
 
       // Verify magic link from Redis
-      const redisManager = UnifiedRedisManager.getInstance();
+      const redisManager = RedisManager.getInstance();
       const redis = redisManager.getConnection();
       if (!redis) {
         throw new TRPCError({

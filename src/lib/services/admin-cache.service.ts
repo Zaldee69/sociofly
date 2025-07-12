@@ -1,4 +1,4 @@
-import { UnifiedRedisManager } from "./unified-redis-manager";
+import { RedisManager } from "./redis-manager";
 import { PrismaClient } from "@prisma/client";
 
 interface AdminStats {
@@ -13,14 +13,14 @@ interface AdminStats {
 
 export class AdminCacheService {
   private static instance: AdminCacheService;
-  private redisManager: UnifiedRedisManager;
+  private redisManager: RedisManager;
   private prisma: PrismaClient;
   private readonly CACHE_KEY = "admin:dashboard:stats";
   private readonly CACHE_TTL = 300; // 5 minutes
   private readonly FALLBACK_TTL = 60; // 1 minute for fallback data
 
   private constructor() {
-    this.redisManager = UnifiedRedisManager.getInstance();
+    this.redisManager = RedisManager.getInstance();
     this.prisma = new PrismaClient();
   }
 
@@ -62,14 +62,14 @@ export class AdminCacheService {
       // If not in cache, fetch from database
       console.log("🔄 Fetching admin stats from database");
       const freshStats = await this.fetchStatsFromDatabase();
-      
+
       // Cache the fresh data
       await this.setCachedStats(freshStats);
-      
+
       return freshStats;
     } catch (error) {
       console.error("Error getting admin stats:", error);
-      
+
       // Return fallback data if everything fails
       return this.getFallbackStats();
     }
@@ -110,7 +110,7 @@ export class AdminCacheService {
       }
 
       const stats = JSON.parse(cached) as AdminStats;
-      
+
       // Check if cache is still valid (additional safety check)
       const cacheAge = Date.now() - new Date(stats.lastUpdated).getTime();
       if (cacheAge > this.CACHE_TTL * 1000) {

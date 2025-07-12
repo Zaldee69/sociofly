@@ -1,5 +1,4 @@
 import { QueueManager } from "@/lib/queue/queue-manager";
-import { UnifiedRedisManager } from "@/lib/services/unified-redis-manager";
 
 interface ScalingConfig {
   queueName: string;

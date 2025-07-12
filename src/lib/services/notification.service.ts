@@ -1,11 +1,11 @@
 import { Queue, Worker, Job } from "bullmq";
-import { UnifiedRedisManager } from "@/lib/services/unified-redis-manager";
+import { RedisManager } from "@/lib/services/redis-manager";
 import { prisma } from "@/lib/prisma/client";
 import { NotificationType } from "@prisma/client";
 import { JobType } from "@/lib/queue/job-types";
 
-// Get Redis connection options from UnifiedRedisManager
-const redisManager = UnifiedRedisManager.getInstance();
+// Get Redis connection options from RedisManager
+const redisManager = RedisManager.getInstance();
 
 // Notification queue
 export const notificationQueue = new Queue("notifications", {
