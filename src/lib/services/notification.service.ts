@@ -3,6 +3,8 @@ import { RedisManager } from "@/lib/services/redis-manager";
 import { prisma } from "@/lib/prisma/client";
 import { NotificationType } from "@prisma/client";
 import { JobType } from "@/lib/queue/job-types";
+import { getWebSocketServer } from "../websocket/websocket-server";
+import type { NotificationPayload } from "../websocket/websocket-server";
 
 // Get Redis connection options from RedisManager
 const redisManager = RedisManager.getInstance();
@@ -36,16 +38,99 @@ interface NotificationJobData {
 // Notification service class
 export class NotificationService {
   /**
-   * Send notification (adds to queue for async processing)
+   * Send notification with real-time WebSocket delivery
    */
   static async send(data: NotificationJobData) {
     try {
+      // Save to database first
+      const notification = await prisma.notification.create({
+        data: {
+          userId: data.userId,
+          teamId: data.teamId,
+          title: data.title,
+          body: data.body,
+          type: data.type,
+          link: data.link,
+          metadata: data.metadata,
+          expiresAt: data.expiresAt,
+          isRead: false,
+        },
+      });
+
+      // Send via WebSocket for real-time delivery
+      await this.sendRealTimeNotification({
+        id: notification.id,
+        userId: data.userId,
+        type: this.mapNotificationType(data.type),
+        title: data.title,
+        message: data.body,
+        data: {
+          link: data.link,
+          metadata: data.metadata,
+          teamId: data.teamId,
+        },
+        timestamp: notification.createdAt,
+        read: false,
+      });
+
+      // Also add to queue for backup processing (in case WebSocket fails)
       await notificationQueue.add(JobType.SEND_NOTIFICATION, data, {
         priority: this.getPriority(data.type),
+        delay: 1000, // Small delay to allow WebSocket delivery first
       });
+
+      return notification;
     } catch (error) {
-      console.error("Failed to queue notification:", error);
+      console.error("Failed to send notification:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Send notification via WebSocket only (for real-time updates)
+   */
+  static async sendRealTimeNotification(payload: NotificationPayload) {
+    try {
+      const webSocketServer = getWebSocketServer();
+      if (webSocketServer) {
+        await webSocketServer.sendNotificationToUser(payload.userId, payload);
+        console.log(`📨 Real-time notification sent to user ${payload.userId}`);
+      } else {
+        console.warn("⚠️ WebSocket server not available, falling back to queue");
+      }
+    } catch (error) {
+      console.error("Failed to send real-time notification:", error);
+      // Don't throw error here, let the queue handle it as backup
+    }
+  }
+
+  /**
+   * Send team notification via WebSocket
+   */
+  static async sendTeamNotification(teamId: string, payload: NotificationPayload) {
+    try {
+      const webSocketServer = getWebSocketServer();
+      if (webSocketServer) {
+        await webSocketServer.sendNotificationToTeam(teamId, payload);
+        console.log(`📨 Real-time team notification sent to team ${teamId}`);
+      }
+    } catch (error) {
+      console.error("Failed to send team notification:", error);
+    }
+  }
+
+  /**
+   * Send system-wide notification
+   */
+  static async sendSystemNotification(payload: NotificationPayload) {
+    try {
+      const webSocketServer = getWebSocketServer();
+      if (webSocketServer) {
+        await webSocketServer.broadcastSystemNotification(payload);
+        console.log(`📢 System notification broadcasted`);
+      }
+    } catch (error) {
+      console.error("Failed to send system notification:", error);
     }
   }
 
@@ -71,7 +156,7 @@ export class NotificationService {
   }
 
   /**
-   * Mark notification as read
+   * Mark notification as read with real-time WebSocket update
    */
   static async markAsRead(notificationId: string, userId: string) {
     try {
@@ -86,8 +171,25 @@ export class NotificationService {
         },
       });
 
-      // Note: Real-time updates can be implemented with WebSockets or Server-Sent Events
-      // For now, we rely on polling from the frontend
+      // Send real-time update via WebSocket
+      const webSocketServer = getWebSocketServer();
+      if (webSocketServer) {
+        // Send updated notification status
+        await this.sendRealTimeNotification({
+          id: notification.id,
+          userId: notification.userId,
+          type: this.mapNotificationType(notification.type),
+          title: notification.title,
+          message: notification.body,
+          data: {
+            link: notification.link,
+            metadata: notification.metadata,
+            teamId: notification.teamId,
+          },
+          timestamp: notification.createdAt,
+          read: true, // Mark as read
+        });
+      }
 
       return notification;
     } catch (error) {
@@ -97,20 +199,37 @@ export class NotificationService {
   }
 
   /**
-   * Mark all notifications as read for a user
+   * Mark all notifications as read for a user with real-time WebSocket update
    */
   static async markAllAsRead(userId: string, teamId?: string) {
     try {
       const whereClause: any = {
         userId,
         isRead: false,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       };
 
       if (teamId) {
         whereClause.teamId = teamId;
       }
 
-      await prisma.notification.updateMany({
+      // Get notifications before updating to send WebSocket updates
+      const notifications = await prisma.notification.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          userId: true,
+          type: true,
+          title: true,
+          body: true,
+          link: true,
+          metadata: true,
+          teamId: true,
+          createdAt: true,
+        },
+      });
+
+      const result = await prisma.notification.updateMany({
         where: whereClause,
         data: {
           isRead: true,
@@ -118,8 +237,28 @@ export class NotificationService {
         },
       });
 
-      // Note: Real-time updates can be implemented with WebSockets or Server-Sent Events
-      // For now, we rely on polling from the frontend
+      // Send real-time updates via WebSocket for each notification
+      const webSocketServer = getWebSocketServer();
+      if (webSocketServer && notifications.length > 0) {
+        for (const notification of notifications) {
+          await this.sendRealTimeNotification({
+            id: notification.id,
+            userId: notification.userId,
+            type: this.mapNotificationType(notification.type),
+            title: notification.title,
+            message: notification.body,
+            data: {
+              link: notification.link,
+              metadata: notification.metadata,
+              teamId: notification.teamId,
+            },
+            timestamp: notification.createdAt,
+            read: true, // Mark as read
+          });
+        }
+      }
+
+      return result;
     } catch (error) {
       console.error("Failed to mark all notifications as read:", error);
       throw error;
@@ -237,6 +376,32 @@ export class NotificationService {
       console.error("Failed to cleanup notifications:", error);
       throw error;
     }
+  }
+
+  /**
+   * Map database notification type to WebSocket notification type
+   */
+  private static mapNotificationType(type: NotificationType): NotificationPayload['type'] {
+    const typeMap: Record<NotificationType, NotificationPayload['type']> = {
+      POST_SCHEDULED: 'post_scheduled',
+      POST_PUBLISHED: 'post_published',
+      POST_FAILED: 'post_failed',
+      APPROVAL_NEEDED: 'approval_required',
+      APPROVAL_REQUEST: 'approval_required',
+      APPROVAL_REJECTED: 'approval_required',
+      APPROVAL_APPROVED: 'approval_required',
+      SYSTEM_MAINTENANCE: 'system_alert',
+      TOKEN_EXPIRED: 'system_alert',
+      ACCOUNT_DISCONNECTED: 'system_alert',
+      TEAM_INVITATION: 'system_alert',
+      WORKFLOW_ASSIGNED: 'system_alert',
+      TEAM_MEMBER_JOINED: 'system_alert',
+      TEAM_MEMBER_LEFT: 'system_alert',
+      COMMENT_RECEIVED: 'system_alert',
+      ANALYTICS_READY: 'system_alert',
+    };
+
+    return typeMap[type] || 'system_alert';
   }
 
   /**
