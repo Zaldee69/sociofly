@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosError } from "axios";
 import { SocialPlatform } from "@prisma/client";
 import { SocialMediaRateLimiter } from "./rate-limiter";
 
-export interface UnifiedMetaCredentials {
+export interface MetaCredentials {
   accessToken: string;
   refreshToken?: string;
   expiresAt?: Date;
@@ -10,7 +10,7 @@ export interface UnifiedMetaCredentials {
   profileId?: string;
 }
 
-export interface UnifiedAnalyticsData {
+export interface AnalyticsData {
   id: string;
   platform: "INSTAGRAM" | "FACEBOOK";
   type: "post" | "story" | "account";
@@ -33,7 +33,7 @@ export interface UnifiedAnalyticsData {
   rawData: any;
 }
 
-export interface UnifiedAccountInsights {
+export interface AccountInsights {
   platform: "INSTAGRAM" | "FACEBOOK";
   follower_count: number;
   media_count: number;
@@ -45,19 +45,19 @@ export interface UnifiedAccountInsights {
 }
 
 /**
- * Unified Meta Graph API Client
+ * Meta Graph API Client
  * Consolidates Instagram and Facebook API calls into one efficient client
  * Eliminates redundancy between multiple client implementations
  */
-export class UnifiedMetaClient {
+export class MetaClient {
   private httpClient: AxiosInstance;
   private rateLimiter: SocialMediaRateLimiter;
   private baseURL = "https://graph.facebook.com";
   private apiVersion = "v22.0";
-  private credentials: UnifiedMetaCredentials;
+  private credentials: MetaCredentials;
 
   constructor(
-    credentials: UnifiedMetaCredentials,
+    credentials: MetaCredentials,
     rateLimiter?: SocialMediaRateLimiter
   ) {
     this.credentials = credentials;
@@ -84,7 +84,7 @@ export class UnifiedMetaClient {
   async getAccountInsights(
     accountId: string,
     period: "day" | "week" | "days_28" = "week"
-  ): Promise<UnifiedAccountInsights> {
+  ): Promise<AccountInsights> {
     const platform = this.credentials.platform;
 
     try {
@@ -107,7 +107,7 @@ export class UnifiedMetaClient {
     limit: number = 25,
     since?: string,
     until?: string
-  ): Promise<UnifiedAnalyticsData[]> {
+  ): Promise<AnalyticsData[]> {
     const platform = this.credentials.platform;
 
     try {
@@ -135,9 +135,7 @@ export class UnifiedMetaClient {
   /**
    * Get single post/media analytics
    */
-  async getSingleMediaAnalytics(
-    mediaId: string
-  ): Promise<UnifiedAnalyticsData> {
+  async getSingleMediaAnalytics(mediaId: string): Promise<AnalyticsData> {
     const platform = this.credentials.platform;
 
     try {
@@ -201,7 +199,7 @@ export class UnifiedMetaClient {
   private async getInstagramAccountInsights(
     accountId: string,
     period: string
-  ): Promise<UnifiedAccountInsights> {
+  ): Promise<AccountInsights> {
     try {
       // For Instagram Business accounts, use supported metrics in v22.0+
       // Based on: https://developers.facebook.com/docs/instagram-platform/api-reference/instagram-user/insights
@@ -314,7 +312,7 @@ export class UnifiedMetaClient {
   private async getFacebookAccountInsights(
     pageId: string,
     period: string
-  ): Promise<UnifiedAccountInsights> {
+  ): Promise<AccountInsights> {
     const metrics = [
       "page_fans",
       "page_impressions",
@@ -352,7 +350,7 @@ export class UnifiedMetaClient {
     limit: number,
     since?: string,
     until?: string
-  ): Promise<UnifiedAnalyticsData[]> {
+  ): Promise<AnalyticsData[]> {
     // Step 1: Get media list
     const mediaParams: any = {
       fields:
@@ -369,7 +367,7 @@ export class UnifiedMetaClient {
     });
 
     const mediaList = mediaResponse.data.data || [];
-    const results: UnifiedAnalyticsData[] = [];
+    const results: AnalyticsData[] = [];
 
     // Step 2: Get insights for each media
     for (const media of mediaList) {
@@ -414,7 +412,7 @@ export class UnifiedMetaClient {
     limit: number,
     since?: string,
     until?: string
-  ): Promise<UnifiedAnalyticsData[]> {
+  ): Promise<AnalyticsData[]> {
     // Step 1: Get posts list
     const postsParams: any = {
       fields: "id,message,created_time", // Removed 'type' field (deprecated in v3.3+)
@@ -430,7 +428,7 @@ export class UnifiedMetaClient {
     });
 
     const postsList = postsResponse.data.data || [];
-    const results: UnifiedAnalyticsData[] = [];
+    const results: AnalyticsData[] = [];
 
     // Step 2: Get insights for each post
     for (const post of postsList) {
@@ -459,7 +457,7 @@ export class UnifiedMetaClient {
 
   private async getInstagramSingleMedia(
     mediaId: string
-  ): Promise<UnifiedAnalyticsData> {
+  ): Promise<AnalyticsData> {
     // Get media info
     const mediaResponse = await this.httpClient.get(`/${mediaId}`, {
       params: {
@@ -496,9 +494,7 @@ export class UnifiedMetaClient {
     };
   }
 
-  private async getFacebookSinglePost(
-    postId: string
-  ): Promise<UnifiedAnalyticsData> {
+  private async getFacebookSinglePost(postId: string): Promise<AnalyticsData> {
     // Get post info
     const postResponse = await this.httpClient.get(`/${postId}`, {
       params: {

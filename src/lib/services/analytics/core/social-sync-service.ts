@@ -1,9 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma/client";
-import {
-  UnifiedMetaClient,
-  UnifiedMetaCredentials,
-} from "@/lib/services/analytics/clients/unified-meta-client";
+import { MetaClient } from "@/lib/services/analytics/clients/meta-client";
 import { SocialMediaRateLimiter } from "@/lib/services/analytics/clients/rate-limiter";
 import {
   InitialSyncJobData,
@@ -66,8 +63,8 @@ export class SocialSyncService {
         throw new Error(`Social account ${data.accountId} not found`);
       }
 
-      // Create unified client
-      const unifiedClient = new UnifiedMetaClient(
+      // Create client
+      const client = new MetaClient(
         {
           accessToken: socialAccount.accessToken,
           refreshToken: socialAccount.refreshToken || undefined,
@@ -79,7 +76,7 @@ export class SocialSyncService {
       );
 
       // Validate access token
-      const tokenValidation = await unifiedClient.validateToken();
+      const tokenValidation = await client.validateToken();
       if (!tokenValidation.isValid) {
         throw new Error(`Invalid access token: ${tokenValidation.error}`);
       }
@@ -94,7 +91,7 @@ export class SocialSyncService {
       const since = Math.floor(fromDate.getTime() / 1000).toString();
 
       // Fetch historical media and analytics
-      const mediaAnalytics = await unifiedClient.getMediaAnalytics(
+      const mediaAnalytics = await client.getMediaAnalytics(
         socialAccount.profileId || socialAccount.id,
         50, // Larger limit for historical sync
         since
@@ -502,8 +499,8 @@ export class SocialSyncService {
 
       console.log(`📅 Last sync: ${lastSyncDate?.toISOString() || "Never"}`);
 
-      // Create unified client
-      const unifiedClient = new UnifiedMetaClient(
+      // Create client
+      const client = new MetaClient(
         {
           accessToken: socialAccount.accessToken,
           refreshToken: socialAccount.refreshToken || undefined,
@@ -515,7 +512,7 @@ export class SocialSyncService {
       );
 
       // Validate access token
-      const tokenValidation = await unifiedClient.validateToken();
+      const tokenValidation = await client.validateToken();
       if (!tokenValidation.isValid) {
         throw new Error(`Invalid access token: ${tokenValidation.error}`);
       }
@@ -530,7 +527,7 @@ export class SocialSyncService {
         `🔄 Fetching media analytics with limit=${limit}, since=${since || "no date filter"}`
       );
 
-      const mediaAnalytics = await unifiedClient.getMediaAnalytics(
+      const mediaAnalytics = await client.getMediaAnalytics(
         socialAccount.profileId || socialAccount.id,
         limit,
         since
@@ -610,8 +607,8 @@ export class SocialSyncService {
     };
 
     try {
-      // Create unified client
-      const unifiedClient = new UnifiedMetaClient(
+      // Create client
+      const client = new MetaClient(
         {
           accessToken: socialAccount.accessToken,
           refreshToken: socialAccount.refreshToken || undefined,
@@ -623,16 +620,16 @@ export class SocialSyncService {
       );
 
       // Validate access token
-      const tokenValidation = await unifiedClient.validateToken();
+      const tokenValidation = await client.validateToken();
       if (!tokenValidation.isValid) {
         throw new Error(`Invalid access token: ${tokenValidation.error}`);
       }
 
       // Update account-level analytics
-      await this.updateAccountAnalytics(socialAccount, unifiedClient, result);
+      await this.updateAccountAnalytics(socialAccount, client, result);
 
       // NEW: Aggregate post-level metrics for comprehensive analytics
-      await this.aggregatePostMetrics(socialAccount, unifiedClient, result);
+      await this.aggregatePostMetrics(socialAccount, client, result);
 
       // Calculate daily deltas for trend analysis
       await this.calculateDailyDeltas(data.accountId, result);
@@ -792,7 +789,7 @@ export class SocialSyncService {
    */
   private async aggregatePostMetrics(
     socialAccount: any,
-    unifiedClient: UnifiedMetaClient,
+    client: MetaClient,
     result: SyncResult
   ): Promise<void> {
     try {
@@ -805,7 +802,7 @@ export class SocialSyncService {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const since = Math.floor(thirtyDaysAgo.getTime() / 1000).toString();
 
-      const mediaAnalytics = await unifiedClient.getMediaAnalytics(
+      const mediaAnalytics = await client.getMediaAnalytics(
         socialAccount.profileId || socialAccount.id,
         25, // Consistent with Post Performance limit
         since
@@ -985,7 +982,7 @@ export class SocialSyncService {
 
   private async updateAccountAnalytics(
     socialAccount: any,
-    unifiedClient: UnifiedMetaClient,
+    client: MetaClient,
     result: SyncResult
   ): Promise<void> {
     try {
@@ -997,7 +994,7 @@ export class SocialSyncService {
       const accountIdToUse = socialAccount.profileId || socialAccount.id;
       console.log(`📊 Using account ID: ${accountIdToUse}`);
 
-      const accountInsights = await unifiedClient.getAccountInsights(
+      const accountInsights = await client.getAccountInsights(
         accountIdToUse,
         "day" // Required period for interaction metrics in v22.0+
       );

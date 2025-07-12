@@ -13,7 +13,7 @@ export { DataAnalyzer } from "./core/data-analyzer";
 export { HotspotAnalyzer } from "./hotspots/hotspot-analyzer";
 
 // Unified platform client (replaces separate Instagram/Facebook clients)
-export { UnifiedMetaClient } from "./clients/unified-meta-client";
+export { MetaClient } from "./clients/meta-client";
 export { SocialMediaRateLimiter } from "./clients/rate-limiter";
 export { SocialMediaDataNormalizer } from "./clients/data-normalizer";
 
@@ -28,9 +28,8 @@ export { PLATFORMS } from "./config/platforms";
 export type { Metric } from "./config/metrics";
 
 // Re-export types
-export type { SyncResult } from "./core/social-sync-service";
 export type {
-  UnifiedMetaCredentials,
-  UnifiedAnalyticsData,
-  UnifiedAccountInsights,
-} from "./clients/unified-meta-client";
+  MetaCredentials,
+  AnalyticsData,
+  AccountInsights,
+} from "./clients/meta-client";
