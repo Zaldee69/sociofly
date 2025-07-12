@@ -178,23 +178,6 @@ export function AppNavbar() {
                       </div>
 
                       <Separator />
-
-                      {/* Notifications section for mobile */}
-                      <div className="sm:hidden">
-                        <h3 className="text-sm font-medium text-slate-700 mb-3">
-                          Notifications
-                        </h3>
-                        <Button
-                          variant="ghost"
-                          className="flex items-center gap-3 px-3 py-3 text-sm font-medium rounded-lg w-full justify-start hover:bg-slate-100"
-                        >
-                          <Bell className="h-5 w-5 text-slate-600" />
-                          <span>Notifications</span>
-                          <div className="ml-auto flex items-center justify-center w-5 h-5 bg-red-500 text-white text-xs rounded-full">
-                            3
-                          </div>
-                        </Button>
-                      </div>
                     </div>
 
                     {/* Footer - User section */}

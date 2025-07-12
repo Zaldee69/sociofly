@@ -154,7 +154,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     onDisconnect: handleDisconnect
   });
 
-  // Use SSE as fallback
+  // Use SSE as fallback (only when WebSocket is not connected)
   const {
     isConnected: sseConnected,
     isConnecting: sseConnecting,
@@ -167,7 +167,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     connect: sseConnect,
     disconnect: sseDisconnect
   } = useSSENotifications({
-    enableNotifications,
+    enableNotifications: enableNotifications && !wsConnected, // Only enable SSE if WebSocket is not connected
     onNotification: handleNotification,
     onConnect: handleConnect,
     onDisconnect: handleDisconnect
@@ -183,10 +183,9 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   const markAllAsRead = wsConnected ? wsMarkAllAsRead : sseMarkAllAsRead;
   const clearNotifications = wsConnected ? wsClearNotifications : sseClearNotifications;
   const connect = () => {
+    // Try WebSocket first
     wsConnect();
-    if (!wsConnected) {
-      sseConnect();
-    }
+    // SSE will auto-connect if WebSocket fails (handled by enableNotifications condition)
   };
   const disconnect = () => {
     wsDisconnect();
@@ -281,11 +280,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
                     : 'Disconnected'
                 }
               </span>
-              {unreadCount > 0 && (
-                <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
-                  {unreadCount}
-                </span>
-              )}
+
             </div>
           </div>
         </div>

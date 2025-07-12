@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { toast } from 'sonner';
 
 export interface SSENotification {
   id: string;
@@ -113,16 +112,16 @@ export const useSSENotifications = (options: UseSSENotificationsOptions = {}) =>
               unreadCount: prev.unreadCount + (notification.read ? 0 : 1)
             }));
 
-            // Show toast notification if enabled
-            if (enableNotifications && !notification.read) {
-              toast(notification.title, {
-                description: notification.message,
-                action: {
-                  label: 'Mark as read',
-                  onClick: () => markAsRead(notification.id)
-                }
-              });
-            }
+            // Toast notification is handled by websocket-provider.tsx to avoid duplication
+            // if (enableNotifications && !notification.read) {
+            //   toast(notification.title, {
+            //     description: notification.message,
+            //     action: {
+            //       label: 'Mark as read',
+            //       onClick: () => markAsRead(notification.id)
+            //     }
+            //   });
+            // }
 
             onNotificationRef.current?.(notification);
           }

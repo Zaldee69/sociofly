@@ -56,6 +56,7 @@ import {
   WebSocketMemoryMonitor,
   WebSocketPerformanceTracker,
 } from "../config/websocket-config";
+import { prisma } from "@/lib/prisma/client";
 
 // Note: RedisManager is not used in WebSocketServer
 // All Redis operations are handled by NotificationService
@@ -302,10 +303,22 @@ export class WebSocketServer {
       } else {
         // Fallback: mark in database
         try {
-          await NotificationService.markAsRead(notificationId, userId);
-          console.log(
-            `✅ Marked database notification ${notificationId} as read for user ${userId}`
-          );
+          // Convert Clerk ID to database user ID
+          const user = await prisma.user.findUnique({
+            where: { clerkId: userId },
+            select: { id: true },
+          });
+
+          if (user) {
+            await NotificationService.markAsRead(notificationId, user.id);
+            console.log(
+              `✅ Marked database notification ${notificationId} as read for user ${userId} (DB ID: ${user.id})`
+            );
+          } else {
+            console.error(
+              `❌ User not found for Clerk ID ${userId} when marking notification as read`
+            );
+          }
         } catch (dbError) {
           console.error(
             "Failed to mark database notification as read:",
@@ -650,8 +663,9 @@ export class WebSocketServer {
     notification: NotificationPayload
   ): Promise<void> {
     try {
-      // Only persist to database, don't send via WebSocket
-      await NotificationService.send({
+      // Only persist to database, don't send via WebSocket (prevents duplication)
+      await NotificationService.saveToDatabase({
+        id: notification.id,
         userId: notification.userId,
         title: notification.title,
         body: notification.message,

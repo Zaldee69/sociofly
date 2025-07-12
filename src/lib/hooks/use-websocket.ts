@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useUser } from '@clerk/nextjs';
-import { toast } from 'sonner';
 import { NotificationPayload } from '../websocket/websocket-server';
 
 interface UseWebSocketOptions {
@@ -162,16 +161,16 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
           unreadCount: prev.unreadCount + (notification.read ? 0 : 1)
         }));
 
-        // Show toast notification if enabled
-        if (enableNotifications && !notification.read) {
-          toast(notification.title, {
-            description: notification.message,
-            action: {
-              label: 'Mark as read',
-              onClick: () => markAsRead(notification.id)
-            }
-          });
-        }
+        // Toast notification is handled by websocket-provider.tsx to avoid duplication
+        // if (enableNotifications && !notification.read) {
+        //   toast(notification.title, {
+        //     description: notification.message,
+        //     action: {
+        //       label: 'Mark as read',
+        //       onClick: () => markAsRead(notification.id)
+        //     }
+        //   });
+        // }
 
         onNotificationRef.current?.(notification);
       });
@@ -179,12 +178,13 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       socket.on('system_notification', (notification: NotificationPayload) => {
         console.log('📢 Received system notification:', notification);
         
-        if (enableNotifications) {
-          toast(notification.title, {
-            description: notification.message,
-            duration: 10000 // Longer duration for system notifications
-          });
-        }
+        // Toast notification is handled by websocket-provider.tsx to avoid duplication
+        // if (enableNotifications) {
+        //   toast(notification.title, {
+        //     description: notification.message,
+        //     duration: 10000 // Longer duration for system notifications
+        //   });
+        // }
       });
 
       socket.on('notification_read_ack', (data: { notificationId: string }) => {

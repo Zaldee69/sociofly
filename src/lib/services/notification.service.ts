@@ -49,6 +49,8 @@ export class NotificationService {
             isRead: false,
           },
         });
+        
+        console.log(`📝 Notification saved to database for user ${data.userId} (no Clerk ID for WebSocket delivery)`);
         return notification;
       }
 
@@ -68,36 +70,32 @@ export class NotificationService {
         read: false,
       };
 
-      // Send via WebSocket (this will handle in-memory storage)
+      // Always save to database first to ensure persistence
+      const notification = await prisma.notification.create({
+        data: {
+          id: notificationId,
+          userId: data.userId,
+          teamId: data.teamId,
+          title: data.title,
+          body: data.body,
+          type: data.type,
+          link: data.link,
+          metadata: data.metadata,
+          expiresAt: data.expiresAt,
+          isRead: false,
+        },
+      });
+
+      // Send via WebSocket for real-time delivery (this will handle in-memory storage)
       const webSocketDelivered = await this.sendRealTimeNotification(webSocketPayload);
 
-      // Only save to database if WebSocket delivery failed or user is offline
-      if (!webSocketDelivered) {
-        console.log(`📝 WebSocket delivery failed, saving to database for user ${data.userId}`);
-        
-        const notification = await prisma.notification.create({
-          data: {
-            id: notificationId,
-            userId: data.userId,
-            teamId: data.teamId,
-            title: data.title,
-            body: data.body,
-            type: data.type,
-            link: data.link,
-            metadata: data.metadata,
-            expiresAt: data.expiresAt,
-            isRead: false,
-          },
-        });
-
-        // Note: Queue fallback removed as part of WebSocket optimization
-        // Database save above is the final fallback method
-
-        return notification;
+      if (webSocketDelivered) {
+        console.log(`✅ WebSocket notification delivered successfully to user ${data.userId}`);
+      } else {
+        console.log(`📝 WebSocket delivery failed for user ${data.userId}, but notification saved to database`);
       }
 
-      console.log(`✅ WebSocket notification delivered successfully to user ${data.userId}`);
-      return webSocketPayload;
+      return notification;
     } catch (error) {
       console.error("Failed to send notification:", error);
       throw error;
@@ -110,21 +108,22 @@ export class NotificationService {
    */
   static async sendRealTimeNotification(payload: NotificationPayload): Promise<boolean> {
     try {
-      // Try standalone WebSocket server first
+      // Try standalone WebSocket server first (preferred for development)
       const success = await WebSocketClientService.sendNotificationToUser(payload.userId, payload);
       if (success) {
         console.log(`📨 Real-time notification sent to user ${payload.userId} via standalone WebSocket`);
         return true;
       }
       
-      // Fallback to internal WebSocket server (if available)
+      // Only fallback to internal WebSocket server if standalone is not available
+      console.log(`⚠️ Standalone WebSocket server not available, trying internal server`);
       const webSocketServer = getWebSocketServer();
       if (webSocketServer) {
         await webSocketServer.sendNotificationToUser(payload.userId, payload);
         console.log(`📨 Real-time notification sent to user ${payload.userId} via internal WebSocket`);
         return true;
       } else {
-        console.warn("⚠️ WebSocket server not available");
+        console.warn("⚠️ No WebSocket server available");
         return false;
       }
     } catch (error) {
@@ -138,18 +137,21 @@ export class NotificationService {
    */
   static async sendTeamNotification(teamId: string, payload: NotificationPayload) {
     try {
-      // Try standalone WebSocket server first
+      // Try standalone WebSocket server first (preferred for development)
       const success = await WebSocketClientService.sendNotificationToTeam(teamId, payload);
       if (success) {
         console.log(`📨 Real-time team notification sent to team ${teamId} via standalone WebSocket`);
         return;
       }
       
-      // Fallback to internal WebSocket server (if available)
+      // Only fallback to internal WebSocket server if standalone is not available
+      console.log(`⚠️ Standalone WebSocket server not available for team ${teamId}, trying internal server`);
       const webSocketServer = getWebSocketServer();
       if (webSocketServer) {
         await webSocketServer.sendNotificationToTeam(teamId, payload);
         console.log(`📨 Real-time team notification sent to team ${teamId} via internal WebSocket`);
+      } else {
+        console.warn(`⚠️ No WebSocket server available for team ${teamId}`);
       }
     } catch (error) {
       console.error("Failed to send team notification:", error);
@@ -161,18 +163,21 @@ export class NotificationService {
    */
   static async sendSystemNotification(payload: NotificationPayload) {
     try {
-      // Try standalone WebSocket server first
+      // Try standalone WebSocket server first (preferred for development)
       const success = await WebSocketClientService.sendSystemNotification(payload);
       if (success) {
         console.log(`📢 System notification broadcasted via standalone WebSocket`);
         return;
       }
       
-      // Fallback to internal WebSocket server (if available)
+      // Only fallback to internal WebSocket server if standalone is not available
+      console.log(`⚠️ Standalone WebSocket server not available for system notification, trying internal server`);
       const webSocketServer = getWebSocketServer();
       if (webSocketServer) {
         await webSocketServer.broadcastSystemNotification(payload);
         console.log(`📢 System notification broadcasted via internal WebSocket`);
+      } else {
+        console.warn(`⚠️ No WebSocket server available for system notification`);
       }
     } catch (error) {
       console.error("Failed to send system notification:", error);
@@ -215,15 +220,20 @@ export class NotificationService {
           isRead: true,
           readAt: new Date(),
         },
+        include: {
+          user: {
+            select: { clerkId: true },
+          },
+        },
       });
 
-      // Send real-time update via WebSocket
+      // Send real-time update via WebSocket using Clerk ID
       const webSocketServer = getWebSocketServer();
-      if (webSocketServer) {
+      if (webSocketServer && notification.user?.clerkId) {
         // Send updated notification status
         await this.sendRealTimeNotification({
           id: notification.id,
-          userId: notification.userId,
+          userId: notification.user.clerkId, // Use Clerk ID for WebSocket
           type: this.mapNotificationType(notification.type),
           title: notification.title,
           message: notification.body,
@@ -272,6 +282,9 @@ export class NotificationService {
           metadata: true,
           teamId: true,
           createdAt: true,
+          user: {
+            select: { clerkId: true },
+          },
         },
       });
 
@@ -287,20 +300,22 @@ export class NotificationService {
       const webSocketServer = getWebSocketServer();
       if (webSocketServer && notifications.length > 0) {
         for (const notification of notifications) {
-          await this.sendRealTimeNotification({
-            id: notification.id,
-            userId: notification.userId,
-            type: this.mapNotificationType(notification.type),
-            title: notification.title,
-            message: notification.body,
-            data: {
-              link: notification.link,
-              metadata: notification.metadata,
-              teamId: notification.teamId,
-            },
-            timestamp: notification.createdAt,
-            read: true, // Mark as read
-          });
+          if (notification.user?.clerkId) {
+            await this.sendRealTimeNotification({
+              id: notification.id,
+              userId: notification.user.clerkId, // Use Clerk ID for WebSocket
+              type: this.mapNotificationType(notification.type),
+              title: notification.title,
+              message: notification.body,
+              data: {
+                link: notification.link,
+                metadata: notification.metadata,
+                teamId: notification.teamId,
+              },
+              timestamp: notification.createdAt,
+              read: true, // Mark as read
+            });
+          }
         }
       }
 
@@ -389,6 +404,37 @@ export class NotificationService {
       return await prisma.notification.count({ where: whereClause });
     } catch (error) {
       console.error("Failed to get unread count:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Save notification to database only (no WebSocket delivery)
+   * Used by WebSocket server to persist notifications without causing loops
+   */
+  static async saveToDatabase(data: NotificationJobData & { id?: string }) {
+    try {
+      const notificationId = data.id || `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const notification = await prisma.notification.create({
+        data: {
+          id: notificationId,
+          userId: data.userId,
+          teamId: data.teamId,
+          title: data.title,
+          body: data.body,
+          type: data.type,
+          link: data.link,
+          metadata: data.metadata,
+          expiresAt: data.expiresAt,
+          isRead: false,
+        },
+      });
+      
+      console.log(`📝 Notification saved to database only: ${notificationId}`);
+      return notification;
+    } catch (error) {
+      console.error("Failed to save notification to database:", error);
       throw error;
     }
   }

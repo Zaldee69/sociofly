@@ -52,7 +52,6 @@ export function NotificationDropdown() {
   // Get real-time WebSocket notifications
   const {
     notifications: wsNotifications,
-    unreadCount: wsUnreadCount,
     markAsRead: markWsAsRead,
     markAllAsRead: markAllWsAsRead,
   } = useWebSocketNotifications();
