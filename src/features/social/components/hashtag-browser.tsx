@@ -1,6 +1,6 @@
 "use client";
 
-import { HashtagSearch } from "@/features/social/components/HashtagSearch";
+import { HashtagSearch } from "@/features/social/components/hashtag-search";
 import { Label } from "@/components/ui/label";
 
 interface HashtagBrowserProps {

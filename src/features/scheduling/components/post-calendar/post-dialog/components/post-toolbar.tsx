@@ -37,7 +37,7 @@ import {
 import { MediaThumbnail } from "@/app/(pages)/media/components/media-thumbnail";
 import { FileWithStablePreview } from "../types";
 import { toast } from "sonner";
-import { HashtagBrowser } from "@/features/social/components/HashtagBrowser";
+import { HashtagBrowser } from "@/features/social/components/hashtag-browser";
 import { CustomChat, ChatState } from "@/components/ai-chatbot";
 import {
   DialogContent,
