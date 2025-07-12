@@ -38,28 +38,16 @@ interface NotificationJobData {
 // Notification service class
 export class NotificationService {
   /**
-   * Send notification with real-time WebSocket delivery
+   * Send notification with WebSocket-first approach
    */
   static async send(data: NotificationJobData) {
     try {
-      // Save to database first
-      const notification = await prisma.notification.create({
-        data: {
-          userId: data.userId,
-          teamId: data.teamId,
-          title: data.title,
-          body: data.body,
-          type: data.type,
-          link: data.link,
-          metadata: data.metadata,
-          expiresAt: data.expiresAt,
-          isRead: false,
-        },
-      });
+      // Generate unique ID for the notification
+      const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Send via WebSocket for real-time delivery
-      await this.sendRealTimeNotification({
-        id: notification.id,
+      // Try WebSocket delivery first (primary method)
+      const webSocketPayload = {
+        id: notificationId,
         userId: data.userId,
         type: this.mapNotificationType(data.type),
         title: data.title,
@@ -69,17 +57,40 @@ export class NotificationService {
           metadata: data.metadata,
           teamId: data.teamId,
         },
-        timestamp: notification.createdAt,
+        timestamp: new Date(),
         read: false,
-      });
+      };
 
-      // Also add to queue for backup processing (in case WebSocket fails)
-      await notificationQueue.add(JobType.SEND_NOTIFICATION, data, {
-        priority: this.getPriority(data.type),
-        delay: 1000, // Small delay to allow WebSocket delivery first
-      });
+      // Send via WebSocket (this will handle in-memory storage)
+      const webSocketDelivered = await this.sendRealTimeNotification(webSocketPayload);
 
-      return notification;
+      // Only save to database if WebSocket delivery failed or user is offline
+      if (!webSocketDelivered) {
+        console.log(`📝 WebSocket delivery failed, saving to database for user ${data.userId}`);
+        
+        const notification = await prisma.notification.create({
+          data: {
+            id: notificationId,
+            userId: data.userId,
+            teamId: data.teamId,
+            title: data.title,
+            body: data.body,
+            type: data.type,
+            link: data.link,
+            metadata: data.metadata,
+            expiresAt: data.expiresAt,
+            isRead: false,
+          },
+        });
+
+        // Note: Queue fallback removed as part of WebSocket optimization
+        // Database save above is the final fallback method
+
+        return notification;
+      }
+
+      console.log(`✅ WebSocket notification delivered successfully to user ${data.userId}`);
+      return webSocketPayload;
     } catch (error) {
       console.error("Failed to send notification:", error);
       throw error;
@@ -88,19 +99,22 @@ export class NotificationService {
 
   /**
    * Send notification via WebSocket only (for real-time updates)
+   * Returns true if successfully delivered, false otherwise
    */
-  static async sendRealTimeNotification(payload: NotificationPayload) {
+  static async sendRealTimeNotification(payload: NotificationPayload): Promise<boolean> {
     try {
       const webSocketServer = getWebSocketServer();
       if (webSocketServer) {
         await webSocketServer.sendNotificationToUser(payload.userId, payload);
         console.log(`📨 Real-time notification sent to user ${payload.userId}`);
+        return true;
       } else {
-        console.warn("⚠️ WebSocket server not available, falling back to queue");
+        console.warn("⚠️ WebSocket server not available");
+        return false;
       }
     } catch (error) {
       console.error("Failed to send real-time notification:", error);
-      // Don't throw error here, let the queue handle it as backup
+      return false;
     }
   }
 
@@ -135,22 +149,23 @@ export class NotificationService {
   }
 
   /**
-   * Send bulk notifications
+   * Send bulk notifications via WebSocket
    */
   static async sendBulk(notifications: NotificationJobData[]) {
     try {
-      const jobs = notifications.map((data, index) => ({
-        name: JobType.SEND_NOTIFICATION,
-        data,
-        opts: {
-          priority: this.getPriority(data.type),
-          delay: index * 100, // Stagger notifications to avoid overwhelming
-        },
-      }));
-
-      await notificationQueue.addBulk(jobs);
+      // Process notifications directly via WebSocket (no queue)
+      for (let i = 0; i < notifications.length; i++) {
+        const data = notifications[i];
+        
+        // Stagger notifications to avoid overwhelming
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        await this.send(data);
+      }
     } catch (error) {
-      console.error("Failed to queue bulk notifications:", error);
+      console.error("Failed to send bulk notifications:", error);
       throw error;
     }
   }
@@ -381,7 +396,7 @@ export class NotificationService {
   /**
    * Map database notification type to WebSocket notification type
    */
-  private static mapNotificationType(type: NotificationType): NotificationPayload['type'] {
+  public static mapNotificationType(type: NotificationType): NotificationPayload['type'] {
     const typeMap: Record<NotificationType, NotificationPayload['type']> = {
       POST_SCHEDULED: 'post_scheduled',
       POST_PUBLISHED: 'post_published',
@@ -431,72 +446,18 @@ export class NotificationService {
   }
 }
 
-// Worker to process notification jobs
-export const notificationWorker = new Worker(
-  "notifications",
-  async (job: Job<NotificationJobData>) => {
-    const { userId, teamId, title, body, type, link, metadata, expiresAt } =
-      job.data;
+// Note: Workers and scheduled cleanup jobs have been removed
+// The WebSocket system now handles notifications in-memory
+// Database cleanup can be done manually if needed
 
-    try {
-      // Save to database
-      const notification = await prisma.notification.create({
-        data: {
-          userId,
-          teamId,
-          title,
-          body,
-          type,
-          link,
-          metadata,
-          expiresAt,
-        },
-        include: {
-          team: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-            },
-          },
-        },
-      });
+// Note: Worker has been removed as part of WebSocket optimization
+// All notifications are now handled in-memory via WebSocket
+// Database fallback is handled directly in the send() method without queue
 
-      // Note: Real-time notifications can be implemented with WebSockets or Server-Sent Events
-      // For now, we rely on polling from the frontend
+// Removed: notificationWorker
+// The WebSocket system now handles all notifications in real-time
+// No Redis queue processing needed
 
-      console.log(`Notification sent to user ${userId}:`, title);
-    } catch (error) {
-      console.error("Failed to process notification job:", error);
-      throw error;
-    }
-  },
-  {
-    connection: redisManager.getConnectionOptions(),
-    concurrency: 10,
-  }
-);
-
-// Cleanup worker (runs daily)
-export const cleanupWorker = new Worker(
-  "notification-cleanup",
-  async () => {
-    await NotificationService.cleanup();
-    console.log("Notification cleanup completed");
-  },
-  {
-    connection: redisManager.getConnectionOptions(),
-  }
-);
-
-// Schedule cleanup job to run daily
-notificationQueue.add(
-  "cleanup",
-  {},
-  {
-    repeat: {
-      pattern: "0 2 * * *", // Run at 2 AM daily
-    },
-    jobId: "notification-cleanup",
-  }
-);
+// Cleanup worker and scheduled jobs have been removed
+// WebSocket system handles in-memory cleanup automatically
+// Database cleanup can be done manually via API endpoint if needed
