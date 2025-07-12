@@ -1,8 +1,49 @@
 import {withSentryConfig} from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
+// BullMQ warning fixes configuration
+const BULLMQ_WARNING_FIXES = {
+  webpackExternals: [
+    'bullmq',
+    'bullmq/dist/esm/classes/child-processor',
+    'bullmq/dist/esm/classes/index',
+    'bullmq/dist/esm/index'
+  ],
+  ignoreWarnings: [
+    {
+      module: /node_modules\/bullmq\/dist\/esm/,
+      message: /Critical dependency/,
+    },
+    {
+      module: /node_modules\/bullmq/,
+      message: /the request of a dependency is an expression/,
+    },
+    {
+      module: /node_modules\/bullmq\/dist\/esm\/classes\/child-processor/,
+      message: /Critical dependency/,
+    },
+    {
+      module: /node_modules\/@opentelemetry\/instrumentation/,
+      message: /Critical dependency/,
+    },
+    {
+      module: /node_modules\/@opentelemetry\/instrumentation/,
+      message: /the request of a dependency is an expression/,
+    }
+  ],
+  fallbacks: {
+    'child_process': false,
+    'worker_threads': false,
+    'cluster': false
+  }
+};
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  serverExternalPackages: ['bullmq'],
+  experimental: {
+    // Future experimental features can be added here
+  },
   images: {
     remotePatterns: [
       {
@@ -36,37 +77,79 @@ const nextConfig: NextConfig = {
     ],
     formats: ["image/avif", "image/webp"],
   },
-  serverExternalPackages: ["bullmq"],
   webpack: (config, { isServer }) => {
-    if (!isServer) {
-      // Exclude server-only packages from client bundle
+    // Server-side configuration
+    if (isServer) {
+      // For server-side, use native Node.js modules
       config.resolve.fallback = {
         ...config.resolve.fallback,
+        crypto: require.resolve('crypto'),
+        http: require.resolve('http'),
+        https: require.resolve('https'),
+        stream: require.resolve('stream'),
+        path: require.resolve('path'),
+        os: require.resolve('os'),
         fs: false,
         net: false,
         tls: false,
         child_process: false,
-        path: false,
-        os: false,
-        crypto: false,
-        stream: false,
-        util: false,
-        url: false,
-        zlib: false,
-        http: false,
-        https: false,
-        assert: false,
-        buffer: false,
-        events: false,
+        worker_threads: false,
       };
+      
+      // Add externals for server-only modules
+      config.externals = [
+        ...(config.externals || []),
+        'socket.io',
+        'ioredis'
+      ];
+    } else {
+      // Client-side configuration - exclude server-only modules
+      config.resolve.fallback = {
+         ...config.resolve.fallback,
+         crypto: false,
+         stream: false,
+         path: false,
+         os: false,
+         fs: false,
+         net: false,
+         tls: false,
+         util: false,
+         url: false,
+         zlib: false,
+         http: false,
+         https: false,
+         assert: false,
+         buffer: false,
+         events: false,
+         'socket.io': false,
+         'socket.io-client': false,
+         // BullMQ fallbacks
+         child_process: false,
+         worker_threads: false,
+         cluster: false
+       };
 
-      // Ignore server-only modules in client bundle
-      config.externals = config.externals || [];
-      config.externals.push({
-        bullmq: "commonjs bullmq",
-        ioredis: "commonjs ioredis",
-      });
+      // Exclude server-only modules from client bundle
+      config.externals = [
+        ...(config.externals || []),
+        'socket.io',
+        'ioredis',
+        'utfs.io',
+        // BullMQ related modules
+        ...BULLMQ_WARNING_FIXES.webpackExternals,
+        {
+          bullmq: "commonjs bullmq",
+          ioredis: "commonjs ioredis",
+        }
+      ];
     }
+
+    // Apply BullMQ warning fixes
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      ...BULLMQ_WARNING_FIXES.ignoreWarnings
+    ];
+
     return config;
   },
   poweredByHeader: false,
