@@ -15,6 +15,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
     }
 
+    // Ensure we're on server side before initializing QueueManager
+    if (typeof window !== 'undefined') {
+      return NextResponse.json({ error: "Queue operations not available on client side" }, { status: 400 });
+    }
+
     const queueManager = QueueManager.getInstance();
 
     switch (action) {
@@ -197,6 +202,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Ensure we're on server side before processing queue operations
+    if (typeof window !== 'undefined') {
+      return NextResponse.json({ error: "Queue operations not available on client side" }, { status: 400 });
+    }
+
     const body = await request.json();
     const { action, apiKey } = body;
 

@@ -16,8 +16,8 @@ export class AdminCacheService {
   private redisManager: RedisManager;
   private prisma: PrismaClient;
   private readonly CACHE_KEY = "admin:dashboard:stats";
-  private readonly CACHE_TTL = 300; // 5 minutes
-  private readonly FALLBACK_TTL = 60; // 1 minute for fallback data
+  private readonly CACHE_TTL = 600; // 10 minutes (optimized from 5 minutes)
+  private readonly FALLBACK_TTL = 120; // 2 minutes for fallback data (optimized from 1 minute)
 
   private constructor() {
     this.redisManager = RedisManager.getInstance();

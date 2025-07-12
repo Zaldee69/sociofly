@@ -64,7 +64,7 @@ export class RedisPerformanceMonitor {
     console.log('🔍 Starting Redis performance monitoring...');
     this.isMonitoring = true;
 
-    // Monitor every 10 seconds (optimized from frequent polling)
+    // Monitor every 60 seconds (optimized to reduce Redis command load)
     this.monitoringInterval = setInterval(async () => {
       try {
         await this.collectMetrics();
@@ -72,7 +72,7 @@ export class RedisPerformanceMonitor {
       } catch (error) {
         console.error('❌ Redis monitoring error:', error);
       }
-    }, REDIS_OPTIMIZATION_CONFIG.metricsPollingInterval);
+    }, 60000); // 60 seconds
 
     console.log('✅ Redis performance monitoring started');
   }

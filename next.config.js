@@ -1,4 +1,41 @@
 /** @type {import('next').NextConfig} */
+// BullMQ warning fixes configuration
+const BULLMQ_WARNING_FIXES = {
+  webpackExternals: [
+    'bullmq',
+    'bullmq/dist/esm/classes/child-processor',
+    'bullmq/dist/esm/classes/index',
+    'bullmq/dist/esm/index'
+  ],
+  ignoreWarnings: [
+    {
+      module: /node_modules\/bullmq\/dist\/esm/,
+      message: /Critical dependency/,
+    },
+    {
+      module: /node_modules\/bullmq/,
+      message: /the request of a dependency is an expression/,
+    },
+    {
+      module: /node_modules\/bullmq\/dist\/esm\/classes\/child-processor/,
+      message: /Critical dependency/,
+    },
+    {
+      module: /node_modules\/@opentelemetry\/instrumentation/,
+      message: /Critical dependency/,
+    },
+    {
+      module: /node_modules\/@opentelemetry\/instrumentation/,
+      message: /the request of a dependency is an expression/,
+    }
+  ],
+  fallbacks: {
+    'child_process': false,
+    'worker_threads': false,
+    'cluster': false
+  }
+};
+
 const nextConfig = {
   experimental: {
     instrumentationHook: true,
@@ -42,10 +79,25 @@ const nextConfig = {
       config.externals = [
         ...config.externals,
         'socket.io',
-        'bullmq',
         'ioredis',
-        'utfs.io'
+        'utfs.io',
+        // BullMQ related modules from config
+        ...BULLMQ_WARNING_FIXES.webpackExternals
       ];
+    }
+
+    // Apply BullMQ warning fixes
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      ...BULLMQ_WARNING_FIXES.ignoreWarnings
+    ];
+
+    // Apply additional fallbacks for BullMQ
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        ...BULLMQ_WARNING_FIXES.fallbacks
+      };
     }
 
     return config;

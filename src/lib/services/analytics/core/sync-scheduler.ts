@@ -20,11 +20,11 @@ export class SyncScheduler {
 
   constructor(config: Partial<SyncScheduleConfig> = {}) {
     this.config = {
-      maxConcurrentSyncs: 3,
-      delayBetweenAccounts: 1000, // 1 second
+      maxConcurrentSyncs: 2, // Reduced from 3 to lower Redis load
+      delayBetweenAccounts: 2000, // 2 seconds (increased from 1s)
       respectRateLimits: true,
       defaultDaysBack: 30,
-      batchSize: 25,
+      batchSize: 5, // Reduced from 25 to lower Redis load
       enableDuplicatePrevention: true,
       ...config,
     };

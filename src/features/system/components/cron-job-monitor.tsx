@@ -123,6 +123,12 @@ export function JobSchedulerMonitor() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [consecutiveSuccess, setConsecutiveSuccess] = useState(0);
+  
+  // Smart refresh interval with exponential backoff
+  const getRefreshInterval = (successCount: number) => {
+    return Math.min(5000 + (successCount * 2000), 30000); // 5s to 30s
+  };
   const [selectedView, setSelectedView] = useState<
     "overview" | "stats" | "logs"
   >("overview");
@@ -149,8 +155,13 @@ export function JobSchedulerMonitor() {
 
       // Load execution logs from database
       await loadExecutionLogs();
+      
+      // Increment success counter for smart refresh
+      setConsecutiveSuccess(prev => prev + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
+      // Reset success counter on error
+      setConsecutiveSuccess(0);
     } finally {
       setIsLoading(false);
     }
@@ -605,9 +616,9 @@ export function JobSchedulerMonitor() {
       refreshData();
       // Also refresh execution logs periodically to get new database entries
       loadExecutionLogs();
-    }, 10000); // Refresh every 10 seconds
+    }, getRefreshInterval(consecutiveSuccess)); // Smart refresh interval
     return () => clearInterval(interval);
-  }, [autoRefresh]);
+  }, [autoRefresh, consecutiveSuccess]);
 
   const getStatusIcon = (
     status:

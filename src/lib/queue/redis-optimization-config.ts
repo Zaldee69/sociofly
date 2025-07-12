@@ -13,6 +13,8 @@ export interface RedisOptimizationConfig {
   workerConcurrency: number;
   stalledInterval: number;
   maxStalledCount: number;
+  retryProcessDelay: number; // NEW: Interval antara polling job
+  lockDuration: number; // NEW: Waktu eksekusi maksimal job
   
   // Job configuration
   maxJobsPerQueue: number;
@@ -39,27 +41,30 @@ export interface RedisOptimizationConfig {
 
 /**
  * Optimized configuration based on Redis log analysis
+ * Implementasi saran optimasi EVALSHA untuk mengurangi dominasi Lua script
  */
 export const REDIS_OPTIMIZATION_CONFIG: RedisOptimizationConfig = {
   // Emergency worker reduction to minimize BZPOPMIN polling
-  maxWorkers: 8, // Emergency reduction from 15 to 8 workers
+  maxWorkers: 6, // Further reduced from 8 to 6 workers untuk kurangi polling
   workerConcurrency: 1, // Reduced from 2 to 1 per queue
-  stalledInterval: 120000, // Increased from 60s to 120s to reduce polling
+  stalledInterval: 300000, // Increased from 120s to 300s (5 menit) untuk drastis kurangi EVALSHA
   maxStalledCount: 1, // Reduced retry attempts from 2 to 1
+  retryProcessDelay: 30000, // NEW: 30 detik interval polling (default 5s) untuk kurangi EVALSHA
+  lockDuration: 120000, // NEW: 2 menit lock duration untuk job yang berjalan lama
   
-  // Job management
+  // Job management dengan backoff strategy
   maxJobsPerQueue: 100, // Limit queue size
   jobRetryAttempts: 2, // Reduced from 3
-  jobRetryDelay: 5000, // Increased delay between retries
+  jobRetryDelay: 15000, // Increased delay from 5s to 15s untuk kurangi retry frequency
   
   // Aggressive cleanup to reduce Redis memory
   removeOnComplete: 10, // Keep only 10 completed jobs
   removeOnFail: 5, // Keep only 5 failed jobs
   autoCleanupInterval: 300000, // Clean every 5 minutes
   
-  // Rate limiting to prevent Redis overload
-  rateLimitMax: 10, // Max 10 jobs per duration
-  rateLimitDuration: 60000, // Per 60 seconds
+  // Rate limiting to prevent Redis overload - LEBIH AGRESIF untuk kurangi EVALSHA
+  rateLimitMax: 5, // Reduced from 10 to 5 jobs per duration
+  rateLimitDuration: 120000, // Increased from 60s to 120s (2 menit) untuk spacing job lebih jauh
   
   // Monitoring optimization (emergency settings for high command rate)
   metricsPollingInterval: 15000, // Poll metrics every 15s (increased from 10s)
@@ -69,42 +74,49 @@ export const REDIS_OPTIMIZATION_CONFIG: RedisOptimizationConfig = {
 };
 
 /**
- * Queue-specific configurations
+ * Queue-specific configurations - OPTIMIZED untuk kurangi EVALSHA dominance
  */
 export const QUEUE_SPECIFIC_CONFIG = {
   ["high-priority"]: {
-    concurrency: 3,
-    rateLimitMax: 15, // Higher limit for priority queue
+    concurrency: 2, // Reduced from 3 to 2
+    rateLimitMax: 8, // Reduced from 15 to 8
+    rateLimitDuration: 120000, // 2 menit spacing
     removeOnComplete: 5, // More aggressive cleanup
   },
   ["notifications"]: {
-    concurrency: 5,
-    rateLimitMax: 20, // Higher for notifications
+    concurrency: 3, // Reduced from 5 to 3
+    rateLimitMax: 10, // Reduced from 20 to 10
+    rateLimitDuration: 120000, // 2 menit spacing
     removeOnComplete: 3,
   },
   ["scheduler"]: {
-    concurrency: 2,
-    rateLimitMax: 5, // Lower for scheduler
+    concurrency: 1, // Reduced from 2 to 1
+    rateLimitMax: 3, // Reduced from 5 to 3
+    rateLimitDuration: 180000, // 3 menit spacing untuk scheduler
     removeOnComplete: 10,
   },
   ["webhooks"]: {
-    concurrency: 3,
-    rateLimitMax: 8,
+    concurrency: 2, // Reduced from 3 to 2
+    rateLimitMax: 5, // Reduced from 8 to 5
+    rateLimitDuration: 120000, // 2 menit spacing
     removeOnComplete: 5,
   },
   ["reports"]: {
     concurrency: 1,
-    rateLimitMax: 3, // Very low for reports
+    rateLimitMax: 2, // Reduced from 3 to 2
+    rateLimitDuration: 300000, // 5 menit spacing untuk reports
     removeOnComplete: 15,
   },
   ["social-sync"]: {
-    concurrency: 2,
-    rateLimitMax: 6,
+    concurrency: 1, // Reduced from 2 to 1
+    rateLimitMax: 3, // Reduced from 6 to 3
+    rateLimitDuration: 180000, // 3 menit spacing
     removeOnComplete: 8,
   },
   ["maintenance"]: {
     concurrency: 1,
-    rateLimitMax: 2,
+    rateLimitMax: 1, // Reduced from 2 to 1
+    rateLimitDuration: 600000, // 10 menit spacing untuk maintenance
     removeOnComplete: 20,
   },
 };

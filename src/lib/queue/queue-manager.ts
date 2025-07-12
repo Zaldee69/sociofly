@@ -1,4 +1,4 @@
-import { Queue, Worker, Job } from "bullmq";
+import { SafeBullMQ, isBullMQAvailable } from "@/lib/config/bullmq-fix";
 import { RedisManager } from "@/lib/services/redis-manager";
 import {
   JobType,
@@ -18,12 +18,16 @@ import { RedisPerformanceMonitor } from "./redis-performance-monitor";
 
 export class QueueManager {
   private static instance: QueueManager;
-  private queues: Map<string, Queue> = new Map();
-  private workers: Map<string, Worker> = new Map();
+  private queues: Map<string, any> = new Map();
+  private workers: Map<string, any> = new Map();
   private isInitialized = false;
   private redisManager: RedisManager | null = null;
   private performanceMonitor: RedisPerformanceMonitor | null = null;
   private autoCleanupInterval: NodeJS.Timeout | null = null;
+  
+  // Cache for queue metrics to reduce Redis calls
+  private metricsCache = new Map<string, { data: QueueMetrics; timestamp: number }>();
+  private readonly cacheExpiry = 5000; // 5 seconds
 
   // Queue names
   public static readonly QUEUES = {
@@ -51,6 +55,18 @@ export class QueueManager {
   public async initialize(): Promise<void> {
     if (this.isInitialized) {
       console.log("⚠️  Queue Manager already initialized");
+      return;
+    }
+
+    // Check if BullMQ is available and initialize safely
+    if (!isBullMQAvailable()) {
+      console.warn("⚠️  BullMQ not available in current environment");
+      return;
+    }
+
+    const bullmqReady = await SafeBullMQ.initialize();
+    if (!bullmqReady) {
+      console.warn("⚠️  Failed to initialize BullMQ, skipping queue initialization");
       return;
     }
 
@@ -119,11 +135,11 @@ export class QueueManager {
       const optimizedConfig = getOptimizedQueueConfig(queueName);
       const queueSpecific = QUEUE_SPECIFIC_CONFIG[queueName as keyof typeof QUEUE_SPECIFIC_CONFIG] || {};
       
-      const queue = new Queue(queueName, {
+      const queue = SafeBullMQ.createQueue(queueName, {
         connection: this.getRedisConnectionOptions(),
         defaultJobOptions: {
-          removeOnComplete: queueSpecific.removeOnComplete || optimizedConfig.removeOnComplete,
-          removeOnFail: optimizedConfig.removeOnFail,
+          removeOnComplete: queueSpecific.removeOnComplete || 50,
+          removeOnFail: 25,
           attempts: optimizedConfig.jobRetryAttempts,
           backoff: {
             type: "exponential",
@@ -148,24 +164,27 @@ export class QueueManager {
       const optimizedConfig = getOptimizedQueueConfig(queueName);
       const queueSpecific = QUEUE_SPECIFIC_CONFIG[queueName as keyof typeof QUEUE_SPECIFIC_CONFIG] || {};
       
-      const worker = new Worker(
+      const worker = SafeBullMQ.createWorker(
         queueName,
-        async (job: Job) => {
+        async (job: any) => {
           return await this.processJob(job);
         },
         {
           connection: this.getRedisConnectionOptions(),
           concurrency: queueSpecific.concurrency || optimizedConfig.workerConcurrency,
-          // Optimized: Reduce polling frequency to minimize BZPOPMIN calls
-          maxStalledCount: optimizedConfig.maxStalledCount,
-          stalledInterval: optimizedConfig.stalledInterval,
-          // Add rate limiting to prevent Redis overload
+          // OPTIMIZED: Drastically reduce polling frequency untuk kurangi EVALSHA dominance
+          maxStalledCount: optimizedConfig.maxStalledCount, // Use from config
+          stalledInterval: optimizedConfig.stalledInterval, // Use optimized 5 menit interval
+          // NEW: Tambahan setting untuk kurangi Redis polling
+          settings: {
+            retryProcessDelay: optimizedConfig.retryProcessDelay, // 30 detik interval polling
+            lockDuration: optimizedConfig.lockDuration, // 2 menit lock duration
+          },
+          // Add rate limiting to prevent Redis overload - LEBIH AGRESIF
           limiter: {
             max: queueSpecific.rateLimitMax || optimizedConfig.rateLimitMax,
-            duration: optimizedConfig.rateLimitDuration,
+            duration: queueSpecific.rateLimitDuration || optimizedConfig.rateLimitDuration,
           },
-          // Additional worker settings for optimization
-          // Note: retryProcessDelay is handled by BullMQ internally
         }
       );
 
@@ -174,36 +193,40 @@ export class QueueManager {
 
       this.workers.set(queueName, worker);
       console.log(
-        `👷 Created optimized worker: ${queueName} (concurrency: ${queueSpecific.concurrency || optimizedConfig.workerConcurrency}, rateLimit: ${queueSpecific.rateLimitMax || optimizedConfig.rateLimitMax})`
+        `👷 Created EVALSHA-optimized worker: ${queueName} (concurrency: ${queueSpecific.concurrency || optimizedConfig.workerConcurrency}, rateLimit: ${queueSpecific.rateLimitMax || optimizedConfig.rateLimitMax}/${queueSpecific.rateLimitDuration || optimizedConfig.rateLimitDuration}ms, stalledInterval: ${optimizedConfig.stalledInterval}ms)`
       );
     }
   }
 
   /**
-   * Add event listeners to worker
+   * Menambahkan event listeners untuk worker
    */
-  private addWorkerEventListeners(worker: Worker, queueName: string): void {
-    worker.on("completed", (job) => {
+  private addWorkerEventListeners(worker: any, queueName: string): void {
+    worker.on("completed", (job: any) => {
       console.log(`✅ Job completed: ${job.name} in queue ${queueName}`);
     });
 
-    worker.on("failed", (job, err) => {
+    worker.on("failed", (job: any, err: any) => {
       console.error(`❌ Job failed: ${job?.name} in queue ${queueName}:`, err);
     });
 
-    worker.on("progress", (job, progress) => {
+    worker.on("progress", (job: any, progress: any) => {
       console.log(`⏳ Job progress: ${job.name} - ${progress}%`);
     });
 
-    worker.on("stalled", (jobId) => {
+    worker.on("stalled", (jobId: any) => {
       console.warn(`⚠️  Job stalled: ${jobId} in queue ${queueName}`);
+    });
+
+    worker.on("error", (err: any) => {
+      console.error(`🚨 Worker error in queue ${queueName}:`, err);
     });
   }
 
   /**
    * Process job based on type
    */
-  private async processJob(job: Job): Promise<JobResult> {
+  private async processJob(job: any): Promise<JobResult> {
     const startTime = Date.now();
 
     try {
@@ -248,28 +271,35 @@ export class QueueManager {
    */
   public async addJob(
     queueName: string,
-    jobType: JobType,
+    jobName: string,
     data: JobData,
     options?: JobOptions
-  ): Promise<Job> {
+  ): Promise<any> {
     const queue = this.queues.get(queueName);
     if (!queue) {
       throw new Error(`Queue not found: ${queueName}`);
     }
 
+    // Get optimized config for backoff strategy
+    const optimizedConfig = getOptimizedQueueConfig(queueName);
+    
     const jobOptions: any = {
       ...options,
+      // Default optimized settings untuk kurangi EVALSHA frequency
+      attempts: options?.attempts || optimizedConfig.jobRetryAttempts,
+      backoff: options?.backoff || {
+        type: 'exponential',
+        delay: optimizedConfig.jobRetryDelay, // 15 detik base delay
+      },
       ...(options?.delay && { delay: options.delay }),
       ...(options?.repeat && { repeat: options.repeat }),
-      ...(options?.attempts && { attempts: options.attempts }),
-      ...(options?.backoff && { backoff: options.backoff }),
       ...(options?.priority && { priority: options.priority }),
     };
 
-    const job = await queue.add(jobType, data, jobOptions);
+    const job = await queue.add(jobName, data, jobOptions);
 
     console.log(
-      `📤 Added job: ${jobType} to queue ${queueName} (ID: ${job.id})`
+      `📤 Added job: ${jobName} to queue ${queueName} (ID: ${job.id})`
     );
 
     return job;
@@ -278,23 +308,29 @@ export class QueueManager {
   /**
    * Schedule recurring job
    */
-  public async scheduleRecurringJob(
+  public async addRecurringJob(
     queueName: string,
-    jobType: JobType,
+    jobName: string,
     data: JobData,
     cronPattern: string,
     options?: Omit<JobOptions, "repeat">
-  ): Promise<Job> {
-    return this.addJob(queueName, jobType, data, {
+  ): Promise<any> {
+    return this.addJob(queueName, jobName, data, {
       ...options,
       repeat: { pattern: cronPattern },
     });
   }
 
   /**
-   * Get queue metrics with optimized Redis calls
+   * Get queue metrics with caching to reduce Redis calls
    */
   public async getQueueMetrics(queueName: string): Promise<QueueMetrics> {
+    // Check cache first
+    const cached = this.metricsCache.get(queueName);
+    if (cached && Date.now() - cached.timestamp < this.cacheExpiry) {
+      return cached.data;
+    }
+
     const queue = this.queues.get(queueName);
     if (!queue) {
       throw new Error(`Queue not found: ${queueName}`);
@@ -310,7 +346,7 @@ export class QueueManager {
       queue.isPaused(),
     ]);
 
-    return {
+    const metrics = {
       waiting,
       active,
       completed,
@@ -318,6 +354,14 @@ export class QueueManager {
       delayed,
       paused: paused ? 1 : 0,
     };
+
+    // Cache the result
+    this.metricsCache.set(queueName, {
+      data: metrics,
+      timestamp: Date.now()
+    });
+
+    return metrics;
   }
 
   /**
@@ -484,14 +528,14 @@ export class QueueManager {
   /**
    * Get queue instance
    */
-  public getQueue(queueName: string): Queue | undefined {
+  public getQueue(queueName: string): any | undefined {
     return this.queues.get(queueName);
   }
 
   /**
    * Get worker instance
    */
-  public getWorker(queueName: string): Worker | undefined {
+  public getWorker(queueName: string): any | undefined {
     return this.workers.get(queueName);
   }
 
@@ -535,7 +579,7 @@ export class QueueManager {
       data: JobData;
       options?: JobOptions;
     }>
-  ): Promise<Job[]> {
+  ): Promise<any[]> {
     const queue = this.queues.get(queueName);
     if (!queue) {
       throw new Error(`Queue not found: ${queueName}`);
