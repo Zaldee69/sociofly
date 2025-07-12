@@ -14,11 +14,12 @@ import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import { useWebSocketNotifications } from '../providers/websocket-provider';
 import { NotificationPayload } from '../../lib/websocket/websocket-server';
+import type { SSENotification } from '../../lib/hooks/use-sse-notifications';
 import { formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
 
 interface NotificationItemProps {
-  notification: NotificationPayload;
+  notification: NotificationPayload | SSENotification;
   onMarkAsRead: (id: string) => void;
 }
 
@@ -103,10 +104,15 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onMar
           
           <div className="flex items-center justify-between mt-2">
             <span className="text-xs text-gray-500">
-              {formatDistanceToNow(new Date(notification.timestamp), { 
-                addSuffix: true,
-                locale: id 
-              })}
+              {formatDistanceToNow(
+                notification.timestamp instanceof Date 
+                  ? notification.timestamp 
+                  : new Date(notification.timestamp), 
+                { 
+                  addSuffix: true,
+                  locale: id 
+                }
+              )}
             </span>
             
             {notification.read && (

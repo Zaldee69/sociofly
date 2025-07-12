@@ -1,16 +1,18 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useWebSocket } from '../../lib/hooks/use-websocket';
+import { useSSENotifications } from '../../lib/hooks/use-sse-notifications';
 import { NotificationPayload } from '../../lib/websocket/websocket-server';
+import type { SSENotification } from '../../lib/hooks/use-sse-notifications';
 import { toast } from 'sonner';
 
 interface WebSocketContextType {
   isConnected: boolean;
   isConnecting: boolean;
   error: string | null;
-  notifications: NotificationPayload[];
+  notifications: (NotificationPayload | SSENotification)[];
   unreadCount: number;
   markAsRead: (notificationId: string) => void;
   markAllAsRead: () => void;
@@ -44,7 +46,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     reconnectAttempts: 0
   });
 
-  const handleNotification = (notification: NotificationPayload) => {
+  const handleNotification = (notification: NotificationPayload | SSENotification) => {
     // Custom notification handling logic
     console.log('📨 WebSocket notification received:', notification);
     
@@ -90,54 +92,59 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     }
   };
 
-  const handleConnect = () => {
+  const handleConnect = useCallback(() => {
     console.log('🔌 WebSocket connected successfully');
-    setConnectionStatus(prev => ({
-      ...prev,
-      isConnected: true,
-      lastConnected: new Date(),
-      reconnectAttempts: 0
-    }));
+    setConnectionStatus(prev => {
+      // Show connection success toast (only after reconnection)
+      if (prev.reconnectAttempts > 0) {
+        toast.success('Connection restored', {
+          description: 'Real-time notifications are now active',
+          duration: 3000
+        });
+      }
+      
+      return {
+        ...prev,
+        isConnected: true,
+        lastConnected: new Date(),
+        reconnectAttempts: 0
+      };
+    });
+  }, []);
 
-    // Show connection success toast (only after reconnection)
-    if (connectionStatus.reconnectAttempts > 0) {
-      toast.success('Connection restored', {
-        description: 'Real-time notifications are now active',
-        duration: 3000
-      });
-    }
-  };
-
-  const handleDisconnect = () => {
+  const handleDisconnect = useCallback(() => {
     console.log('🔌 WebSocket disconnected');
-    setConnectionStatus(prev => ({
-      ...prev,
-      isConnected: false,
-      reconnectAttempts: prev.reconnectAttempts + 1
-    }));
+    setConnectionStatus(prev => {
+      // Show disconnection warning (only after initial connection)
+      if (prev.isConnected) {
+        toast.warning('Connection lost', {
+          description: 'Attempting to reconnect...',
+          duration: 5000
+        });
+      }
+      
+      return {
+        ...prev,
+        isConnected: false,
+        reconnectAttempts: prev.reconnectAttempts + 1
+      };
+    });
+  }, []);
 
-    // Show disconnection warning (only after initial connection)
-    if (connectionStatus.isConnected) {
-      toast.warning('Connection lost', {
-        description: 'Attempting to reconnect...',
-        duration: 5000
-      });
-    }
-  };
-
+  // Try WebSocket first
   const {
-    isConnected,
-    isConnecting,
-    error,
-    notifications,
-    unreadCount,
-    markAsRead,
-    markAllAsRead,
+    isConnected: wsConnected,
+    isConnecting: wsConnecting,
+    error: wsError,
+    notifications: wsNotifications,
+    unreadCount: wsUnreadCount,
+    markAsRead: wsMarkAsRead,
+    markAllAsRead: wsMarkAllAsRead,
     joinTeam,
     leaveTeam,
-    clearNotifications,
-    connect,
-    disconnect
+    clearNotifications: wsClearNotifications,
+    connect: wsConnect,
+    disconnect: wsDisconnect
   } = useWebSocket({
     teamId,
     autoConnect: true,
@@ -147,39 +154,83 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     onDisconnect: handleDisconnect
   });
 
-  // Update connection status when WebSocket state changes
-  useEffect(() => {
-    setConnectionStatus(prev => ({
-      ...prev,
-      isConnected
-    }));
-  }, [isConnected]);
+  // Use SSE as fallback
+  const {
+    isConnected: sseConnected,
+    isConnecting: sseConnecting,
+    error: sseError,
+    notifications: sseNotifications,
+    unreadCount: sseUnreadCount,
+    markAsRead: sseMarkAsRead,
+    markAllAsRead: sseMarkAllAsRead,
+    clearNotifications: sseClearNotifications,
+    connect: sseConnect,
+    disconnect: sseDisconnect
+  } = useSSENotifications({
+    enableNotifications,
+    onNotification: handleNotification,
+    onConnect: handleConnect,
+    onDisconnect: handleDisconnect
+  });
+
+  // Determine which connection to use
+  const isConnected = wsConnected || sseConnected;
+  const isConnecting = wsConnecting || sseConnecting;
+  const error = wsError || sseError;
+  const notifications = wsConnected ? wsNotifications : sseNotifications;
+  const unreadCount = wsConnected ? wsUnreadCount : sseUnreadCount;
+  const markAsRead = wsConnected ? wsMarkAsRead : sseMarkAsRead;
+  const markAllAsRead = wsConnected ? wsMarkAllAsRead : sseMarkAllAsRead;
+  const clearNotifications = wsConnected ? wsClearNotifications : sseClearNotifications;
+  const connect = () => {
+    wsConnect();
+    if (!wsConnected) {
+      sseConnect();
+    }
+  };
+  const disconnect = () => {
+    wsDisconnect();
+    sseDisconnect();
+  };
+
+  // Remove this useEffect as it causes infinite re-render
+  // Connection status is now handled in handleConnect/handleDisconnect
 
   // Show persistent error toast for connection issues
   useEffect(() => {
     if (error && isLoaded && user) {
+      const isTimeoutError = error.includes('timeout') || error.includes('TIMEOUT');
+      
       toast.error('Connection Error', {
-        description: error,
-        duration: 8000,
+        description: isTimeoutError 
+          ? 'Connection timeout. Please check your network and try again.'
+          : error,
+        duration: isTimeoutError ? 10000 : 8000,
         action: {
           label: 'Retry',
-          onClick: connect
+          onClick: () => {
+            toast.dismiss();
+            connect();
+          }
         }
       });
     }
   }, [error, isLoaded, user, connect]);
 
   // Show loading state for initial connection
+  const hasShownInitialToast = useRef(false);
+  
   useEffect(() => {
-    if (isConnecting && connectionStatus.reconnectAttempts === 0) {
+    if (isConnecting && !hasShownInitialToast.current) {
       toast.loading('Connecting to real-time notifications...', {
         id: 'websocket-connecting',
         duration: 5000
       });
-    } else {
+      hasShownInitialToast.current = true;
+    } else if (!isConnecting) {
       toast.dismiss('websocket-connecting');
     }
-  }, [isConnecting, connectionStatus.reconnectAttempts]);
+  }, [isConnecting]);
 
   const contextValue: WebSocketContextType = {
     isConnected,

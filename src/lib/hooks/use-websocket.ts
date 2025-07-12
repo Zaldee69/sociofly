@@ -37,6 +37,18 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   const socketRef = useRef<Socket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Use refs for callbacks to avoid dependency changes
+  const onNotificationRef = useRef(onNotification);
+  const onConnectRef = useRef(onConnect);
+  const onDisconnectRef = useRef(onDisconnect);
+  
+  // Update refs when callbacks change
+  useEffect(() => {
+    onNotificationRef.current = onNotification;
+    onConnectRef.current = onConnect;
+    onDisconnectRef.current = onDisconnect;
+  });
 
   const [state, setState] = useState<WebSocketState>({
     isConnected: false,
@@ -47,148 +59,164 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   });
 
   // Initialize WebSocket connection
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (!user?.id || !isLoaded || socketRef.current?.connected) {
       return;
     }
 
     setState(prev => ({ ...prev, isConnecting: true, error: null }));
 
-    const socket = io(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000', {
-      transports: ['websocket', 'polling'],
-      timeout: 10000,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000
-    });
-
-    socketRef.current = socket;
-
-    // Connection events
-    socket.on('connect', () => {
-      console.log('🔌 WebSocket connected');
-      setState(prev => ({ 
-        ...prev, 
-        isConnected: true, 
-        isConnecting: false, 
-        error: null 
-      }));
-
-      // Authenticate user
-      socket.emit('authenticate', {
-        userId: user.id,
-        teamId
+    try {
+      // WebSocket server runs on a separate port (9003)
+           const wsPort = process.env.NEXT_PUBLIC_WEBSOCKET_PORT || "9003";
+      const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || `http://localhost:${wsPort}`;
+      
+      const socket = io(wsUrl, {
+        transports: ['polling', 'websocket'], // Allow both polling and websocket
+        timeout: 20000, // Increased timeout to 20 seconds
+        reconnection: true,
+        reconnectionAttempts: 5, // Reasonable reconnection attempts
+        reconnectionDelay: 1000, // Start with 1 second delay
+        reconnectionDelayMax: 5000, // Max 5 seconds delay
+        forceNew: true, // Force new connection
+        upgrade: true, // Allow upgrade to WebSocket
+        rememberUpgrade: true
       });
 
-      onConnect?.();
-    });
+      socketRef.current = socket;
 
-    socket.on('disconnect', (reason) => {
-      console.log('🔌 WebSocket disconnected:', reason);
-      setState(prev => ({ 
-        ...prev, 
-        isConnected: false, 
-        isConnecting: false 
-      }));
+      // Connection events
+      socket.on('connect', () => {
+        console.log('🔌 WebSocket connected');
+        setState(prev => ({ 
+          ...prev, 
+          isConnected: true, 
+          isConnecting: false, 
+          error: null 
+        }));
 
-      onDisconnect?.();
+        // Authenticate user
+        socket.emit('authenticate', {
+          userId: user.id,
+          teamId
+        });
 
-      // Auto-reconnect if not intentional disconnect
-      if (reason !== 'io client disconnect') {
+        onConnectRef.current?.();
+      });
+
+      socket.on('disconnect', (reason) => {
+        console.log('🔌 WebSocket disconnected:', reason);
+        setState(prev => ({ 
+          ...prev, 
+          isConnected: false, 
+          isConnecting: false 
+        }));
+
+        onDisconnectRef.current?.();
+
+        // Auto-reconnect if not intentional disconnect
+        if (reason !== 'io client disconnect') {
+          scheduleReconnect();
+        }
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('🔌 WebSocket connection error:', error);
+        setState(prev => ({ 
+          ...prev, 
+          isConnected: false, 
+          isConnecting: false, 
+          error: error.message 
+        }));
+
         scheduleReconnect();
-      }
-    });
+      });
 
-    socket.on('connect_error', (error) => {
-      console.error('🔌 WebSocket connection error:', error);
+      // Authentication events
+      socket.on('authenticated', (data) => {
+        console.log('✅ WebSocket authenticated:', data);
+        
+        // Join team room if teamId provided
+        if (teamId) {
+          socket.emit('join_team', teamId);
+        }
+
+        startHeartbeat();
+      });
+
+      socket.on('auth_error', (error) => {
+        console.error('❌ WebSocket authentication error:', error);
+        setState(prev => ({ 
+          ...prev, 
+          error: 'Authentication failed' 
+        }));
+      });
+
+      // Notification events
+      socket.on('notification', (notification: NotificationPayload) => {
+        console.log('📨 Received notification:', notification);
+        
+        setState(prev => ({
+          ...prev,
+          notifications: [notification, ...prev.notifications].slice(0, 50), // Keep last 50
+          unreadCount: prev.unreadCount + (notification.read ? 0 : 1)
+        }));
+
+        // Show toast notification if enabled
+        if (enableNotifications && !notification.read) {
+          toast(notification.title, {
+            description: notification.message,
+            action: {
+              label: 'Mark as read',
+              onClick: () => markAsRead(notification.id)
+            }
+          });
+        }
+
+        onNotificationRef.current?.(notification);
+      });
+
+      socket.on('system_notification', (notification: NotificationPayload) => {
+        console.log('📢 Received system notification:', notification);
+        
+        if (enableNotifications) {
+          toast(notification.title, {
+            description: notification.message,
+            duration: 10000 // Longer duration for system notifications
+          });
+        }
+      });
+
+      socket.on('notification_read_ack', (data: { notificationId: string }) => {
+        setState(prev => ({
+          ...prev,
+          notifications: prev.notifications.map(notif => 
+            notif.id === data.notificationId 
+              ? { ...notif, read: true }
+              : notif
+          ),
+          unreadCount: Math.max(0, prev.unreadCount - 1)
+        }));
+      });
+
+      // Heartbeat events
+      socket.on('heartbeat', () => {
+        // Server heartbeat received
+      });
+
+      socket.on('pong', () => {
+        // Pong response received
+      });
+    } catch (error) {
+      console.error('Failed to setup WebSocket connection:', error);
       setState(prev => ({ 
         ...prev, 
-        isConnected: false, 
         isConnecting: false, 
-        error: error.message 
+        error: 'Failed to setup WebSocket connection' 
       }));
+    }
 
-      scheduleReconnect();
-    });
-
-    // Authentication events
-    socket.on('authenticated', (data) => {
-      console.log('✅ WebSocket authenticated:', data);
-      
-      // Join team room if teamId provided
-      if (teamId) {
-        socket.emit('join_team', teamId);
-      }
-
-      startHeartbeat();
-    });
-
-    socket.on('auth_error', (error) => {
-      console.error('❌ WebSocket authentication error:', error);
-      setState(prev => ({ 
-        ...prev, 
-        error: 'Authentication failed' 
-      }));
-    });
-
-    // Notification events
-    socket.on('notification', (notification: NotificationPayload) => {
-      console.log('📨 Received notification:', notification);
-      
-      setState(prev => ({
-        ...prev,
-        notifications: [notification, ...prev.notifications].slice(0, 50), // Keep last 50
-        unreadCount: prev.unreadCount + (notification.read ? 0 : 1)
-      }));
-
-      // Show toast notification if enabled
-      if (enableNotifications && !notification.read) {
-        toast(notification.title, {
-          description: notification.message,
-          action: {
-            label: 'Mark as read',
-            onClick: () => markAsRead(notification.id)
-          }
-        });
-      }
-
-      onNotification?.(notification);
-    });
-
-    socket.on('system_notification', (notification: NotificationPayload) => {
-      console.log('📢 Received system notification:', notification);
-      
-      if (enableNotifications) {
-        toast(notification.title, {
-          description: notification.message,
-          duration: 10000 // Longer duration for system notifications
-        });
-      }
-    });
-
-    socket.on('notification_read_ack', (data: { notificationId: string }) => {
-      setState(prev => ({
-        ...prev,
-        notifications: prev.notifications.map(notif => 
-          notif.id === data.notificationId 
-            ? { ...notif, read: true }
-            : notif
-        ),
-        unreadCount: Math.max(0, prev.unreadCount - 1)
-      }));
-    });
-
-    // Heartbeat events
-    socket.on('heartbeat', () => {
-      // Server heartbeat received
-    });
-
-    socket.on('pong', () => {
-      // Pong response received
-    });
-
-  }, [user?.id, isLoaded, teamId, enableNotifications, onNotification, onConnect, onDisconnect]);
+  }, [user?.id, isLoaded, teamId, enableNotifications]);
 
   // Disconnect WebSocket
   const disconnect = useCallback(() => {
@@ -285,7 +313,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     return () => {
       disconnect();
     };
-  }, [autoConnect, user?.id, isLoaded, connect, disconnect]);
+  }, [autoConnect, user?.id, isLoaded]); // Remove connect and disconnect from dependencies
 
   // Cleanup on unmount
   useEffect(() => {

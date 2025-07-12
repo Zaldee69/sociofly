@@ -68,6 +68,11 @@ if ! check_redis; then
     exit 1
 fi
 
+# Start WebSocket server in background
+echo "🔌 Starting WebSocket server..."
+node websocket-server.js &
+WS_PID=$!
+
 # Start Next.js development server in background
 echo "🌐 Starting Next.js development server..."
 npm run dev &
@@ -120,4 +125,4 @@ while true; do
 done
 
 # Cleanup on exit
-trap 'echo "🛑 Stopping..."; kill $DEV_PID 2>/dev/null; exit' INT TERM
+trap 'echo "🛑 Stopping..."; kill $WS_PID $DEV_PID 2>/dev/null; exit' INT TERM

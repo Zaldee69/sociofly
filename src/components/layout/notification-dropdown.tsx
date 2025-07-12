@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Bell,
   CheckCircle,
@@ -13,6 +13,7 @@ import {
 import { format, formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
 import { useNotifications } from "@/lib/hooks/useNotifications";
+import { useWebSocketNotifications } from "@/components/providers/websocket-provider";
 import { trpc } from "@/lib/trpc/client";
 import { NotificationType } from "@prisma/client";
 import type { JsonValue } from "@prisma/client/runtime/library";
@@ -37,11 +38,96 @@ export function NotificationDropdown() {
   const [isMounted, setIsMounted] = useState(false);
   const utils = trpc.useUtils();
 
-  const { notifications, unreadCount, isLoading, markAsRead, markAllAsRead } =
-    useNotifications({
-      limit: 10,
-      enableRealtime: true,
+  // Get database notifications
+  const {
+    notifications: dbNotifications,
+    isLoading,
+    markAsRead: markDbAsRead,
+    markAllAsRead: markAllDbAsRead,
+  } = useNotifications({
+    limit: 10,
+    enableRealtime: true,
+  });
+
+  // Get real-time WebSocket notifications
+  const {
+    notifications: wsNotifications,
+    unreadCount: wsUnreadCount,
+    markAsRead: markWsAsRead,
+    markAllAsRead: markAllWsAsRead,
+  } = useWebSocketNotifications();
+
+  // Combine notifications from both sources
+  const allNotifications = useMemo(() => {
+    const combined = [...(wsNotifications || []), ...(dbNotifications || [])];
+
+    // Remove duplicates based on ID and sort by timestamp/createdAt
+    const uniqueNotifications = combined.reduce(
+      (acc, notification) => {
+        const existingIndex = acc.findIndex((n) => n.id === notification.id);
+        if (existingIndex === -1) {
+          acc.push(notification);
+        } else {
+          // Keep the WebSocket version if it exists (more recent)
+          if ("timestamp" in notification) {
+            acc[existingIndex] = notification;
+          }
+        }
+        return acc;
+      },
+      [] as typeof combined
+    );
+
+    // Sort by timestamp/createdAt (newest first)
+    return uniqueNotifications.sort((a, b) => {
+      const timeA =
+        "timestamp" in a
+          ? new Date(a.timestamp).getTime()
+          : new Date(a.createdAt).getTime();
+      const timeB =
+        "timestamp" in b
+          ? new Date(b.timestamp).getTime()
+          : new Date(b.createdAt).getTime();
+      return timeB - timeA;
     });
+  }, [wsNotifications, dbNotifications]);
+
+  const unreadCount = allNotifications.filter((n) => {
+    return "timestamp" in n ? !n.read : !n.isRead;
+  }).length;
+
+  // Combined mark as read function
+  const handleMarkAsRead = async (
+    notification: (typeof allNotifications)[0]
+  ) => {
+    try {
+      // Mark in WebSocket if it's a WebSocket notification
+      if ("timestamp" in notification) {
+        markWsAsRead(notification.id);
+      }
+
+      // Always mark in database - convert WebSocket notification to database format
+      const dbNotification =
+        "timestamp" in notification
+          ? {
+              id: notification.id,
+              type: notification.type as any,
+              link: notification.data?.link || null,
+              metadata: notification.data?.metadata || null,
+            }
+          : notification;
+
+      await markDbAsRead(notification.id);
+    } catch (error) {
+      console.error("Failed to mark notification as read:", error);
+    }
+  };
+
+  // Combined mark all as read function
+  const markAllAsRead = async () => {
+    await markAllDbAsRead();
+    markAllWsAsRead();
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -105,19 +191,31 @@ export function NotificationDropdown() {
   };
 
   // Handle notification click
-  const handleNotificationClick = (notification: {
-    id: string;
-    type: NotificationType;
-    link: string | null;
-    metadata: JsonValue;
-  }) => {
-    markAsRead(notification.id);
+  const handleNotificationClick = async (
+    notification: (typeof allNotifications)[0]
+  ) => {
+    setOpen(false);
 
-    const metadata = notification.metadata
-      ? ((typeof notification.metadata === "string"
-          ? JSON.parse(notification.metadata)
-          : notification.metadata) as Record<string, any>)
-      : null;
+    // Mark as read
+    await handleMarkAsRead(notification);
+
+    // Get metadata and link based on notification type
+    const metadata = (() => {
+      if ("timestamp" in notification) {
+        // WebSocket notification
+        return notification.data?.metadata || null;
+      } else {
+        // Database notification
+        return notification.metadata
+          ? ((typeof notification.metadata === "string"
+              ? JSON.parse(notification.metadata)
+              : notification.metadata) as Record<string, any>)
+          : null;
+      }
+    })();
+
+    const link =
+      "timestamp" in notification ? notification.data?.link : notification.link;
 
     console.log("metadata", metadata);
 
@@ -144,12 +242,10 @@ export function NotificationDropdown() {
         break;
       default:
         // Fallback to link if provided
-        if (notification.link) {
-          router.push(notification.link);
+        if (link) {
+          router.push(link);
         }
     }
-
-    setOpen(false);
   };
 
   // Prevent hydration mismatch by showing consistent state until mounted
@@ -230,7 +326,7 @@ export function NotificationDropdown() {
               </div>
             ))}
           </div>
-        ) : notifications.length === 0 ? (
+        ) : allNotifications.length === 0 ? (
           <div className="p-8 text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
               <Bell className="h-6 w-6 text-slate-400" />
@@ -243,14 +339,16 @@ export function NotificationDropdown() {
         ) : (
           <div className="max-h-80 overflow-y-auto px-2">
             <div className="space-y-2 py-2">
-              {notifications.map((notification) => (
+              {allNotifications.map((notification) => (
                 <DropdownMenuItem
                   key={notification.id}
                   className={cn(
                     "p-4 cursor-pointer rounded-lg transition-all duration-200 border",
                     getNotificationBgColor(
                       notification.type,
-                      notification.isRead
+                      "timestamp" in notification
+                        ? notification.read
+                        : notification.isRead
                     )
                   )}
                   onClick={() => handleNotificationClick(notification)}
@@ -264,24 +362,37 @@ export function NotificationDropdown() {
                         <p
                           className={cn(
                             "text-sm font-semibold leading-tight",
-                            notification.isRead
+                            (
+                              "timestamp" in notification
+                                ? notification.read
+                                : notification.isRead
+                            )
                               ? "text-slate-700 dark:text-slate-300"
                               : "text-slate-900 dark:text-white"
                           )}
                         >
                           {notification.title}
                         </p>
-                        {!notification.isRead && (
+                        {!("timestamp" in notification
+                          ? notification.read
+                          : notification.isRead) && (
                           <div className="h-2.5 w-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex-shrink-0 mt-1 shadow-sm" />
                         )}
                       </div>
                       <p className="text-xs text-slate-600 leading-relaxed line-clamp-2 mb-2 dark:text-slate-400">
-                        {notification.body}
+                        {"timestamp" in notification
+                          ? notification.message
+                          : notification.body}
                       </p>
                       <p className="text-xs text-slate-400 font-medium dark:text-slate-500">
-                        {formatDistanceToNow(new Date(notification.createdAt), {
-                          addSuffix: true,
-                        })}
+                        {formatDistanceToNow(
+                          new Date(
+                            "timestamp" in notification
+                              ? notification.timestamp
+                              : notification.createdAt
+                          ),
+                          { addSuffix: true }
+                        )}
                       </p>
                     </div>
                   </div>

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma/client";
 import { NotificationType } from "@prisma/client";
 import { getWebSocketServer } from "../websocket/websocket-server";
 import type { NotificationPayload } from "../websocket/websocket-server";
+import { WebSocketClientService } from "./websocket-client.service";
 
 // Notification job data interface
 interface NotificationJobData {
@@ -25,10 +26,36 @@ export class NotificationService {
       // Generate unique ID for the notification
       const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Try WebSocket delivery first (primary method)
+      // Get user's Clerk ID for WebSocket delivery (WebSocket uses Clerk ID, not database ID)
+      const user = await prisma.user.findUnique({
+        where: { id: data.userId },
+        select: { clerkId: true },
+      });
+
+      if (!user?.clerkId) {
+        console.warn(`⚠️ No Clerk ID found for user ${data.userId}, skipping WebSocket delivery`);
+        // Fallback to database storage only
+        const notification = await prisma.notification.create({
+          data: {
+            id: notificationId,
+            userId: data.userId,
+            teamId: data.teamId,
+            title: data.title,
+            body: data.body,
+            type: data.type,
+            link: data.link,
+            metadata: data.metadata,
+            expiresAt: data.expiresAt,
+            isRead: false,
+          },
+        });
+        return notification;
+      }
+
+      // Try WebSocket delivery first (primary method) using Clerk ID
       const webSocketPayload = {
         id: notificationId,
-        userId: data.userId,
+        userId: user.clerkId, // Use Clerk ID for WebSocket
         type: this.mapNotificationType(data.type),
         title: data.title,
         message: data.body,
@@ -83,10 +110,18 @@ export class NotificationService {
    */
   static async sendRealTimeNotification(payload: NotificationPayload): Promise<boolean> {
     try {
+      // Try standalone WebSocket server first
+      const success = await WebSocketClientService.sendNotificationToUser(payload.userId, payload);
+      if (success) {
+        console.log(`📨 Real-time notification sent to user ${payload.userId} via standalone WebSocket`);
+        return true;
+      }
+      
+      // Fallback to internal WebSocket server (if available)
       const webSocketServer = getWebSocketServer();
       if (webSocketServer) {
         await webSocketServer.sendNotificationToUser(payload.userId, payload);
-        console.log(`📨 Real-time notification sent to user ${payload.userId}`);
+        console.log(`📨 Real-time notification sent to user ${payload.userId} via internal WebSocket`);
         return true;
       } else {
         console.warn("⚠️ WebSocket server not available");
@@ -103,10 +138,18 @@ export class NotificationService {
    */
   static async sendTeamNotification(teamId: string, payload: NotificationPayload) {
     try {
+      // Try standalone WebSocket server first
+      const success = await WebSocketClientService.sendNotificationToTeam(teamId, payload);
+      if (success) {
+        console.log(`📨 Real-time team notification sent to team ${teamId} via standalone WebSocket`);
+        return;
+      }
+      
+      // Fallback to internal WebSocket server (if available)
       const webSocketServer = getWebSocketServer();
       if (webSocketServer) {
         await webSocketServer.sendNotificationToTeam(teamId, payload);
-        console.log(`📨 Real-time team notification sent to team ${teamId}`);
+        console.log(`📨 Real-time team notification sent to team ${teamId} via internal WebSocket`);
       }
     } catch (error) {
       console.error("Failed to send team notification:", error);
@@ -118,10 +161,18 @@ export class NotificationService {
    */
   static async sendSystemNotification(payload: NotificationPayload) {
     try {
+      // Try standalone WebSocket server first
+      const success = await WebSocketClientService.sendSystemNotification(payload);
+      if (success) {
+        console.log(`📢 System notification broadcasted via standalone WebSocket`);
+        return;
+      }
+      
+      // Fallback to internal WebSocket server (if available)
       const webSocketServer = getWebSocketServer();
       if (webSocketServer) {
         await webSocketServer.broadcastSystemNotification(payload);
-        console.log(`📢 System notification broadcasted`);
+        console.log(`📢 System notification broadcasted via internal WebSocket`);
       }
     } catch (error) {
       console.error("Failed to send system notification:", error);

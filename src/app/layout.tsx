@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import { TRPCProvider } from "@/components/providers/trpc-provider";
 import { ClerkProvider } from "@clerk/nextjs";
 import { TeamProvider } from "@/lib/contexts/team-context";
+import { WebSocketProvider } from "@/components/providers/websocket-provider";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -33,7 +34,9 @@ export default function RootLayout({
           <Toaster />
           <TRPCProvider>
             <TeamProvider>
-              <main className="flex-1">{children}</main>
+              <WebSocketProvider enableNotifications={true}>
+                <main className="flex-1">{children}</main>
+              </WebSocketProvider>
             </TeamProvider>
           </TRPCProvider>
           <Script

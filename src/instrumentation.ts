@@ -5,14 +5,9 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     await import('../sentry.server.config');
     
-    // Initialize WebSocket server for real-time notifications
-    try {
-      await initializeWebSocket();
-      console.log('WebSocket server initialized during app startup');
-    } catch (error) {
-      console.error('Failed to initialize WebSocket during startup:', error);
-      // Don't throw to prevent app from crashing
-    }
+    // WebSocket server is now running as a standalone process
+    // Skip initialization to avoid port conflicts
+    console.log('WebSocket server running as standalone process on port', process.env.WEBSOCKET_PORT || '3005');
   }
 
   if (process.env.NEXT_RUNTIME === 'edge') {

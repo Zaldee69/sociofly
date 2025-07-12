@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getWebSocketServer } from '@/lib/websocket/websocket-server';
+import { sendNotificationToUser } from '@/lib/sse/sse-utils';
+import { WebSocketClientService } from '@/lib/services/websocket-client.service';
 
 /**
  * WebSocket API route for handling WebSocket connections
@@ -7,24 +9,36 @@ import { getWebSocketServer } from '@/lib/websocket/websocket-server';
  */
 export async function GET(request: NextRequest) {
   try {
-    const webSocketServer = getWebSocketServer();
-    
-    if (!webSocketServer) {
-      return Response.json(
-        { error: 'WebSocket server not initialized' },
-        { status: 503 }
-      );
+    // Try standalone WebSocket server first
+    const standaloneStatus = await WebSocketClientService.getServerStatus();
+    if (standaloneStatus) {
+      return Response.json({
+        status: standaloneStatus.status,
+        totalConnections: standaloneStatus.totalConnections,
+        connectedUsers: standaloneStatus.connectedUsers,
+        message: 'Standalone WebSocket server is running',
+        serverType: 'standalone'
+      });
     }
-
-    // Return WebSocket server status
-    const stats = webSocketServer.getConnectionStats();
-    return Response.json({
-      status: 'active',
-      totalConnections: stats.totalConnections,
-      uniqueUsers: stats.uniqueUsers,
-      userConnections: stats.userConnections,
-      message: 'WebSocket server is running',
-    });
+    
+    // Fallback to internal WebSocket server
+    const webSocketServer = getWebSocketServer();
+    if (webSocketServer) {
+      const stats = webSocketServer.getConnectionStats();
+      return Response.json({
+        status: 'active',
+        totalConnections: stats.totalConnections,
+        uniqueUsers: stats.uniqueUsers,
+        userConnections: stats.userConnections,
+        message: 'Internal WebSocket server is running',
+        serverType: 'internal'
+      });
+    }
+    
+    return Response.json(
+      { error: 'No WebSocket server available' },
+      { status: 503 }
+    );
   } catch (error) {
     console.error('WebSocket API error:', error);
     return Response.json(
@@ -50,40 +64,80 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const webSocketServer = getWebSocketServer();
-    
-    if (!webSocketServer) {
-      return Response.json(
-        { error: 'WebSocket server not initialized' },
-        { status: 503 }
-      );
-    }
-
-    // Send notification via WebSocket
+    // Create notification payload
     const notification = {
-      id: `ws-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       userId,
       type,
       title,
       message,
       data: data || {},
       timestamp: new Date(),
-      read: false,
+      read: false
     };
-
+    
+    let wsSuccess = false;
+    let deliveryMethod = 'websocket';
+    
+    // Try standalone WebSocket server first
     if (teamId) {
-      // Send to team
-      await webSocketServer.sendNotificationToTeam(teamId, notification);
+      wsSuccess = await WebSocketClientService.sendNotificationToTeam(teamId, notification);
+      deliveryMethod = wsSuccess ? 'standalone-websocket-team' : 'failed';
     } else {
-      // Send to specific user
-      await webSocketServer.sendNotificationToUser(userId, notification);
+      wsSuccess = await WebSocketClientService.sendNotificationToUser(userId, notification);
+      deliveryMethod = wsSuccess ? 'standalone-websocket-user' : 'failed';
+    }
+    
+    // Fallback to internal WebSocket server if standalone failed
+    if (!wsSuccess) {
+      const webSocketServer = getWebSocketServer();
+      if (webSocketServer) {
+        if (teamId) {
+          await webSocketServer.sendNotificationToTeam(teamId, notification);
+          wsSuccess = true;
+          deliveryMethod = 'internal-websocket-team';
+        } else {
+          const isUserOnline = await webSocketServer.sendNotificationToUser(userId, notification, {
+            persistIfOffline: true
+          });
+          wsSuccess = true;
+          deliveryMethod = isUserOnline ? 'internal-websocket-realtime' : 'internal-websocket-stored';
+        }
+      }
     }
 
-    return Response.json({
-      success: true,
-      message: 'Notification sent successfully',
-      notificationId: notification.id,
+    if (wsSuccess) {
+      console.log(`✅ WebSocket notification delivered successfully to user ${userId} via ${deliveryMethod}`);
+      return Response.json({ 
+        success: true, 
+        message: `Notification sent successfully via ${deliveryMethod}`,
+        method: deliveryMethod,
+        notificationId: notification.id
+      });
+    }
+    
+    // Fallback to SSE if WebSocket failed
+    const sseSuccess = sendNotificationToUser(userId, {
+      type,
+      title,
+      message,
+      data,
+      id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      read: false
     });
+    
+    if (sseSuccess) {
+      return Response.json({ 
+        success: true, 
+        message: 'Notification sent successfully via SSE',
+        method: 'sse'
+      });
+    }
+    
+    return Response.json({ 
+      success: false, 
+      message: 'Failed to send notification via both WebSocket and SSE' 
+    }, { status: 500 });
   } catch (error) {
     console.error('WebSocket notification error:', error);
     return Response.json(
