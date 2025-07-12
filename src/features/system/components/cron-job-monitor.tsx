@@ -125,9 +125,9 @@ export function JobSchedulerMonitor() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [consecutiveSuccess, setConsecutiveSuccess] = useState(0);
   
-  // Smart refresh interval with exponential backoff
+  // Optimized refresh interval to reduce Redis load
   const getRefreshInterval = (successCount: number) => {
-    return Math.min(5000 + (successCount * 2000), 30000); // 5s to 30s
+    return Math.min(15000 + (successCount * 5000), 60000); // 15s to 60s
   };
   const [selectedView, setSelectedView] = useState<
     "overview" | "stats" | "logs"
@@ -373,7 +373,7 @@ export function JobSchedulerMonitor() {
     queueName?: string
   ) => {
     let attempts = 0;
-    const maxAttempts = 60; // Reduced to 2 minutes since jobs complete quickly
+    const maxAttempts = 24; // Optimized to 2 minutes with longer intervals
     const relevantQueue = queueName || "social-sync";
     let lastKnownStatus = "queued";
 
@@ -543,8 +543,8 @@ export function JobSchedulerMonitor() {
 
         attempts++;
         if (attempts < maxAttempts) {
-          // Use shorter intervals for the first few attempts to catch fast jobs
-          const interval = attempts < 10 ? 1000 : 2000;
+          // Optimized intervals to reduce Redis polling load
+          const interval = attempts < 5 ? 3000 : 5000;
           setTimeout(checkJobStatus, interval);
         } else {
           // Timeout - assume completion for jobs that can't be tracked
@@ -572,7 +572,7 @@ export function JobSchedulerMonitor() {
         console.error("Error monitoring job:", error);
         attempts++;
         if (attempts < maxAttempts) {
-          setTimeout(checkJobStatus, 2000);
+          setTimeout(checkJobStatus, 5000);
         } else {
           updateExecutionLog(jobId, {
             status: "completed",
@@ -582,8 +582,8 @@ export function JobSchedulerMonitor() {
       }
     };
 
-    // Start monitoring immediately
-    checkJobStatus();
+    // Start monitoring with slight delay to reduce immediate Redis load
+    setTimeout(checkJobStatus, 2000);
   };
 
   useEffect(() => {

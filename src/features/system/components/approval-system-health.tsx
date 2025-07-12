@@ -122,10 +122,10 @@ export function ApprovalSystemHealth() {
     fetchHealthMetrics(true);
   };
 
-  // Auto-refresh every 5 minutes
+  // Optimized auto-refresh every 10 minutes to reduce Redis load
   useEffect(() => {
     fetchHealthMetrics();
-    const interval = setInterval(fetchHealthMetrics, 5 * 60 * 1000);
+    const interval = setInterval(fetchHealthMetrics, 10 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 

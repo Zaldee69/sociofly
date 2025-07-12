@@ -177,8 +177,8 @@ export function PostMonitoringDashboard() {
 
   useEffect(() => {
     fetchData();
-    // Auto-refresh every 2 minutes for operational monitoring
-    const interval = setInterval(fetchData, 2 * 60 * 1000);
+    // Optimized auto-refresh every 5 minutes to reduce Redis load
+    const interval = setInterval(fetchData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 

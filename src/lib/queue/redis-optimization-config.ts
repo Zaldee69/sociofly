@@ -44,33 +44,33 @@ export interface RedisOptimizationConfig {
  * Implementasi saran optimasi EVALSHA untuk mengurangi dominasi Lua script
  */
 export const REDIS_OPTIMIZATION_CONFIG: RedisOptimizationConfig = {
-  // Emergency worker reduction to minimize BZPOPMIN polling
-  maxWorkers: 6, // Further reduced from 8 to 6 workers untuk kurangi polling
-  workerConcurrency: 1, // Reduced from 2 to 1 per queue
-  stalledInterval: 300000, // Increased from 120s to 300s (5 menit) untuk drastis kurangi EVALSHA
-  maxStalledCount: 1, // Reduced retry attempts from 2 to 1
-  retryProcessDelay: 30000, // NEW: 30 detik interval polling (default 5s) untuk kurangi EVALSHA
-  lockDuration: 120000, // NEW: 2 menit lock duration untuk job yang berjalan lama
+  // EMERGENCY: Drastically reduced workers to minimize Redis load
+  maxWorkers: 3, // Emergency reduction from 6 to 3 workers
+  workerConcurrency: 1, // Keep at 1 per queue
+  stalledInterval: 600000, // Increased to 10 minutes (600s) untuk minimal EVALSHA
+  maxStalledCount: 1, // Keep at 1
+  retryProcessDelay: 60000, // Increased to 60 seconds untuk minimal polling
+  lockDuration: 300000, // Increased to 5 minutes untuk longer job execution
   
-  // Job management dengan backoff strategy
-  maxJobsPerQueue: 100, // Limit queue size
-  jobRetryAttempts: 2, // Reduced from 3
-  jobRetryDelay: 15000, // Increased delay from 5s to 15s untuk kurangi retry frequency
+  // EMERGENCY: Minimal job processing to reduce Redis load
+  maxJobsPerQueue: 50, // Further reduced queue size
+  jobRetryAttempts: 1, // Emergency: Only 1 retry attempt
+  jobRetryDelay: 30000, // Increased to 30s untuk minimal retry frequency
   
-  // Aggressive cleanup to reduce Redis memory
-  removeOnComplete: 10, // Keep only 10 completed jobs
-  removeOnFail: 5, // Keep only 5 failed jobs
-  autoCleanupInterval: 300000, // Clean every 5 minutes
+  // EMERGENCY: Ultra-aggressive cleanup
+  removeOnComplete: 3, // Keep only 3 completed jobs
+  removeOnFail: 2, // Keep only 2 failed jobs
+  autoCleanupInterval: 120000, // Clean every 2 minutes
   
-  // Rate limiting to prevent Redis overload - LEBIH AGRESIF untuk kurangi EVALSHA
-  rateLimitMax: 5, // Reduced from 10 to 5 jobs per duration
-  rateLimitDuration: 120000, // Increased from 60s to 120s (2 menit) untuk spacing job lebih jauh
+  // EMERGENCY: Extreme rate limiting
+  rateLimitMax: 2, // Emergency: Only 2 jobs per duration
+  rateLimitDuration: 300000, // Increased to 5 minutes untuk maximum spacing
   
-  // Monitoring optimization (emergency settings for high command rate)
-  metricsPollingInterval: 15000, // Poll metrics every 15s (increased from 10s)
-  batchSize: 10, // Batch size for processing (increased from 5)
-  logBatchSize: 20, // Batch logs before writing (increased from 10)
-  logFlushInterval: 60000, // Flush logs every 60s (increased from 30s)
+  // Monitoring optimization (further optimized for reduced Redis load)
+  metricsPollingInterval: 30000, // Poll metrics every 30s (increased from 15s)
+  batchSize: 15, // Batch size for processing (increased from 10)
+  logBatchSize: 30, // Batch logs before writing (increased from 20)
+  logFlushInterval: 120000, // Flush logs every 120s (increased from 60s)
 };
 
 /**
@@ -78,46 +78,46 @@ export const REDIS_OPTIMIZATION_CONFIG: RedisOptimizationConfig = {
  */
 export const QUEUE_SPECIFIC_CONFIG = {
   ["high-priority"]: {
-    concurrency: 2, // Reduced from 3 to 2
-    rateLimitMax: 8, // Reduced from 15 to 8
-    rateLimitDuration: 120000, // 2 menit spacing
-    removeOnComplete: 5, // More aggressive cleanup
+    concurrency: 1, // EMERGENCY: Reduced to 1
+    rateLimitMax: 3, // EMERGENCY: Drastically reduced
+    rateLimitDuration: 300000, // 5 minutes spacing
+    removeOnComplete: 2, // Ultra-aggressive cleanup
   },
   ["notifications"]: {
-    concurrency: 3, // Reduced from 5 to 3
-    rateLimitMax: 10, // Reduced from 20 to 10
-    rateLimitDuration: 120000, // 2 menit spacing
-    removeOnComplete: 3,
+    concurrency: 1, // EMERGENCY: Reduced to 1
+    rateLimitMax: 2, // EMERGENCY: Minimal processing
+    rateLimitDuration: 300000, // 5 minutes spacing
+    removeOnComplete: 1,
   },
   ["scheduler"]: {
-    concurrency: 1, // Reduced from 2 to 1
-    rateLimitMax: 3, // Reduced from 5 to 3
-    rateLimitDuration: 180000, // 3 menit spacing untuk scheduler
-    removeOnComplete: 10,
+    concurrency: 1, // Keep at 1
+    rateLimitMax: 1, // EMERGENCY: Only 1 job per duration
+    rateLimitDuration: 600000, // 10 minutes spacing
+    removeOnComplete: 3,
   },
   ["webhooks"]: {
-    concurrency: 2, // Reduced from 3 to 2
-    rateLimitMax: 5, // Reduced from 8 to 5
-    rateLimitDuration: 120000, // 2 menit spacing
-    removeOnComplete: 5,
+    concurrency: 1, // EMERGENCY: Reduced to 1
+    rateLimitMax: 2, // EMERGENCY: Minimal processing
+    rateLimitDuration: 300000, // 5 minutes spacing
+    removeOnComplete: 2,
   },
   ["reports"]: {
     concurrency: 1,
-    rateLimitMax: 2, // Reduced from 3 to 2
-    rateLimitDuration: 300000, // 5 menit spacing untuk reports
-    removeOnComplete: 15,
+    rateLimitMax: 1, // EMERGENCY: Only 1 job per duration
+    rateLimitDuration: 600000, // 10 minutes spacing
+    removeOnComplete: 5,
   },
   ["social-sync"]: {
-    concurrency: 1, // Reduced from 2 to 1
-    rateLimitMax: 3, // Reduced from 6 to 3
-    rateLimitDuration: 180000, // 3 menit spacing
-    removeOnComplete: 8,
+    concurrency: 1, // Keep at 1
+    rateLimitMax: 1, // EMERGENCY: Only 1 job per duration
+    rateLimitDuration: 600000, // 10 minutes spacing
+    removeOnComplete: 3,
   },
   ["maintenance"]: {
     concurrency: 1,
-    rateLimitMax: 1, // Reduced from 2 to 1
-    rateLimitDuration: 600000, // 10 menit spacing untuk maintenance
-    removeOnComplete: 20,
+    rateLimitMax: 1, // Keep at 1
+    rateLimitDuration: 1200000, // 20 minutes spacing untuk maintenance
+    removeOnComplete: 10,
   },
 };
 
@@ -132,11 +132,11 @@ export const REDIS_MONITORING_THRESHOLDS = {
   stalledJobThreshold: 50,
   hitRatioThreshold: 85, // 85%
   
-  // Command rate thresholds (commands per second)
+  // Command rate thresholds (commands per second) - Updated after polling optimization
   commandRate: {
-    warning: 15, // Warn if > 15 cmd/sec (reduced from 20)
-    critical: 25, // Critical if > 25 cmd/sec (reduced from 30)
-    emergency: 40, // Emergency if > 40 cmd/sec (new threshold)
+    warning: 20, // Warn if > 20 cmd/sec (adjusted after polling optimization)
+    critical: 35, // Critical if > 35 cmd/sec (adjusted after polling optimization)
+    emergency: 50, // Emergency if > 50 cmd/sec (adjusted after polling optimization)
   },
   
   // Memory usage thresholds

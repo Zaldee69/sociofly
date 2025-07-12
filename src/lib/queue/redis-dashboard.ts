@@ -25,7 +25,7 @@ export class RedisDashboard {
   /**
    * Start Redis dashboard monitoring
    */
-  public async startDashboard(intervalMs: number = 60000): Promise<void> { // Optimized from 30s to 60s
+  public async startDashboard(intervalMs: number = 120000): Promise<void> { // Further optimized from 60s to 120s
     if (this.isMonitoring) {
       console.log('Redis dashboard is already running');
       return;
@@ -46,7 +46,7 @@ export class RedisDashboard {
     // Initial dashboard update
     await this.updateDashboard();
     
-    console.log(`✅ Redis Dashboard started with ${intervalMs}ms interval`);
+    console.log(`✅ Redis Dashboard started with ${intervalMs}ms interval (optimized for reduced Redis load)`);
   }
 
   /**
