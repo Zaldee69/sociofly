@@ -12,6 +12,7 @@ import { api } from "@/lib/utils/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useTeamContext } from "@/lib/contexts/team-context";
+import { getCacheConfig } from "@/lib/config/trpc-cache-config";
 
 // Etiquettes data for calendar filtering
 export const etiquettes = [
@@ -86,9 +87,16 @@ export default function Component() {
   const { currentTeamId } = useTeamContext();
   const utils = api.useContext();
 
-  const { data: posts, isLoading: isPostsLoading } = api.post.getAll.useQuery({
-    teamId: currentTeamId!,
-  });
+  const { data: posts, isLoading: isPostsLoading } = api.post.getAll.useQuery(
+    {
+      teamId: currentTeamId!,
+      limit: 100, // Limit posts for better performance
+    },
+    {
+      ...getCacheConfig('posts'),
+      enabled: !!currentTeamId, // Only run query when teamId is available
+    }
+  );
 
   // Filter events based on visible colors
   const visiblePosts = useMemo(() => {

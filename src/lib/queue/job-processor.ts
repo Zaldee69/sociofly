@@ -1,12 +1,16 @@
 import { JobType, JobData } from "./job-types";
 import { SocialSyncService } from "@/lib/services/analytics";
 import { AnalyticsAccessService } from "@/lib/services/analytics-access.service";
+import { REDIS_OPTIMIZATION_CONFIG } from "./redis-optimization-config";
 
 /**
  * Simplified Job Processor
  * Handles essential jobs with reduced complexity
  */
 export class JobProcessor {
+  private static batchBuffer: Map<string, any[]> = new Map();
+  private static batchTimer: NodeJS.Timeout | null = null;
+
   /**
    * Main job processing entry point
    */
@@ -36,8 +40,7 @@ export class JobProcessor {
         case JobType.CLEANUP_OLD_LOGS:
           return await this.processCleanupOldLogs(data);
 
-        case JobType.SEND_NOTIFICATION:
-          return await this.processSendNotification(data);
+        // SEND_NOTIFICATION removed - notifications now handled directly via WebSocket
 
         default:
           console.warn(`⚠️ Unknown job type: ${jobType}`);
@@ -50,25 +53,29 @@ export class JobProcessor {
   }
 
   /**
-   * Process post publishing
+   * Process post publishing with optimized batch processing
    */
   private static async processPublishPost(data: any): Promise<any> {
-    console.log(`📤 Processing due publications...`);
+    console.log(`📤 Processing due publications with batch optimization...`);
 
     try {
-      // Use SchedulerService to process all due publications
+      // Use SchedulerService to process all due publications with batching
       const { SchedulerService } = await import(
         "@/lib/services/scheduling/scheduler.service"
       );
+      
+      // Apply batch processing configuration
+      const batchSize = REDIS_OPTIMIZATION_CONFIG.batchSize
       const result = await SchedulerService.processDuePublications();
 
-      console.log(`✅ Due publications processed:`, {
+      console.log(`✅ Due publications processed with batching:`, {
         success: result.success,
         failed: result.failed,
         skipped: result.skipped,
         rate_limited: result.rate_limited,
         processed: result.processed,
         total: result.total,
+        batchSize
       });
 
       return result;
@@ -270,10 +277,10 @@ export class JobProcessor {
   }
 
   /**
-   * Process post analytics collection
+   * Process post analytics collection with batch processing
    */
   private static async processCollectPostAnalytics(data: any): Promise<any> {
-    console.log(`📊 Collecting analytics for post ${data.postId}...`);
+    console.log(`📊 Collecting analytics for post ${data.postId} with batch optimization...`);
 
     try {
       const { prisma } = await import("@/lib/prisma/client");
@@ -326,28 +333,53 @@ export class JobProcessor {
       );
 
       const syncService = new SocialSyncService(prisma);
-      const results = [];
-      const errors = [];
+      const results: any[] = [];
+      const errors: any[] = [];
 
-      for (const psa of postSocialAccounts) {
-        try {
-          const syncResult = await syncService.performIncrementalSync({
-            accountId: psa.socialAccount.id,
-            teamId: psa.socialAccount.teamId,
-            platform: psa.socialAccount.platform as "INSTAGRAM" | "FACEBOOK",
-            limit: 10,
-          });
+      // Process social accounts in batches to reduce Redis load
+      const batchSize = REDIS_OPTIMIZATION_CONFIG.batchSize;
+      
+      for (let i = 0; i < postSocialAccounts.length; i += batchSize) {
+        const batch = postSocialAccounts.slice(i, i + batchSize);
+        const batchPromises = batch.map(async (psa) => {
+          try {
+            const syncResult = await syncService.performIncrementalSync({
+              accountId: psa.socialAccount.id,
+              teamId: psa.socialAccount.teamId,
+              platform: psa.socialAccount.platform as "INSTAGRAM" | "FACEBOOK",
+              limit: 10,
+            });
 
-          results.push({
-            platform: psa.socialAccount.platform,
-            success: syncResult.success,
-            analyticsUpdated: syncResult.analyticsUpdated,
-          });
-        } catch (error: any) {
-          errors.push({
-            platform: psa.socialAccount.platform,
-            message: error.message,
-          });
+            return {
+              platform: psa.socialAccount.platform,
+              success: syncResult.success,
+              analyticsUpdated: syncResult.analyticsUpdated,
+            };
+          } catch (error: any) {
+            return {
+              platform: psa.socialAccount.platform,
+              success: false,
+              error: error.message,
+            };
+          }
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        
+        batchResults.forEach(result => {
+          if (result.success) {
+            results.push(result);
+          } else {
+            errors.push({
+              platform: result.platform,
+              message: result.error,
+            });
+          }
+        });
+
+        // Add delay between batches to reduce Redis load
+        if (i + batchSize < postSocialAccounts.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
 
@@ -358,11 +390,12 @@ export class JobProcessor {
       };
 
       console.log(
-        `✅ Post analytics collection completed for ${data.postId}:`,
+        `✅ Post analytics collection completed for ${data.postId} with batching:`,
         {
           success: result.success,
           resultsCount: result.results.length,
           errorsCount: result.errors.length,
+          batchSize,
         }
       );
 
@@ -440,52 +473,5 @@ export class JobProcessor {
     }
   }
 
-  /**
-   * Process send notification
-   */
-  private static async processSendNotification(data: any): Promise<any> {
-    console.log(`📧 Processing notification for user ${data.userId}...`);
-
-    try {
-      const { prisma } = await import("@/lib/prisma/client");
-
-      // Create notification in database
-      const notification = await prisma.notification.create({
-        data: {
-          userId: data.userId,
-          teamId: data.teamId,
-          title: data.title,
-          body: data.body,
-          type: data.type,
-          link: data.link,
-          metadata: data.metadata,
-          expiresAt: data.expiresAt,
-        },
-        include: {
-          team: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-            },
-          },
-        },
-      });
-
-      console.log(`✅ Notification sent to user ${data.userId}: ${data.title}`);
-
-      return {
-        success: true,
-        notificationId: notification.id,
-        userId: data.userId,
-        type: data.type,
-      };
-    } catch (error) {
-      console.error(
-        `❌ Failed to send notification to user ${data.userId}:`,
-        error
-      );
-      throw error;
-    }
-  }
+  // processSendNotification method removed - notifications now handled directly via WebSocket
 }

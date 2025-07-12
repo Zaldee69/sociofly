@@ -9,6 +9,12 @@ import {
 } from "./job-types";
 import { JobProcessor } from "./job-processor";
 import { prisma } from "@/lib/prisma/client";
+import { 
+  REDIS_OPTIMIZATION_CONFIG, 
+  QUEUE_SPECIFIC_CONFIG,
+  getOptimizedQueueConfig 
+} from "./redis-optimization-config";
+import { RedisPerformanceMonitor } from "./redis-performance-monitor";
 
 export class QueueManager {
   private static instance: QueueManager;
@@ -16,6 +22,8 @@ export class QueueManager {
   private workers: Map<string, Worker> = new Map();
   private isInitialized = false;
   private redisManager: RedisManager | null = null;
+  private performanceMonitor: RedisPerformanceMonitor | null = null;
+  private autoCleanupInterval: NodeJS.Timeout | null = null;
 
   // Queue names
   public static readonly QUEUES = {
@@ -69,14 +77,21 @@ export class QueueManager {
       // Create workers
       await this.createWorkers();
 
+      // Initialize performance monitoring
+      this.performanceMonitor = RedisPerformanceMonitor.getInstance();
+      await this.performanceMonitor.startMonitoring();
+
+      // Start auto cleanup
+      await this.startAutoCleanup();
+
       this.isInitialized = true;
-      console.log("✅ Queue Manager initialized successfully");
+      console.log("✅ Queue Manager initialized successfully with Redis optimization");
 
       // Log startup
       await this.logQueueActivity(
         "queue_manager_started",
         "SUCCESS",
-        "Queue Manager initialized"
+        "Queue Manager initialized with Redis optimization"
       );
     } catch (error) {
       console.error("❌ Failed to initialize Queue Manager:", error);
@@ -95,73 +110,71 @@ export class QueueManager {
   }
 
   /**
-   * Create all queues
+   * Create all queues with optimized Redis settings
    */
   private async createQueues(): Promise<void> {
-    const queueConfigs = [
-      { name: QueueManager.QUEUES.HIGH_PRIORITY, concurrency: 5 },
-      { name: QueueManager.QUEUES.SCHEDULER, concurrency: 3 },
-      { name: QueueManager.QUEUES.NOTIFICATIONS, concurrency: 10 },
-      { name: QueueManager.QUEUES.WEBHOOKS, concurrency: 5 },
-      { name: QueueManager.QUEUES.REPORTS, concurrency: 2 },
-      { name: QueueManager.QUEUES.SOCIAL_SYNC, concurrency: 3 },
-      { name: QueueManager.QUEUES.MAINTENANCE, concurrency: 1 },
-    ];
+    const queueNames = Object.values(QueueManager.QUEUES);
 
-    for (const config of queueConfigs) {
-      const queue = new Queue(config.name, {
+    for (const queueName of queueNames) {
+      const optimizedConfig = getOptimizedQueueConfig(queueName);
+      const queueSpecific = QUEUE_SPECIFIC_CONFIG[queueName as keyof typeof QUEUE_SPECIFIC_CONFIG] || {};
+      
+      const queue = new Queue(queueName, {
         connection: this.getRedisConnectionOptions(),
         defaultJobOptions: {
-          removeOnComplete: 100,
-          removeOnFail: 50,
-          attempts: 3,
+          removeOnComplete: queueSpecific.removeOnComplete || optimizedConfig.removeOnComplete,
+          removeOnFail: optimizedConfig.removeOnFail,
+          attempts: optimizedConfig.jobRetryAttempts,
           backoff: {
             type: "exponential",
-            delay: 2000,
+            delay: optimizedConfig.jobRetryDelay,
           },
           delay: 0,
         },
       });
 
-      this.queues.set(config.name, queue);
-      console.log(`📋 Created queue: ${config.name}`);
+      this.queues.set(queueName, queue);
+      console.log(`📋 Created optimized queue: ${queueName} (removeOnComplete: ${queueSpecific.removeOnComplete || optimizedConfig.removeOnComplete})`);
     }
   }
 
   /**
-   * Create all workers
+   * Create all workers with optimized polling and rate limiting
    */
   private async createWorkers(): Promise<void> {
-    const workerConfigs = [
-      { name: QueueManager.QUEUES.HIGH_PRIORITY, concurrency: 5 },
-      { name: QueueManager.QUEUES.SCHEDULER, concurrency: 3 },
-      { name: QueueManager.QUEUES.NOTIFICATIONS, concurrency: 10 },
-      { name: QueueManager.QUEUES.WEBHOOKS, concurrency: 5 },
-      { name: QueueManager.QUEUES.REPORTS, concurrency: 2 },
-      { name: QueueManager.QUEUES.SOCIAL_SYNC, concurrency: 3 },
-      { name: QueueManager.QUEUES.MAINTENANCE, concurrency: 1 },
-    ];
+    const queueNames = Object.values(QueueManager.QUEUES);
 
-    for (const config of workerConfigs) {
+    for (const queueName of queueNames) {
+      const optimizedConfig = getOptimizedQueueConfig(queueName);
+      const queueSpecific = QUEUE_SPECIFIC_CONFIG[queueName as keyof typeof QUEUE_SPECIFIC_CONFIG] || {};
+      
       const worker = new Worker(
-        config.name,
+        queueName,
         async (job: Job) => {
           return await this.processJob(job);
         },
         {
           connection: this.getRedisConnectionOptions(),
-          concurrency: config.concurrency,
-          maxStalledCount: 3,
-          stalledInterval: 30000,
+          concurrency: queueSpecific.concurrency || optimizedConfig.workerConcurrency,
+          // Optimized: Reduce polling frequency to minimize BZPOPMIN calls
+          maxStalledCount: optimizedConfig.maxStalledCount,
+          stalledInterval: optimizedConfig.stalledInterval,
+          // Add rate limiting to prevent Redis overload
+          limiter: {
+            max: queueSpecific.rateLimitMax || optimizedConfig.rateLimitMax,
+            duration: optimizedConfig.rateLimitDuration,
+          },
+          // Additional worker settings for optimization
+          // Note: retryProcessDelay is handled by BullMQ internally
         }
       );
 
       // Add event listeners
-      this.addWorkerEventListeners(worker, config.name);
+      this.addWorkerEventListeners(worker, queueName);
 
-      this.workers.set(config.name, worker);
+      this.workers.set(queueName, worker);
       console.log(
-        `👷 Created worker: ${config.name} (concurrency: ${config.concurrency})`
+        `👷 Created optimized worker: ${queueName} (concurrency: ${queueSpecific.concurrency || optimizedConfig.workerConcurrency}, rateLimit: ${queueSpecific.rateLimitMax || optimizedConfig.rateLimitMax})`
       );
     }
   }
@@ -231,7 +244,7 @@ export class QueueManager {
   }
 
   /**
-   * Add job to queue
+   * Add job to queue with batching support
    */
   public async addJob(
     queueName: string,
@@ -279,7 +292,7 @@ export class QueueManager {
   }
 
   /**
-   * Get queue metrics
+   * Get queue metrics with optimized Redis calls
    */
   public async getQueueMetrics(queueName: string): Promise<QueueMetrics> {
     const queue = this.queues.get(queueName);
@@ -287,19 +300,23 @@ export class QueueManager {
       throw new Error(`Queue not found: ${queueName}`);
     }
 
-    const waiting = await queue.getWaiting();
-    const active = await queue.getActive();
-    const completed = await queue.getCompleted();
-    const failed = await queue.getFailed();
-    const delayed = await queue.getDelayed();
+    // Optimized: Use count methods instead of fetching full arrays to reduce Redis load
+    const [waiting, active, completed, failed, delayed, paused] = await Promise.all([
+      queue.getWaitingCount(),
+      queue.getActiveCount(), 
+      queue.getCompletedCount(),
+      queue.getFailedCount(),
+      queue.getDelayedCount(),
+      queue.isPaused(),
+    ]);
 
     return {
-      waiting: waiting.length,
-      active: active.length,
-      completed: completed.length,
-      failed: failed.length,
-      delayed: delayed.length,
-      paused: (await queue.isPaused()) ? 1 : 0,
+      waiting,
+      active,
+      completed,
+      failed,
+      delayed,
+      paused: paused ? 1 : 0,
     };
   }
 
@@ -360,10 +377,24 @@ export class QueueManager {
   }
 
   /**
-   * Shutdown all queues and workers
+   * Shutdown all queues and workers with cleanup
    */
   public async shutdown(): Promise<void> {
     console.log("🛑 Shutting down Queue Manager...");
+
+    // Stop performance monitoring
+    if (this.performanceMonitor) {
+      this.performanceMonitor.stopMonitoring();
+    }
+
+    // Stop auto cleanup
+    if (this.autoCleanupInterval) {
+      clearInterval(this.autoCleanupInterval);
+      this.autoCleanupInterval = null;
+    }
+
+    // Flush any remaining logs
+    await this.flushLogBuffer();
 
     // Close all workers
     for (const [name, worker] of this.workers) {
@@ -377,13 +408,26 @@ export class QueueManager {
       console.log(`📋 Closed queue: ${name}`);
     }
 
+    // Clear any pending timers
+    if (this.logFlushTimer) {
+      clearTimeout(this.logFlushTimer);
+      this.logFlushTimer = null;
+    }
+
     this.isInitialized = false;
-    console.log("✅ Queue Manager shutdown complete");
+    console.log("✅ Queue Manager shutdown complete with cleanup");
   }
 
   /**
-   * Log queue activity
+   * Log queue activity with batching to reduce database load
    */
+  private logBuffer: Array<{
+    name: string;
+    status: string;
+    message: string;
+  }> = [];
+  private logFlushTimer: NodeJS.Timeout | null = null;
+
   private async logQueueActivity(
     jobName: string,
     status: string,
@@ -391,17 +435,49 @@ export class QueueManager {
     data?: any
   ): Promise<void> {
     try {
-      await prisma.taskLog.create({
-        data: {
-          name: `queue_${jobName}`,
-          status,
-          message: data
-            ? `${message} - Data: ${JSON.stringify(data)}`
-            : message,
-        },
+      // Add to buffer instead of immediate database write
+      this.logBuffer.push({
+        name: `queue_${jobName}`,
+        status,
+        message: data
+          ? `${message} - Data: ${JSON.stringify(data)}`
+          : message,
       });
+
+      // Flush buffer when it reaches 10 items or after 30 seconds
+      if (this.logBuffer.length >= 10) {
+        await this.flushLogBuffer();
+      } else if (!this.logFlushTimer) {
+        this.logFlushTimer = setTimeout(() => {
+          this.flushLogBuffer();
+        }, 30000); // 30 seconds
+      }
     } catch (error) {
       console.error("Failed to log queue activity:", error);
+    }
+  }
+
+  /**
+   * Flush log buffer to database
+   */
+  private async flushLogBuffer(): Promise<void> {
+    if (this.logBuffer.length === 0) return;
+
+    try {
+      const logsToFlush = [...this.logBuffer];
+      this.logBuffer = [];
+      
+      if (this.logFlushTimer) {
+        clearTimeout(this.logFlushTimer);
+        this.logFlushTimer = null;
+      }
+
+      await prisma.taskLog.createMany({
+        data: logsToFlush,
+        skipDuplicates: true,
+      });
+    } catch (error) {
+      console.error("Failed to flush log buffer:", error);
     }
   }
 
@@ -447,6 +523,98 @@ export class QueueManager {
       attemptsMade: job.attemptsMade,
       delay: job.delay,
     };
+  }
+
+  /**
+   * Add multiple jobs in batch to reduce Redis calls
+   */
+  public async addJobsBatch(
+    queueName: string,
+    jobs: Array<{
+      jobType: JobType;
+      data: JobData;
+      options?: JobOptions;
+    }>
+  ): Promise<Job[]> {
+    const queue = this.queues.get(queueName);
+    if (!queue) {
+      throw new Error(`Queue not found: ${queueName}`);
+    }
+
+    // Batch add jobs to reduce Redis calls
+    const jobsToAdd = jobs.map((job, index) => ({
+      name: job.jobType,
+      data: job.data,
+      opts: {
+        ...job.options,
+      },
+    }));
+
+    const addedJobs = await queue.addBulk(jobsToAdd);
+    
+    console.log(`📤 Added ${addedJobs.length} jobs in batch to queue ${queueName}`);
+    
+    return addedJobs;
+  }
+
+  /**
+   * Auto cleanup completed and failed jobs periodically
+   */
+  public async startAutoCleanup(): Promise<void> {
+    // Clean up every 5 minutes
+    setInterval(async () => {
+      try {
+        for (const [queueName] of this.queues) {
+          // Clean completed jobs older than 1 hour
+          await this.cleanQueue(queueName, "completed", 3600000);
+          // Clean failed jobs older than 24 hours
+          await this.cleanQueue(queueName, "failed", 86400000);
+        }
+        console.log("🧹 Auto cleanup completed");
+      } catch (error) {
+        console.error("❌ Auto cleanup failed:", error);
+      }
+    }, 300000); // 5 minutes
+  }
+
+  /**
+   * Get Redis connection health
+   */
+  public async getRedisHealth(): Promise<{
+    connected: boolean;
+    commandsExecuted?: number;
+    memoryUsage?: string;
+  }> {
+    try {
+      if (!this.redisManager || !this.redisManager.isAvailable()) {
+        return { connected: false };
+      }
+
+      // Get basic Redis info
+      const redis = this.redisManager.getConnection();
+      if (!redis) {
+        return { connected: false };
+      }
+      const info = await redis.info('stats');
+      const memory = await redis.info('memory');
+      
+      // Parse commands executed
+      const commandsMatch = info.match(/total_commands_processed:(\d+)/);
+      const commandsExecuted = commandsMatch ? parseInt(commandsMatch[1]) : 0;
+      
+      // Parse memory usage
+      const memoryMatch = memory.match(/used_memory_human:([^\r\n]+)/);
+      const memoryUsage = memoryMatch ? memoryMatch[1] : 'unknown';
+
+      return {
+        connected: true,
+        commandsExecuted,
+        memoryUsage,
+      };
+    } catch (error) {
+      console.error('Failed to get Redis health:', error);
+      return { connected: false };
+    }
   }
 
   /**

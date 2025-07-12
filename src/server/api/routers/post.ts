@@ -60,6 +60,8 @@ const getPostsSchema = z.object({
   fromDate: z.coerce.date().optional(),
   postStatus: z.nativeEnum(PostStatus).optional(),
   toDate: z.coerce.date().optional(),
+  limit: z.number().min(1).max(100).optional().default(50), // Add pagination limit
+  offset: z.number().min(0).optional().default(0), // Add pagination offset
 });
 
 export const postRouter = createTRPCRouter({
@@ -88,7 +90,7 @@ export const postRouter = createTRPCRouter({
   getAll: protectedProcedure
     .input(getPostsSchema)
     .query(async ({ ctx, input }) => {
-      const { teamId, status, platform, fromDate, toDate } = input;
+      const { teamId, status, platform, fromDate, toDate, limit, offset } = input;
       const userId = getUserId(ctx);
 
       // Bangun filter berdasarkan input
@@ -114,15 +116,24 @@ export const postRouter = createTRPCRouter({
         }
       }
 
-      // Dapatkan data post dengan paginasi
+      // Dapatkan data post dengan paginasi yang dioptimalkan
       const [posts, totalCount] = await Promise.all([
         ctx.prisma.post.findMany({
           where,
           orderBy: { scheduledAt: "asc" },
+          take: limit,
+          skip: offset,
           include: {
             postSocialAccounts: {
               include: {
-                socialAccount: true,
+                socialAccount: {
+                  select: {
+                    id: true,
+                    name: true,
+                    platform: true,
+                    profilePicture: true,
+                  },
+                },
               },
             },
             user: {
@@ -141,6 +152,9 @@ export const postRouter = createTRPCRouter({
         posts,
         pagination: {
           total: totalCount,
+          limit,
+          offset,
+          hasMore: offset + limit < totalCount,
         },
       };
     }),

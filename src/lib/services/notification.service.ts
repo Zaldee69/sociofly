@@ -1,27 +1,7 @@
-import { Queue, Worker, Job } from "bullmq";
-import { RedisManager } from "@/lib/services/redis-manager";
 import { prisma } from "@/lib/prisma/client";
 import { NotificationType } from "@prisma/client";
-import { JobType } from "@/lib/queue/job-types";
 import { getWebSocketServer } from "../websocket/websocket-server";
 import type { NotificationPayload } from "../websocket/websocket-server";
-
-// Get Redis connection options from RedisManager
-const redisManager = RedisManager.getInstance();
-
-// Notification queue
-export const notificationQueue = new Queue("notifications", {
-  connection: redisManager.getConnectionOptions(),
-  defaultJobOptions: {
-    removeOnComplete: 100,
-    removeOnFail: 50,
-    attempts: 3,
-    backoff: {
-      type: "exponential",
-      delay: 2000,
-    },
-  },
-});
 
 // Notification job data interface
 interface NotificationJobData {

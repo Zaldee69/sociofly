@@ -18,7 +18,7 @@ Sentry.init({
   },
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
-  tracesSampleRate: 1,
+  tracesSampleRate: 0.1, // Reduced from 1.0 to 0.1 (10%) to improve performance
 
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,

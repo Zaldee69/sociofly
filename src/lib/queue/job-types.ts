@@ -6,7 +6,7 @@ export enum JobType {
   CHECK_EXPIRED_TOKENS = "check_expired_tokens",
   SYSTEM_HEALTH_CHECK = "system_health_check",
   CLEANUP_OLD_LOGS = "cleanup_old_logs",
-  SEND_NOTIFICATION = "send_notification",
+  // SEND_NOTIFICATION removed - notifications now handled directly via WebSocket
   PROCESS_WEBHOOK = "process_webhook",
   GENERATE_REPORT = "generate_report",
   SOCIAL_MEDIA_SYNC = "social_media_sync",
@@ -90,13 +90,7 @@ export interface CleanupOldLogsJobData {
   logType?: "cron" | "system" | "all";
 }
 
-export interface SendNotificationJobData {
-  userId: string;
-  type: "email" | "push" | "sms";
-  template: string;
-  data: Record<string, any>;
-  priority: "low" | "normal" | "high" | "urgent";
-}
+// SendNotificationJobData interface removed - notifications now handled directly via WebSocket
 
 export interface ProcessWebhookJobData {
   platform: string;
@@ -234,7 +228,6 @@ export type JobData =
   | CheckExpiredTokensJobData
   | SystemHealthCheckJobData
   | CleanupOldLogsJobData
-  | SendNotificationJobData
   | ProcessWebhookJobData
   | GenerateReportJobData
   | SocialMediaSyncJobData
