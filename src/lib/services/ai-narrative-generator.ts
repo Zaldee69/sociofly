@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { InsightSummary } from "../insightProcessor";
+import { InsightSummary } from "../insight-processor";
 
 const openai = new OpenAI({
   apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,

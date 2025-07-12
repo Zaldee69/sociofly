@@ -57,7 +57,7 @@ import { DetailedApprovalStatus } from "@/features/approval/components/detailed-
 import { AddPostDialog } from "@/features/scheduling/components/post-calendar/post-dialog";
 import { FileWithStablePreview } from "@/features/scheduling/components/post-calendar/post-dialog/hooks/use-media-files";
 import { SocialPlatform } from "@prisma/client";
-import { processInsights, InsightSummary } from "@/lib/insightProcessor";
+import { processInsights, InsightSummary } from "@/lib/insight-processor";
 
 // Platform icons and colors
 const platformConfig: Record<
