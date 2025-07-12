@@ -6,11 +6,20 @@ interface RedisConfig {
   port: number;
   password?: string;
   db?: number;
+  tls?: any;
 }
 
 interface RedisClusterNode {
   host: string;
   port: number;
+}
+
+interface ParsedRedisUrl {
+  host: string;
+  port: number;
+  password?: string;
+  db?: number;
+  tls?: boolean;
 }
 
 export class RedisManager {
@@ -26,6 +35,26 @@ export class RedisManager {
       RedisManager.instance = new RedisManager();
     }
     return RedisManager.instance;
+  }
+
+  /**
+   * Parse Redis URL into connection config
+   */
+  private parseRedisUrl(url: string): ParsedRedisUrl {
+    try {
+      const parsedUrl = new URL(url);
+      
+      return {
+        host: parsedUrl.hostname,
+        port: parseInt(parsedUrl.port) || 6379,
+        password: parsedUrl.password || undefined,
+        db: parsedUrl.pathname ? parseInt(parsedUrl.pathname.slice(1)) || 0 : 0,
+        tls: parsedUrl.protocol === 'rediss:'
+      };
+    } catch (error) {
+      console.error('❌ Failed to parse Redis URL:', error);
+      throw new Error('Invalid Redis URL format');
+    }
   }
 
   /**
@@ -61,8 +90,9 @@ export class RedisManager {
 
       this.isConnected = true;
 
+      const connectionType = process.env.REDIS_URL ? 'URL-based' : (this.isClusterMode ? 'Cluster' : 'Single');
       console.log(
-        `✅ Redis ${this.isClusterMode ? "Cluster" : "Single"} initialized successfully`
+        `✅ Redis ${connectionType} initialized successfully`
       );
     } catch (error) {
       console.error("❌ Failed to initialize Redis:", error);
@@ -87,12 +117,28 @@ export class RedisManager {
   }
 
   private async initializeSingle(): Promise<void> {
-    const config: RedisConfig = {
-      host: process.env.REDIS_HOST || "localhost",
-      port: parseInt(process.env.REDIS_PORT || "6379"),
-      password: process.env.REDIS_PASSWORD || undefined,
-      db: parseInt(process.env.REDIS_DB || "0"),
-    };
+    let config: RedisConfig;
+
+    // Check if REDIS_URL is provided
+    if (process.env.REDIS_URL) {
+      console.log("🔗 Using Redis URL configuration");
+      const parsedConfig = this.parseRedisUrl(process.env.REDIS_URL);
+      config = {
+        host: parsedConfig.host,
+        port: parsedConfig.port,
+        password: parsedConfig.password,
+        db: parsedConfig.db,
+        tls: parsedConfig.tls ? {} : undefined, // Enable TLS if rediss:// protocol
+      };
+    } else {
+      console.log("🔗 Using individual Redis environment variables");
+      config = {
+        host: process.env.REDIS_HOST || "localhost",
+        port: parseInt(process.env.REDIS_PORT || "6379"),
+        password: process.env.REDIS_PASSWORD || undefined,
+        db: parseInt(process.env.REDIS_DB || "0"),
+      };
+    }
 
     this.connection = new Redis({
       ...config,
@@ -223,14 +269,28 @@ export class RedisManager {
         retryDelayOnFailover: 100,
       };
     } else {
-      return {
-        host: process.env.REDIS_HOST || "localhost",
-        port: parseInt(process.env.REDIS_PORT || "6379"),
-        password: process.env.REDIS_PASSWORD || undefined,
-        db: parseInt(process.env.REDIS_DB || "0"),
-        maxRetriesPerRequest: null, // Required for BullMQ
-        retryDelayOnFailover: 100,
-      };
+      // Check if REDIS_URL is provided
+      if (process.env.REDIS_URL) {
+        const parsedConfig = this.parseRedisUrl(process.env.REDIS_URL);
+        return {
+          host: parsedConfig.host,
+          port: parsedConfig.port,
+          password: parsedConfig.password,
+          db: parsedConfig.db,
+          tls: parsedConfig.tls ? {} : undefined,
+          maxRetriesPerRequest: null, // Required for BullMQ
+          retryDelayOnFailover: 100,
+        };
+      } else {
+        return {
+          host: process.env.REDIS_HOST || "localhost",
+          port: parseInt(process.env.REDIS_PORT || "6379"),
+          password: process.env.REDIS_PASSWORD || undefined,
+          db: parseInt(process.env.REDIS_DB || "0"),
+          maxRetriesPerRequest: null, // Required for BullMQ
+          retryDelayOnFailover: 100,
+        };
+      }
     }
   }
 
@@ -315,9 +375,22 @@ export class RedisManager {
         nodes,
       };
     } else {
+      let host: string;
+      let port: number;
+
+      // Check if REDIS_URL is provided
+      if (process.env.REDIS_URL) {
+        const parsedConfig = this.parseRedisUrl(process.env.REDIS_URL);
+        host = parsedConfig.host;
+        port = parsedConfig.port;
+      } else {
+        host = process.env.REDIS_HOST || "localhost";
+        port = parseInt(process.env.REDIS_PORT || "6379");
+      }
+
       const node = {
-        host: process.env.REDIS_HOST || "localhost",
-        port: parseInt(process.env.REDIS_PORT || "6379"),
+        host,
+        port,
         status: this.isConnected ? "connected" : "disconnected",
         role: "master",
         health: this.isConnected,
