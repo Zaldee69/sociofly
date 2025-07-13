@@ -4,23 +4,33 @@ FROM node:20-alpine AS base
 FROM base AS deps
 WORKDIR /app
 
-# Install system dependencies
-RUN apk add --no-cache libc6-compat netcat-openbsd curl
-
-# Install specific yarn version as specified in package.json
-RUN corepack enable && corepack prepare yarn@1.22.22 --activate
+# Install system dependencies and enable corepack globally
+RUN apk add --no-cache libc6-compat netcat-openbsd curl && \
+    corepack enable
 
 # Copy package files
-COPY package.json package-lock.json* yarn.lock* ./
+COPY package.json package-lock.json* yarn.lock* .yarnrc.yml* ./
 
-# Verify files are copied correctly
-RUN ls -la && echo "Checking yarn.lock:" && head -10 yarn.lock
+# Debug: List copied files and check corepack status
+RUN echo "=== Debug Info ===" && \
+    ls -la && \
+    echo "Node version: $(node --version)" && \
+    echo "NPM version: $(npm --version)" && \
+    echo "Corepack status: $(corepack --version)" && \
+    echo "================="
 
 # Install dependencies based on the preferred package manager
 RUN \
   if [ -f yarn.lock ]; then \
     echo "Installing with yarn --frozen-lockfile" && \
-    yarn --frozen-lockfile --verbose; \
+    # Remove .yarnrc.yml if it exists (yarn v1 doesn't support it) \
+    rm -f .yarnrc.yml && \
+    # Use corepack to install and activate yarn version from package.json \
+    corepack install && \
+    # Verify yarn version \
+    echo "Yarn version: $(yarn --version)" && \
+    # Install dependencies \
+    yarn --frozen-lockfile; \
   elif [ -f package-lock.json ]; then \
     echo "Installing with npm ci" && \
     npm ci; \

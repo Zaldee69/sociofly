@@ -15,33 +15,33 @@ const envSchema = z.object({
     .default("development"),
 
   // Database
-  DATABASE_URL: z.string().min(1).optional(),
-  DIRECT_URL: z.string().min(1).optional(),
+  DATABASE_URL: z.string().optional().or(z.literal("")),
+  DIRECT_URL: z.string().optional().or(z.literal("")),
 
   // Auth
-  CLERK_SECRET_KEY: z.string().min(1).optional(),
-  CLERK_WEBHOOK_SECRET: z.string().min(1).optional(),
-  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1).optional(),
+  CLERK_SECRET_KEY: z.string().optional().or(z.literal("")),
+  CLERK_WEBHOOK_SECRET: z.string().optional().or(z.literal("")),
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().optional().or(z.literal("")),
   NEXT_PUBLIC_CLERK_SIGN_IN_URL: z.string().default("/sign-in"),
   NEXT_PUBLIC_CLERK_SIGN_UP_URL: z.string().default("/sign-up"),
 
   // API services
-  UPLOADTHING_SECRET: z.string().min(1).optional(),
-  UPLOADTHING_APP_ID: z.string().min(1).optional(),
+  UPLOADTHING_SECRET: z.string().optional().or(z.literal("")),
+  UPLOADTHING_APP_ID: z.string().optional().or(z.literal("")),
 
   // Midtrans
-  MIDTRANS_SERVER_KEY: z.string().min(1).optional(),
-  MIDTRANS_CLIENT_KEY: z.string().min(1).optional(),
+  MIDTRANS_SERVER_KEY: z.string().optional().or(z.literal("")),
+  MIDTRANS_CLIENT_KEY: z.string().optional().or(z.literal("")),
 
   // Public URL
-  NEXT_PUBLIC_APP_URL: z.string().min(1).optional(),
+  NEXT_PUBLIC_APP_URL: z.string().optional().or(z.literal("")),
 
   // Email
-  RESEND_API_KEY: z.string().min(1).optional(),
+  RESEND_API_KEY: z.string().optional().or(z.literal("")),
 
   // Social Media APIs
-  FACEBOOK_APP_ID: z.string().min(1).optional(),
-  FACEBOOK_APP_SECRET: z.string().min(1).optional(),
+  FACEBOOK_APP_ID: z.string().optional().or(z.literal("")),
+  FACEBOOK_APP_SECRET: z.string().optional().or(z.literal("")),
 });
 
 // Parse and validate environment variables
@@ -94,6 +94,24 @@ export function getEnvironment() {
     }
   }
   return _env;
+}
+
+// Helper function to check if required environment variables are available
+export function validateRequiredEnvVars() {
+  const env = getEnvironment();
+  const missing: string[] = [];
+  
+  // Check critical environment variables
+  if (!env.DATABASE_URL) missing.push('DATABASE_URL');
+  if (!env.CLERK_SECRET_KEY) missing.push('CLERK_SECRET_KEY');
+  if (!env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) missing.push('NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY');
+  
+  if (missing.length > 0) {
+    console.warn(`Missing required environment variables: ${missing.join(', ')}`);
+    console.warn('Application may not function correctly without these variables.');
+  }
+  
+  return { isValid: missing.length === 0, missing };
 }
 
 // Export validated environment variables (deprecated - use getEnvironment() instead)
