@@ -280,16 +280,42 @@ jobs:
               echo "✅ User '$CURRENT_USER' has Docker access without sudo"
               USE_SUDO=""
             fi
+            
+            echo "Debug: USE_SUDO='$USE_SUDO'"
+            echo "Debug: APP_DIR='$APP_DIR'"
 
             # Login to Docker Hub
+            echo "=== Docker Login ==="
             echo "$DOCKER_PASSWORD" | ${USE_SUDO}docker login -u $DOCKER_USERNAME --password-stdin
+            if [ $? -eq 0 ]; then
+              echo "✅ Docker login successful"
+            else
+              echo "❌ Docker login failed"
+              exit 1
+            fi
 
             # Pull the latest image
+            echo "=== Pulling Latest Images ==="
             ${USE_SUDO}docker-compose pull
+            if [ $? -eq 0 ]; then
+              echo "✅ Docker images pulled successfully"
+            else
+              echo "❌ Failed to pull Docker images"
+              exit 1
+            fi
 
             # Update containers with auto-restart policy
+            echo "=== Stopping Containers ==="
             ${USE_SUDO}docker-compose down
+            
+            echo "=== Starting Containers ==="
             ${USE_SUDO}docker-compose up -d --remove-orphans
+            if [ $? -eq 0 ]; then
+              echo "✅ Containers started successfully"
+            else
+              echo "❌ Failed to start containers"
+              exit 1
+            fi
 
             # Ensure containers have restart policy
             ${USE_SUDO}docker update --restart=unless-stopped $(${USE_SUDO}docker-compose ps -q) 2>/dev/null || true
@@ -313,24 +339,24 @@ jobs:
             if command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
               echo "=== Setting up auto-start service ==="
               sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << EOF
-            [Unit]
-            Description=My Scheduler App
-            Requires=docker.service
-            After=docker.service
+[Unit]
+Description=My Scheduler App
+Requires=docker.service
+After=docker.service
 
-            [Service]
-            Type=oneshot
-            RemainAfterExit=yes
-            User=$CURRENT_USER
-            Group=docker
-            WorkingDirectory=$APP_DIR
-            ExecStart=/usr/local/bin/docker-compose up -d
-            ExecStop=/usr/local/bin/docker-compose down
-            TimeoutStartSec=0
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=${CURRENT_USER}
+Group=docker
+WorkingDirectory=${APP_DIR}
+ExecStart=/usr/local/bin/docker-compose up -d
+ExecStop=/usr/local/bin/docker-compose down
+TimeoutStartSec=0
 
-            [Install]
-            WantedBy=multi-user.target
-            EOF
+[Install]
+WantedBy=multi-user.target
+EOF
               
               # Enable and start the service
               sudo systemctl daemon-reload
