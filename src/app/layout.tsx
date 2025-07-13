@@ -4,9 +4,10 @@ import Script from "next/script";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { TRPCProvider } from "@/components/providers/trpc-provider";
-import { ClerkProvider } from "@clerk/nextjs";
 import { TeamProvider } from "@/lib/contexts/team-context";
 import { WebSocketProvider } from "@/components/providers/websocket-provider";
+import { ClerkProviderWrapper } from "@/components/providers/clerk-provider-wrapper";
+import { getEnvironment } from "@/config/env";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -27,8 +28,18 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Get environment variables with fallback for build time
+  let publishableKey: string | undefined;
+  try {
+    const env = getEnvironment();
+    publishableKey = env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  } catch (error) {
+    // Fallback for build time when environment variables might not be available
+    publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  }
+
   return (
-    <ClerkProvider>
+    <ClerkProviderWrapper publishableKey={publishableKey}>
       <html lang="en" className="light" style={{ colorScheme: "light" }}>
         <body className={dmSans.className}>
           <Toaster />
@@ -49,6 +60,6 @@ export default function RootLayout({
           />
         </body>
       </html>
-    </ClerkProvider>
+    </ClerkProviderWrapper>
   );
 }

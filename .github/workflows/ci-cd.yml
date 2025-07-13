@@ -11,6 +11,7 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    environment: DEV_ENV
 
     steps:
       - name: Checkout code
@@ -37,11 +38,54 @@ jobs:
       - name: Build
         run: yarn build
         env:
-          # Use production environment variables
+          # ===== SECRETS (Sensitive Data) =====
+          # Database (Sensitive)
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          # Supabase (Sensitive)
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # OpenAI (Sensitive)
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Clerk Authentication (Sensitive)
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_WEBHOOK_SECRET: ${{ secrets.CLERK_WEBHOOK_SECRET }}
+          # Email Service (Sensitive)
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          # Redis (Sensitive - if password exists)
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          # Midtrans Payment (Sensitive)
+          MIDTRANS_CLIENT_KEY: ${{ secrets.MIDTRANS_CLIENT_KEY }}
+          MIDTRANS_SERVER_KEY: ${{ secrets.MIDTRANS_SERVER_KEY }}
+          # Facebook Integration (Sensitive)
+          NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET: ${{ secrets.NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET }}
+          # UploadThing (Sensitive)
+          UPLOADTHING_TOKEN: ${{ secrets.UPLOADTHING_TOKEN }}
+          # Sentry (Sensitive)
+          ENTRY_AUTH_TOKEN: ${{ secrets.ENTRY_AUTH_TOKEN }}
+          
+          # ===== ENVIRONMENT VARIABLES (Non-Sensitive) =====
+          # Supabase (Public)
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          # Clerk Authentication (Public)
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          # Application URLs (Non-sensitive)
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
+          # WebSocket Configuration (Non-sensitive)
+          WEBSOCKET_PORT: ${{ vars.WEBSOCKET_PORT }}
+          NEXT_PUBLIC_WEBSOCKET_PORT: ${{ vars.NEXT_PUBLIC_WEBSOCKET_PORT }}
+          NEXT_PUBLIC_WEBSOCKET_URL: ${{ vars.NEXT_PUBLIC_WEBSOCKET_URL }}
+          # Scheduled Jobs (Non-sensitive)
+          ENABLE_SCHEDULED_JOBS: ${{ vars.ENABLE_SCHEDULED_JOBS }}
+          # Redis Configuration (Non-sensitive)
+          REDIS_HOST: ${{ vars.REDIS_HOST }}
+          REDIS_PORT: ${{ vars.REDIS_PORT }}
+          REDIS_DB: ${{ vars.REDIS_DB }}
+          REDIS_USE_CLUSTER: ${{ vars.REDIS_USE_CLUSTER }}
+          # Midtrans Payment (Non-sensitive)
+          MIDTRANS_IS_PRODUCTION: ${{ vars.MIDTRANS_IS_PRODUCTION }}
+          # Facebook Integration (Public)
+          NEXT_PUBLIC_FACEBOOK_CLIENT_ID: ${{ vars.NEXT_PUBLIC_FACEBOOK_CLIENT_ID }}
 
       - name: Cache build output
         uses: actions/cache@v3
