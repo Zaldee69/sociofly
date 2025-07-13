@@ -312,13 +312,13 @@ jobs:
 
             # Create production docker-compose override file
             echo "=== Creating production docker-compose override ==="
-            cat > docker-compose.prod.yml << 'PROD_EOF'
+            cat > docker-compose.prod.yml << 'EOF'
             version: "3.8"
             services:
               app:
                 image: ${REGISTRY}/${IMAGE_NAME}:latest
                 build: null
-            PROD_EOF
+            EOF
             
             if [ $? -eq 0 ]; then
               echo "✅ Production docker-compose override created"
@@ -424,25 +424,25 @@ jobs:
               echo "=== Setting up auto-start service ==="
               
               # Create systemd service file dengan variabel yang ter-expand
-              sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << EOF
-            [Unit]
-            Description=My Scheduler App
-            Requires=docker.service
-            After=docker.service
+              sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << 'EOF'
+              [Unit]
+              Description=My Scheduler App
+              Requires=docker.service
+              After=docker.service
 
-            [Service]
-            Type=oneshot
-            RemainAfterExit=yes
-            User=$CURRENT_USER
-            Group=docker
-            WorkingDirectory=$APP_DIR
-            ExecStart=/usr/bin/docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-            ExecStop=/usr/bin/docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
-            TimeoutStartSec=0
+              [Service]
+              Type=oneshot
+              RemainAfterExit=yes
+              User=$CURRENT_USER
+              Group=docker
+              WorkingDirectory=$APP_DIR
+              ExecStart=/usr/bin/docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+              ExecStop=/usr/bin/docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
+              TimeoutStartSec=0
 
-            [Install]
-            WantedBy=multi-user.target
-            EOF
+              [Install]
+              WantedBy=multi-user.target
+              EOF
               
               if [ $? -eq 0 ]; then
                 echo "✅ Systemd service file created successfully"
