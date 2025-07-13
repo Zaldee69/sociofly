@@ -145,7 +145,7 @@ const PaymentHistory = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((transaction) => {
+                {transactions.map((transaction: any) => {
                   const planName =
                     PLAN_DISPLAY_NAMES[
                       transaction.plan as keyof typeof PLAN_DISPLAY_NAMES
