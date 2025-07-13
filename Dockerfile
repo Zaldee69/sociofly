@@ -25,8 +25,8 @@ RUN \
     echo "Installing with yarn --frozen-lockfile" && \
     # Remove .yarnrc.yml if it exists (yarn v1 doesn't support it) \
     rm -f .yarnrc.yml && \
-    # Use corepack to install and activate yarn version from package.json \
-    corepack install && \
+    # Install yarn globally using npm \
+    npm install -g yarn@1.22.22 && \
     # Verify yarn version \
     echo "Yarn version: $(yarn --version)" && \
     # Install dependencies \
