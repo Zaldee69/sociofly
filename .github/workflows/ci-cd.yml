@@ -266,29 +266,36 @@ jobs:
 
             # Verify user is in docker group
             echo "Checking Docker access..."
-            if ! groups $USER | grep -q docker; then
-              echo "Warning: User not in docker group. Adding user to docker group..."
-              sudo usermod -aG docker $USER || true
-              echo "Please ensure user is in docker group before running this script"
+            CURRENT_USER=$(whoami)
+            echo "Current user: $CURRENT_USER"
+            echo "User groups: $(groups $CURRENT_USER)"
+            
+            if ! groups $CURRENT_USER | grep -q docker; then
+              echo "⚠️  User '$CURRENT_USER' not in docker group. Adding user to docker group..."
+              sudo usermod -aG docker $CURRENT_USER || true
+              echo "✅ User added to docker group. Note: Group changes require logout/login to take effect."
+              echo "🔄 Using sudo for Docker commands as fallback..."
+              USE_SUDO="sudo "
             else
-              echo "User has Docker access without sudo"
+              echo "✅ User '$CURRENT_USER' has Docker access without sudo"
+              USE_SUDO=""
             fi
 
             # Login to Docker Hub
-            echo "$DOCKER_PASSWORD" | docker login -u $DOCKER_USERNAME --password-stdin
+            echo "$DOCKER_PASSWORD" | ${USE_SUDO}docker login -u $DOCKER_USERNAME --password-stdin
 
             # Pull the latest image
-            docker-compose pull
+            ${USE_SUDO}docker-compose pull
 
             # Update containers with auto-restart policy
-            docker-compose down
-            docker-compose up -d --remove-orphans
+            ${USE_SUDO}docker-compose down
+            ${USE_SUDO}docker-compose up -d --remove-orphans
 
             # Ensure containers have restart policy
-            docker update --restart=unless-stopped $(docker-compose ps -q) 2>/dev/null || true
+            ${USE_SUDO}docker update --restart=unless-stopped $(${USE_SUDO}docker-compose ps -q) 2>/dev/null || true
 
             # Clean up old images
-            docker image prune -af --filter "until=24h"
+            ${USE_SUDO}docker image prune -af --filter "until=24h"
 
             # Wait for application to start
             echo "Waiting for application to start..."
@@ -296,7 +303,7 @@ jobs:
 
             # Check container status
             echo "=== Container Status ==="
-            docker-compose ps
+            ${USE_SUDO}docker-compose ps
 
             # Basic health check
             echo "=== Health Check ==="
@@ -314,7 +321,7 @@ jobs:
             [Service]
             Type=oneshot
             RemainAfterExit=yes
-            User=$USER
+            User=$CURRENT_USER
             Group=docker
             WorkingDirectory=$APP_DIR
             ExecStart=/usr/local/bin/docker-compose up -d
