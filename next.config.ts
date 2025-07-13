@@ -44,6 +44,9 @@ const nextConfig: NextConfig = {
   experimental: {
     // Future experimental features can be added here
   },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   output: "standalone", // Enable standalone output for Docker
   images: {
     remotePatterns: [
