@@ -20,15 +20,13 @@ RUN echo "=== Debug Info ===" && \
     echo "================="
 
 # Install dependencies based on the preferred package manager
-RUN \
+# Use cache mount for faster builds
+RUN --mount=type=cache,target=/root/.yarn \
   if [ -f yarn.lock ]; then \
     echo "Installing with yarn (using corepack)" && \
-    # Enable corepack and prepare yarn \
     corepack enable && \
     corepack prepare --activate && \
-    # Verify yarn version \
     echo "Yarn version: $(yarn --version)" && \
-    # Install dependencies with network timeout and retry \
     yarn install --immutable --network-timeout 300000; \
   elif [ -f package-lock.json ]; then \
     echo "Installing with npm ci" && \
@@ -74,7 +72,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Generate Prisma Client
 RUN npx prisma generate
 
-RUN npm run build
+# Build with cache mount for faster builds
+RUN --mount=type=cache,target=/app/.next/cache \
+    npm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner

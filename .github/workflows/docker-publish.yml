@@ -4,8 +4,9 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
-  pull_request:
-    branches: [main]
+  # Removed pull_request trigger to avoid unnecessary builds
+  # pull_request:
+  #   branches: [main]
   workflow_dispatch:
 
 env:
@@ -59,7 +60,8 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          # Use single platform for faster builds (multi-platform can be enabled for releases)
+          platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

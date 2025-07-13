@@ -98,47 +98,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nextjs-
 
-  docker-build:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    environment: DEV_ENV
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          registry: docker.io
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          logout: true
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: voetaz123/sociofly:latest,voetaz123/sociofly:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
-            NODE_ENV=production
-            SKIP_ENV_VALIDATION=true
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
-            NEXT_PUBLIC_WEBSOCKET_URL=${{ vars.NEXT_PUBLIC_WEBSOCKET_URL }}
-            NEXT_PUBLIC_WEBSOCKET_PORT=${{ vars.NEXT_PUBLIC_WEBSOCKET_PORT }}
-            NEXT_PUBLIC_FACEBOOK_CLIENT_ID=${{ vars.NEXT_PUBLIC_FACEBOOK_CLIENT_ID }}
+  # Docker build is handled by separate docker-publish.yml workflow
+  # to avoid duplicate builds and improve efficiency
 
   deploy:
     needs: docker-build
