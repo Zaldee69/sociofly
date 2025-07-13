@@ -366,7 +366,7 @@ jobs:
               echo "=== Setting up auto-start service ==="
               
               # Create systemd service file dengan variabel yang ter-expand
-              sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << 'EOF'
+              sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << EOF
             [Unit]
             Description=My Scheduler App
             Requires=docker.service
