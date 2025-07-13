@@ -114,16 +114,16 @@ jobs:
       # Uncomment and configure for your deployment method
 
       # Option 1: Deploy to VPS using SSH
-      # - name: Deploy to VPS
-      #   uses: appleboy/ssh-action@master
-      #   with:
-      #     host: ${{ secrets.SSH_HOST }}
-      #     username: ${{ secrets.SSH_USERNAME }}
-      #     key: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     script: |
-      #       cd /path/to/app
-      #       docker-compose pull
-      #       docker-compose up -d
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /path/to/app
+            docker-compose pull
+            docker-compose up -d
 
       # Option 2: Deploy to Kubernetes
       # - name: Set up kubectl
