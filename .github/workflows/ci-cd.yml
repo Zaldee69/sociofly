@@ -277,10 +277,44 @@ jobs:
           script_stop: true
           envs: DOCKER_PASSWORD,DOCKER_USERNAME,APP_DIR,IMAGE_NAME,REGISTRY
           script: |
-            cd $APP_DIR
+            # Validate required environment variables
+            echo "=== Validating Environment Variables ==="
+            if [ -z "$APP_DIR" ]; then
+              echo "❌ Error: APP_DIR environment variable is not set"
+              exit 1
+            fi
+            if [ -z "$IMAGE_NAME" ]; then
+              echo "❌ Error: IMAGE_NAME environment variable is not set"
+              exit 1
+            fi
+            if [ -z "$REGISTRY" ]; then
+              echo "❌ Error: REGISTRY environment variable is not set"
+              exit 1
+            fi
+            if [ -z "$DOCKER_USERNAME" ]; then
+              echo "❌ Error: DOCKER_USERNAME environment variable is not set"
+              exit 1
+            fi
+            if [ -z "$DOCKER_PASSWORD" ]; then
+              echo "❌ Error: DOCKER_PASSWORD environment variable is not set"
+              exit 1
+            fi
+            echo "✅ All required environment variables are set"
+            
+            # Change to application directory
+            echo "=== Changing to Application Directory ==="
+            if [ ! -d "$APP_DIR" ]; then
+              echo "❌ Error: Application directory '$APP_DIR' does not exist"
+              exit 1
+            fi
+            cd "$APP_DIR" || {
+              echo "❌ Error: Failed to change to directory '$APP_DIR'"
+              exit 1
+            }
+            echo "✅ Changed to directory: $(pwd)"
 
             # Verify user is in docker group
-            echo "Checking Docker access..."
+            echo "=== Checking Docker Access ==="
             CURRENT_USER=$(whoami)
             echo "Current user: $CURRENT_USER"
             echo "User groups: $(groups $CURRENT_USER)"
@@ -299,6 +333,7 @@ jobs:
             echo "Debug: USE_SUDO='$USE_SUDO'"
             echo "Debug: APP_DIR='$APP_DIR'"
             echo "Debug: IMAGE_NAME='$IMAGE_NAME'"
+            echo "Debug: REGISTRY='$REGISTRY'"
 
             # Login to Docker Hub
             echo "=== Docker Login ==="
