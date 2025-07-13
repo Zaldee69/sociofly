@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Download, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Transaction } from "@/types/billing";
 
 const PaymentHistory = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);

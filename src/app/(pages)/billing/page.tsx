@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import SubscriptionStatus from "./components/subscription-status";
 import { SubscriptionButton } from "@/components/payment/subscription-button";
-import { BillingPlan } from "@prisma/client";
+import { BillingPlan } from "@/types/billing";
 import { SUBSCRIPTION_PRICES, PLAN_DISPLAY_NAMES } from "@/config/constants";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
