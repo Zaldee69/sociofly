@@ -62,7 +62,7 @@ jobs:
           UPLOADTHING_TOKEN: ${{ secrets.UPLOADTHING_TOKEN }}
           # Sentry (Sensitive)
           ENTRY_AUTH_TOKEN: ${{ secrets.ENTRY_AUTH_TOKEN }}
-          
+
           # ===== ENVIRONMENT VARIABLES (Non-Sensitive) =====
           # Supabase (Public)
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
