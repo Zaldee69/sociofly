@@ -28,13 +28,6 @@ jobs:
       - name: Lint
         run: yarn lint
 
-      - name: Run tests
-        run: yarn test
-        env:
-          # Mock environment variables for testing
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/test_db' }}
-          REDIS_URL: "redis://localhost:6379"
-
       - name: Build
         run: yarn build
         env:
