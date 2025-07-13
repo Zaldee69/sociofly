@@ -260,30 +260,61 @@ jobs:
           timeout: 30s
           command_timeout: 10m
           script_stop: true
+          envs: DOCKER_PASSWORD,DOCKER_USERNAME,APP_DIR
+        env:
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
           script: |
-            cd ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+            cd $APP_DIR
 
-            # Add user to docker group if not already added
-            sudo usermod -aG docker $USER || true
-            
-            # Refresh group membership
-            newgrp docker || true
+            # Setup passwordless sudo for docker commands (one-time setup)
+            echo "Setting up passwordless sudo for docker operations..."
+            if ! sudo -n true 2>/dev/null; then
+              echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/docker, /usr/bin/docker-compose, /bin/systemctl, /usr/bin/tee, /usr/sbin/usermod" | sudo tee /etc/sudoers.d/docker-deploy > /dev/null 2>&1 || {
+                echo "Warning: Could not setup passwordless sudo. Trying alternative approach..."
+                # Try using docker without sudo if user is in docker group
+                if groups $USER | grep -q docker; then
+                  echo "User is in docker group, proceeding without sudo..."
+                  USE_SUDO=""
+                else
+                  echo "Adding user to docker group..."
+                  sudo usermod -aG docker $USER 2>/dev/null || true
+                  echo "Please run 'newgrp docker' manually or restart the session"
+                  USE_SUDO="sudo "
+                fi
+              }
+            fi
+
+            # Set sudo prefix based on availability
+            USE_SUDO="sudo "
+            if sudo -n true 2>/dev/null; then
+              echo "Passwordless sudo available"
+            else
+              echo "Checking if user is in docker group..."
+              if groups $USER | grep -q docker; then
+                USE_SUDO=""
+                echo "Using docker without sudo"
+              else
+                echo "Warning: Neither passwordless sudo nor docker group membership available"
+              fi
+            fi
 
             # Login to Docker Hub
-            echo "${{ secrets.DOCKER_PASSWORD }}" | sudo docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+            echo "$DOCKER_PASSWORD" | ${USE_SUDO}docker login -u $DOCKER_USERNAME --password-stdin
 
             # Pull the latest image
-            sudo docker-compose pull
+            ${USE_SUDO}docker-compose pull
 
             # Update containers with auto-restart policy
-            sudo docker-compose down
-            sudo docker-compose up -d --remove-orphans
+            ${USE_SUDO}docker-compose down
+            ${USE_SUDO}docker-compose up -d --remove-orphans
 
             # Ensure containers have restart policy
-            sudo docker update --restart=unless-stopped $(sudo docker-compose ps -q) 2>/dev/null || true
+            ${USE_SUDO}docker update --restart=unless-stopped $(${USE_SUDO}docker-compose ps -q) 2>/dev/null || true
 
             # Clean up old images
-            sudo docker image prune -af --filter "until=24h"
+            ${USE_SUDO}docker image prune -af --filter "until=24h"
 
             # Wait for application to start
             echo "Waiting for application to start..."
@@ -291,37 +322,41 @@ jobs:
 
             # Check container status
             echo "=== Container Status ==="
-            sudo docker-compose ps
+            ${USE_SUDO}docker-compose ps
 
             # Basic health check
             echo "=== Health Check ==="
             curl -s --retry 5 --retry-delay 5 --retry-connrefused http://localhost:3000/api/health || echo "Health check failed"
 
-            # Setup systemd service for auto-start on boot
-            echo "=== Setting up auto-start service ==="
-            sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << 'EOF'
-            [Unit]
-            Description=My Scheduler App
-            Requires=docker.service
-            After=docker.service
-            
-            [Service]
-            Type=oneshot
-            RemainAfterExit=yes
-            User=root
-            WorkingDirectory=${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
-            ExecStart=/usr/local/bin/docker-compose up -d
-            ExecStop=/usr/local/bin/docker-compose down
-            TimeoutStartSec=0
-            
-            [Install]
-            WantedBy=multi-user.target
-            EOF
-            
-            # Enable and start the service
-            sudo systemctl daemon-reload
-            sudo systemctl enable my-scheduler-app.service
-            echo "Auto-start service configured successfully"
+            # Setup systemd service for auto-start on boot (if sudo available)
+            if sudo -n true 2>/dev/null; then
+              echo "=== Setting up auto-start service ==="
+              sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << EOF
+[Unit]
+Description=My Scheduler App
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+WorkingDirectory=$APP_DIR
+ExecStart=/usr/local/bin/docker-compose up -d
+ExecStop=/usr/local/bin/docker-compose down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+EOF
+              
+              # Enable and start the service
+              sudo systemctl daemon-reload
+              sudo systemctl enable my-scheduler-app.service
+              echo "Auto-start service configured successfully"
+            else
+              echo "Skipping systemd service setup (requires sudo access)"
+            fi
 
       - name: Send notification on success
         if: success()
