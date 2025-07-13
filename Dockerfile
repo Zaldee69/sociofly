@@ -7,14 +7,26 @@ WORKDIR /app
 # Install system dependencies
 RUN apk add --no-cache libc6-compat netcat-openbsd curl
 
+# Install specific yarn version as specified in package.json
+RUN corepack enable && corepack prepare yarn@1.22.22 --activate
+
 # Copy package files
 COPY package.json package-lock.json* yarn.lock* ./
 
+# Verify files are copied correctly
+RUN ls -la && echo "Checking yarn.lock:" && head -10 yarn.lock
+
 # Install dependencies based on the preferred package manager
 RUN \
-  if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-  elif [ -f package-lock.json ]; then npm ci; \
-  else npm i; \
+  if [ -f yarn.lock ]; then \
+    echo "Installing with yarn --frozen-lockfile" && \
+    yarn --frozen-lockfile --verbose; \
+  elif [ -f package-lock.json ]; then \
+    echo "Installing with npm ci" && \
+    npm ci; \
+  else \
+    echo "Installing with npm i" && \
+    npm i; \
   fi
 
 # Rebuild the source code only when needed
@@ -68,4 +80,4 @@ ENV HOSTNAME "0.0.0.0"
 
 # Use the initialization script as entrypoint
 ENTRYPOINT ["./docker-init.sh"]
-CMD ["node", "server.js"] 
+CMD ["node", "server.js"]
