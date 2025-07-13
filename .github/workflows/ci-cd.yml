@@ -102,7 +102,7 @@ jobs:
   # to avoid duplicate builds and improve efficiency
 
   deploy:
-    needs: docker-build
+    needs: build-and-test
     runs-on: ubuntu-latest
     environment: DEV_ENV
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
