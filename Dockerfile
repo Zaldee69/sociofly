@@ -22,15 +22,14 @@ RUN echo "=== Debug Info ===" && \
 # Install dependencies based on the preferred package manager
 RUN \
   if [ -f yarn.lock ]; then \
-    echo "Installing with yarn --frozen-lockfile" && \
-    # Remove .yarnrc.yml if it exists (yarn v1 doesn't support it) \
-    rm -f .yarnrc.yml && \
-    # Install yarn globally using npm \
-    npm install -g yarn@1.22.22 && \
+    echo "Installing with yarn (using corepack)" && \
+    # Enable corepack and prepare yarn \
+    corepack enable && \
+    corepack prepare --activate && \
     # Verify yarn version \
     echo "Yarn version: $(yarn --version)" && \
-    # Install dependencies \
-    yarn --frozen-lockfile; \
+    # Install dependencies with network timeout and retry \
+    yarn install --immutable --network-timeout 300000; \
   elif [ -f package-lock.json ]; then \
     echo "Installing with npm ci" && \
     npm ci; \
@@ -48,7 +47,7 @@ COPY . .
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line in case you want to disable telemetry during the build.
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Generate Prisma Client
 RUN npx prisma generate
@@ -59,8 +58,8 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN apk add --no-cache netcat-openbsd curl
 
@@ -85,8 +84,8 @@ USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 # Use the initialization script as entrypoint
 ENTRYPOINT ["./docker-init.sh"]
