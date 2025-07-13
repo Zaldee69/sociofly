@@ -48,6 +48,11 @@ jobs:
       - name: Run linter
         run: yarn lint
 
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/test_db' }}
+
       - name: Run type checking
         run: yarn tsc --noEmit
 

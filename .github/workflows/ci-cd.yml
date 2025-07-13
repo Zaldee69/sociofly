@@ -28,6 +28,12 @@ jobs:
       - name: Lint
         run: yarn lint
 
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+
       - name: Build
         run: yarn build
         env:
