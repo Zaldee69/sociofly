@@ -124,7 +124,7 @@ jobs:
           NEXT_PUBLIC_FACEBOOK_CLIENT_ID: ${{ vars.NEXT_PUBLIC_FACEBOOK_CLIENT_ID }}
 
       - name: Cache build output
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             .next/cache
