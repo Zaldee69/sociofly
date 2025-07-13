@@ -34,7 +34,17 @@
     "cluster:status": "./scripts/setup-redis-cluster.sh status",
     "cluster:test": "./scripts/setup-redis-cluster.sh test",
     "cluster:clean": "./scripts/setup-redis-cluster.sh clean",
-    "cluster:info": "./scripts/setup-redis-cluster.sh info"
+    "cluster:info": "./scripts/setup-redis-cluster.sh info",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f app",
+    "docker:dev:build": "docker-compose -f docker-compose.dev.yml build",
+    "docker:dev:up": "docker-compose -f docker-compose.dev.yml up -d",
+    "docker:dev:down": "docker-compose -f docker-compose.dev.yml down",
+    "docker:dev:logs": "docker-compose -f docker-compose.dev.yml logs -f app",
+    "docker:db:migrate": "docker-compose exec app npx prisma migrate deploy",
+    "docker:db:studio": "docker-compose exec app npx prisma studio"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",

@@ -45,3 +45,8 @@ next-env.d.ts
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Add Docker-related files to .gitignore
+.env.docker
+.env.docker.dev
+.docker-data

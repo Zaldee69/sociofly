@@ -1,0 +1,80 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      # Gunakan DATABASE_URL dan DIRECT_URL dari .env file untuk koneksi ke Supabase
+      # - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/scheduler_db?schema=public
+      # - DIRECT_URL=postgresql://postgres:postgres@postgres:5432/scheduler_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ENABLE_SCHEDULED_JOBS=true
+      - CRON_API_KEY=your-cron-api-key
+      - NEXT_PUBLIC_CRON_API_KEY=your-cron-api-key
+      - TZ=Asia/Jakarta
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - app-network
+    volumes:
+      - app-uploads:/app/public/uploads
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Uncomment to add Redis Commander (Redis UI)
+  # redis-commander:
+  #   image: rediscommander/redis-commander:latest
+  #   platform: linux/amd64
+  #   environment:
+  #     - REDIS_HOSTS=local:redis:6379
+  #   ports:
+  #     - "8081:8081"
+  #   depends_on:
+  #     - redis
+  #   networks:
+  #     - app-network
+
+  # Uncomment to add pgAdmin (PostgreSQL UI)
+  # pgadmin:
+  #   image: dpage/pgadmin4
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@admin.com
+  #     PGADMIN_DEFAULT_PASSWORD: admin
+  #   ports:
+  #     - "8080:80"
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  app-uploads:

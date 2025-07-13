@@ -1,0 +1,72 @@
+name: Deploy to VPS
+
+on:
+  workflow_run:
+    workflows: ["Docker Build and Publish"]
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            cd ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+
+            # Pull the latest .env file from secure location if needed
+            # cp /path/to/secure/.env .env
+
+            # Login to Docker Hub if needed
+            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+
+            # Pull the latest image
+            docker-compose pull
+
+            # Update the container
+            docker-compose down
+            docker-compose up -d
+
+            # Clean up old images
+            docker image prune -af --filter "until=24h"
+
+            # Check if the application is running
+            sleep 10
+            docker-compose ps
+            curl -s --retry 5 --retry-delay 5 --retry-connrefused http://localhost:3000/api/health || echo "Health check failed"
+
+      - name: Send notification on success
+        if: success()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: good
+          SLACK_TITLE: Deployment Successful
+          SLACK_MESSAGE: "Application has been successfully deployed to VPS"
+          SLACK_FOOTER: "GitHub Actions"
+
+      - name: Send notification on failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: danger
+          SLACK_TITLE: Deployment Failed
+          SLACK_MESSAGE: "Failed to deploy application to VPS"
+          SLACK_FOOTER: "GitHub Actions"
