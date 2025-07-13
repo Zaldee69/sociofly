@@ -167,30 +167,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Cache dependencies untuk mempercepat build
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-
-      - name: Cache node modules
-        uses: actions/cache@v4
-        with:
-          path: ~/.yarn/cache
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
-
-      # Setup Docker buildx
+      # Setup Docker buildx (simplified)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            image=moby/buildkit:v0.12.0
-            network=host
 
       # Login to Docker Hub
       - name: Log into Docker Hub
@@ -222,13 +201,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: |
-            type=gha,scope=buildkit
-            type=gha,scope=main
-            type=local,src=/tmp/.buildx-cache
-          cache-to: |
-            type=gha,mode=max,scope=buildkit
-            type=local,dest=/tmp/.buildx-cache-new,mode=max
+
           build-args: |
             BUILDKIT_INLINE_CACHE=1
             NODE_ENV=production
@@ -241,11 +214,7 @@ jobs:
             NEXT_PUBLIC_WEBSOCKET_PORT=${{ vars.NEXT_PUBLIC_WEBSOCKET_PORT }}
             NEXT_PUBLIC_FACEBOOK_CLIENT_ID=${{ vars.NEXT_PUBLIC_FACEBOOK_CLIENT_ID }}
 
-      # Optimasi cache untuk build berikutnya
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
 
   # Job 4: Security Scan (Parallel dengan Deploy)
   security-scan-docker:
