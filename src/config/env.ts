@@ -46,6 +46,29 @@ const envSchema = z.object({
 
 // Parse and validate environment variables
 function getEnv() {
+  // Skip validation during Docker build if SKIP_ENV_VALIDATION is set
+  if (process.env.SKIP_ENV_VALIDATION === "true") {
+    console.log("Skipping environment validation for Docker build");
+    return {
+      NODE_ENV: (process.env.NODE_ENV as "development" | "production" | "test") || "production",
+      DATABASE_URL: process.env.DATABASE_URL || "",
+      DIRECT_URL: process.env.DIRECT_URL || "",
+      CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY || "",
+      CLERK_WEBHOOK_SECRET: process.env.CLERK_WEBHOOK_SECRET || "",
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "",
+      NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL || "/sign-in",
+      NEXT_PUBLIC_CLERK_SIGN_UP_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL || "/sign-up",
+      UPLOADTHING_SECRET: process.env.UPLOADTHING_SECRET || "",
+      UPLOADTHING_APP_ID: process.env.UPLOADTHING_APP_ID || "",
+      MIDTRANS_SERVER_KEY: process.env.MIDTRANS_SERVER_KEY || "",
+      MIDTRANS_CLIENT_KEY: process.env.MIDTRANS_CLIENT_KEY || "",
+      NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || "",
+      RESEND_API_KEY: process.env.RESEND_API_KEY || "",
+      FACEBOOK_APP_ID: process.env.FACEBOOK_APP_ID || "",
+      FACEBOOK_APP_SECRET: process.env.FACEBOOK_APP_SECRET || "",
+    };
+  }
+
   try {
     // In server components/api routes, we can access process.env directly
     if (typeof process !== "undefined" && process.env) {

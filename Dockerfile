@@ -44,6 +44,14 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Accept build arguments for environment variables
+ARG NODE_ENV=production
+ARG SKIP_ENV_VALIDATION=true
+
+# Set only non-sensitive environment variables
+ENV NODE_ENV=$NODE_ENV
+ENV SKIP_ENV_VALIDATION=$SKIP_ENV_VALIDATION
+
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line in case you want to disable telemetry during the build.
