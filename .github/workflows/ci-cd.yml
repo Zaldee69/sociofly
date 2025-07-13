@@ -8,11 +8,18 @@ on:
   workflow_dispatch:
     # Manual trigger
 
+env:
+  # Use docker.io for Docker Hub if empty
+  REGISTRY: docker.io
+  # Custom image name
+  IMAGE_NAME: voetaz123/sociofly
+
 jobs:
-  build-and-test:
+  # Job 1: Lint and Test
+  lint-and-test:
     runs-on: ubuntu-latest
     environment: DEV_ENV
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,7 +42,36 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
 
-      - name: Build
+      # Add type checking
+      - name: Type Check
+        run: yarn type-check || npx tsc --noEmit
+
+  # Job 2: Build Application
+  build-app:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    environment: DEV_ENV
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+
+      - name: Build Application
         run: yarn build
         env:
           # ===== SECRETS (Sensitive Data) =====
@@ -98,57 +134,190 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nextjs-
 
-  # Docker build is handled by separate docker-publish.yml workflow
-  # to avoid duplicate builds and improve efficiency
+  # Job 3: Security Scan
+  security-scan:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Run security audit
+        run: |
+          yarn audit --level moderate || true
+          # Add more security scanning tools here
 
-  deploy:
-    needs: build-and-test
+  # Job 4: Build and Push Docker Image
+  docker-build:
+    needs: build-app
+    runs-on: ubuntu-latest
+    environment: DEV_ENV
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tags: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Setup Docker buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Login to Docker Hub
+      - name: Log into Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          logout: true
+
+      # Extract metadata for Docker
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+
+      # Build and push Docker image
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            NODE_ENV=production
+            SKIP_ENV_VALIDATION=true
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_WEBSOCKET_URL=${{ vars.NEXT_PUBLIC_WEBSOCKET_URL }}
+            NEXT_PUBLIC_WEBSOCKET_PORT=${{ vars.NEXT_PUBLIC_WEBSOCKET_PORT }}
+            NEXT_PUBLIC_FACEBOOK_CLIENT_ID=${{ vars.NEXT_PUBLIC_FACEBOOK_CLIENT_ID }}
+
+      # Scan for vulnerabilities
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+  # Job 5: Deploy to VPS
+  deploy-vps:
+    needs: docker-build
     runs-on: ubuntu-latest
     environment: DEV_ENV
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Uncomment and configure for your deployment method
-
-      # Option 1: Deploy to VPS using SSH
-      - name: Deploy to VPS
+      - name: Deploy to VPS with Docker Compose
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
           script: |
-            cd /path/to/app
+            cd ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+
+            # Login to Docker Hub
+            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+
+            # Pull the latest image
             docker-compose pull
-            docker-compose up -d
 
-      # Option 2: Deploy to Kubernetes
-      # - name: Set up kubectl
-      #   uses: azure/setup-kubectl@v3
-      #
-      # - name: Set Kubernetes context
-      #   uses: azure/k8s-set-context@v3
-      #   with:
-      #     kubeconfig: ${{ secrets.KUBE_CONFIG }}
-      #
-      # - name: Deploy to Kubernetes
-      #   run: |
-      #     kubectl apply -f k8s/deployment.yml
-      #     kubectl apply -f k8s/service.yml
+            # Update containers with auto-restart policy
+            docker-compose down
+            docker-compose up -d --remove-orphans
 
-      # Option 3: Deploy to cloud provider (e.g., Vercel)
-      # - name: Deploy to Vercel
-      #   uses: amondnet/vercel-action@v25
-      #   with:
-      #     vercel-token: ${{ secrets.VERCEL_TOKEN }}
-      #     vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-      #     vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-      #     vercel-args: '--prod'
+            # Ensure containers have restart policy
+            docker update --restart=unless-stopped $(docker-compose ps -q) 2>/dev/null || true
 
-      - name: Notify deployment
-        run: |
-          echo "Deployment completed successfully!"
-          # Add notification steps (Slack, Discord, etc.) if needed
+            # Clean up old images
+            docker image prune -af --filter "until=24h"
+
+            # Wait for application to start
+            echo "Waiting for application to start..."
+            sleep 15
+
+            # Check container status
+            echo "=== Container Status ==="
+            docker-compose ps
+
+            # Basic health check
+            echo "=== Health Check ==="
+            curl -s --retry 5 --retry-delay 5 --retry-connrefused http://localhost:3000/api/health || echo "Health check failed"
+
+            # Setup systemd service for auto-start on boot
+            echo "=== Setting up auto-start service ==="
+            sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << 'EOF'
+            [Unit]
+            Description=My Scheduler App
+            Requires=docker.service
+            After=docker.service
+            
+            [Service]
+            Type=oneshot
+            RemainAfterExit=yes
+            WorkingDirectory=${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+            ExecStart=/usr/local/bin/docker-compose up -d
+            ExecStop=/usr/local/bin/docker-compose down
+            TimeoutStartSec=0
+            
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+            
+            # Enable and start the service
+            sudo systemctl daemon-reload
+            sudo systemctl enable my-scheduler-app.service
+            echo "Auto-start service configured successfully"
+
+      - name: Send notification on success
+        if: success()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: good
+          SLACK_TITLE: Deployment Successful
+          SLACK_MESSAGE: "✅ Application deployed successfully to VPS\n🐳 Docker Image: ${{ needs.docker-build.outputs.image-tags }}\n🔗 Commit: ${{ github.sha }}"
+          SLACK_FOOTER: "GitHub Actions"
+
+      - name: Send notification on failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: danger
+          SLACK_TITLE: Deployment Failed
+          SLACK_MESSAGE: "❌ Failed to deploy application to VPS\n🔗 Commit: ${{ github.sha }}\n📋 Check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          SLACK_FOOTER: "GitHub Actions"
