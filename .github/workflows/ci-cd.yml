@@ -338,25 +338,25 @@ jobs:
             # Setup systemd service for auto-start on boot (optional)
             if command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
               echo "=== Setting up auto-start service ==="
-              sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << EOF
-[Unit]
-Description=My Scheduler App
-Requires=docker.service
-After=docker.service
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-User=${CURRENT_USER}
-Group=docker
-WorkingDirectory=${APP_DIR}
-ExecStart=/usr/local/bin/docker-compose up -d
-ExecStop=/usr/local/bin/docker-compose down
-TimeoutStartSec=0
-
-[Install]
-WantedBy=multi-user.target
-EOF
+              sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << 'EOF'
+            [Unit]
+            Description=My Scheduler App
+            Requires=docker.service
+            After=docker.service
+            
+            [Service]
+            Type=oneshot
+            RemainAfterExit=yes
+            User=${CURRENT_USER}
+            Group=docker
+            WorkingDirectory=${APP_DIR}
+            ExecStart=/usr/local/bin/docker-compose up -d
+            ExecStop=/usr/local/bin/docker-compose down
+            TimeoutStartSec=0
+            
+            [Install]
+            WantedBy=multi-user.target
+            EOF
               
               # Enable and start the service
               sudo systemctl daemon-reload
