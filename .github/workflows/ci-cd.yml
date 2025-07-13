@@ -261,10 +261,6 @@ jobs:
           command_timeout: 10m
           script_stop: true
           envs: DOCKER_PASSWORD,DOCKER_USERNAME,APP_DIR
-        env:
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
           script: |
             cd $APP_DIR
 
@@ -332,23 +328,23 @@ jobs:
             if sudo -n true 2>/dev/null; then
               echo "=== Setting up auto-start service ==="
               sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << EOF
-[Unit]
-Description=My Scheduler App
-Requires=docker.service
-After=docker.service
+            [Unit]
+            Description=My Scheduler App
+            Requires=docker.service
+            After=docker.service
 
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-User=root
-WorkingDirectory=$APP_DIR
-ExecStart=/usr/local/bin/docker-compose up -d
-ExecStop=/usr/local/bin/docker-compose down
-TimeoutStartSec=0
+            [Service]
+            Type=oneshot
+            RemainAfterExit=yes
+            User=root
+            WorkingDirectory=$APP_DIR
+            ExecStart=/usr/local/bin/docker-compose up -d
+            ExecStop=/usr/local/bin/docker-compose down
+            TimeoutStartSec=0
 
-[Install]
-WantedBy=multi-user.target
-EOF
+            [Install]
+            WantedBy=multi-user.target
+            EOF
               
               # Enable and start the service
               sudo systemctl daemon-reload
@@ -357,6 +353,10 @@ EOF
             else
               echo "Skipping systemd service setup (requires sudo access)"
             fi
+        env:
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
 
       - name: Send notification on success
         if: success()
