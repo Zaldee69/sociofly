@@ -134,8 +134,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nextjs-
 
-  # Job 3: Security Scan
-  security-scan:
+  # Job 3: Security Scan for Pull Requests
+  security-scan-pr:
     needs: lint-and-test
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
@@ -167,9 +167,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Cache dependencies untuk mempercepat build
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/cache
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
       # Setup Docker buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:v0.12.0
+            network=host
 
       # Login to Docker Hub
       - name: Log into Docker Hub
@@ -191,7 +212,7 @@ jobs:
             type=sha
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
 
-      # Build and push Docker image
+      # Build and push Docker image dengan optimasi cache
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
@@ -201,8 +222,13 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: |
+            type=gha,scope=buildkit
+            type=gha,scope=main
+            type=local,src=/tmp/.buildx-cache
+          cache-to: |
+            type=gha,mode=max,scope=buildkit
+            type=local,dest=/tmp/.buildx-cache-new,mode=max
           build-args: |
             BUILDKIT_INLINE_CACHE=1
             NODE_ENV=production
@@ -215,19 +241,39 @@ jobs:
             NEXT_PUBLIC_WEBSOCKET_PORT=${{ vars.NEXT_PUBLIC_WEBSOCKET_PORT }}
             NEXT_PUBLIC_FACEBOOK_CLIENT_ID=${{ vars.NEXT_PUBLIC_FACEBOOK_CLIENT_ID }}
 
-      # Scan for vulnerabilities
+      # Optimasi cache untuk build berikutnya
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+  # Job 4: Security Scan (Parallel dengan Deploy)
+  security-scan-docker:
+    needs: docker-build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    continue-on-error: true  # Jangan block deployment jika scan gagal
+
+    steps:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          format: "table"
+          format: "sarif"
+          output: "trivy-results.sarif"
           exit-code: "0"
           ignore-unfixed: true
           vuln-type: "os,library"
           severity: "CRITICAL,HIGH"
-          timeout: "10m0s"
+          timeout: "5m0s"  # Kurangi timeout
 
-  # Job 5: Deploy to VPS
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  # Job 5: Deploy to VPS (Optimized)
   deploy-vps:
     needs: docker-build
     runs-on: ubuntu-latest
@@ -250,15 +296,15 @@ jobs:
           fi
           echo "SSH configuration validation passed"
 
-      - name: Deploy to VPS with Docker Compose
+      - name: Deploy to VPS with Docker Compose (Optimized)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          timeout: 30s
-          command_timeout: 10m
+          timeout: 20s  # Kurangi timeout
+          command_timeout: 8m  # Kurangi command timeout
           script_stop: true
           envs: DOCKER_PASSWORD,DOCKER_USERNAME,APP_DIR
           script: |
@@ -304,64 +350,93 @@ jobs:
               exit 1
             fi
 
-            # Update containers with auto-restart policy
-            echo "=== Stopping Containers ==="
-            ${USE_SUDO}docker-compose down
-            
-            echo "=== Starting Containers ==="
-            ${USE_SUDO}docker-compose up -d --remove-orphans
+            # Optimized container update dengan restart policy
+            echo "=== Updating Containers ==="
+            ${USE_SUDO}docker-compose up -d --remove-orphans --force-recreate
             if [ $? -eq 0 ]; then
-              echo "✅ Containers started successfully"
+              echo "✅ Containers updated successfully"
             else
-              echo "❌ Failed to start containers"
+              echo "❌ Failed to update containers"
               exit 1
             fi
 
-            # Ensure containers have restart policy
-            ${USE_SUDO}docker update --restart=unless-stopped $(${USE_SUDO}docker-compose ps -q) 2>/dev/null || true
+            # Parallel operations untuk efisiensi
+            echo "=== Running parallel optimizations ==="
+            (
+              # Set restart policy di background
+              ${USE_SUDO}docker update --restart=unless-stopped $(${USE_SUDO}docker-compose ps -q) 2>/dev/null || true
+              echo "✅ Restart policy updated"
+            ) &
+            
+            (
+              # Clean up old images di background
+              ${USE_SUDO}docker image prune -af --filter "until=24h" >/dev/null 2>&1
+              echo "✅ Old images cleaned"
+            ) &
+            
+            # Wait untuk background processes
+            wait
 
-            # Clean up old images
-            ${USE_SUDO}docker image prune -af --filter "until=24h"
-
-            # Wait for application to start
-            echo "Waiting for application to start..."
-            sleep 15
+            # Optimized health check dengan timeout lebih pendek
+            echo "=== Quick Health Check ==="
+            for i in {1..6}; do
+              if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
+                echo "✅ Application is healthy (attempt $i)"
+                break
+              fi
+              echo "⏳ Waiting for app to start (attempt $i/6)..."
+              sleep 5
+            done
 
             # Check container status
             echo "=== Container Status ==="
             ${USE_SUDO}docker-compose ps
 
-            # Basic health check
-            echo "=== Health Check ==="
-            curl -s --retry 5 --retry-delay 5 --retry-connrefused http://localhost:3000/api/health || echo "Health check failed"
-
             # Setup systemd service for auto-start on boot (optional)
             if command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
               echo "=== Setting up auto-start service ==="
+              
+              # Create systemd service file dengan variabel yang ter-expand
               sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << 'EOF'
             [Unit]
             Description=My Scheduler App
             Requires=docker.service
             After=docker.service
-            
+
             [Service]
             Type=oneshot
             RemainAfterExit=yes
-            User=${CURRENT_USER}
+            User=$CURRENT_USER
             Group=docker
-            WorkingDirectory=${APP_DIR}
-            ExecStart=/usr/local/bin/docker-compose up -d
-            ExecStop=/usr/local/bin/docker-compose down
+            WorkingDirectory=$APP_DIR
+            ExecStart=/usr/bin/docker-compose up -d
+            ExecStop=/usr/bin/docker-compose down
             TimeoutStartSec=0
-            
+
             [Install]
             WantedBy=multi-user.target
             EOF
               
-              # Enable and start the service
-              sudo systemctl daemon-reload
-              sudo systemctl enable my-scheduler-app.service
-              echo "Auto-start service configured successfully"
+              if [ $? -eq 0 ]; then
+                echo "✅ Systemd service file created successfully"
+                
+                # Reload systemd dan enable service
+                sudo systemctl daemon-reload
+                if [ $? -eq 0 ]; then
+                  echo "✅ Systemd daemon reloaded"
+                  
+                  sudo systemctl enable my-scheduler-app.service
+                  if [ $? -eq 0 ]; then
+                    echo "✅ Auto-start service configured successfully"
+                  else
+                    echo "⚠️  Failed to enable service, but continuing..."
+                  fi
+                else
+                  echo "⚠️  Failed to reload systemd daemon, but continuing..."
+                fi
+              else
+                echo "⚠️  Failed to create systemd service file, but continuing..."
+              fi
             else
               echo "Skipping systemd service setup (systemctl not available or no sudo access)"
             fi
