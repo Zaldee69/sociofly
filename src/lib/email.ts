@@ -1,11 +1,15 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY || "re_test_key");
+// Initialize Resend only when needed to avoid build-time execution
+function getResendClient() {
+  return new Resend(process.env.RESEND_API_KEY || "re_test_key");
+}
 
 export async function sendInvitationEmail(email: string, token: string) {
   const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/accept-invite?token=${token}`;
 
   try {
+    const resend = getResendClient();
     await resend.emails.send({
       from: "SocioFly <onboarding@resend.dev>",
       to: "muhammadrizaldy19@gmail.com",
@@ -205,6 +209,7 @@ export async function sendApprovalRequestEmail(data: ApprovalNotificationData) {
   `;
 
   try {
+    const resend = getResendClient();
     await resend.emails.send({
       from: "SocioFly <notifications@resend.dev>",
       to: "muhammadrizaldy19@gmail.com",
@@ -239,6 +244,7 @@ export async function sendMagicLinkApprovalEmail(data: MagicLinkApprovalData) {
       : postContent;
 
   try {
+    const resend = getResendClient();
     await resend.emails.send({
       from: "SocioFly <notifications@resend.dev>",
       to: "muhammadrizaldy19@gmail.com",
@@ -347,6 +353,7 @@ export async function sendApprovalStatusEmail(
   const statusIcon = isApproved ? "✅" : "❌";
 
   try {
+    const resend = getResendClient();
     await resend.emails.send({
       from: "SocioFly <notifications@resend.dev>",
       // to: authorEmail,

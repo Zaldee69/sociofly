@@ -67,5 +67,15 @@ function getEnv() {
   return envSchema.partial().parse(clientEnv);
 }
 
-// Export validated environment variables
-export const env = getEnv();
+// Lazy load environment variables to avoid build-time execution
+let _env: ReturnType<typeof getEnv> | null = null;
+
+export function getEnvironment() {
+  if (!_env) {
+    _env = getEnv();
+  }
+  return _env;
+}
+
+// Export validated environment variables (deprecated - use getEnvironment() instead)
+export const env = typeof process !== 'undefined' && process.env.NODE_ENV !== 'test' ? getEnv() : {} as any;

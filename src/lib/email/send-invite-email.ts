@@ -1,6 +1,9 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Initialize Resend only when needed to avoid build-time execution
+function getResendClient() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
 
 interface SendInviteEmailParams {
   email: string;
@@ -14,6 +17,7 @@ export async function sendInviteEmail({
   role,
 }: SendInviteEmailParams) {
   try {
+    const resend = getResendClient();
     const { data, error } = await resend.emails.send({
       from: "My Scheduler App <onboarding@resend.dev>",
       to: "muhammadrizaldy19@gmail.com",

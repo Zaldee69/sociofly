@@ -27,8 +27,7 @@ export class AdminCacheService {
   public static getInstance(): AdminCacheService {
     if (!AdminCacheService.instance) {
       AdminCacheService.instance = new AdminCacheService();
-      // Initialize Redis connection if not already done
-      AdminCacheService.instance.initializeRedis();
+      // Note: Redis initialization is now done lazily when needed
     }
     return AdminCacheService.instance;
   }
@@ -52,6 +51,9 @@ export class AdminCacheService {
    */
   async getAdminStats(): Promise<AdminStats> {
     try {
+      // Initialize Redis if not already done
+      await this.initializeRedis();
+      
       // Try to get from cache first
       const cachedStats = await this.getCachedStats();
       if (cachedStats) {
@@ -80,6 +82,9 @@ export class AdminCacheService {
    */
   async refreshAdminStats(): Promise<AdminStats> {
     try {
+      // Initialize Redis if not already done
+      await this.initializeRedis();
+      
       console.log("🔄 Force refreshing admin stats");
       const freshStats = await this.fetchStatsFromDatabase();
       await this.setCachedStats(freshStats);

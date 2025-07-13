@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { Redis } from "@upstash/redis";
 
-const redis = Redis.fromEnv();
+// Initialize Redis only when needed to avoid build-time execution
+function getRedisClient() {
+  return Redis.fromEnv();
+}
 
 interface RateLimitConfig {
   maxRequests: number;
@@ -13,6 +16,7 @@ export async function rateLimit(
   request: NextRequest,
   config: RateLimitConfig = { maxRequests: 5, windowMs: 60000 }
 ) {
+  const redis = getRedisClient();
   const ip = request.headers.get("x-forwarded-for") ?? "127.0.0.1";
   const key = `rate-limit:${ip}`;
 
