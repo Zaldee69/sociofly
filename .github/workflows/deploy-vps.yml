@@ -38,17 +38,58 @@ jobs:
             # Pull the latest image
             docker-compose pull
 
-            # Update the container
+            # Update the container with auto-restart policy
             docker-compose down
-            docker-compose up -d
+            docker-compose up -d --remove-orphans
+
+            # Ensure containers have restart policy
+            docker update --restart=unless-stopped $(docker-compose ps -q) 2>/dev/null || true
 
             # Clean up old images
             docker image prune -af --filter "until=24h"
 
-            # Check if the application is running
-            sleep 10
+            # Wait for application to start
+            echo "Waiting for application to start..."
+            sleep 15
+
+            # Check container status
+            echo "=== Container Status ==="
             docker-compose ps
-            curl -s --retry 5 --retry-delay 5 --retry-connrefused http://localhost:3000/api/health || echo "Health check failed"
+
+            # Run diagnostics if available
+            if [[ -f scripts/deployment-diagnostics.sh ]]; then
+              echo "=== Running Deployment Diagnostics ==="
+              chmod +x scripts/deployment-diagnostics.sh
+              ./scripts/deployment-diagnostics.sh
+            else
+              echo "=== Basic Health Check ==="
+              curl -s --retry 5 --retry-delay 5 --retry-connrefused http://localhost:3000/api/health || echo "Health check failed"
+            fi
+
+            # Setup systemd service for auto-start on boot
+            echo "=== Setting up auto-start service ==="
+            sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << 'EOF'
+            [Unit]
+            Description=My Scheduler App
+            Requires=docker.service
+            After=docker.service
+            
+            [Service]
+            Type=oneshot
+            RemainAfterExit=yes
+            WorkingDirectory=${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+            ExecStart=/usr/local/bin/docker-compose up -d
+            ExecStop=/usr/local/bin/docker-compose down
+            TimeoutStartSec=0
+            
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+            
+            # Enable and start the service
+            sudo systemctl daemon-reload
+            sudo systemctl enable my-scheduler-app.service
+            echo "Auto-start service configured successfully"
 
       - name: Send notification on success
         if: success()
