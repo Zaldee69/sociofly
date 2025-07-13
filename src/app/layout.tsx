@@ -31,7 +31,8 @@ export default function RootLayout({
   // Get environment variables with fallback for build time
   let publishableKey: string | undefined;
   try {
-    publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+    const env = getEnvironment();
+    publishableKey = env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
   } catch (error) {
     // Fallback for build time when environment variables might not be available
     publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
