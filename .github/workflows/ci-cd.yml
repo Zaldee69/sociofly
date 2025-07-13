@@ -251,30 +251,39 @@ jobs:
           echo "SSH configuration validation passed"
 
       - name: Deploy to VPS with Docker Compose
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 30s
+          command_timeout: 10m
+          script_stop: true
           script: |
             cd ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
 
+            # Add user to docker group if not already added
+            sudo usermod -aG docker $USER || true
+            
+            # Refresh group membership
+            newgrp docker || true
+
             # Login to Docker Hub
-            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+            echo "${{ secrets.DOCKER_PASSWORD }}" | sudo docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
 
             # Pull the latest image
-            docker-compose pull
+            sudo docker-compose pull
 
             # Update containers with auto-restart policy
-            docker-compose down
-            docker-compose up -d --remove-orphans
+            sudo docker-compose down
+            sudo docker-compose up -d --remove-orphans
 
             # Ensure containers have restart policy
-            docker update --restart=unless-stopped $(docker-compose ps -q) 2>/dev/null || true
+            sudo docker update --restart=unless-stopped $(sudo docker-compose ps -q) 2>/dev/null || true
 
             # Clean up old images
-            docker image prune -af --filter "until=24h"
+            sudo docker image prune -af --filter "until=24h"
 
             # Wait for application to start
             echo "Waiting for application to start..."
@@ -282,7 +291,7 @@ jobs:
 
             # Check container status
             echo "=== Container Status ==="
-            docker-compose ps
+            sudo docker-compose ps
 
             # Basic health check
             echo "=== Health Check ==="
@@ -299,6 +308,7 @@ jobs:
             [Service]
             Type=oneshot
             RemainAfterExit=yes
+            User=root
             WorkingDirectory=${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
             ExecStart=/usr/local/bin/docker-compose up -d
             ExecStop=/usr/local/bin/docker-compose down
