@@ -585,7 +585,7 @@ const Analytics: React.FC = () => {
               selectedAccount={selectedAccount}
               onSelectAccount={(accountId: any) => {
                 const account = socialAccounts?.find(
-                  (acc) => acc.id === accountId
+                  (acc: any) => acc.id === accountId
                 );
                 if (account) {
                   handleAccountChange(accountId, account.platform);
