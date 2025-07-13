@@ -580,10 +580,10 @@ const Analytics: React.FC = () => {
           {/* Sidebar */}
           <div className="w-64 flex-shrink-0">
             <AnalyticsSidebar
-              socialAccounts={socialAccounts || []}
+              socialAccounts={(socialAccounts as any[]) || []}
               isLoading={isLoadingSocialAccount}
               selectedAccount={selectedAccount}
-              onSelectAccount={(accountId) => {
+              onSelectAccount={(accountId: any) => {
                 const account = socialAccounts?.find(
                   (acc) => acc.id === accountId
                 );
@@ -798,21 +798,23 @@ const Analytics: React.FC = () => {
                         0,
 
                       // Growth metrics
-                      followerGrowth: accountInsight?.followerGrowth || null,
-                      mediaGrowth: accountInsight?.mediaGrowth || null,
+                      followerGrowth:
+                        (accountInsight as any)?.followerGrowth || null,
+                      mediaGrowth: (accountInsight as any)?.mediaGrowth || null,
                       engagementGrowth:
-                        accountInsight?.engagementGrowth || null,
-                      reachGrowth: accountInsight?.reachGrowth || null,
+                        (accountInsight as any)?.engagementGrowth || null,
+                      reachGrowth: (accountInsight as any)?.reachGrowth || null,
 
                       // Previous period values
                       previousFollowersCount:
-                        accountInsight?.followerGrowth?.previous || 0,
+                        (accountInsight as any)?.followerGrowth?.previous || 0,
                       previousMediaCount:
-                        accountInsight?.mediaGrowth?.previous || 0,
+                        (accountInsight as any)?.mediaGrowth?.previous || 0,
                       previousEngagementRate:
-                        accountInsight?.engagementGrowth?.previous || 0,
+                        (accountInsight as any)?.engagementGrowth?.previous ||
+                        0,
                       previousAvgReachPerPost:
-                        accountInsight?.reachGrowth?.previous || 0,
+                        (accountInsight as any)?.reachGrowth?.previous || 0,
 
                       // Platform specific
                       platform: selectedPlatform as "INSTAGRAM" | "FACEBOOK",
