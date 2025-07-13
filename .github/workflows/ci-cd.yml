@@ -57,6 +57,7 @@ jobs:
   docker-build:
     needs: build-and-test
     runs-on: ubuntu-latest
+    environment: DEV_ENV
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
@@ -86,6 +87,7 @@ jobs:
   deploy:
     needs: docker-build
     runs-on: ubuntu-latest
+    environment: DEV_ENV
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
