@@ -238,6 +238,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Validate SSH Configuration
+        run: |
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "Error: SSH_PRIVATE_KEY secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SSH_USERNAME }}" ]; then
+            echo "Error: SSH_USERNAME secret is not set"
+            exit 1
+          fi
+          echo "SSH configuration validation passed"
+
       - name: Deploy to VPS with Docker Compose
         uses: appleboy/ssh-action@master
         with:
