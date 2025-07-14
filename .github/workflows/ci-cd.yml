@@ -337,23 +337,6 @@ jobs:
               exit 1
             fi
 
-            # Create production docker-compose override file
-            echo "=== Creating production docker-compose override ==="
-            cat > docker-compose.prod.yml << 'EOF'
-            version: "3.8"
-            services:
-              app:
-                image: ${REGISTRY}/${IMAGE_NAME}:latest
-                build: null
-            EOF
-            
-            if [ $? -eq 0 ]; then
-              echo "✅ Production docker-compose override created"
-            else
-              echo "❌ Failed to create production override"
-              exit 1
-            fi
-
             # Pull the latest image
             echo "=== Pulling Latest Images ==="
             ${USE_SUDO}docker pull ${REGISTRY}/${IMAGE_NAME}:latest
@@ -365,7 +348,7 @@ jobs:
             fi
 
             # Pull other images (Redis)
-            ${USE_SUDO}docker-compose -f docker-compose.yml -f docker-compose.prod.yml pull redis
+            ${USE_SUDO}docker-compose -f docker-compose.yml pull redis
             if [ $? -eq 0 ]; then
               echo "✅ Redis image pulled successfully"
             else
@@ -374,11 +357,11 @@ jobs:
 
             # Stop existing containers gracefully
             echo "=== Stopping existing containers ==="
-            ${USE_SUDO}docker-compose -f docker-compose.yml -f docker-compose.prod.yml down --remove-orphans || true
+            ${USE_SUDO}docker-compose -f docker-compose.yml down --remove-orphans || true
 
-            # Start containers with production configuration
-            echo "=== Starting containers with production image ==="
-            ${USE_SUDO}docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+            # Start containers with development configuration
+            echo "=== Starting containers for development ==="
+            ${USE_SUDO}docker-compose -f docker-compose.yml up -d
             if [ $? -eq 0 ]; then
               echo "✅ Containers started successfully"
             else
@@ -394,7 +377,7 @@ jobs:
             echo "=== Running parallel optimizations ==="
             (
               # Set restart policy di background
-              ${USE_SUDO}docker update --restart=unless-stopped $(${USE_SUDO}docker-compose -f docker-compose.yml -f docker-compose.prod.yml ps -q) 2>/dev/null || true
+              ${USE_SUDO}docker update --restart=unless-stopped $(${USE_SUDO}docker-compose -f docker-compose.yml ps -q) 2>/dev/null || true
               echo "✅ Restart policy updated"
             ) &
             
@@ -414,9 +397,9 @@ jobs:
               echo "⏳ Health check attempt $i/12..."
               
               # Check if containers are running
-              if ! ${USE_SUDO}docker-compose -f docker-compose.yml -f docker-compose.prod.yml ps | grep -q "Up"; then
+              if ! ${USE_SUDO}docker-compose -f docker-compose.yml ps | grep -q "Up"; then
                 echo "❌ Containers are not running"
-                ${USE_SUDO}docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=20
+                ${USE_SUDO}docker-compose -f docker-compose.yml logs --tail=20
                 sleep 5
                 continue
               fi
@@ -439,12 +422,12 @@ jobs:
             if [ "$HEALTH_CHECK_PASSED" = "false" ]; then
               echo "⚠️  Health check failed, but deployment will continue"
               echo "=== Container Logs ==="
-              ${USE_SUDO}docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=50
+              ${USE_SUDO}docker-compose -f docker-compose.yml logs --tail=50
             fi
 
             # Check container status
             echo "=== Container Status ==="
-            ${USE_SUDO}docker-compose -f docker-compose.yml -f docker-compose.prod.yml ps
+            ${USE_SUDO}docker-compose -f docker-compose.yml ps
 
             # Setup systemd service for auto-start on boot (optional)
             if command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
@@ -463,8 +446,8 @@ jobs:
               User=$CURRENT_USER
               Group=docker
               WorkingDirectory=$APP_DIR
-              ExecStart=/usr/bin/docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-              ExecStop=/usr/bin/docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
+              ExecStart=/usr/bin/docker-compose -f docker-compose.yml up -d
+              ExecStop=/usr/bin/docker-compose -f docker-compose.yml down
               TimeoutStartSec=0
 
               [Install]
