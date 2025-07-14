@@ -313,22 +313,13 @@ jobs:
             }
             echo "✅ Changed to directory: $(pwd)"
 
-            # Verify user is in docker group
+            # Check Docker access
             echo "=== Checking Docker Access ==="
             CURRENT_USER=$(whoami)
             echo "Current user: $CURRENT_USER"
-            echo "User groups: $(groups $CURRENT_USER)"
             
-            if ! groups $CURRENT_USER | grep -q docker; then
-              echo "⚠️  User '$CURRENT_USER' not in docker group. Adding user to docker group..."
-              sudo usermod -aG docker $CURRENT_USER || true
-              echo "✅ User added to docker group. Note: Group changes require logout/login to take effect."
-              echo "🔄 Using sudo for Docker commands as fallback..."
-              USE_SUDO="sudo "
-            else
-              echo "✅ User '$CURRENT_USER' has Docker access without sudo"
-              USE_SUDO=""
-            fi
+            # Use sudo for Docker commands in CI environment
+            USE_SUDO="sudo "
             
             echo "Debug: USE_SUDO='$USE_SUDO'"
             echo "Debug: APP_DIR='$APP_DIR'"
