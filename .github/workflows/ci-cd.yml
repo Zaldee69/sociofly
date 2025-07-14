@@ -265,6 +265,100 @@ jobs:
           fi
           echo "SSH configuration validation passed"
 
+      - name: Copy docker-compose.dev.yml to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "docker-compose.dev.yml"
+          target: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+          overwrite: true
+
+      - name: Create .env file on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 30s
+          envs: APP_DIR,DATABASE_URL,DIRECT_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,CLERK_SECRET_KEY,NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,CLERK_WEBHOOK_SECRET,OPENAI_API_KEY,RESEND_API_KEY,REDIS_PASSWORD,REDIS_DB,REDIS_USE_CLUSTER,ENABLE_SCHEDULED_JOBS,CRON_API_KEY,NEXT_PUBLIC_CRON_API_KEY,NEXT_PUBLIC_APP_URL,NEXTAUTH_URL,WEBSOCKET_PORT,NEXT_PUBLIC_WEBSOCKET_PORT,NEXT_PUBLIC_WEBSOCKET_URL,MIDTRANS_CLIENT_KEY,MIDTRANS_SERVER_KEY,MIDTRANS_IS_PRODUCTION,NEXT_PUBLIC_FACEBOOK_CLIENT_ID,NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET,UPLOADTHING_TOKEN,ENTRY_AUTH_TOKEN
+          script: |
+            # Create application directory if it doesn't exist
+            mkdir -p "$APP_DIR"
+            cd "$APP_DIR"
+            
+            # Create .env file with production environment variables
+            cat > .env << EOF
+            NODE_ENV=production
+            DATABASE_URL=${DATABASE_URL}
+            DIRECT_URL=${DIRECT_URL}
+            NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+            CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+            CLERK_WEBHOOK_SECRET=${CLERK_WEBHOOK_SECRET}
+            OPENAI_API_KEY=${OPENAI_API_KEY}
+            RESEND_API_KEY=${RESEND_API_KEY}
+            REDIS_URL=redis://redis:6379
+            REDIS_HOST=redis
+            REDIS_PORT=6379
+            REDIS_PASSWORD=${REDIS_PASSWORD}
+            REDIS_DB=${REDIS_DB}
+            REDIS_USE_CLUSTER=${REDIS_USE_CLUSTER}
+            ENABLE_SCHEDULED_JOBS=${ENABLE_SCHEDULED_JOBS}
+            CRON_API_KEY=${CRON_API_KEY}
+            NEXT_PUBLIC_CRON_API_KEY=${NEXT_PUBLIC_CRON_API_KEY}
+            NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+            NEXTAUTH_URL=${NEXTAUTH_URL}
+            WEBSOCKET_PORT=${WEBSOCKET_PORT}
+            NEXT_PUBLIC_WEBSOCKET_PORT=${NEXT_PUBLIC_WEBSOCKET_PORT}
+            NEXT_PUBLIC_WEBSOCKET_URL=${NEXT_PUBLIC_WEBSOCKET_URL}
+            MIDTRANS_CLIENT_KEY=${MIDTRANS_CLIENT_KEY}
+            MIDTRANS_SERVER_KEY=${MIDTRANS_SERVER_KEY}
+            MIDTRANS_IS_PRODUCTION=${MIDTRANS_IS_PRODUCTION}
+            NEXT_PUBLIC_FACEBOOK_CLIENT_ID=${NEXT_PUBLIC_FACEBOOK_CLIENT_ID}
+            NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET=${NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET}
+            UPLOADTHING_TOKEN=${UPLOADTHING_TOKEN}
+            ENTRY_AUTH_TOKEN=${ENTRY_AUTH_TOKEN}
+            TZ=Asia/Jakarta
+            EOF
+            
+            echo "✅ .env file created successfully"
+            echo "📁 Files in directory:"
+            ls -la
+        env:
+          APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          CLERK_WEBHOOK_SECRET: ${{ secrets.CLERK_WEBHOOK_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_DB: ${{ vars.REDIS_DB }}
+          REDIS_USE_CLUSTER: ${{ vars.REDIS_USE_CLUSTER }}
+          ENABLE_SCHEDULED_JOBS: ${{ vars.ENABLE_SCHEDULED_JOBS }}
+          CRON_API_KEY: ${{ secrets.CRON_API_KEY }}
+          NEXT_PUBLIC_CRON_API_KEY: ${{ secrets.NEXT_PUBLIC_CRON_API_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
+          WEBSOCKET_PORT: ${{ vars.WEBSOCKET_PORT }}
+          NEXT_PUBLIC_WEBSOCKET_PORT: ${{ vars.NEXT_PUBLIC_WEBSOCKET_PORT }}
+          NEXT_PUBLIC_WEBSOCKET_URL: ${{ vars.NEXT_PUBLIC_WEBSOCKET_URL }}
+          MIDTRANS_CLIENT_KEY: ${{ secrets.MIDTRANS_CLIENT_KEY }}
+          MIDTRANS_SERVER_KEY: ${{ secrets.MIDTRANS_SERVER_KEY }}
+          MIDTRANS_IS_PRODUCTION: ${{ vars.MIDTRANS_IS_PRODUCTION }}
+          NEXT_PUBLIC_FACEBOOK_CLIENT_ID: ${{ vars.NEXT_PUBLIC_FACEBOOK_CLIENT_ID }}
+          NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET: ${{ secrets.NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET }}
+          UPLOADTHING_TOKEN: ${{ secrets.UPLOADTHING_TOKEN }}
+          ENTRY_AUTH_TOKEN: ${{ secrets.ENTRY_AUTH_TOKEN }}
+
       - name: Deploy to VPS with Docker Compose (Optimized)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -312,6 +406,22 @@ jobs:
               exit 1
             }
             echo "✅ Changed to directory: $(pwd)"
+            
+            # Verify required files exist
+            echo "=== Verifying Required Files ==="
+            if [ ! -f "docker-compose.dev.yml" ]; then
+              echo "❌ Error: docker-compose.dev.yml not found in $APP_DIR"
+              echo "📁 Files in directory:"
+              ls -la
+              exit 1
+            fi
+            if [ ! -f ".env" ]; then
+              echo "❌ Error: .env file not found in $APP_DIR"
+              echo "📁 Files in directory:"
+              ls -la
+              exit 1
+            fi
+            echo "✅ Required files found: docker-compose.dev.yml and .env"
 
             # Check Docker access
             echo "=== Checking Docker Access ==="
@@ -348,7 +458,7 @@ jobs:
             fi
 
             # Pull other images (Redis)
-            ${USE_SUDO}docker-compose -f docker-compose.yml pull redis
+            ${USE_SUDO}docker-compose -f docker-compose.dev.yml pull redis
             if [ $? -eq 0 ]; then
               echo "✅ Redis image pulled successfully"
             else
@@ -357,11 +467,11 @@ jobs:
 
             # Stop existing containers gracefully
             echo "=== Stopping existing containers ==="
-            ${USE_SUDO}docker-compose -f docker-compose.yml down --remove-orphans || true
+            ${USE_SUDO}docker-compose -f docker-compose.dev.yml down --remove-orphans || true
 
             # Start containers with development configuration
             echo "=== Starting containers for development ==="
-            ${USE_SUDO}docker-compose -f docker-compose.yml up -d
+            ${USE_SUDO}docker-compose -f docker-compose.dev.yml up -d
             if [ $? -eq 0 ]; then
               echo "✅ Containers started successfully"
             else
@@ -377,7 +487,7 @@ jobs:
             echo "=== Running parallel optimizations ==="
             (
               # Set restart policy di background
-              ${USE_SUDO}docker update --restart=unless-stopped $(${USE_SUDO}docker-compose -f docker-compose.yml ps -q) 2>/dev/null || true
+              ${USE_SUDO}docker update --restart=unless-stopped $(${USE_SUDO}docker-compose -f docker-compose.dev.yml ps -q) 2>/dev/null || true
               echo "✅ Restart policy updated"
             ) &
             
@@ -397,9 +507,9 @@ jobs:
               echo "⏳ Health check attempt $i/12..."
               
               # Check if containers are running
-              if ! ${USE_SUDO}docker-compose -f docker-compose.yml ps | grep -q "Up"; then
+              if ! ${USE_SUDO}docker-compose -f docker-compose.dev.yml ps | grep -q "Up"; then
                 echo "❌ Containers are not running"
-                ${USE_SUDO}docker-compose -f docker-compose.yml logs --tail=20
+                ${USE_SUDO}docker-compose -f docker-compose.dev.yml logs --tail=20
                 sleep 5
                 continue
               fi
@@ -422,12 +532,12 @@ jobs:
             if [ "$HEALTH_CHECK_PASSED" = "false" ]; then
               echo "⚠️  Health check failed, but deployment will continue"
               echo "=== Container Logs ==="
-              ${USE_SUDO}docker-compose -f docker-compose.yml logs --tail=50
+              ${USE_SUDO}docker-compose -f docker-compose.dev.yml logs --tail=50
             fi
 
             # Check container status
             echo "=== Container Status ==="
-            ${USE_SUDO}docker-compose -f docker-compose.yml ps
+            ${USE_SUDO}docker-compose -f docker-compose.dev.yml ps
 
             # Setup systemd service for auto-start on boot (optional)
             if command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
@@ -446,8 +556,8 @@ jobs:
               User=$CURRENT_USER
               Group=docker
               WorkingDirectory=$APP_DIR
-              ExecStart=/usr/bin/docker-compose -f docker-compose.yml up -d
-              ExecStop=/usr/bin/docker-compose -f docker-compose.yml down
+              ExecStart=/usr/bin/docker-compose -f docker-compose.dev.yml up -d
+              ExecStop=/usr/bin/docker-compose -f docker-compose.dev.yml down
               TimeoutStartSec=0
 
               [Install]
