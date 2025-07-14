@@ -3,6 +3,7 @@ services:
     image: docker.io/voetaz123/sociofly:latest
     ports:
       - "3000:3000"
+      - "3004:3004"  # WebSocket port (integrated in main app)
     env_file:
       - .env
     environment:
@@ -15,6 +16,10 @@ services:
       - NEXT_PUBLIC_CRON_API_KEY=test-scheduler-key
       - SKIP_ENV_VALIDATION=true
       - TZ=Asia/Jakarta
+      - DOCKER_ENV=true
+      - WEBSOCKET_PORT=3004
+      - NEXT_PUBLIC_WEBSOCKET_PORT=3004
+      - NEXT_PUBLIC_WEBSOCKET_URL=http://localhost:3004
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
       - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       - CLERK_WEBHOOK_SECRET=${CLERK_WEBHOOK_SECRET}
@@ -26,7 +31,7 @@ services:
     restart: unless-stopped
     networks:
       - app-network
-    command: 'sh -c ''while ! nc -z redis 6379; do echo "Waiting for Redis..."; sleep 2; done && echo "Redis ready" && if [ -f server.js ]; then node server.js; else npm start; fi'''
+    command: 'sh -c ''while ! nc -z redis 6379; do echo "Waiting for Redis..."; sleep 2; done && echo "Redis ready" && ./scripts/start-with-redis.sh'''
 
 
   redis:
