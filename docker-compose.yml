@@ -21,13 +21,43 @@ services:
       - CRON_API_KEY=your-cron-api-key
       - NEXT_PUBLIC_CRON_API_KEY=your-cron-api-key
       - TZ=Asia/Jakarta
+      - WEBSOCKET_PORT=3004
+      - NEXT_PUBLIC_WEBSOCKET_PORT=3004
+      - NEXT_PUBLIC_WEBSOCKET_URL=http://websocket:3004
     depends_on:
       - redis
+      - websocket
     restart: unless-stopped
     networks:
       - app-network
     volumes:
       - app-uploads:/app/public/uploads
+
+  websocket:
+    build:
+      context: .
+      dockerfile: Dockerfile.websocket
+    ports:
+      - "3004:3004"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - WEBSOCKET_PORT=3004
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TZ=Asia/Jakarta
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   redis:
     image: redis:7-alpine

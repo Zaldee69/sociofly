@@ -15,15 +15,44 @@ services:
       - NEXT_PUBLIC_CRON_API_KEY=test-scheduler-key
       - SKIP_ENV_VALIDATION=true
       - TZ=Asia/Jakarta
+      - WEBSOCKET_PORT=3004
+      - NEXT_PUBLIC_WEBSOCKET_PORT=3004
+      - NEXT_PUBLIC_WEBSOCKET_URL=http://websocket:3004
     volumes:
       - app-uploads:/app/public/uploads
+    depends_on:
+      - redis
+      - websocket
+    restart: unless-stopped
+    networks:
+      - app-network
+    command: 'sh -c ''while ! nc -z redis 6379; do echo "Waiting for Redis..."; sleep 2; done && echo "Redis ready" && if [ -f server.js ]; then node server.js; else npm start; fi'''
+
+  websocket:
+    build:
+      context: .
+      dockerfile: Dockerfile.websocket
+    ports:
+      - "3004:3004"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - WEBSOCKET_PORT=3004
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TZ=Asia/Jakarta
     depends_on:
       - redis
     restart: unless-stopped
     networks:
       - app-network
-    command: "sh -c 'while ! nc -z redis 6379; do echo \"Waiting for Redis...\"; sleep 2; done && echo \"Redis ready\" && if [ -f server.js ]; then node server.js; else npm start; fi'"
-
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   redis:
     image: redis:7-alpine
