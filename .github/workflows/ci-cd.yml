@@ -280,87 +280,18 @@ jobs:
         env:
           APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
 
-      - name: Copy docker-compose.dev.yml to server via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Copy source code to server
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          timeout: 30s
-          envs: APP_DIR,DOCKER_COMPOSE_CONTENT
-          script: |
-            cd "$APP_DIR"
-            echo "=== Creating docker-compose.dev.yml via SSH ==="
-            echo "$DOCKER_COMPOSE_CONTENT" > docker-compose.dev.yml
-            chmod 644 docker-compose.dev.yml
-            echo "✅ docker-compose.dev.yml created successfully"
-            ls -la docker-compose.dev.yml
-        env:
-          APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
-          DOCKER_COMPOSE_CONTENT: |
-             services:
-               app:
-                 image: docker.io/voetaz123/sociofly:latest
-                 ports:
-                   - "3000:3000"
-                 env_file:
-                   - .env
-                 environment:
-                   - NODE_ENV=production
-                   - REDIS_URL=redis://redis:6379
-                   - REDIS_HOST=redis
-                   - REDIS_PORT=6379
-                   - ENABLE_SCHEDULED_JOBS=true
-                   - CRON_API_KEY=test-scheduler-key
-                   - NEXT_PUBLIC_CRON_API_KEY=test-scheduler-key
-                   - SKIP_ENV_VALIDATION=true
-                   - TZ=Asia/Jakarta
-                 volumes:
-                   - app-uploads:/app/public/uploads
-                 depends_on:
-                   - redis
-                 restart: unless-stopped
-                 networks:
-                   - app-network
-                 command: "sh -c 'while ! nc -z redis 6379; do echo \"Waiting for Redis...\"; sleep 2; done && echo \"Redis ready\" && if [ -f server.js ]; then node server.js; else npm start; fi'"
-             
-             
-               redis:
-                 image: redis:7-alpine
-                 ports:
-                   - "6379:6379"
-                 command: redis-server --appendonly yes
-                 volumes:
-                   - redis-dev-data:/data
-                 restart: unless-stopped
-                 networks:
-                   - app-network
-                 healthcheck:
-                   test: ["CMD", "redis-cli", "ping"]
-                   interval: 10s
-                   timeout: 5s
-                   retries: 5
-             
-               redis-commander:
-                 image: rediscommander/redis-commander:latest
-                 platform: linux/amd64
-                 environment:
-                   - REDIS_HOSTS=local:redis:6379
-                 ports:
-                   - "8081:8081"
-                 depends_on:
-                   - redis
-                 networks:
-                   - app-network
-             
-             networks:
-               app-network:
-                 driver: bridge
-             
-             volumes:
-               redis-dev-data:
-               app-uploads:
+          source: "."
+          target: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+          rm: true
+          strip_components: 0
+          overwrite: true
 
       - name: Verify file copy and fix permissions
         uses: appleboy/ssh-action@v1.0.3
@@ -373,14 +304,14 @@ jobs:
           envs: APP_DIR
           script: |
             cd "$APP_DIR"
-            echo "=== Verifying docker-compose.dev.yml copy ==="
-            if [ -f "docker-compose.dev.yml" ]; then
-              echo "✅ docker-compose.dev.yml found"
-              ls -la docker-compose.dev.yml
-              chmod 644 docker-compose.dev.yml
+            echo "=== Verifying docker-compose.yml copy ==="
+            if [ -f "docker-compose.yml" ]; then
+              echo "✅ docker-compose.yml found"
+              ls -la docker-compose.yml
+              chmod 644 docker-compose.yml
               echo "✅ Permissions set to 644"
             else
-              echo "❌ docker-compose.dev.yml not found after copy"
+              echo "❌ docker-compose.yml not found after copy"
               echo "📁 Files in directory:"
               ls -la
               exit 1
@@ -518,8 +449,8 @@ jobs:
             
             # Verify required files exist
             echo "=== Verifying Required Files ==="
-            if [ ! -f "docker-compose.dev.yml" ]; then
-              echo "❌ Error: docker-compose.dev.yml not found in $APP_DIR"
+            if [ ! -f "docker-compose.yml" ]; then
+              echo "❌ Error: docker-compose.yml not found in $APP_DIR"
               echo "📁 Files in directory:"
               ls -la
               exit 1
@@ -530,7 +461,13 @@ jobs:
               ls -la
               exit 1
             fi
-            echo "✅ Required files found: docker-compose.dev.yml and .env"
+            if [ ! -f "Dockerfile" ]; then
+              echo "❌ Error: Dockerfile not found in $APP_DIR"
+              echo "📁 Files in directory:"
+              ls -la
+              exit 1
+            fi
+            echo "✅ Required files found: docker-compose.yml, .env, and Dockerfile"
 
             # Check Docker access
             echo "=== Checking Docker Access ==="
@@ -546,28 +483,9 @@ jobs:
             echo "Debug: IMAGE_NAME='$IMAGE_NAME'"
             echo "Debug: REGISTRY='$REGISTRY'"
 
-            # Login to Docker Hub
-            echo "=== Docker Login ==="
-            echo "$DOCKER_PASSWORD" | ${USE_SUDO}docker login -u $DOCKER_USERNAME --password-stdin
-            if [ $? -eq 0 ]; then
-              echo "✅ Docker login successful"
-            else
-              echo "❌ Docker login failed"
-              exit 1
-            fi
-
-            # Pull the latest image
-            echo "=== Pulling Latest Images ==="
-            ${USE_SUDO}docker pull ${REGISTRY}/${IMAGE_NAME}:latest
-            if [ $? -eq 0 ]; then
-              echo "✅ Docker image pulled successfully"
-            else
-              echo "❌ Failed to pull Docker image"
-              exit 1
-            fi
-
-            # Pull other images (Redis)
-            ${USE_SUDO}docker-compose -f docker-compose.dev.yml pull redis
+            # Pull base images only (Redis, Node)
+            echo "=== Pulling Base Images ==="
+            ${USE_SUDO}docker-compose -f docker-compose.yml pull redis
             if [ $? -eq 0 ]; then
               echo "✅ Redis image pulled successfully"
             else
@@ -576,15 +494,15 @@ jobs:
 
             # Stop existing containers gracefully
             echo "=== Stopping existing containers ==="
-            ${USE_SUDO}docker-compose -f docker-compose.dev.yml down --remove-orphans || true
+            ${USE_SUDO}docker-compose -f docker-compose.yml down --remove-orphans || true
 
-            # Start containers with development configuration
-            echo "=== Starting containers for development ==="
-            ${USE_SUDO}docker-compose -f docker-compose.dev.yml up -d
+            # Build and start containers from source
+            echo "=== Building and starting containers from source ==="
+            ${USE_SUDO}docker-compose -f docker-compose.yml up -d --build
             if [ $? -eq 0 ]; then
-              echo "✅ Containers started successfully"
+              echo "✅ Containers built and started successfully"
             else
-              echo "❌ Failed to start containers"
+              echo "❌ Failed to build and start containers"
               exit 1
             fi
 
@@ -596,7 +514,7 @@ jobs:
             echo "=== Running parallel optimizations ==="
             (
               # Set restart policy di background
-              ${USE_SUDO}docker update --restart=unless-stopped $(${USE_SUDO}docker-compose -f docker-compose.dev.yml ps -q) 2>/dev/null || true
+              ${USE_SUDO}docker update --restart=unless-stopped $(${USE_SUDO}docker-compose -f docker-compose.yml ps -q) 2>/dev/null || true
               echo "✅ Restart policy updated"
             ) &
             
@@ -617,13 +535,13 @@ jobs:
               
               # Check container status first
               echo "📊 Container Status:"
-              ${USE_SUDO}docker-compose -f docker-compose.dev.yml ps
+              ${USE_SUDO}docker-compose -f docker-compose.yml ps
               
               # Check if containers are running
-              if ! ${USE_SUDO}docker-compose -f docker-compose.dev.yml ps | grep -q "Up"; then
+              if ! ${USE_SUDO}docker-compose -f docker-compose.yml ps | grep -q "Up"; then
                 echo "❌ Containers are not running properly"
                 echo "=== Container Logs (Last 30 lines) ==="
-                ${USE_SUDO}docker-compose -f docker-compose.dev.yml logs --tail=30
+                ${USE_SUDO}docker-compose -f docker-compose.yml logs --tail=30
                 sleep 5
                 continue
               fi
@@ -631,7 +549,7 @@ jobs:
               # Show recent logs for debugging
               if [ $i -eq 1 ] || [ $((i % 3)) -eq 0 ]; then
                 echo "=== Recent App Logs ==="
-                ${USE_SUDO}docker-compose -f docker-compose.dev.yml logs --tail=10 app
+                ${USE_SUDO}docker-compose -f docker-compose.yml logs --tail=10 app
 
               fi
               
@@ -672,16 +590,16 @@ jobs:
             if [ "$HEALTH_CHECK_PASSED" = "false" ]; then
               echo "⚠️  Health check failed after 12 attempts"
               echo "=== Final Container Status ==="
-              ${USE_SUDO}docker-compose -f docker-compose.dev.yml ps
+              ${USE_SUDO}docker-compose -f docker-compose.yml ps
               echo "=== Full Container Logs ==="
-              ${USE_SUDO}docker-compose -f docker-compose.dev.yml logs --tail=100
+              ${USE_SUDO}docker-compose -f docker-compose.yml logs --tail=100
               echo "=== Port Status ==="
-              netstat -tlnp | grep -E ':(3000|6379)' || echo "No services listening on expected ports"
+              netstat -tlnp | grep -E ':(3000|3004|6379)' || echo "No services listening on expected ports"
             fi
 
             # Check container status
             echo "=== Container Status ==="
-            ${USE_SUDO}docker-compose -f docker-compose.dev.yml ps
+            ${USE_SUDO}docker-compose -f docker-compose.yml ps
 
             # Setup systemd service for auto-start on boot (optional)
             if command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
@@ -700,8 +618,8 @@ jobs:
               User=$CURRENT_USER
               Group=docker
               WorkingDirectory=$APP_DIR
-              ExecStart=/usr/bin/docker-compose -f docker-compose.dev.yml up -d
-              ExecStop=/usr/bin/docker-compose -f docker-compose.dev.yml down
+              ExecStart=/usr/bin/docker-compose -f docker-compose.yml up -d
+              ExecStop=/usr/bin/docker-compose -f docker-compose.yml down
               TimeoutStartSec=0
 
               [Install]

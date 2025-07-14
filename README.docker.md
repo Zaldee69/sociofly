@@ -52,7 +52,7 @@ npm run docker:dev:build
 npm run docker:dev:up
 
 # Or directly with docker-compose
-docker-compose -f docker-compose.dev.yml up -d
+docker-compose -f docker-compose.yml up -d
 ```
 
 This will:
