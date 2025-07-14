@@ -265,6 +265,25 @@ jobs:
           fi
           echo "SSH configuration validation passed"
 
+      - name: Prepare server directory and permissions
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 30s
+          envs: APP_DIR
+          script: |
+            # Create application directory with proper permissions
+            sudo mkdir -p "$APP_DIR"
+            sudo chown -R $USER:$USER "$APP_DIR"
+            sudo chmod -R 755 "$APP_DIR"
+            echo "✅ Directory $APP_DIR prepared with proper permissions"
+            ls -la "$(dirname "$APP_DIR")"
+        env:
+          APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+
       - name: Copy docker-compose.dev.yml to server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -275,6 +294,34 @@ jobs:
           source: "docker-compose.dev.yml"
           target: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
           overwrite: true
+          strip_components: 0
+
+      - name: Verify file copy and fix permissions
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 30s
+          envs: APP_DIR
+          script: |
+            cd "$APP_DIR"
+            echo "=== Verifying docker-compose.dev.yml copy ==="
+            if [ -f "docker-compose.dev.yml" ]; then
+              echo "✅ docker-compose.dev.yml found"
+              ls -la docker-compose.dev.yml
+              # Ensure proper permissions
+              chmod 644 docker-compose.dev.yml
+              echo "✅ Permissions set to 644"
+            else
+              echo "❌ docker-compose.dev.yml not found after copy"
+              echo "📁 Files in directory:"
+              ls -la
+              exit 1
+            fi
+        env:
+          APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
 
       - name: Create .env file on server
         uses: appleboy/ssh-action@v1.0.3
