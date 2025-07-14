@@ -328,6 +328,17 @@ jobs:
                  restart: unless-stopped
                  networks:
                    - app-network
+                 entrypoint: ["/bin/sh", "-c"]
+                 command: |
+                   echo "🚀 Starting application without docker-init.sh..."
+                   echo "⏳ Waiting for Redis..."
+                   until nc -z redis 6379; do
+                     echo "Redis is unavailable - sleeping"
+                     sleep 2
+                   done
+                   echo "✅ Redis is up and running"
+                   echo "🌐 Starting Next.js server..."
+                   exec node server.js
              
                redis:
                  image: redis:7-alpine
