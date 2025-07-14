@@ -13,6 +13,7 @@ services:
       - ENABLE_SCHEDULED_JOBS=true
       - CRON_API_KEY=test-scheduler-key
       - NEXT_PUBLIC_CRON_API_KEY=test-scheduler-key
+      - SKIP_ENV_VALIDATION=true
       - TZ=Asia/Jakarta
     volumes:
       - app-uploads:/app/public/uploads
@@ -22,8 +23,7 @@ services:
     restart: unless-stopped
     networks:
       - app-network
-    entrypoint: ["/bin/sh", "-c"]
-    command: sh -c "until nc -z redis 6379; do echo 'Waiting for Redis...'; sleep 2; done && echo 'Redis ready' && if [ -f server.js ]; then node server.js; else npm start; fi"
+    command: "until nc -z redis 6379; do echo 'Waiting for Redis...'; sleep 2; done && echo 'Redis ready' && if [ -f server.js ]; then node server.js; else npm start; fi"
 
   websocket:
     image: docker.io/voetaz123/sociofly:latest
@@ -37,23 +37,14 @@ services:
       - REDIS_URL=redis://redis:6379
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - SKIP_ENV_VALIDATION=true
       - TZ=Asia/Jakarta
     depends_on:
       - redis
     restart: unless-stopped
     networks:
       - app-network
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      echo "🚀 Starting WebSocket server..."
-      echo "⏳ Waiting for Redis..."
-      until nc -z redis 6379; do
-        echo "Redis is unavailable - sleeping"
-        sleep 2
-      done
-      echo "✅ Redis is up and running"
-      echo "🔌 Starting WebSocket server on port 3004..."
-      exec node websocket-server.js
+    command: "until nc -z redis 6379; do echo 'Waiting for Redis...'; sleep 2; done && echo 'Redis ready' && if [ -f websocket-server.js ]; then node websocket-server.js; else echo 'WebSocket server file not found'; exit 1; fi"
 
   redis:
     image: redis:7-alpine

@@ -137,6 +137,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Use shell as entrypoint for flexibility
-ENTRYPOINT ["/bin/sh", "-c"]
-CMD ["if [ -f server.js ]; then node server.js; else npm start; fi"]
+# Default command with fallback
+CMD ["sh", "-c", "if [ -f server.js ]; then node server.js; else npm start; fi"]
