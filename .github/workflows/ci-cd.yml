@@ -307,15 +307,13 @@ jobs:
              
              services:
                app:
-                 build:
-                   context: .
-                   dockerfile: Dockerfile.dev
+                 image: docker.io/voetaz123/sociofly:latest
                  ports:
                    - "3000:3000"
                  env_file:
                    - .env
                  environment:
-                   - NODE_ENV=development
+                   - NODE_ENV=production
                    - REDIS_URL=redis://redis:6379
                    - REDIS_HOST=redis
                    - REDIS_PORT=6379
@@ -324,11 +322,7 @@ jobs:
                    - NEXT_PUBLIC_CRON_API_KEY=test-scheduler-key
                    - TZ=Asia/Jakarta
                  volumes:
-                   - .:/app
-                   - /app/node_modules
-                   - /app/.next
-                   - app-dev-uploads:/app/public/uploads
-                 command: yarn dev
+                   - app-uploads:/app/public/uploads
                  depends_on:
                    - redis
                  restart: unless-stopped
@@ -369,7 +363,7 @@ jobs:
              
              volumes:
                redis-dev-data:
-               app-dev-uploads:
+               app-uploads:
 
       - name: Verify file copy and fix permissions
         uses: appleboy/ssh-action@v1.0.3
@@ -386,7 +380,6 @@ jobs:
             if [ -f "docker-compose.dev.yml" ]; then
               echo "✅ docker-compose.dev.yml found"
               ls -la docker-compose.dev.yml
-              # Ensure proper permissions
               chmod 644 docker-compose.dev.yml
               echo "✅ Permissions set to 644"
             else
