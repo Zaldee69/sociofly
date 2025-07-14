@@ -318,8 +318,9 @@ jobs:
             CURRENT_USER=$(whoami)
             echo "Current user: $CURRENT_USER"
             
-            # Use sudo for Docker commands in CI environment
-            USE_SUDO="sudo "
+            # Use Docker without sudo in GitHub Actions environment
+            # GitHub Actions runners have Docker configured for the runner user
+            USE_SUDO=""
             
             echo "Debug: USE_SUDO='$USE_SUDO'"
             echo "Debug: APP_DIR='$APP_DIR'"
