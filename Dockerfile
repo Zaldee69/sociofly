@@ -127,8 +127,7 @@ RUN echo "=== Runner Stage Debug ===" && \
     fi && \
     echo "========================"
 
-# Copy websocket server
-COPY --chown=nextjs:nodejs websocket-server.js ./websocket-server.js
+
 
 USER nextjs
 
