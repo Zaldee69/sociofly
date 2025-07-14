@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   app:
     image: docker.io/voetaz123/sociofly:latest
@@ -33,7 +31,7 @@ services:
       done
       echo "✅ Redis is up and running"
       echo "🌐 Starting Next.js server..."
-      exec node server.js
+      exec npm start
 
   redis:
     image: redis:7-alpine

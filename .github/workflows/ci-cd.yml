@@ -303,8 +303,6 @@ jobs:
         env:
           APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
           DOCKER_COMPOSE_CONTENT: |
-             version: "3.8"
-             
              services:
                app:
                  image: docker.io/voetaz123/sociofly:latest
@@ -338,7 +336,7 @@ jobs:
                    done
                    echo "✅ Redis is up and running"
                    echo "🌐 Starting Next.js server..."
-                   exec node server.js
+                   exec npm start
              
                redis:
                  image: redis:7-alpine
