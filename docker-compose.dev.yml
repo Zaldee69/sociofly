@@ -2,18 +2,13 @@ version: "3.8"
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
+    image: docker.io/voetaz123/sociofly:latest
     ports:
       - "3000:3000"
     env_file:
       - .env
     environment:
       - NODE_ENV=development
-      # Gunakan DATABASE_URL dan DIRECT_URL dari .env file
-      # - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/scheduler_db?schema=public
-      # - DIRECT_URL=postgresql://postgres:postgres@postgres:5432/scheduler_db?schema=public
       - REDIS_URL=redis://redis:6379
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -22,11 +17,7 @@ services:
       - NEXT_PUBLIC_CRON_API_KEY=test-scheduler-key
       - TZ=Asia/Jakarta
     volumes:
-      - .:/app
-      - /app/node_modules
-      - /app/.next
-      - app-dev-uploads:/app/public/uploads
-    command: yarn dev
+      - app-uploads:/app/public/uploads
     depends_on:
       - redis
     restart: unless-stopped
@@ -67,4 +58,4 @@ networks:
 
 volumes:
   redis-dev-data:
-  app-dev-uploads:
+  app-uploads:
