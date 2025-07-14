@@ -23,7 +23,7 @@ services:
     restart: unless-stopped
     networks:
       - app-network
-    command: "until nc -z redis 6379; do echo 'Waiting for Redis...'; sleep 2; done && echo 'Redis ready' && if [ -f server.js ]; then node server.js; else npm start; fi"
+    command: "sh -c 'while ! nc -z redis 6379; do echo \"Waiting for Redis...\"; sleep 2; done && echo \"Redis ready\" && if [ -f server.js ]; then node server.js; else npm start; fi'"
 
   websocket:
     image: docker.io/voetaz123/sociofly:latest
@@ -44,7 +44,7 @@ services:
     restart: unless-stopped
     networks:
       - app-network
-    command: "until nc -z redis 6379; do echo 'Waiting for Redis...'; sleep 2; done && echo 'Redis ready' && if [ -f websocket-server.js ]; then node websocket-server.js; else echo 'WebSocket server file not found'; exit 1; fi"
+    command: "sh -c 'while ! nc -z redis 6379; do echo \"Waiting for Redis...\"; sleep 2; done && echo \"Redis ready\" && if [ -f websocket-server.js ]; then node websocket-server.js; else echo \"WebSocket server file not found\"; exit 1; fi'"
 
   redis:
     image: redis:7-alpine

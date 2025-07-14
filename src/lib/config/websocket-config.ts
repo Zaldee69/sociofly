@@ -38,7 +38,7 @@ export const defaultWebSocketConfig: WebSocketConfig = {
   connectionTimeoutSeconds: 10,
 
   // Server settings
-  serverPort: parseInt(process.env.WEBSOCKET_PORT || '9003'),
+  serverPort: parseInt(process.env.WEBSOCKET_PORT || '3004'),
   serverHost: process.env.WEBSOCKET_HOST || 'localhost',
 
   // Fallback settings

@@ -197,6 +197,36 @@ this.io = new SocketIOServer(server, {
 });
 ```
 
+#### Error: "until: not found" (Exit Code 127)
+
+**Masalah**: Container restart dengan error `/usr/local/bin/docker-entrypoint.sh: exec: line 11: until: not found`
+
+**Penyebab**: Command `until` tidak tersedia di Alpine Linux yang menggunakan ash shell, bukan bash.
+
+**Solusi**: Gunakan `while ! condition` sebagai pengganti `until condition`
+
+```yaml
+# ❌ Tidak kompatibel dengan Alpine Linux
+command: "until nc -z redis 6379; do echo 'Waiting for Redis...'; sleep 2; done && echo 'Redis ready' && node server.js"
+
+# ✅ Kompatibel dengan Alpine Linux
+command: "sh -c 'while ! nc -z redis 6379; do echo \"Waiting for Redis...\"; sleep 2; done && echo \"Redis ready\" && node server.js'"
+```
+
+**File yang diperbaiki**:
+- `docker-compose.dev.yml`
+- `.github/workflows/ci-cd.yml`
+
+**Verifikasi perbaikan**:
+```bash
+# Check container status
+docker-compose -f docker-compose.dev.yml ps
+
+# Check logs
+docker-compose -f docker-compose.dev.yml logs app
+docker-compose -f docker-compose.dev.yml logs websocket
+```
+
 ### Logs untuk Monitoring
 
 **Successful Connection:**

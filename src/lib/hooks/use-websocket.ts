@@ -66,8 +66,8 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     setState(prev => ({ ...prev, isConnecting: true, error: null }));
 
     try {
-      // WebSocket server runs on a separate port (9003)
-           const wsPort = process.env.NEXT_PUBLIC_WEBSOCKET_PORT || "9003";
+      // WebSocket server runs on a separate port (3004)
+           const wsPort = process.env.NEXT_PUBLIC_WEBSOCKET_PORT || "3004";
       const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || `http://localhost:${wsPort}`;
       
       const socket = io(wsUrl, {

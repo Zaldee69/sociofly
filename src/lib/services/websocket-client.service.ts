@@ -15,7 +15,7 @@ export interface NotificationPayload {
 }
 
 export class WebSocketClientService {
-  private static baseUrl = `http://localhost:${process.env.WEBSOCKET_PORT || '9003'}`;
+  private static baseUrl = `http://localhost:${process.env.WEBSOCKET_PORT || '3004'}`;
 
   /**
    * Send notification to a specific user
