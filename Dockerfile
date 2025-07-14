@@ -112,6 +112,10 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Copy startup script
+COPY --chown=nextjs:nodejs scripts/start-with-redis.sh ./scripts/
+RUN chmod +x ./scripts/start-with-redis.sh
+
 # Debug: Verify server.js was copied to runner stage
 RUN echo "=== Runner Stage Debug ===" && \
     echo "Files in /app:" && \
@@ -136,5 +140,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Default command with fallback
-CMD ["sh", "-c", "if [ -f server.js ]; then node server.js; else npm start; fi"]
+# Default command with Redis job initialization
+CMD ["./scripts/start-with-redis.sh"]

@@ -1,7 +1,26 @@
 #!/bin/bash
 
 # Start Development Server with Redis Jobs
+cle# Compatible with both local development and Docker environments
+#
+# Usage:
+#   Local development:  ./scripts/start-with-redis.sh
+#   Docker environment: Set DOCKER_ENV=true or NODE_ENV=production
+#
+# Environment Detection:
+#   - Local: Uses 'npm run dev' for Next.js
+#   - Docker/Production: Uses 'node server.js' or 'npm start'
+
 echo "🚀 Starting development server with Redis job scheduler..."
+
+# Detect and display environment
+if [ "$NODE_ENV" = "production" ] || [ -f "/app/server.js" ] || [ "$DOCKER_ENV" = "true" ]; then
+    echo "📦 Environment: Docker/Production"
+    IS_DOCKER=true
+else
+    echo "💻 Environment: Local Development"
+    IS_DOCKER=false
+fi
 
 # Set environment variables
 export ENABLE_SCHEDULED_JOBS=true
@@ -70,12 +89,36 @@ fi
 
 # Start WebSocket server in background
 echo "🔌 Starting WebSocket server..."
-node websocket-server.js &
+if [ "$IS_DOCKER" = "true" ]; then
+    # Docker/Production environment
+    if [ -f /app/websocket-server.js ]; then
+        node /app/websocket-server.js &
+    else
+        node websocket-server.js &
+    fi
+else
+    # Local development environment
+    node websocket-server.js &
+fi
 WS_PID=$!
 
-# Start Next.js development server in background
-echo "🌐 Starting Next.js development server..."
-npm run dev &
+# Detect environment and start appropriate server
+echo "🌐 Starting Next.js server..."
+if [ "$IS_DOCKER" = "true" ]; then
+    # Docker/Production environment
+    echo "📦 Running in Docker/Production mode"
+    if [ -f server.js ]; then
+        node server.js &
+    elif [ -f /app/server.js ]; then
+        node /app/server.js &
+    else
+        npm start &
+    fi
+else
+    # Local development environment
+    echo "💻 Running in local development mode"
+    npm run dev &
+fi
 DEV_PID=$!
 
 # Wait for server to be ready and initialize jobs
@@ -93,8 +136,15 @@ done
 
 # Keep script running and monitor Redis jobs
 echo "🎯 Monitoring Redis-based jobs..."
-echo "📝 Dashboard: http://localhost:3000/admin/cron"
-echo "📊 Queue Monitor: http://localhost:3000/admin/queues"
+if [ "$IS_DOCKER" = "true" ]; then
+    echo "📝 Dashboard: http://localhost:3000/admin/cron (Docker)"
+    echo "📊 Queue Monitor: http://localhost:3000/admin/queues (Docker)"
+    echo "🔌 WebSocket: ws://localhost:3004 (Docker)"
+else
+    echo "📝 Dashboard: http://localhost:3000/admin/cron (Local Dev)"
+    echo "📊 Queue Monitor: http://localhost:3000/admin/queues (Local Dev)"
+    echo "🔌 WebSocket: ws://localhost:3004 (Local Dev)"
+fi
 echo ""
 echo "🛑 Press Ctrl+C to stop"
 
