@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - REDIS_URL=redis://redis:6379
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -18,20 +18,42 @@ services:
       - app-uploads:/app/public/uploads
     depends_on:
       - redis
+      - websocket
+    restart: unless-stopped
+    networks:
+      - app-network
+    entrypoint: ["/bin/sh", "-c"]
+    command: sh -c "until nc -z redis 6379; do echo 'Waiting for Redis...'; sleep 2; done && echo 'Redis ready' && if [ -f server.js ]; then node server.js; else npm start; fi"
+
+  websocket:
+    image: docker.io/voetaz123/sociofly:latest
+    ports:
+      - "3004:3004"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - WEBSOCKET_PORT=3004
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TZ=Asia/Jakarta
+    depends_on:
+      - redis
     restart: unless-stopped
     networks:
       - app-network
     entrypoint: ["/bin/sh", "-c"]
     command: |
-      echo "🚀 Starting application without docker-init.sh..."
+      echo "🚀 Starting WebSocket server..."
       echo "⏳ Waiting for Redis..."
       until nc -z redis 6379; do
         echo "Redis is unavailable - sleeping"
         sleep 2
       done
       echo "✅ Redis is up and running"
-      echo "🌐 Starting Next.js server..."
-      exec npm start
+      echo "🔌 Starting WebSocket server on port 3004..."
+      exec node websocket-server.js
 
   redis:
     image: redis:7-alpine

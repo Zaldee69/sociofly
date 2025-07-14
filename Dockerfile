@@ -76,6 +76,20 @@ RUN npx prisma generate
 RUN --mount=type=cache,target=/app/.next/cache \
     npm run build
 
+# Debug: Check if standalone output was created
+RUN echo "=== Build Output Debug ===" && \
+    ls -la .next/ && \
+    echo "=== Standalone Directory ===" && \
+    ls -la .next/standalone/ && \
+    echo "=== Server.js Check ===" && \
+    if [ -f ".next/standalone/server.js" ]; then \
+      echo "✅ server.js found in standalone output"; \
+      ls -la .next/standalone/server.js; \
+    else \
+      echo "❌ server.js NOT found in standalone output"; \
+    fi && \
+    echo "========================"
+
 # Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app
@@ -98,9 +112,23 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy initialization script
-COPY --chown=nextjs:nodejs scripts/docker-init.sh ./docker-init.sh
-RUN chmod +x ./docker-init.sh
+# Debug: Verify server.js was copied to runner stage
+RUN echo "=== Runner Stage Debug ===" && \
+    echo "Files in /app:" && \
+    ls -la && \
+    echo "=== Server.js Check ===" && \
+    if [ -f "server.js" ]; then \
+      echo "✅ server.js found in runner stage"; \
+      ls -la server.js; \
+    else \
+      echo "❌ server.js NOT found in runner stage"; \
+      echo "Looking for server.js in subdirectories:"; \
+      find . -name "server.js" -type f 2>/dev/null || echo "No server.js found anywhere"; \
+    fi && \
+    echo "========================"
+
+# Copy websocket server
+COPY --chown=nextjs:nodejs websocket-server.js ./websocket-server.js
 
 USER nextjs
 
@@ -109,6 +137,6 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Use the initialization script as entrypoint
-ENTRYPOINT ["./docker-init.sh"]
-CMD ["node", "server.js"]
+# Use shell as entrypoint for flexibility
+ENTRYPOINT ["/bin/sh", "-c"]
+CMD ["if [ -f server.js ]; then node server.js; else npm start; fi"]

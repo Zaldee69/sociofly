@@ -323,20 +323,33 @@ jobs:
                    - app-uploads:/app/public/uploads
                  depends_on:
                    - redis
+                   - websocket
                  restart: unless-stopped
                  networks:
                    - app-network
                  entrypoint: ["/bin/sh", "-c"]
-                 command: |
-                   echo "🚀 Starting application without docker-init.sh..."
-                   echo "⏳ Waiting for Redis..."
-                   until nc -z redis 6379; do
-                     echo "Redis is unavailable - sleeping"
-                     sleep 2
-                   done
-                   echo "✅ Redis is up and running"
-                   echo "🌐 Starting Next.js server..."
-                   exec npm start
+                 command: sh -c "until nc -z redis 6379; do echo 'Waiting for Redis...'; sleep 2; done && echo 'Redis ready' && if [ -f server.js ]; then node server.js; else npm start; fi"
+             
+               websocket:
+                 image: docker.io/voetaz123/sociofly:latest
+                 ports:
+                   - "3004:3004"
+                 env_file:
+                   - .env
+                 environment:
+                   - NODE_ENV=production
+                   - WEBSOCKET_PORT=3004
+                   - REDIS_URL=redis://redis:6379
+                   - REDIS_HOST=redis
+                   - REDIS_PORT=6379
+                   - TZ=Asia/Jakarta
+                 depends_on:
+                   - redis
+                 restart: unless-stopped
+                 networks:
+                   - app-network
+                 entrypoint: ["/bin/sh", "-c"]
+                 command: sh -c "until nc -z redis 6379; do echo 'Waiting for Redis...'; sleep 2; done && echo 'Redis ready' && if [ -f websocket-server.js ]; then node websocket-server.js; else echo 'WebSocket server file not found'; exit 1; fi"
              
                redis:
                  image: redis:7-alpine
@@ -417,6 +430,7 @@ jobs:
             # Create .env file with production environment variables
             cat > .env << EOF
             NODE_ENV=production
+            SKIP_ENV_VALIDATION=true
             DATABASE_URL=${DATABASE_URL}
             DIRECT_URL=${DIRECT_URL}
             NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
@@ -440,6 +454,7 @@ jobs:
             WEBSOCKET_PORT=${WEBSOCKET_PORT}
             NEXT_PUBLIC_WEBSOCKET_PORT=${NEXT_PUBLIC_WEBSOCKET_PORT}
             NEXT_PUBLIC_WEBSOCKET_URL=${NEXT_PUBLIC_WEBSOCKET_URL}
+            WEBSOCKET_HOST=websocket
             MIDTRANS_CLIENT_KEY=${MIDTRANS_CLIENT_KEY}
             MIDTRANS_SERVER_KEY=${MIDTRANS_SERVER_KEY}
             MIDTRANS_IS_PRODUCTION=${MIDTRANS_IS_PRODUCTION}
@@ -630,33 +645,87 @@ jobs:
             for i in {1..12}; do
               echo "⏳ Health check attempt $i/12..."
               
+              # Check container status first
+              echo "📊 Container Status:"
+              ${USE_SUDO}docker-compose -f docker-compose.dev.yml ps
+              
               # Check if containers are running
               if ! ${USE_SUDO}docker-compose -f docker-compose.dev.yml ps | grep -q "Up"; then
-                echo "❌ Containers are not running"
-                ${USE_SUDO}docker-compose -f docker-compose.dev.yml logs --tail=20
+                echo "❌ Containers are not running properly"
+                echo "=== Container Logs (Last 30 lines) ==="
+                ${USE_SUDO}docker-compose -f docker-compose.dev.yml logs --tail=30
                 sleep 5
                 continue
               fi
               
-              # Check application health endpoint
-              if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
-                echo "✅ Application is healthy (attempt $i)"
-                HEALTH_CHECK_PASSED=true
-                break
-              elif curl -sf http://localhost:3000 >/dev/null 2>&1; then
-                echo "✅ Application is responding (attempt $i)"
-                HEALTH_CHECK_PASSED=true
-                break
+              # Show recent logs for debugging
+              if [ $i -eq 1 ] || [ $((i % 3)) -eq 0 ]; then
+                echo "=== Recent App Logs ==="
+                ${USE_SUDO}docker-compose -f docker-compose.dev.yml logs --tail=10 app
+                echo "=== Recent WebSocket Logs ==="
+                ${USE_SUDO}docker-compose -f docker-compose.dev.yml logs --tail=10 websocket
               fi
               
-              echo "⏳ Waiting for app to start..."
-              sleep 10
+              # Check application health endpoint
+              APP_HEALTHY=false
+              WEBSOCKET_HEALTHY=false
+              
+              echo "🔍 Testing main application..."
+              if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
+                echo "✅ Main application is healthy (attempt $i)"
+                APP_HEALTHY=true
+              elif curl -sf http://localhost:3000 >/dev/null 2>&1; then
+                echo "✅ Main application is responding (attempt $i)"
+                APP_HEALTHY=true
+              else
+                echo "❌ Main application not responding"
+                # Test if port is open
+                if nc -z localhost 3000; then
+                  echo "🔍 Port 3000 is open but app not responding"
+                else
+                  echo "🔍 Port 3000 is not open"
+                fi
+              fi
+              
+              # Check WebSocket server health
+              echo "🔍 Testing WebSocket server..."
+              if curl -sf http://localhost:3004/api/status >/dev/null 2>&1; then
+                echo "✅ WebSocket server is healthy (attempt $i)"
+                WEBSOCKET_HEALTHY=true
+              else
+                echo "❌ WebSocket server not responding"
+                # Test if port is open
+                if nc -z localhost 3004; then
+                  echo "🔍 Port 3004 is open but WebSocket not responding"
+                else
+                  echo "🔍 Port 3004 is not open"
+                fi
+              fi
+              
+              if [ "$APP_HEALTHY" = "true" ] && [ "$WEBSOCKET_HEALTHY" = "true" ]; then
+                echo "✅ Both services are healthy (attempt $i)"
+                HEALTH_CHECK_PASSED=true
+                break
+              elif [ "$APP_HEALTHY" = "true" ]; then
+                echo "⚠️  Main app healthy but WebSocket not ready yet (attempt $i)"
+              elif [ "$WEBSOCKET_HEALTHY" = "true" ]; then
+                echo "⚠️  WebSocket healthy but main app not ready yet (attempt $i)"
+              else
+                echo "❌ Both services not ready yet (attempt $i)"
+              fi
+              
+              echo "⏳ Waiting for services to start..."
+              sleep 15
             done
             
             if [ "$HEALTH_CHECK_PASSED" = "false" ]; then
-              echo "⚠️  Health check failed, but deployment will continue"
-              echo "=== Container Logs ==="
-              ${USE_SUDO}docker-compose -f docker-compose.dev.yml logs --tail=50
+              echo "⚠️  Health check failed after 12 attempts"
+              echo "=== Final Container Status ==="
+              ${USE_SUDO}docker-compose -f docker-compose.dev.yml ps
+              echo "=== Full Container Logs ==="
+              ${USE_SUDO}docker-compose -f docker-compose.dev.yml logs --tail=100
+              echo "=== Port Status ==="
+              netstat -tlnp | grep -E ':(3000|3004|6379)' || echo "No services listening on expected ports"
             fi
 
             # Check container status
