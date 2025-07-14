@@ -341,30 +341,50 @@ jobs:
             DIRECT_URL=${DIRECT_URL}
             NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+            # Authentication
             CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
             NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
             CLERK_WEBHOOK_SECRET=${CLERK_WEBHOOK_SECRET}
+            
+            # External APIs
             OPENAI_API_KEY=${OPENAI_API_KEY}
             RESEND_API_KEY=${RESEND_API_KEY}
-            REDIS_URL=redis://redis:6379
+            
+            # Redis Configuration
             REDIS_HOST=redis
             REDIS_PORT=6379
             REDIS_PASSWORD=${REDIS_PASSWORD}
             REDIS_DB=${REDIS_DB}
             REDIS_USE_CLUSTER=${REDIS_USE_CLUSTER}
+            
+            # Scheduled Jobs
             ENABLE_SCHEDULED_JOBS=${ENABLE_SCHEDULED_JOBS}
             CRON_API_KEY=${CRON_API_KEY}
             NEXT_PUBLIC_CRON_API_KEY=${NEXT_PUBLIC_CRON_API_KEY}
+            
+            # App URLs
             NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
             NEXTAUTH_URL=${NEXTAUTH_URL}
+            
+            # WebSocket Configuration
+            WEBSOCKET_PORT=3004
+            NEXT_PUBLIC_WEBSOCKET_PORT=3004
+            NEXT_PUBLIC_WEBSOCKET_URL=${NEXT_PUBLIC_WEBSOCKET_URL}
 
+            # Payment Gateway
             MIDTRANS_CLIENT_KEY=${MIDTRANS_CLIENT_KEY}
             MIDTRANS_SERVER_KEY=${MIDTRANS_SERVER_KEY}
             MIDTRANS_IS_PRODUCTION=${MIDTRANS_IS_PRODUCTION}
+            
+            # Social Media
             NEXT_PUBLIC_FACEBOOK_CLIENT_ID=${NEXT_PUBLIC_FACEBOOK_CLIENT_ID}
             NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET=${NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET}
+            
+            # File Upload
             UPLOADTHING_TOKEN=${UPLOADTHING_TOKEN}
             ENTRY_AUTH_TOKEN=${ENTRY_AUTH_TOKEN}
+            
+            # System
             TZ=Asia/Jakarta
             EOF
             
@@ -390,6 +410,7 @@ jobs:
           NEXT_PUBLIC_CRON_API_KEY: ${{ secrets.NEXT_PUBLIC_CRON_API_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
+          NEXT_PUBLIC_WEBSOCKET_URL: ${{ vars.NEXT_PUBLIC_WEBSOCKET_URL }}
 
           MIDTRANS_CLIENT_KEY: ${{ secrets.MIDTRANS_CLIENT_KEY }}
           MIDTRANS_SERVER_KEY: ${{ secrets.MIDTRANS_SERVER_KEY }}
@@ -496,13 +517,39 @@ jobs:
             echo "=== Stopping existing containers ==="
             ${USE_SUDO}docker-compose -f docker-compose.yml down --remove-orphans || true
 
+            # Debug environment variables before build
+            echo "=== Debug Environment Variables ==="
+            echo "Checking .env file contents:"
+            if [ -f ".env" ]; then
+              echo "CLERK variables in .env:"
+              grep -E "^(NEXT_PUBLIC_CLERK|CLERK_)" .env || echo "No CLERK variables found in .env"
+              echo "WEBSOCKET variables in .env:"
+              grep -E "^(NEXT_PUBLIC_WEBSOCKET|WEBSOCKET_)" .env || echo "No WEBSOCKET variables found in .env"
+            else
+              echo "❌ .env file not found"
+            fi
+            
             # Build and start containers from source
             echo "=== Building and starting containers from source ==="
+            echo "Build arguments that will be passed to Docker:"
+            echo "- NODE_ENV=production"
+            echo "- SKIP_ENV_VALIDATION=true"
+            echo "- NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$(grep '^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=' .env | cut -d'=' -f2 | head -c 20)..."
+            echo "- NEXT_PUBLIC_SUPABASE_URL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' .env | cut -d'=' -f2 | head -c 30)..."
+            echo "- NEXT_PUBLIC_APP_URL=$(grep '^NEXT_PUBLIC_APP_URL=' .env | cut -d'=' -f2)"
+            echo "- NEXT_PUBLIC_WEBSOCKET_URL=$(grep '^NEXT_PUBLIC_WEBSOCKET_URL=' .env | cut -d'=' -f2)"
+            
             ${USE_SUDO}docker-compose -f docker-compose.yml up -d --build
             if [ $? -eq 0 ]; then
               echo "✅ Containers built and started successfully"
             else
               echo "❌ Failed to build and start containers"
+              echo "=== Build Error Logs ==="
+              ${USE_SUDO}docker-compose -f docker-compose.yml logs app || true
+              echo "=== Container Status ==="
+              ${USE_SUDO}docker-compose -f docker-compose.yml ps || true
+              echo "=== Docker Images ==="
+              ${USE_SUDO}docker images | grep -E '(my-scheduler|<none>)' || true
               exit 1
             fi
 

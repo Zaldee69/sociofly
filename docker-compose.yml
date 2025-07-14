@@ -5,6 +5,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+        - SKIP_ENV_VALIDATION=true
+        - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+        - NEXT_PUBLIC_WEBSOCKET_URL=${NEXT_PUBLIC_WEBSOCKET_URL}
+        - NEXT_PUBLIC_WEBSOCKET_PORT=${NEXT_PUBLIC_WEBSOCKET_PORT}
+        - NEXT_PUBLIC_FACEBOOK_CLIENT_ID=${NEXT_PUBLIC_FACEBOOK_CLIENT_ID}
     ports:
       - "3000:3000"
       - "3004:3004"
@@ -18,13 +28,14 @@ services:
       - REDIS_URL=redis://redis:6379
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - ENABLE_SCHEDULED_JOBS=true
-      - CRON_API_KEY=your-cron-api-key
-      - NEXT_PUBLIC_CRON_API_KEY=your-cron-api-key
       - TZ=Asia/Jakarta
       - WEBSOCKET_PORT=3004
       - NEXT_PUBLIC_WEBSOCKET_PORT=3004
-      - NEXT_PUBLIC_WEBSOCKET_URL=http://localhost:3004
+      # Environment variables below are set from .env file (created by CI/CD)
+      # - ENABLE_SCHEDULED_JOBS (from .env)
+      # - CRON_API_KEY (from .env)
+      # - NEXT_PUBLIC_CRON_API_KEY (from .env)
+      # - NEXT_PUBLIC_WEBSOCKET_URL (from .env)
     depends_on:
       - redis
     restart: unless-stopped
