@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Start Development Server with Redis Jobs
-cle# Compatible with both local development and Docker environments
+# Compatible with both local development and Docker environments
 #
 # Usage:
 #   Local development:  ./scripts/start-with-redis.sh
@@ -38,11 +38,18 @@ check_server() {
 check_redis() {
     echo "🔍 Checking Redis availability..."
     if command -v redis-cli >/dev/null 2>&1; then
-        if redis-cli ping > /dev/null 2>&1; then
-            echo "✅ Redis is running"
+        # Determine Redis host based on environment
+        if [ "$IS_DOCKER" = "true" ]; then
+            REDIS_HOST="redis"
+        else
+            REDIS_HOST="localhost"
+        fi
+        
+        if redis-cli -h "$REDIS_HOST" ping > /dev/null 2>&1; then
+            echo "✅ Redis is running on $REDIS_HOST"
             return 0
         else
-            echo "❌ Redis is not responding"
+            echo "❌ Redis is not responding on $REDIS_HOST"
             return 1
         fi
     else

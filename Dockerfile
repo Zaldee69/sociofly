@@ -72,6 +72,19 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Generate Prisma Client
 RUN npx prisma generate
 
+# Ensure scripts directory exists and verify files
+RUN mkdir -p ./scripts
+
+# Debug: Verify files are available in builder stage
+RUN echo "=== Builder Stage File Check ===" && \
+    echo "Scripts directory:" && \
+    ls -la ./scripts/ || echo "Scripts directory not found" && \
+    echo "start-with-redis.sh:" && \
+    ls -la ./scripts/start-with-redis.sh || echo "start-with-redis.sh not found" && \
+    echo "websocket-server.js:" && \
+    ls -la ./websocket-server.js || echo "websocket-server.js not found" && \
+    echo "=============================="
+
 # Build with cache mount for faster builds
 RUN --mount=type=cache,target=/app/.next/cache \
     npm run build
@@ -97,7 +110,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN apk add --no-cache netcat-openbsd curl
+RUN apk add --no-cache netcat-openbsd curl redis
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -112,8 +125,10 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy startup script
-COPY --chown=nextjs:nodejs scripts/start-with-redis.sh ./scripts/
+# Create scripts directory and copy startup script from builder stage
+RUN mkdir -p ./scripts
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/start-with-redis.sh ./scripts/
+COPY --from=builder --chown=nextjs:nodejs /app/websocket-server.js ./
 RUN chmod +x ./scripts/start-with-redis.sh
 
 # Debug: Verify server.js was copied to runner stage
@@ -131,6 +146,20 @@ RUN echo "=== Runner Stage Debug ===" && \
     fi && \
     echo "========================"
 
+# Debug: Verify script and websocket server were copied correctly
+RUN echo "=== Script Copy Debug ===" && \
+    echo "Scripts directory contents:" && \
+    ls -la ./scripts/ && \
+    echo "Script permissions:" && \
+    ls -la ./scripts/start-with-redis.sh && \
+    echo "WebSocket server:" && \
+    ls -la ./websocket-server.js && \
+    echo "Script first few lines:" && \
+    head -5 ./scripts/start-with-redis.sh && \
+    echo "Testing script readability:" && \
+    test -r /app/scripts/start-with-redis.sh && echo "✅ Script is readable" || echo "❌ Script is not readable" && \
+    echo "========================"
+
 
 
 USER nextjs
@@ -141,4 +170,5 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Default command with Redis job initialization
-CMD ["./scripts/start-with-redis.sh"]
+# Use exec form to avoid shell interpretation issues
+CMD ["/bin/sh", "/app/scripts/start-with-redis.sh"]
