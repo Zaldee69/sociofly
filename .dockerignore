@@ -7,6 +7,8 @@ node_modules
 # Testing
 /coverage
 .nyc_output
+/test
+src/test
 
 # Next.js
 .next/
@@ -46,14 +48,12 @@ logs
 *.log
 
 # Docker
-# Dockerfile  # Commented out - needed for build
-# .dockerignore  # Commented out - needed for build
-# docker-compose.yml  # Commented out - needed for build
 docker-compose.*.yml
 
 # Git
 .git
 .gitignore
+.github
 
 # Backups
 backups/
@@ -66,3 +66,30 @@ backups/
 *.njsproj
 *.sln
 *.sw?
+
+# Documentation (exclude from build)
+README.md
+README.docker.md
+docs/
+
+# Scripts not needed for build
+scripts/debug/
+scripts/monitor-*
+scripts/redis-*
+scripts/emergency-*
+scripts/optimize-*
+scripts/verify-*
+scripts/seed-*
+scripts/setup-*
+scripts/auto-*
+scripts/stop-*
+scripts/resume-*
+!scripts/start-with-redis.sh
+
+# Development files
+vitest.config.ts
+eslint.config.mjs
+
+# Cache directories
+.cache
+.parcel-cache
