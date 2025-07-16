@@ -430,10 +430,10 @@ jobs:
           timeout: 30s
           command_timeout: 20m
           script_stop: true
-          envs: DOCKER_PASSWORD,DOCKER_USERNAME,APP_DIR,IMAGE_NAME,REGISTRY
+          envs: GITHUB_TOKEN,APP_DIR,IMAGE_NAME,REGISTRY
           script: |
             # Validate required environment variables
-            if [ -z "$APP_DIR" ] || [ -z "$IMAGE_NAME" ] || [ -z "$REGISTRY" ] || [ -z "$DOCKER_USERNAME" ] || [ -z "$DOCKER_PASSWORD" ]; then
+            if [ -z "$APP_DIR" ] || [ -z "$IMAGE_NAME" ] || [ -z "$REGISTRY" ] || [ -z "$GITHUB_TOKEN" ]; then
               echo "❌ Error: Required environment variables are not set"
               exit 1
             fi
@@ -454,10 +454,13 @@ jobs:
             # Check Docker access and setup
             USE_SUDO=""
             
+            # Login to GitHub Container Registry
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
             # Pull base images
             docker-compose -f docker-compose.yml pull redis >/dev/null 2>&1 || true
 
-            # Try to pull pre-built image from Docker Hub first
+            # Try to pull pre-built image from GHCR first
             if docker pull ${REGISTRY}/${IMAGE_NAME}:latest >/dev/null 2>&1; then
               USE_PREBUILT=true
             else
@@ -553,8 +556,7 @@ jobs:
             
             echo "🎉 Deployment completed successfully!"
         env:
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           REGISTRY: ${{ env.REGISTRY }}
