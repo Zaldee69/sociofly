@@ -5,9 +5,8 @@ FROM node:20-alpine AS base
 FROM base AS deps
 WORKDIR /app
 
-# Install system dependencies and enable corepack globally
-RUN apk add --no-cache libc6-compat netcat-openbsd curl && \
-    corepack enable
+# Install system dependencies
+RUN apk add --no-cache libc6-compat netcat-openbsd curl
 
 # Copy package files
 COPY package.json yarn.lock .yarnrc.yml ./
@@ -15,9 +14,7 @@ COPY package.json yarn.lock .yarnrc.yml ./
 # Install dependencies with optimizations
 RUN --mount=type=cache,target=/root/.yarn \
     --mount=type=cache,target=/root/.cache \
-    corepack enable && \
-    corepack prepare --activate && \
-    yarn install --immutable --network-timeout 300000 --prefer-offline --frozen-lockfile
+    yarn install --frozen-lockfile --network-timeout 300000
 
 # Rebuild the source code only when needed
 FROM base AS builder
