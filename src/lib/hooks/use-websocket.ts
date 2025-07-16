@@ -71,15 +71,17 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || `http://localhost:${wsPort}`;
       
       const socket = io(wsUrl, {
-        transports: ['polling', 'websocket'], // Allow both polling and websocket
-        timeout: 20000, // Increased timeout to 20 seconds
+        transports: ['polling', 'websocket'], // Start with polling, upgrade to websocket
+        timeout: 20000, // Match server timeout: 20 seconds
         reconnection: true,
-        reconnectionAttempts: 5, // Reasonable reconnection attempts
-        reconnectionDelay: 1000, // Start with 1 second delay
-        reconnectionDelayMax: 5000, // Max 5 seconds delay
-        forceNew: true, // Force new connection
+        reconnectionAttempts: 3, // Reduced attempts for faster failover
+        reconnectionDelay: 2000, // Start with 2 second delay
+        reconnectionDelayMax: 10000, // Max 10 seconds delay
+        forceNew: false, // Allow connection reuse
         upgrade: true, // Allow upgrade to WebSocket
-        rememberUpgrade: true
+        rememberUpgrade: true,
+        autoConnect: true, // Auto connect
+        multiplex: true // Allow multiplexing
       });
 
       socketRef.current = socket;

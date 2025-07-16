@@ -1,17 +1,37 @@
 #!/usr/bin/env node
 
-// Standalone WebSocket server for development
+// Standalone WebSocket server for development and production
 const { createServer } = require('http');
 const { Server } = require('socket.io');
-require('dotenv').config();
+
+// Environment variables are available directly in Docker/production
+// No need for dotenv in containerized environments
 
 const PORT = process.env.WEBSOCKET_PORT || 3004;
+
+// Get the app URL from environment or default to localhost
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+// Build CORS origins list
 const CORS_ORIGINS = [
-  process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-  'http://localhost:3001', // Support port 3001
-  'http://localhost:3002', // Support port 3002
-  'http://localhost:3000'
+  APP_URL,
+  'http://localhost:3000',
+  'http://localhost:3001', 
+  'http://localhost:3002',
+  'http://127.0.0.1:3000',
+  'http://0.0.0.0:3000'
 ];
+
+// Add Docker/production IP if APP_URL contains an IP
+if (APP_URL.includes('://') && !APP_URL.includes('localhost') && !APP_URL.includes('127.0.0.1')) {
+  const url = new URL(APP_URL);
+  // Add the base IP without port
+  CORS_ORIGINS.push(`${url.protocol}//${url.hostname}`);
+  // Add common ports for the same IP
+  CORS_ORIGINS.push(`${url.protocol}//${url.hostname}:3000`);
+  CORS_ORIGINS.push(`${url.protocol}//${url.hostname}:3001`);
+  CORS_ORIGINS.push(`${url.protocol}//${url.hostname}:3004`);
+}
 
 // Create HTTP server with API endpoints
 const httpServer = createServer((req, res) => {
@@ -80,11 +100,36 @@ const httpServer = createServer((req, res) => {
 // Create Socket.IO server
 const io = new Server(httpServer, {
   cors: {
-    origin: CORS_ORIGINS,
+    origin: function(origin, callback) {
+      // Allow requests with no origin (mobile apps, etc.)
+      if (!origin) return callback(null, true);
+      
+      // Check if origin is in allowed list
+      if (CORS_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      // For Docker/production, also allow any origin that matches the IP pattern
+      if (origin.match(/^https?:\/\/\d+\.\d+\.\d+\.\d+(:\d+)?$/)) {
+        return callback(null, true);
+      }
+      
+      console.warn(`🚫 CORS blocked origin: ${origin}`);
+      return callback(new Error('Not allowed by CORS'), false);
+    },
     methods: ['GET', 'POST'],
-    credentials: true
+    credentials: true,
+    allowEIO3: true
   },
-  transports: ['websocket', 'polling']
+  transports: ['polling', 'websocket'], // Match client order: polling first, then websocket
+  pingTimeout: 20000, // Match client timeout: 20 seconds
+  pingInterval: 10000, // More frequent pings: 10 seconds
+  upgradeTimeout: 10000, // Faster upgrade timeout: 10 seconds
+  allowEIO3: true,
+  connectTimeout: 20000, // Connection timeout: 20 seconds
+  maxHttpBufferSize: 1e6, // 1MB limit
+  allowUpgrades: true, // Allow transport upgrades
+  perMessageDeflate: false // Disable compression for better performance
 });
 
 // Store connected users
@@ -178,10 +223,11 @@ module.exports = {
 };
 
 // Start server
-httpServer.listen(PORT, () => {
-  console.log(`🚀 WebSocket server listening on port ${PORT}`);
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 WebSocket server listening on port ${PORT} (all interfaces)`);
   console.log(`🌐 CORS origins: ${CORS_ORIGINS.join(', ')}`);
-  console.log(`🔗 WebSocket URL: ws://localhost:${PORT}`);
+  console.log(`🔗 WebSocket URL: ws://0.0.0.0:${PORT}`);
+  console.log(`📱 App URL: ${APP_URL}`);
 });
 
 // Graceful shutdown
