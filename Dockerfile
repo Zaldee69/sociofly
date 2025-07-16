@@ -9,12 +9,10 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat netcat-openbsd curl
 
 # Copy package files
-COPY package.json yarn.lock .yarnrc.yml ./
+COPY package.json yarn.lock ./
 
-# Install dependencies with optimizations
-RUN --mount=type=cache,target=/root/.yarn \
-    --mount=type=cache,target=/root/.cache \
-    yarn install --frozen-lockfile --network-timeout 300000
+# Install all dependencies (including devDependencies) for build
+RUN yarn install --network-timeout 300000
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -24,7 +22,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 
 # Copy only necessary files for build (exclude unnecessary files)
-COPY package.json yarn.lock .yarnrc.yml ./
+COPY package.json yarn.lock ./
 COPY next.config.ts ./
 COPY tailwind.config.ts ./
 COPY tsconfig.json ./
@@ -59,14 +57,11 @@ ENV NEXT_PUBLIC_WEBSOCKET_PORT=$NEXT_PUBLIC_WEBSOCKET_PORT
 ENV NEXT_PUBLIC_FACEBOOK_CLIENT_ID=$NEXT_PUBLIC_FACEBOOK_CLIENT_ID
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Generate Prisma Client with cache
-RUN --mount=type=cache,target=/app/.prisma \
-    npx prisma generate
+# Generate Prisma Client
+RUN yarn prisma generate
 
-# Build with optimizations and cache
-RUN --mount=type=cache,target=/app/.next/cache \
-    --mount=type=cache,target=/root/.yarn \
-    yarn build
+# Build application
+RUN yarn build
 
 # Production image, copy all the files and run next
 FROM base AS runner
