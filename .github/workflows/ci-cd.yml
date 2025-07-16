@@ -541,42 +541,35 @@ jobs:
             log "📋 Image details: ${REGISTRY}/${IMAGE_NAME}:latest"
             USE_PREBUILT=false
             
-            # Completely disable error handling for this section
+            # Temporarily disable error trap for image pull section
             trap - ERR
-            set +euo pipefail
+            set +e
             
-            # Try to pull the image with multiple fallback strategies
             log "🔽 Attempting to pull pre-built image..."
             
-            # Strategy 1: Try with timeout
-            if timeout 300 docker pull "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1; then
+            # Simple approach: try to pull the image and check if it succeeded
+            docker pull "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1
+            PULL_EXIT_CODE=$?
+            
+            if [ $PULL_EXIT_CODE -eq 0 ]; then
               USE_PREBUILT=true
-              log "✅ Pre-built image found and pulled successfully (with timeout)"
+              log "✅ Pre-built image found and pulled successfully"
             else
-              log "⚠️  Timeout pull failed, trying direct pull..."
+              USE_PREBUILT=false
+              log "ℹ️  No pre-built image found or pull failed, will build from source"
+              log "📋 This is normal for first deployment or when image doesn't exist"
               
-              # Strategy 2: Try direct pull without timeout
-              if docker pull "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1; then
-                USE_PREBUILT=true
-                log "✅ Pre-built image found and pulled successfully (direct)"
-              else
-                log "ℹ️  No pre-built image found or pull failed, will build from source"
-                log "📋 This is normal for first deployment or when image doesn't exist"
-                
-                # Clean up any partial downloads
-                log "🔧 Cleaning up any partial downloads..."
-                docker image prune -f --filter "dangling=true" >/dev/null 2>&1 || true
-                
-                # Also try to remove any failed pull attempts
-                docker rmi "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1 || true
-              fi
+              # Clean up any partial downloads
+              log "🔧 Cleaning up any partial downloads..."
+              docker image prune -f --filter "dangling=true" >/dev/null 2>&1
+              docker rmi "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1
             fi
             
-            log "📊 Pull result: USE_PREBUILT=$USE_PREBUILT"
-            
-            # Re-enable error trap and strict mode
-            set -euo pipefail
+            # Re-enable error handling
+            set -e
             trap handle_error ERR
+            
+            log "📊 Pull result: USE_PREBUILT=$USE_PREBUILT"
 
             # Stop existing containers gracefully with timeout
             log "🛑 Stopping existing containers..."
