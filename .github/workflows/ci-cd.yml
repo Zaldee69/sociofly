@@ -327,30 +327,38 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           timeout: 30s
-          envs: APP_DIR,DATABASE_URL,DIRECT_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,CLERK_SECRET_KEY,NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,CLERK_WEBHOOK_SECRET,OPENAI_API_KEY,RESEND_API_KEY,REDIS_PASSWORD,REDIS_DB,REDIS_USE_CLUSTER,ENABLE_SCHEDULED_JOBS,CRON_API_KEY,NEXT_PUBLIC_CRON_API_KEY,NEXT_PUBLIC_APP_URL,NEXTAUTH_URL,MIDTRANS_CLIENT_KEY,MIDTRANS_SERVER_KEY,MIDTRANS_IS_PRODUCTION,NEXT_PUBLIC_FACEBOOK_CLIENT_ID,NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET,UPLOADTHING_TOKEN,ENTRY_AUTH_TOKEN
+          envs: APP_DIR,DATABASE_URL,DIRECT_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,CLERK_SECRET_KEY,NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,CLERK_WEBHOOK_SECRET,OPENAI_API_KEY,RESEND_API_KEY,REDIS_PASSWORD,REDIS_DB,REDIS_USE_CLUSTER,ENABLE_SCHEDULED_JOBS,CRON_API_KEY,NEXT_PUBLIC_CRON_API_KEY,NEXT_PUBLIC_APP_URL,NEXTAUTH_URL,NEXT_PUBLIC_WEBSOCKET_URL,MIDTRANS_CLIENT_KEY,MIDTRANS_SERVER_KEY,MIDTRANS_IS_PRODUCTION,NEXT_PUBLIC_FACEBOOK_CLIENT_ID,NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET,UPLOADTHING_TOKEN,ENTRY_AUTH_TOKEN,SSH_HOST
           script: |
             # Create application directory if it doesn't exist
             mkdir -p "$APP_DIR"
             cd "$APP_DIR"
             
+            # Get server IP for WebSocket URL
+            SERVER_IP="${SSH_HOST}"
+            
             # Create .env file with production environment variables
             cat > .env << EOF
             NODE_ENV=production
             SKIP_ENV_VALIDATION=true
+            
+            # Database Configuration
             DATABASE_URL=${DATABASE_URL}
             DIRECT_URL=${DIRECT_URL}
+            
+            # Supabase Configuration
             NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+            
             # Authentication
             CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
             NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-            CLERK_WEBHOOK_SECRET=${CLERK_WEBHOOK_SECRET:-""}
+            CLERK_WEBHOOK_SECRET=${CLERK_WEBHOOK_SECRET}
             
             # External APIs
             OPENAI_API_KEY=${OPENAI_API_KEY}
             RESEND_API_KEY=${RESEND_API_KEY}
             
-            # Redis Configuration
+            # Redis Configuration (menggunakan container internal)
             REDIS_HOST=redis
             REDIS_PORT=6379
             REDIS_PASSWORD=${REDIS_PASSWORD}
@@ -362,14 +370,14 @@ jobs:
             CRON_API_KEY=${CRON_API_KEY}
             NEXT_PUBLIC_CRON_API_KEY=${NEXT_PUBLIC_CRON_API_KEY}
             
-            # App URLs
-            NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
-            NEXTAUTH_URL=${NEXTAUTH_URL}
+            # App URLs - Use server IP instead of localhost
+            NEXT_PUBLIC_APP_URL=http://${SERVER_IP}:3000
+            NEXTAUTH_URL=http://${SERVER_IP}:3000
             
-            # WebSocket Configuration
+            # WebSocket Configuration - Use server IP instead of localhost
             WEBSOCKET_PORT=3004
             NEXT_PUBLIC_WEBSOCKET_PORT=3004
-            NEXT_PUBLIC_WEBSOCKET_URL=${NEXT_PUBLIC_WEBSOCKET_URL:-"ws://localhost:3004"}
+            NEXT_PUBLIC_WEBSOCKET_URL=ws://${SERVER_IP}:3004
 
             # Payment Gateway
             MIDTRANS_CLIENT_KEY=${MIDTRANS_CLIENT_KEY}
@@ -386,9 +394,16 @@ jobs:
             
             # System
             TZ=Asia/Jakarta
+            NEXT_TELEMETRY_DISABLED=1
             EOF
             
-            echo "✅ .env file created successfully"
+            echo "✅ .env file created successfully with server IP: ${SERVER_IP}"
+            echo "📋 Environment variables summary:"
+            echo "- NEXT_PUBLIC_APP_URL=http://${SERVER_IP}:3000"
+            echo "- NEXT_PUBLIC_WEBSOCKET_URL=ws://${SERVER_IP}:3004"
+            echo "- REDIS_HOST=redis (container internal)"
+            echo "- NODE_ENV=production"
+            echo ""
             echo "📁 Files in directory:"
             ls -la
         env:
@@ -396,29 +411,29 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-          CLERK_WEBHOOK_SECRET: ${{ secrets.CLERK_WEBHOOK_SECRET }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          CLERK_WEBHOOK_SECRET: ${{ vars.CLERK_WEBHOOK_SECRET }}
+          OPENAI_API_KEY: ${{ vars.OPENAI_API_KEY }}
+          RESEND_API_KEY: ${{ vars.RESEND_API_KEY }}
+          REDIS_PASSWORD: ${{ vars.REDIS_PASSWORD }}
           REDIS_DB: ${{ vars.REDIS_DB }}
           REDIS_USE_CLUSTER: ${{ vars.REDIS_USE_CLUSTER }}
           ENABLE_SCHEDULED_JOBS: ${{ vars.ENABLE_SCHEDULED_JOBS }}
-          CRON_API_KEY: ${{ secrets.CRON_API_KEY }}
-          NEXT_PUBLIC_CRON_API_KEY: ${{ secrets.NEXT_PUBLIC_CRON_API_KEY }}
+          CRON_API_KEY: ${{ vars.CRON_API_KEY }}
+          NEXT_PUBLIC_CRON_API_KEY: ${{ vars.NEXT_PUBLIC_CRON_API_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
           NEXT_PUBLIC_WEBSOCKET_URL: ${{ vars.NEXT_PUBLIC_WEBSOCKET_URL }}
-
-          MIDTRANS_CLIENT_KEY: ${{ secrets.MIDTRANS_CLIENT_KEY }}
-          MIDTRANS_SERVER_KEY: ${{ secrets.MIDTRANS_SERVER_KEY }}
+          MIDTRANS_CLIENT_KEY: ${{ vars.MIDTRANS_CLIENT_KEY }}
+          MIDTRANS_SERVER_KEY: ${{ vars.MIDTRANS_SERVER_KEY }}
           MIDTRANS_IS_PRODUCTION: ${{ vars.MIDTRANS_IS_PRODUCTION }}
           NEXT_PUBLIC_FACEBOOK_CLIENT_ID: ${{ vars.NEXT_PUBLIC_FACEBOOK_CLIENT_ID }}
-          NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET: ${{ secrets.NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET }}
-          UPLOADTHING_TOKEN: ${{ secrets.UPLOADTHING_TOKEN }}
-          ENTRY_AUTH_TOKEN: ${{ secrets.ENTRY_AUTH_TOKEN }}
+          NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET: ${{ vars.NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET }}
+          UPLOADTHING_TOKEN: ${{ vars.UPLOADTHING_TOKEN }}
+          ENTRY_AUTH_TOKEN: ${{ vars.ENTRY_AUTH_TOKEN }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
 
       - name: Deploy to VPS with Docker Compose (Optimized)
         uses: appleboy/ssh-action@v1.0.3
