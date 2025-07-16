@@ -470,6 +470,13 @@ jobs:
             
             log "🚀 Starting deployment process..."
             
+            # Debug: Show environment variables
+            log "🔍 Debug: Environment variables status:"
+            log "  APP_DIR: ${APP_DIR:-'<not set>'}"
+            log "  IMAGE_NAME: ${IMAGE_NAME:-'<not set>'}"
+            log "  REGISTRY: ${REGISTRY:-'<not set>'}"
+            log "  GITHUB_TOKEN: ${GITHUB_TOKEN:+<set>}"
+            
             # Validate required environment variables
             required_vars=("APP_DIR" "IMAGE_NAME" "REGISTRY" "GITHUB_TOKEN")
             for var in "${required_vars[@]}"; do
@@ -703,8 +710,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ github.repository }}
+          REGISTRY: ghcr.io
 
       - name: Send notification on success
         if: success()
