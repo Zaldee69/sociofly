@@ -455,6 +455,33 @@ jobs:
               echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
             }
             
+            # Function to safely attempt image pull
+            safe_pull_image() {
+              local image_name="$1"
+              local result_file="/tmp/pull_result_$$"
+              
+              # Create a completely isolated subprocess
+              (
+                set +euo pipefail  # Disable all error handling
+                trap '' ERR       # Ignore all error traps
+                
+                # Attempt to pull the image
+                if docker pull "$image_name" >/dev/null 2>&1; then
+                  echo "SUCCESS" > "$result_file"
+                else
+                  echo "FAILED" > "$result_file"
+                fi
+              ) || true  # Ensure this never fails the parent process
+              
+              # Read the result
+              if [ -f "$result_file" ]; then
+                cat "$result_file"
+                rm -f "$result_file"
+              else
+                echo "FAILED"
+              fi
+            }
+            
             # Error handling function
             handle_error() {
               log "❌ Error occurred in deployment script"
@@ -539,21 +566,32 @@ jobs:
             # Try to pull pre-built image from GHCR first with robust error handling
             log "🔍 Checking for pre-built image..."
             log "📋 Image details: ${REGISTRY}/${IMAGE_NAME}:latest"
-            USE_PREBUILT=false
+            log "🔧 Debug info:"
+            log "   - Current user: $(whoami)"
+            log "   - Docker version: $(docker --version)"
+            log "   - Available disk space: $(df -h . | tail -1 | awk '{print $4}')"
+            log "   - Docker daemon status: $(docker info --format '{{.ServerVersion}}' 2>/dev/null || echo 'Error getting Docker info')"
             
-            # Temporarily disable error trap for image pull section
-            trap - ERR
-            set +e
+            USE_PREBUILT=false
             
             log "🔽 Attempting to pull pre-built image..."
             
-            # Simple approach: try to pull the image and check if it succeeded
-            docker pull "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1
-            PULL_EXIT_CODE=$?
+            # Use the safe pull function
+            PULL_RESULT=$(safe_pull_image "${REGISTRY}/${IMAGE_NAME}:latest")
             
-            if [ $PULL_EXIT_CODE -eq 0 ]; then
+            log "🔍 Pull operation completed with result: $PULL_RESULT"
+            
+            if [ "$PULL_RESULT" = "SUCCESS" ]; then
               USE_PREBUILT=true
               log "✅ Pre-built image found and pulled successfully"
+              
+              # Verify the image is actually available
+              if docker image inspect "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1; then
+                log "✅ Image verification passed"
+              else
+                log "⚠️  Image verification failed, falling back to build"
+                USE_PREBUILT=false
+              fi
             else
               USE_PREBUILT=false
               log "ℹ️  No pre-built image found or pull failed, will build from source"
@@ -561,13 +599,9 @@ jobs:
               
               # Clean up any partial downloads
               log "🔧 Cleaning up any partial downloads..."
-              docker image prune -f --filter "dangling=true" >/dev/null 2>&1
-              docker rmi "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1
+              docker image prune -f --filter "dangling=true" >/dev/null 2>&1 || true
+              docker rmi "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1 || true
             fi
-            
-            # Re-enable error handling
-            set -e
-            trap handle_error ERR
             
             log "📊 Pull result: USE_PREBUILT=$USE_PREBUILT"
 
