@@ -1,7 +1,7 @@
 services:
   app:
     # Use pre-built image if available, otherwise build from source
-    image: ${DOCKER_IMAGE:-voetaz123/sociofly:latest}
+    image: ${DOCKER_IMAGE:-ghcr.io/zaldee69/sociofly:latest}
     build:
       context: .
       dockerfile: Dockerfile

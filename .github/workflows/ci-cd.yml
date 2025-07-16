@@ -545,14 +545,16 @@ jobs:
             trap - ERR
             set +euo pipefail
             
-            # Try to pull the image with explicit error handling
+            # Try to pull the image with explicit error handling and timeout
             log "🔽 Attempting to pull pre-built image..."
-            if docker pull "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1; then
+            if timeout 300 docker pull "${REGISTRY}/${IMAGE_NAME}:latest" 2>/dev/null; then
               USE_PREBUILT=true
               log "✅ Pre-built image found and pulled successfully"
             else
-              log "ℹ️  No pre-built image found, will build from source"
+              log "ℹ️  No pre-built image found or pull failed, will build from source"
               log "📋 This is normal for first deployment or when image doesn't exist"
+              log "🔧 Attempting to clean up any partial downloads..."
+              docker image prune -f --filter "dangling=true" >/dev/null 2>&1 || true
             fi
             
             # Re-enable error trap and strict mode
@@ -568,11 +570,19 @@ jobs:
 
             # Build and start containers with enhanced error handling
             log "🏗️  Starting container deployment..."
+            
+            # Set the Docker image environment variable for consistency
+            export DOCKER_IMAGE="${REGISTRY}/${IMAGE_NAME}:latest"
+            
             if [ "$USE_PREBUILT" = "true" ]; then
-              log "🚀 Using pre-built image from registry"
+              log "🚀 Using pre-built image from registry: $DOCKER_IMAGE"
               if ! docker compose -f docker-compose.yml up -d --wait --timeout 300; then
                 log "❌ Failed to start containers with pre-built image"
-                handle_error
+                log "🔄 Attempting fallback to build from source..."
+                if ! docker compose -f docker-compose.yml up -d --build --wait --timeout 600; then
+                  log "❌ Fallback build also failed"
+                  handle_error
+                fi
               fi
             else
               log "🔨 Building and starting from source"
