@@ -30,6 +30,17 @@ jobs:
           node-version: "20"
           cache: "yarn"
 
+      # Next.js Build Cache - Consistent across all jobs
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ${{ github.workspace }}/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/yarn.lock') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/yarn.lock') }}-
+
       - name: Install dependencies
         run: yarn install
 
@@ -61,6 +72,19 @@ jobs:
         with:
           node-version: "20"
           cache: "yarn"
+
+      # Next.js Build Cache - Following official documentation
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ${{ github.workspace }}/.next/cache
+          # Generate a new cache whenever packages or source files change
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/yarn.lock') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+          # If source files changed but packages didn't, rebuild from a prior cache
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/yarn.lock') }}-
 
       - name: Install dependencies
         run: yarn install
@@ -119,17 +143,6 @@ jobs:
           MIDTRANS_IS_PRODUCTION: ${{ vars.MIDTRANS_IS_PRODUCTION }}
           # Facebook Integration (Public)
           NEXT_PUBLIC_FACEBOOK_CLIENT_ID: ${{ vars.NEXT_PUBLIC_FACEBOOK_CLIENT_ID }}
-
-      - name: Cache build output
-        uses: actions/cache@v3
-        with:
-          path: |
-            .next/cache
-            .next/standalone
-            .next/static
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-
 
   # Job 3: Security Scan for Pull Requests
   security-scan-pr:
@@ -432,108 +445,224 @@ jobs:
           script_stop: true
           envs: GITHUB_TOKEN,APP_DIR,IMAGE_NAME,REGISTRY
           script: |
-            # Validate required environment variables
-            if [ -z "$APP_DIR" ] || [ -z "$IMAGE_NAME" ] || [ -z "$REGISTRY" ] || [ -z "$GITHUB_TOKEN" ]; then
-              echo "❌ Error: Required environment variables are not set"
+            set -euo pipefail  # Exit on error, undefined vars, pipe failures
+            
+            # Enhanced logging function
+            log() {
+              echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
+            }
+            
+            # Error handling function
+            handle_error() {
+              log "❌ Error occurred in deployment script"
+              log "📋 Showing recent container logs for debugging:"
+              docker compose -f docker-compose.yml logs --tail=50 || true
+              log "🔍 Container status:"
+              docker compose -f docker-compose.yml ps || true
               exit 1
-            fi
+            }
+            
+            # Set error trap
+            trap handle_error ERR
+            
+            log "🚀 Starting deployment process..."
+            
+            # Validate required environment variables
+            required_vars=("APP_DIR" "IMAGE_NAME" "REGISTRY" "GITHUB_TOKEN")
+            for var in "${required_vars[@]}"; do
+              if [ -z "${!var:-}" ]; then
+                log "❌ Error: Required environment variable '$var' is not set"
+                exit 1
+              fi
+            done
+            log "✅ Environment variables validated"
             
             # Change to application directory
             if [ ! -d "$APP_DIR" ]; then
-              echo "❌ Error: Application directory '$APP_DIR' does not exist"
+              log "❌ Error: Application directory '$APP_DIR' does not exist"
               exit 1
             fi
             cd "$APP_DIR"
+            log "📁 Changed to application directory: $APP_DIR"
             
             # Verify required files exist
-            if [ ! -f "docker-compose.yml" ] || [ ! -f ".env" ] || [ ! -f "Dockerfile" ]; then
-              echo "❌ Error: Required files not found"
+            required_files=("docker-compose.yml" ".env" "Dockerfile")
+            for file in "${required_files[@]}"; do
+              if [ ! -f "$file" ]; then
+                log "❌ Error: Required file '$file' not found"
+                exit 1
+              fi
+            done
+            log "✅ Required files verified"
+
+            # Check Docker and Docker Compose availability
+            if ! command -v docker >/dev/null 2>&1; then
+              log "❌ Error: Docker is not installed or not in PATH"
               exit 1
             fi
-
-            # Check Docker access and setup
-            USE_SUDO=""
             
-            # Login to GitHub Container Registry
-            echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            if ! docker compose version >/dev/null 2>&1; then
+              log "❌ Error: Docker Compose is not available"
+              exit 1
+            fi
+            log "✅ Docker and Docker Compose are available"
             
-            # Pull base images
-            docker-compose -f docker-compose.yml pull redis >/dev/null 2>&1 || true
+            # Login to GitHub Container Registry with better error handling
+            log "🔐 Logging into GitHub Container Registry..."
+            if ! echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin; then
+              log "❌ Error: Failed to login to GitHub Container Registry"
+              exit 1
+            fi
+            log "✅ Successfully logged into GHCR"
+            
+            # Create backup of current state for rollback
+            log "💾 Creating backup for potential rollback..."
+            BACKUP_DIR="/tmp/deployment-backup-$(date +%s)"
+            mkdir -p "$BACKUP_DIR"
+            docker compose -f docker-compose.yml config > "$BACKUP_DIR/docker-compose.backup.yml" 2>/dev/null || true
+            
+            # Pull base images with retry logic
+            log "📥 Pulling base images..."
+            for i in {1..3}; do
+              if docker compose -f docker-compose.yml pull redis; then
+                log "✅ Base images pulled successfully"
+                break
+              else
+                log "⚠️  Attempt $i/3 failed to pull base images, retrying..."
+                sleep 5
+              fi
+            done
 
             # Try to pull pre-built image from GHCR first
-            if docker pull ${REGISTRY}/${IMAGE_NAME}:latest >/dev/null 2>&1; then
+            log "🔍 Checking for pre-built image..."
+            if docker pull "${REGISTRY}/${IMAGE_NAME}:latest" 2>/dev/null; then
               USE_PREBUILT=true
+              log "✅ Pre-built image found and pulled"
             else
               USE_PREBUILT=false
+              log "ℹ️  No pre-built image found, will build from source"
             fi
 
-            # Stop existing containers gracefully
-            docker-compose -f docker-compose.yml down --remove-orphans >/dev/null 2>&1 || true
+            # Stop existing containers gracefully with timeout
+            log "🛑 Stopping existing containers..."
+            docker compose -f docker-compose.yml down --remove-orphans --timeout 30 || true
+            
+            # Wait for containers to fully stop
+            sleep 5
 
-            # Build and start containers
+            # Build and start containers with enhanced error handling
+            log "🏗️  Starting container deployment..."
             if [ "$USE_PREBUILT" = "true" ]; then
-              echo "🚀 Using pre-built image"
-              docker-compose -f docker-compose.yml up -d
+              log "🚀 Using pre-built image from registry"
+              if ! docker compose -f docker-compose.yml up -d --wait --timeout 300; then
+                log "❌ Failed to start containers with pre-built image"
+                handle_error
+              fi
             else
-              echo "🔨 Building from source"
-              docker-compose -f docker-compose.yml up -d --build
+              log "🔨 Building and starting from source"
+              if ! docker compose -f docker-compose.yml up -d --build --wait --timeout 600; then
+                log "❌ Failed to build and start containers"
+                handle_error
+              fi
             fi
             
-            if [ $? -eq 0 ]; then
-              echo "✅ Containers started successfully"
-            else
-              echo "❌ Failed to start containers"
-              docker-compose -f docker-compose.yml logs --tail=20 app
-              exit 1
-            fi
+            log "✅ Containers started successfully"
 
             # Wait for containers to be ready
-            sleep 10
+            log "⏳ Waiting for containers to initialize..."
+            sleep 15
 
-            # Background optimizations
-            (docker update --restart=unless-stopped $(docker-compose -f docker-compose.yml ps -q) 2>/dev/null || true) &
-            (docker image prune -af --filter "until=24h" >/dev/null 2>&1) &
-            wait
-
-            # Application Health Check
-            echo "=== Health Check ==="
+            # Background optimizations with better error handling
+            log "🔧 Running background optimizations..."
+            (
+              # Set restart policy for containers
+              container_ids=$(docker compose -f docker-compose.yml ps -q 2>/dev/null || true)
+              if [ -n "$container_ids" ]; then
+                docker update --restart=unless-stopped $container_ids 2>/dev/null || true
+                log "✅ Restart policies updated"
+              fi
+              
+              # Clean up old images (keep last 24h)
+              docker image prune -af --filter "until=24h" >/dev/null 2>&1 || true
+              log "✅ Old images cleaned up"
+            ) &
+            
+            # Enhanced Application Health Check
+            log "🏥 Starting comprehensive health check..."
             HEALTH_CHECK_PASSED=false
-            for i in {1..5}; do
-              echo "⏳ Attempt $i/5..."
+            MAX_ATTEMPTS=10
+            
+            for i in $(seq 1 $MAX_ATTEMPTS); do
+              log "⏳ Health check attempt $i/$MAX_ATTEMPTS..."
               
               # Check if containers are running
-              if ! docker-compose -f docker-compose.yml ps | grep -q "Up"; then
-                echo "❌ Containers not running"
-                sleep 5
+              if ! docker compose -f docker-compose.yml ps --format json | jq -e '.[] | select(.State == "running")' >/dev/null 2>&1; then
+                log "❌ Some containers are not running"
+                docker compose -f docker-compose.yml ps
+                sleep 10
                 continue
               fi
               
-              # Check application health
-              if curl -sf http://localhost:3000/api/health >/dev/null 2>&1 || curl -sf http://localhost:3000 >/dev/null 2>&1; then
-                echo "✅ Application is healthy"
+              # Check application health endpoints
+              health_endpoints=(
+                "http://localhost:3000/api/health"
+                "http://localhost:3000"
+              )
+              
+              endpoint_healthy=false
+              for endpoint in "${health_endpoints[@]}"; do
+                if curl -sf --max-time 10 "$endpoint" >/dev/null 2>&1; then
+                  log "✅ Health check passed for $endpoint"
+                  endpoint_healthy=true
+                  break
+                fi
+              done
+              
+              if [ "$endpoint_healthy" = "true" ]; then
                 HEALTH_CHECK_PASSED=true
+                log "✅ Application is healthy and responding"
                 break
               fi
               
-              sleep 8
+              log "⚠️  Health check failed, waiting before retry..."
+              sleep 15
             done
             
+            # Wait for background optimizations to complete
+            wait
+            
             if [ "$HEALTH_CHECK_PASSED" = "false" ]; then
-              echo "⚠️  Health check failed"
-              docker-compose -f docker-compose.yml logs --tail=30
+              log "❌ Health check failed after $MAX_ATTEMPTS attempts"
+              log "📋 Container logs for debugging:"
+              docker compose -f docker-compose.yml logs --tail=50
+              log "🔍 Container status:"
+              docker compose -f docker-compose.yml ps
+              
+              # Optional: Don't fail deployment if health check fails but containers are running
+              if docker compose -f docker-compose.yml ps --format json | jq -e '.[] | select(.State == "running")' >/dev/null 2>&1; then
+                log "⚠️  Containers are running but health check failed - proceeding with deployment"
+              else
+                log "❌ Containers are not running properly - failing deployment"
+                handle_error
+              fi
             fi
 
-            # Final container status
-            docker-compose -f docker-compose.yml ps
+            # Final container status report
+            log "📊 Final deployment status:"
+            docker compose -f docker-compose.yml ps
 
-            # Setup systemd service for auto-start on boot (optional)
+            # Setup systemd service for auto-start on boot (enhanced)
             if command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+              log "⚙️  Setting up systemd service for auto-start..."
               CURRENT_USER=$(whoami)
-              sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << 'EOF'
+              
+              # Create systemd service file with better configuration
+              sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << EOF
             [Unit]
             Description=My Scheduler App
             Requires=docker.service
-            After=docker.service
+            After=docker.service network-online.target
+            Wants=network-online.target
 
             [Service]
             Type=oneshot
@@ -541,20 +670,33 @@ jobs:
             User=$CURRENT_USER
             Group=docker
             WorkingDirectory=$APP_DIR
-            ExecStart=/usr/bin/docker-compose -f docker-compose.yml up -d
-            ExecStop=/usr/bin/docker-compose -f docker-compose.yml down
-            TimeoutStartSec=0
+            Environment=COMPOSE_PROJECT_NAME=my-scheduler-app
+            ExecStart=/usr/bin/docker compose -f docker-compose.yml up -d --wait
+            ExecStop=/usr/bin/docker compose -f docker-compose.yml down --timeout 30
+            ExecReload=/usr/bin/docker compose -f docker-compose.yml restart
+            TimeoutStartSec=300
+            TimeoutStopSec=60
+            Restart=on-failure
+            RestartSec=10
 
             [Install]
             WantedBy=multi-user.target
             EOF
               
-              sudo systemctl daemon-reload >/dev/null 2>&1
-              sudo systemctl enable my-scheduler-app.service >/dev/null 2>&1
-              echo "✅ Auto-start service configured"
+              if sudo systemctl daemon-reload && sudo systemctl enable my-scheduler-app.service; then
+                log "✅ Auto-start service configured successfully"
+              else
+                log "⚠️  Failed to configure auto-start service (non-critical)"
+              fi
+            else
+              log "ℹ️  Systemd not available or no sudo access - skipping auto-start setup"
             fi
             
-            echo "🎉 Deployment completed successfully!"
+            # Cleanup backup if deployment successful
+            rm -rf "$BACKUP_DIR" 2>/dev/null || true
+            
+            log "🎉 Deployment completed successfully!"
+            log "📱 Application should be available at: http://$(hostname -I | awk '{print $1}'):3000"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
