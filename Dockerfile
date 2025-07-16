@@ -28,13 +28,15 @@ COPY tailwind.config.ts ./
 COPY tsconfig.json ./
 COPY postcss.config.mjs ./
 COPY components.json ./
+COPY sentry.server.config.ts ./
+COPY sentry.edge.config.ts ./
 COPY prisma ./prisma
 COPY src ./src
 COPY public ./public
 COPY scripts/start-with-redis.sh ./scripts/
 COPY websocket-server.js ./
 
-# Accept build arguments for environment variables
+# Accept build arguments for environment variables with default values
 ARG NODE_ENV=production
 ARG SKIP_ENV_VALIDATION=true
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
@@ -58,7 +60,7 @@ ENV NEXT_PUBLIC_FACEBOOK_CLIENT_ID=$NEXT_PUBLIC_FACEBOOK_CLIENT_ID
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Generate Prisma Client
-RUN yarn prisma generate
+RUN npx prisma generate
 
 # Build application
 RUN yarn build
