@@ -46,9 +46,9 @@ logs
 *.log
 
 # Docker
-Dockerfile
-.dockerignore
-docker-compose.yml
+# Dockerfile  # Commented out - needed for build
+# .dockerignore  # Commented out - needed for build
+# docker-compose.yml  # Commented out - needed for build
 docker-compose.*.yml
 
 # Git
@@ -65,4 +65,4 @@ backups/
 *.ntvs*
 *.njsproj
 *.sln
-*.sw? 
+*.sw?

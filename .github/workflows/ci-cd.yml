@@ -268,7 +268,7 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          timeout: 30s
+          timeout: 60s
           envs: APP_DIR
           script: |
             # Create application directory with proper permissions
@@ -344,7 +344,7 @@ jobs:
             # Authentication
             CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
             NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-            CLERK_WEBHOOK_SECRET=${CLERK_WEBHOOK_SECRET}
+            CLERK_WEBHOOK_SECRET=${CLERK_WEBHOOK_SECRET:-""}
             
             # External APIs
             OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -369,7 +369,7 @@ jobs:
             # WebSocket Configuration
             WEBSOCKET_PORT=3004
             NEXT_PUBLIC_WEBSOCKET_PORT=3004
-            NEXT_PUBLIC_WEBSOCKET_URL=${NEXT_PUBLIC_WEBSOCKET_URL}
+            NEXT_PUBLIC_WEBSOCKET_URL=${NEXT_PUBLIC_WEBSOCKET_URL:-"ws://localhost:3004"}
 
             # Payment Gateway
             MIDTRANS_CLIENT_KEY=${MIDTRANS_CLIENT_KEY}
@@ -428,7 +428,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           timeout: 30s
-          command_timeout: 10m
+          command_timeout: 20m
           script_stop: true
           envs: DOCKER_PASSWORD,DOCKER_USERNAME,APP_DIR,IMAGE_NAME,REGISTRY
           script: |
@@ -513,6 +513,16 @@ jobs:
               echo "⚠️  Failed to pull Redis image, but continuing..."
             fi
 
+            # Try to pull pre-built image from Docker Hub first
+            echo "=== Attempting to pull pre-built image ==="
+            if ${USE_SUDO}docker pull ${REGISTRY}/${IMAGE_NAME}:latest; then
+              echo "✅ Pre-built image pulled successfully"
+              USE_PREBUILT=true
+            else
+              echo "⚠️  Pre-built image not available, will build from source"
+              USE_PREBUILT=false
+            fi
+
             # Stop existing containers gracefully
             echo "=== Stopping existing containers ==="
             ${USE_SUDO}docker-compose -f docker-compose.yml down --remove-orphans || true
@@ -529,27 +539,39 @@ jobs:
               echo "❌ .env file not found"
             fi
             
-            # Build and start containers from source
-            echo "=== Building and starting containers from source ==="
-            echo "Build arguments that will be passed to Docker:"
-            echo "- NODE_ENV=production"
-            echo "- SKIP_ENV_VALIDATION=true"
-            echo "- NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$(grep '^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=' .env | cut -d'=' -f2 | head -c 20)..."
-            echo "- NEXT_PUBLIC_SUPABASE_URL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' .env | cut -d'=' -f2 | head -c 30)..."
-            echo "- NEXT_PUBLIC_APP_URL=$(grep '^NEXT_PUBLIC_APP_URL=' .env | cut -d'=' -f2)"
-            echo "- NEXT_PUBLIC_WEBSOCKET_URL=$(grep '^NEXT_PUBLIC_WEBSOCKET_URL=' .env | cut -d'=' -f2)"
-            
-            ${USE_SUDO}docker-compose -f docker-compose.yml up -d --build
-            if [ $? -eq 0 ]; then
-              echo "✅ Containers built and started successfully"
+            # Build and start containers (optimized)
+            echo "=== Building and starting containers ==="
+            if [ "$USE_PREBUILT" = "true" ]; then
+              echo "🚀 Using pre-built image from Docker Hub"
+              echo "Build arguments that will be passed to Docker:"
+              echo "- Using pre-built image: ${REGISTRY}/${IMAGE_NAME}:latest"
+              
+              # Start containers with pre-built image
+              ${USE_SUDO}docker-compose -f docker-compose.yml up -d
             else
-              echo "❌ Failed to build and start containers"
-              echo "=== Build Error Logs ==="
+              echo "🔨 Building from source code"
+              echo "Build arguments that will be passed to Docker:"
+              echo "- NODE_ENV=production"
+              echo "- SKIP_ENV_VALIDATION=true"
+              echo "- NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$(grep '^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=' .env | cut -d'=' -f2 | head -c 20)..."
+              echo "- NEXT_PUBLIC_SUPABASE_URL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' .env | cut -d'=' -f2 | head -c 30)..."
+              echo "- NEXT_PUBLIC_APP_URL=$(grep '^NEXT_PUBLIC_APP_URL=' .env | cut -d'=' -f2)"
+              echo "- NEXT_PUBLIC_WEBSOCKET_URL=$(grep '^NEXT_PUBLIC_WEBSOCKET_URL=' .env | cut -d'=' -f2)"
+              
+              # Build and start containers from source
+              ${USE_SUDO}docker-compose -f docker-compose.yml up -d --build
+            fi
+            
+            if [ $? -eq 0 ]; then
+              echo "✅ Containers started successfully"
+            else
+              echo "❌ Failed to start containers"
+              echo "=== Error Logs ==="
               ${USE_SUDO}docker-compose -f docker-compose.yml logs app || true
               echo "=== Container Status ==="
               ${USE_SUDO}docker-compose -f docker-compose.yml ps || true
               echo "=== Docker Images ==="
-              ${USE_SUDO}docker images | grep -E '(my-scheduler|<none>)' || true
+              ${USE_SUDO}docker images | grep -E '(my-scheduler|sociofly|<none>)' || true
               exit 1
             fi
 
@@ -577,8 +599,8 @@ jobs:
             # Enhanced health check dengan retry logic
             echo "=== Application Health Check ==="
             HEALTH_CHECK_PASSED=false
-            for i in {1..12}; do
-              echo "⏳ Health check attempt $i/12..."
+            for i in {1..8}; do
+              echo "⏳ Health check attempt $i/8..."
               
               # Check container status first
               echo "📊 Container Status:"
@@ -587,22 +609,20 @@ jobs:
               # Check if containers are running
               if ! ${USE_SUDO}docker-compose -f docker-compose.yml ps | grep -q "Up"; then
                 echo "❌ Containers are not running properly"
-                echo "=== Container Logs (Last 30 lines) ==="
-                ${USE_SUDO}docker-compose -f docker-compose.yml logs --tail=30
-                sleep 5
+                echo "=== Container Logs (Last 20 lines) ==="
+                ${USE_SUDO}docker-compose -f docker-compose.yml logs --tail=20
+                sleep 3
                 continue
               fi
               
               # Show recent logs for debugging
-              if [ $i -eq 1 ] || [ $((i % 3)) -eq 0 ]; then
+              if [ $i -eq 1 ] || [ $((i % 2)) -eq 0 ]; then
                 echo "=== Recent App Logs ==="
-                ${USE_SUDO}docker-compose -f docker-compose.yml logs --tail=10 app
-
+                ${USE_SUDO}docker-compose -f docker-compose.yml logs --tail=5 app
               fi
               
               # Check application health endpoint
               APP_HEALTHY=false
-
               
               echo "🔍 Testing main application..."
               if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
@@ -621,7 +641,6 @@ jobs:
                 fi
               fi
               
-              
               if [ "$APP_HEALTHY" = "true" ]; then
                 echo "✅ Application is healthy (attempt $i)"
                 HEALTH_CHECK_PASSED=true
@@ -631,15 +650,15 @@ jobs:
               fi
               
               echo "⏳ Waiting for services to start..."
-              sleep 15
+              sleep 10
             done
             
             if [ "$HEALTH_CHECK_PASSED" = "false" ]; then
-              echo "⚠️  Health check failed after 12 attempts"
+              echo "⚠️  Health check failed after 8 attempts"
               echo "=== Final Container Status ==="
               ${USE_SUDO}docker-compose -f docker-compose.yml ps
               echo "=== Full Container Logs ==="
-              ${USE_SUDO}docker-compose -f docker-compose.yml logs --tail=100
+              ${USE_SUDO}docker-compose -f docker-compose.yml logs --tail=50
               echo "=== Port Status ==="
               netstat -tlnp | grep -E ':(3000|3004|6379)' || echo "No services listening on expected ports"
             fi

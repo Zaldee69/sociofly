@@ -27,13 +27,13 @@ RUN --mount=type=cache,target=/root/.yarn \
     corepack enable && \
     corepack prepare --activate && \
     echo "Yarn version: $(yarn --version)" && \
-    yarn install --immutable --network-timeout 300000; \
+    yarn install --immutable --network-timeout 600000 --prefer-offline; \
   elif [ -f package-lock.json ]; then \
     echo "Installing with npm ci" && \
-    npm ci; \
+    npm ci --prefer-offline --no-audit; \
   else \
     echo "Installing with npm i" && \
-    npm i; \
+    npm i --prefer-offline --no-audit; \
   fi
 
 # Rebuild the source code only when needed
