@@ -470,13 +470,6 @@ jobs:
             
             log "🚀 Starting deployment process..."
             
-            # Debug: Show environment variables
-            log "🔍 Debug: Environment variables status:"
-            log "  APP_DIR: ${APP_DIR:-'<not set>'}"
-            log "  IMAGE_NAME: ${IMAGE_NAME:-'<not set>'}"
-            log "  REGISTRY: ${REGISTRY:-'<not set>'}"
-            log "  GITHUB_TOKEN: ${GITHUB_TOKEN:+<set>}"
-            
             # Validate required environment variables
             required_vars=("APP_DIR" "IMAGE_NAME" "REGISTRY" "GITHUB_TOKEN")
             for var in "${required_vars[@]}"; do
@@ -545,12 +538,21 @@ jobs:
 
             # Try to pull pre-built image from GHCR first
             log "🔍 Checking for pre-built image..."
+            log "📋 Image details: ${REGISTRY}/${IMAGE_NAME}:latest"
             USE_PREBUILT=false
-            if docker pull "${REGISTRY}/${IMAGE_NAME}:latest" 2>/dev/null; then
+            
+            # Temporarily disable error trap for image pull
+            set +e
+            pull_result=$(docker pull "${REGISTRY}/${IMAGE_NAME}:latest" 2>&1)
+            pull_exit_code=$?
+            set -e
+            
+            if [ $pull_exit_code -eq 0 ]; then
               USE_PREBUILT=true
               log "✅ Pre-built image found and pulled"
             else
-              log "ℹ️  No pre-built image found, will build from source"
+              log "ℹ️  No pre-built image found (exit code: $pull_exit_code), will build from source"
+              log "📋 Pull output: $pull_result"
             fi
 
             # Stop existing containers gracefully with timeout
@@ -605,8 +607,9 @@ jobs:
             for i in $(seq 1 $MAX_ATTEMPTS); do
               log "⏳ Health check attempt $i/$MAX_ATTEMPTS..."
               
-              # Check if containers are running
-              if ! docker compose -f docker-compose.yml ps --format json | jq -e '.[] | select(.State == "running")' >/dev/null 2>&1; then
+              # Check if containers are running (without jq dependency)
+              container_status=$(docker compose -f docker-compose.yml ps --format "table {{.Name}}\t{{.Status}}" | grep -c "Up" || echo "0")
+              if [ "$container_status" -eq 0 ]; then
                 log "❌ Some containers are not running"
                 docker compose -f docker-compose.yml ps
                 sleep 10
@@ -649,7 +652,8 @@ jobs:
               docker compose -f docker-compose.yml ps
               
               # Optional: Don't fail deployment if health check fails but containers are running
-              if docker compose -f docker-compose.yml ps --format json | jq -e '.[] | select(.State == "running")' >/dev/null 2>&1; then
+              running_containers=$(docker compose -f docker-compose.yml ps --format "table {{.Name}}\t{{.Status}}" | grep -c "Up" || echo "0")
+              if [ "$running_containers" -gt 0 ]; then
                 log "⚠️  Containers are running but health check failed - proceeding with deployment"
               else
                 log "❌ Containers are not running properly - failing deployment"
@@ -710,8 +714,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
-          IMAGE_NAME: ${{ github.repository }}
-          REGISTRY: ghcr.io
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          REGISTRY: ${{ env.REGISTRY }}
 
       - name: Send notification on success
         if: success()
