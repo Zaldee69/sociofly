@@ -22,20 +22,12 @@ services:
       - .env
     environment:
       - NODE_ENV=production
-      # Gunakan DATABASE_URL dan DIRECT_URL dari .env file untuk koneksi ke Supabase
-      # - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/scheduler_db?schema=public
-      # - DIRECT_URL=postgresql://postgres:postgres@postgres:5432/scheduler_db?schema=public
+      - DOCKER_ENV=true
+      # Docker-specific overrides (Redis connection uses container name)
       - REDIS_URL=redis://redis:6379
       - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      # Other variables are inherited from .env file
       - TZ=Asia/Jakarta
-      - WEBSOCKET_PORT=3004
-      - NEXT_PUBLIC_WEBSOCKET_PORT=3004
-      # Environment variables below are set from .env file (created by CI/CD)
-      # - ENABLE_SCHEDULED_JOBS (from .env)
-      # - CRON_API_KEY (from .env)
-      # - NEXT_PUBLIC_CRON_API_KEY (from .env)
-      # - NEXT_PUBLIC_WEBSOCKET_URL (from .env)
     depends_on:
       - redis
     restart: unless-stopped

@@ -370,9 +370,7 @@ jobs:
             NEXTAUTH_URL=http://${SERVER_IP}:3000
             
             # WebSocket Configuration - Use server IP instead of localhost
-            WEBSOCKET_PORT=3004
-            NEXT_PUBLIC_WEBSOCKET_PORT=3004
-            NEXT_PUBLIC_WEBSOCKET_URL=ws://${SERVER_IP}:3004
+            NEXT_PUBLIC_WEBSOCKET_URL=http://${SERVER_IP}:3004
 
             # Payment Gateway
             MIDTRANS_CLIENT_KEY=${MIDTRANS_CLIENT_KEY}

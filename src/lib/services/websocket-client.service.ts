@@ -15,7 +15,25 @@ export interface NotificationPayload {
 }
 
 export class WebSocketClientService {
-  private static baseUrl = `http://localhost:${process.env.WEBSOCKET_PORT || '3004'}`;
+  private static getBaseUrl(): string {
+    // In Docker environment, use the container name 'app' for internal communication
+    // In development, use localhost
+    if (process.env.NODE_ENV === 'production' && process.env.DOCKER_ENV) {
+      return `http://app:${process.env.WEBSOCKET_PORT || '3004'}`;
+    }
+    
+    // Use NEXT_PUBLIC_WEBSOCKET_URL if available, otherwise fallback to localhost
+    const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
+    if (wsUrl) {
+      return wsUrl;
+    }
+    
+    return `http://localhost:${process.env.WEBSOCKET_PORT || '3004'}`;
+  }
+  
+  private static get baseUrl(): string {
+    return this.getBaseUrl();
+  }
 
   /**
    * Send notification to a specific user
