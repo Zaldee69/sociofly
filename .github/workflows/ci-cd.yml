@@ -541,13 +541,15 @@ jobs:
             log "📋 Image details: ${REGISTRY}/${IMAGE_NAME}:latest"
             USE_PREBUILT=false
             
-            # Temporarily disable error trap and strict mode for image pull
+            # Temporarily disable error trap completely for image pull
+            trap - ERR
             set +euo pipefail
             
-            # Try to pull the image
-            if docker pull "${REGISTRY}/${IMAGE_NAME}:latest" 2>/dev/null; then
+            # Try to pull the image with explicit error handling
+            log "🔽 Attempting to pull pre-built image..."
+            if docker pull "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1; then
               USE_PREBUILT=true
-              log "✅ Pre-built image found and pulled"
+              log "✅ Pre-built image found and pulled successfully"
             else
               log "ℹ️  No pre-built image found, will build from source"
               log "📋 This is normal for first deployment or when image doesn't exist"
@@ -555,6 +557,7 @@ jobs:
             
             # Re-enable error trap and strict mode
             set -euo pipefail
+            trap handle_error ERR
 
             # Stop existing containers gracefully with timeout
             log "🛑 Stopping existing containers..."
