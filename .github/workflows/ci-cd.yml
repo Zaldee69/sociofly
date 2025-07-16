@@ -536,26 +536,43 @@ jobs:
               fi
             done
 
-            # Try to pull pre-built image from GHCR first
+            # Try to pull pre-built image from GHCR first with robust error handling
             log "🔍 Checking for pre-built image..."
             log "📋 Image details: ${REGISTRY}/${IMAGE_NAME}:latest"
             USE_PREBUILT=false
             
-            # Temporarily disable error trap completely for image pull
+            # Completely disable error handling for this section
             trap - ERR
             set +euo pipefail
             
-            # Try to pull the image with explicit error handling and timeout
+            # Try to pull the image with multiple fallback strategies
             log "🔽 Attempting to pull pre-built image..."
-            if timeout 300 docker pull "${REGISTRY}/${IMAGE_NAME}:latest" 2>/dev/null; then
+            
+            # Strategy 1: Try with timeout
+            if timeout 300 docker pull "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1; then
               USE_PREBUILT=true
-              log "✅ Pre-built image found and pulled successfully"
+              log "✅ Pre-built image found and pulled successfully (with timeout)"
             else
-              log "ℹ️  No pre-built image found or pull failed, will build from source"
-              log "📋 This is normal for first deployment or when image doesn't exist"
-              log "🔧 Attempting to clean up any partial downloads..."
-              docker image prune -f --filter "dangling=true" >/dev/null 2>&1 || true
+              log "⚠️  Timeout pull failed, trying direct pull..."
+              
+              # Strategy 2: Try direct pull without timeout
+              if docker pull "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1; then
+                USE_PREBUILT=true
+                log "✅ Pre-built image found and pulled successfully (direct)"
+              else
+                log "ℹ️  No pre-built image found or pull failed, will build from source"
+                log "📋 This is normal for first deployment or when image doesn't exist"
+                
+                # Clean up any partial downloads
+                log "🔧 Cleaning up any partial downloads..."
+                docker image prune -f --filter "dangling=true" >/dev/null 2>&1 || true
+                
+                # Also try to remove any failed pull attempts
+                docker rmi "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1 || true
+              fi
             fi
+            
+            log "📊 Pull result: USE_PREBUILT=$USE_PREBUILT"
             
             # Re-enable error trap and strict mode
             set -euo pipefail
@@ -568,27 +585,63 @@ jobs:
             # Wait for containers to fully stop
             sleep 5
 
-            # Build and start containers with enhanced error handling
+            # Build and start containers with enhanced error handling and debugging
             log "🏗️  Starting container deployment..."
+            log "📊 Deployment configuration:"
+            log "   - USE_PREBUILT: $USE_PREBUILT"
+            log "   - DOCKER_IMAGE: ${REGISTRY}/${IMAGE_NAME}:latest"
+            log "   - Working Directory: $(pwd)"
             
             # Set the Docker image environment variable for consistency
             export DOCKER_IMAGE="${REGISTRY}/${IMAGE_NAME}:latest"
             
+            # Show current Docker state for debugging
+            log "🔍 Current Docker state:"
+            docker images | grep -E "(sociofly|redis)" || log "   No relevant images found"
+            
             if [ "$USE_PREBUILT" = "true" ]; then
               log "🚀 Using pre-built image from registry: $DOCKER_IMAGE"
-              if ! docker compose -f docker-compose.yml up -d --wait --timeout 300; then
-                log "❌ Failed to start containers with pre-built image"
-                log "🔄 Attempting fallback to build from source..."
-                if ! docker compose -f docker-compose.yml up -d --build --wait --timeout 600; then
-                  log "❌ Fallback build also failed"
-                  handle_error
+              
+              # Verify the image exists locally before trying to use it
+              if docker image inspect "$DOCKER_IMAGE" >/dev/null 2>&1; then
+                log "✅ Pre-built image verified locally"
+                
+                if ! docker compose -f docker-compose.yml up -d --wait --timeout 300; then
+                  log "❌ Failed to start containers with pre-built image"
+                  log "📋 Container logs for debugging:"
+                  docker compose -f docker-compose.yml logs --tail=20 || true
+                  
+                  log "🔄 Attempting fallback to build from source..."
+                  if ! docker compose -f docker-compose.yml up -d --build --wait --timeout 600; then
+                    log "❌ Fallback build also failed"
+                    log "📋 Build logs:"
+                    docker compose -f docker-compose.yml logs --tail=50 || true
+                    handle_error
+                  else
+                    log "✅ Fallback build succeeded"
+                  fi
+                else
+                  log "✅ Pre-built image deployment succeeded"
                 fi
+              else
+                log "⚠️  Pre-built image not found locally, falling back to build"
+                USE_PREBUILT=false
               fi
-            else
+            fi
+            
+            if [ "$USE_PREBUILT" = "false" ]; then
               log "🔨 Building and starting from source"
+              log "📦 Starting build process..."
+              
               if ! docker compose -f docker-compose.yml up -d --build --wait --timeout 600; then
                 log "❌ Failed to build and start containers"
+                log "📋 Build logs for debugging:"
+                docker compose -f docker-compose.yml logs --tail=50 || true
+                log "🔍 Docker system info:"
+                docker system df || true
                 handle_error
+              else
+                log "✅ Build and deployment succeeded"
               fi
             fi
             
