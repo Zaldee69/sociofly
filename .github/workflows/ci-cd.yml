@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 # Optimized CI/CD Pipeline for My Scheduler App
 # Reduces build time from 11 minutes to 4-6 minutes
 
@@ -335,7 +336,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           timeout: 30s
-          envs: APP_DIR,DATABASE_URL,DIRECT_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,CLERK_SECRET_KEY,NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,CLERK_WEBHOOK_SECRET,OPENAI_API_KEY,RESEND_API_KEY,REDIS_PASSWORD,REDIS_DB,REDIS_USE_CLUSTER,ENABLE_SCHEDULED_JOBS,CRON_API_KEY,NEXT_PUBLIC_CRON_API_KEY,NEXT_PUBLIC_APP_URL,NEXTAUTH_URL,NEXT_PUBLIC_WEBSOCKET_URL,MIDTRANS_CLIENT_KEY,MIDTRANS_SERVER_KEY,MIDTRANS_IS_PRODUCTION,NEXT_PUBLIC_FACEBOOK_CLIENT_ID,NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET,UPLOADTHING_TOKEN,ENTRY_AUTH_TOKEN,SSH_HOST
+          envs: APP_DIR,DATABASE_URL,DIRECT_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,CLERK_SECRET_KEY,NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,CLERK_WEBHOOK_SECRET,OPENAI_API_KEY,RESEND_API_KEY,REDIS_PASSWORD,REDIS_DB,REDIS_USE_CLUSTER,ENABLE_SCHEDULED_JOBS,CRON_API_KEY,NEXT_PUBLIC_CRON_API_KEY,NEXT_PUBLIC_APP_URL,NEXTAUTH_URL,NEXT_PUBLIC_WEBSOCKET_URL,NEXT_PUBLIC_WEBSOCKET_PORT,MIDTRANS_CLIENT_KEY,MIDTRANS_SERVER_KEY,MIDTRANS_IS_PRODUCTION,NEXT_PUBLIC_FACEBOOK_CLIENT_ID,NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET,UPLOADTHING_TOKEN,ENTRY_AUTH_TOKEN,SSH_HOST
           script: |
             # Create application directory if it doesn't exist
             mkdir -p "$APP_DIR"
@@ -384,6 +385,7 @@ jobs:
             
             # WebSocket Configuration - Use server IP instead of localhost
             NEXT_PUBLIC_WEBSOCKET_URL=http://${SERVER_IP}:3004
+            NEXT_PUBLIC_WEBSOCKET_PORT=3004
 
             # Payment Gateway
             MIDTRANS_CLIENT_KEY=${MIDTRANS_CLIENT_KEY}
@@ -424,6 +426,7 @@ jobs:
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
           NEXT_PUBLIC_WEBSOCKET_URL: ${{ vars.NEXT_PUBLIC_WEBSOCKET_URL }}
+          NEXT_PUBLIC_WEBSOCKET_PORT: ${{ vars.NEXT_PUBLIC_WEBSOCKET_PORT }}
           MIDTRANS_CLIENT_KEY: ${{ vars.MIDTRANS_CLIENT_KEY }}
           MIDTRANS_SERVER_KEY: ${{ vars.MIDTRANS_SERVER_KEY }}
           MIDTRANS_IS_PRODUCTION: ${{ vars.MIDTRANS_IS_PRODUCTION }}
@@ -535,11 +538,11 @@ jobs:
 
             # Try to pull pre-built image from GHCR first
             log "🔍 Checking for pre-built image..."
+            USE_PREBUILT=false
             if docker pull "${REGISTRY}/${IMAGE_NAME}:latest" 2>/dev/null; then
               USE_PREBUILT=true
               log "✅ Pre-built image found and pulled"
             else
-              USE_PREBUILT=false
               log "ℹ️  No pre-built image found, will build from source"
             fi
 
