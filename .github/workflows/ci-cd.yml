@@ -541,19 +541,20 @@ jobs:
             log "📋 Image details: ${REGISTRY}/${IMAGE_NAME}:latest"
             USE_PREBUILT=false
             
-            # Temporarily disable error trap for image pull
-            set +e
-            pull_result=$(docker pull "${REGISTRY}/${IMAGE_NAME}:latest" 2>&1)
-            pull_exit_code=$?
-            set -e
+            # Temporarily disable error trap and strict mode for image pull
+            set +euo pipefail
             
-            if [ $pull_exit_code -eq 0 ]; then
+            # Try to pull the image
+            if docker pull "${REGISTRY}/${IMAGE_NAME}:latest" 2>/dev/null; then
               USE_PREBUILT=true
               log "✅ Pre-built image found and pulled"
             else
-              log "ℹ️  No pre-built image found (exit code: $pull_exit_code), will build from source"
-              log "📋 Pull output: $pull_result"
+              log "ℹ️  No pre-built image found, will build from source"
+              log "📋 This is normal for first deployment or when image doesn't exist"
             fi
+            
+            # Re-enable error trap and strict mode
+            set -euo pipefail
 
             # Stop existing containers gracefully with timeout
             log "🛑 Stopping existing containers..."
@@ -587,6 +588,9 @@ jobs:
             # Background optimizations with better error handling
             log "🔧 Running background optimizations..."
             (
+              # Disable strict mode for background tasks
+              set +euo pipefail
+              
               # Set restart policy for containers
               container_ids=$(docker compose -f docker-compose.yml ps -q 2>/dev/null || true)
               if [ -n "$container_ids" ]; then
