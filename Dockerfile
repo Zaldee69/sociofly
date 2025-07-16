@@ -69,7 +69,7 @@ RUN --mount=type=cache,target=/app/.prisma \
 # Build with optimizations and cache
 RUN --mount=type=cache,target=/app/.next/cache \
     --mount=type=cache,target=/root/.yarn \
-    npm run build:optimized
+    yarn build
 
 # Production image, copy all the files and run next
 FROM base AS runner

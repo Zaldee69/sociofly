@@ -2,13 +2,7 @@
 const nextConfig = {
   // Enable experimental features for faster builds
   experimental: {
-    // Enable faster builds with SWC
-    swcMinify: true,
-    // Enable build cache
-    incrementalCacheHandlerPath: undefined,
-    // Optimize bundle analyzer
-    bundlePagesRouterDependencies: true,
-    // Enable faster refresh
+    // Enable faster refresh and package optimization
     optimizePackageImports: [
       '@radix-ui/react-icons',
       '@radix-ui/react-avatar',
@@ -18,7 +12,7 @@ const nextConfig = {
       '@radix-ui/react-tabs',
       'lucide-react',
       'framer-motion'
-    ]
+    ],
   },
 
   // Build optimizations
@@ -67,54 +61,13 @@ const nextConfig = {
     minimumCacheTTL: 60,
   },
 
-  // Webpack optimizations
-  webpack: (config: any, { dev, isServer }: { dev: boolean; isServer: boolean }) => {
-    // Production optimizations
-    if (!dev) {
-      config.optimization = {
-        ...config.optimization,
-        // Enable module concatenation
-        concatenateModules: true,
-        // Optimize chunk splitting
-        splitChunks: {
-          chunks: 'all',
-          cacheGroups: {
-            vendor: {
-              test: /[\\/]node_modules[\\/]/,
-              name: 'vendors',
-              chunks: 'all',
-              priority: 10,
-            },
-            common: {
-              name: 'common',
-              minChunks: 2,
-              chunks: 'all',
-              priority: 5,
-              reuseExistingChunk: true,
-            },
-          },
-        },
-      };
-
-      // Reduce bundle size
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        // Use lighter alternatives where possible
-        'react-dom$': 'react-dom/profiling',
-        'scheduler/tracing': 'scheduler/tracing-profiling',
-      };
+  // Minimal webpack configuration
+  webpack: (config: any, { isServer }: { isServer: boolean }) => {
+    // Only add externals for server-side to avoid bundling issues
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push('@opentelemetry/instrumentation');
     }
-
-    // Optimize for faster builds
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-      };
-    }
-
     return config;
   },
 
