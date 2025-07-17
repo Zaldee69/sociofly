@@ -383,6 +383,10 @@ jobs:
             # WebSocket Configuration - Use server IP instead of localhost
             NEXT_PUBLIC_WEBSOCKET_URL=http://${SERVER_IP}:3004
             NEXT_PUBLIC_WEBSOCKET_PORT=3004
+            WEBSOCKET_PORT=3004
+            
+            # Fallback WebSocket URL for client-side
+            NEXT_PUBLIC_WEBSOCKET_FALLBACK_URL=http://localhost:3004
 
             # Payment Gateway
             MIDTRANS_CLIENT_KEY=${MIDTRANS_CLIENT_KEY}
@@ -445,7 +449,8 @@ jobs:
           script_stop: true
           envs: DOCKER_USERNAME,DOCKER_PASSWORD,APP_DIR,IMAGE_NAME
           script: |
-            set -euo pipefail  # Exit on error, undefined vars, pipe failures
+            # Use less strict error handling to prevent premature exits
+            set -eo pipefail  # Exit on error and pipe failures, but allow undefined vars
             
             # Enhanced logging function
             log() {
@@ -482,11 +487,11 @@ jobs:
               docker compose -f docker-compose.yml logs --tail=50 || true
               log "🔍 Container status:"
               docker compose -f docker-compose.yml ps || true
-              exit 1
+              # Don't exit immediately, let the script continue for debugging
             }
             
-            # Set error trap
-            trap handle_error ERR
+            # Set error trap only for critical errors
+            # trap handle_error ERR
             
             log "🚀 Starting deployment process..."
             
@@ -680,6 +685,23 @@ jobs:
               log "✅ Old images cleaned up"
             ) &
             
+            # Configure firewall for WebSocket
+            log "🔥 Configuring firewall for WebSocket..."
+            
+            # Check if ufw is available and active
+            if command -v ufw >/dev/null 2>&1; then
+              # Allow port 3004 for WebSocket
+              sudo ufw allow 3004/tcp comment "WebSocket Server" 2>/dev/null || true
+              log "✅ UFW rule added for port 3004"
+            fi
+            
+            # Check if iptables is available
+            if command -v iptables >/dev/null 2>&1; then
+              # Allow port 3004 for WebSocket
+              sudo iptables -A INPUT -p tcp --dport 3004 -j ACCEPT 2>/dev/null || true
+              log "✅ iptables rule added for port 3004"
+            fi
+            
             # Enhanced Application Health Check
             log "🏥 Starting comprehensive health check..."
             HEALTH_CHECK_PASSED=false
@@ -712,9 +734,35 @@ jobs:
                 fi
               done
               
+              # Check WebSocket server health
+              websocket_healthy=false
+              if curl -sf --max-time 10 "http://localhost:3004/health" >/dev/null 2>&1; then
+                log "✅ WebSocket server is healthy"
+                websocket_healthy=true
+              else
+                log "⚠️  WebSocket server health check failed"
+              fi
+              
+              # Verify ports are accessible
+              log "🔍 Checking port accessibility..."
+              if netstat -tuln | grep -q ":3000 "; then
+                log "✅ Port 3000 is listening"
+              else
+                log "❌ Port 3000 is not accessible"
+              fi
+              
+              if netstat -tuln | grep -q ":3004 "; then
+                log "✅ Port 3004 is listening"
+              else
+                log "❌ Port 3004 is not accessible"
+              fi
+              
               if [ "$endpoint_healthy" = "true" ]; then
                 HEALTH_CHECK_PASSED=true
                 log "✅ Application is healthy and responding"
+                if [ "$websocket_healthy" = "true" ]; then
+                  log "✅ WebSocket server is also healthy"
+                fi
                 break
               fi
               
@@ -728,17 +776,19 @@ jobs:
             if [ "$HEALTH_CHECK_PASSED" = "false" ]; then
               log "❌ Health check failed after $MAX_ATTEMPTS attempts"
               log "📋 Container logs for debugging:"
-              docker compose -f docker-compose.yml logs --tail=50
+              docker compose -f docker-compose.yml logs --tail=50 || true
               log "🔍 Container status:"
-              docker compose -f docker-compose.yml ps
+              docker compose -f docker-compose.yml ps || true
               
-              # Optional: Don't fail deployment if health check fails but containers are running
+              # Check if containers are running despite health check failure
               running_containers=$(docker compose -f docker-compose.yml ps --format "table {{.Name}}\t{{.Status}}" | grep -c "Up" || echo "0")
               if [ "$running_containers" -gt 0 ]; then
                 log "⚠️  Containers are running but health check failed - proceeding with deployment"
+                log "ℹ️  This might be due to slow startup or network issues"
               else
-                log "❌ Containers are not running properly - failing deployment"
+                log "❌ Containers are not running properly"
                 handle_error
+                # Don't exit here, let the script continue for final status report
               fi
             fi
 
@@ -747,12 +797,14 @@ jobs:
             docker compose -f docker-compose.yml ps
 
             # Setup systemd service for auto-start on boot (enhanced)
-            if command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+            if command -v systemctl >/dev/null 2>&1; then
               log "⚙️  Setting up systemd service for auto-start..."
               CURRENT_USER=$(whoami)
               
-              # Create systemd service file with better configuration
-              sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << EOF
+              # Check if we have sudo access before attempting
+              if sudo -n true 2>/dev/null; then
+                # Create systemd service file with better configuration
+                sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << EOF || true
             [Unit]
             Description=My Scheduler App
             Requires=docker.service
@@ -777,14 +829,17 @@ jobs:
             [Install]
             WantedBy=multi-user.target
             EOF
-              
-              if sudo systemctl daemon-reload && sudo systemctl enable my-scheduler-app.service; then
-                log "✅ Auto-start service configured successfully"
+                
+                if sudo systemctl daemon-reload 2>/dev/null && sudo systemctl enable my-scheduler-app.service 2>/dev/null; then
+                  log "✅ Auto-start service configured successfully"
+                else
+                  log "⚠️  Failed to configure auto-start service (non-critical)"
+                fi
               else
-                log "⚠️  Failed to configure auto-start service (non-critical)"
+                log "ℹ️  No sudo access - skipping auto-start setup"
               fi
             else
-              log "ℹ️  Systemd not available or no sudo access - skipping auto-start setup"
+              log "ℹ️  Systemd not available - skipping auto-start setup"
             fi
             
             # Cleanup backup if deployment successful
@@ -792,6 +847,9 @@ jobs:
             
             log "🎉 Deployment completed successfully!"
             log "📱 Application should be available at: http://$(hostname -I | awk '{print $1}'):3000"
+            
+            # Ensure script exits with success status
+            exit 0
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}

@@ -25,7 +25,8 @@ export class WebSocketClientService {
     // Use NEXT_PUBLIC_WEBSOCKET_URL if available, otherwise fallback to localhost
     const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
     if (wsUrl) {
-      return wsUrl;
+      // Ensure we use HTTP for WebSocket API calls, not HTTPS
+      return wsUrl.replace('https://', 'http://');
     }
     
     return `http://localhost:${process.env.WEBSOCKET_PORT || '3004'}`;
@@ -33,6 +34,22 @@ export class WebSocketClientService {
   
   private static get baseUrl(): string {
     return this.getBaseUrl();
+  }
+
+  /**
+   * Get WebSocket connection URL for client-side Socket.IO
+   */
+  static getWebSocketUrl(): string {
+    if (typeof window === 'undefined') {
+      return this.baseUrl;
+    }
+    
+    // Client-side: use current host with WebSocket port
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    const hostname = window.location.hostname;
+    const port = process.env.NEXT_PUBLIC_WEBSOCKET_PORT || '3004';
+    
+    return `${protocol}//${hostname}:${port}`;
   }
 
   /**

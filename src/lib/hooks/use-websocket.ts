@@ -1,9 +1,10 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
-import { useUser } from '@clerk/nextjs';
-import { NotificationPayload } from '../websocket/websocket-server';
+import { useEffect, useRef, useState, useCallback } from "react";
+import { io, Socket } from "socket.io-client";
+import { useUser } from "@clerk/nextjs";
+import { NotificationPayload } from "../websocket/websocket-server";
+import { WebSocketClientService } from "../services/websocket-client.service";
 
 interface UseWebSocketOptions {
   teamId?: string;
@@ -29,19 +30,19 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     enableNotifications = true,
     onNotification,
     onConnect,
-    onDisconnect
+    onDisconnect,
   } = options;
 
   const { user, isLoaded } = useUser();
   const socketRef = useRef<Socket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   // Use refs for callbacks to avoid dependency changes
   const onNotificationRef = useRef(onNotification);
   const onConnectRef = useRef(onConnect);
   const onDisconnectRef = useRef(onDisconnect);
-  
+
   // Update refs when callbacks change
   useEffect(() => {
     onNotificationRef.current = onNotification;
@@ -54,7 +55,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     isConnecting: false,
     error: null,
     notifications: [],
-    unreadCount: 0
+    unreadCount: 0,
   });
 
   // Initialize WebSocket connection
@@ -63,104 +64,107 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       return;
     }
 
-    setState(prev => ({ ...prev, isConnecting: true, error: null }));
+    setState((prev) => ({ ...prev, isConnecting: true, error: null }));
 
     try {
-      // WebSocket server runs on a separate port (3004)
-           const wsPort = process.env.NEXT_PUBLIC_WEBSOCKET_PORT || "3004";
-      const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || `http://localhost:${wsPort}`;
-      
+      // Use the improved WebSocket URL from service
+      const wsUrl = WebSocketClientService.getWebSocketUrl();
+
+      console.log("🔌 Attempting WebSocket connection to:", wsUrl);
+
       const socket = io(wsUrl, {
-        transports: ['polling', 'websocket'], // Start with polling, upgrade to websocket
+        transports: ["polling", "websocket"], // Start with polling, upgrade to websocket
         timeout: 20000, // Match server timeout: 20 seconds
         reconnection: true,
-        reconnectionAttempts: 3, // Reduced attempts for faster failover
+        reconnectionAttempts: 5, // Increased attempts
         reconnectionDelay: 2000, // Start with 2 second delay
         reconnectionDelayMax: 10000, // Max 10 seconds delay
         forceNew: false, // Allow connection reuse
         upgrade: true, // Allow upgrade to WebSocket
         rememberUpgrade: true,
         autoConnect: true, // Auto connect
-        multiplex: true // Allow multiplexing
+        multiplex: true, // Allow multiplexing
+        withCredentials: false, // Disable credentials for CORS
+        secure: false, // Force HTTP for now
       });
 
       socketRef.current = socket;
 
       // Connection events
-      socket.on('connect', () => {
-        console.log('🔌 WebSocket connected');
-        setState(prev => ({ 
-          ...prev, 
-          isConnected: true, 
-          isConnecting: false, 
-          error: null 
+      socket.on("connect", () => {
+        console.log("🔌 WebSocket connected");
+        setState((prev) => ({
+          ...prev,
+          isConnected: true,
+          isConnecting: false,
+          error: null,
         }));
 
         // Authenticate user
-        socket.emit('authenticate', {
+        socket.emit("authenticate", {
           userId: user.id,
-          teamId
+          teamId,
         });
 
         onConnectRef.current?.();
       });
 
-      socket.on('disconnect', (reason) => {
-        console.log('🔌 WebSocket disconnected:', reason);
-        setState(prev => ({ 
-          ...prev, 
-          isConnected: false, 
-          isConnecting: false 
+      socket.on("disconnect", (reason) => {
+        console.log("🔌 WebSocket disconnected:", reason);
+        setState((prev) => ({
+          ...prev,
+          isConnected: false,
+          isConnecting: false,
         }));
 
         onDisconnectRef.current?.();
 
         // Auto-reconnect if not intentional disconnect
-        if (reason !== 'io client disconnect') {
+        if (reason !== "io client disconnect") {
           scheduleReconnect();
         }
       });
 
-      socket.on('connect_error', (error) => {
-        console.error('🔌 WebSocket connection error:', error);
-        setState(prev => ({ 
-          ...prev, 
-          isConnected: false, 
-          isConnecting: false, 
-          error: error.message 
+      socket.on("connect_error", (error) => {
+        console.error("🔌 WebSocket connection error:", error);
+        setState((prev) => ({
+          ...prev,
+          isConnected: false,
+          isConnecting: false,
+          error: error.message,
         }));
 
         scheduleReconnect();
       });
 
       // Authentication events
-      socket.on('authenticated', (data) => {
-        console.log('✅ WebSocket authenticated:', data);
-        
+      socket.on("authenticated", (data) => {
+        console.log("✅ WebSocket authenticated:", data);
+
         // Join team room if teamId provided
         if (teamId) {
-          socket.emit('join_team', teamId);
+          socket.emit("join_team", teamId);
         }
 
         startHeartbeat();
       });
 
-      socket.on('auth_error', (error) => {
-        console.error('❌ WebSocket authentication error:', error);
-        setState(prev => ({ 
-          ...prev, 
-          error: 'Authentication failed' 
+      socket.on("auth_error", (error) => {
+        console.error("❌ WebSocket authentication error:", error);
+        setState((prev) => ({
+          ...prev,
+          error: "Authentication failed",
         }));
       });
 
       // Notification events
-      socket.on('notification', (notification: NotificationPayload) => {
-        console.log('📨 Received notification:', notification);
-        
-        setState(prev => ({
+      socket.on("notification", (notification: NotificationPayload) => {
+        console.log("📨 Received notification:", notification);
+
+        setState((prev) => ({
           ...prev,
           notifications: [notification, ...prev.notifications].slice(0, 50), // Keep last 50
-          unreadCount: prev.unreadCount + (notification.read ? 0 : 1)
+          unreadCount: prev.unreadCount + (notification.read ? 0 : 1),
         }));
 
         // Toast notification is handled by websocket-provider.tsx to avoid duplication
@@ -177,9 +181,9 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         onNotificationRef.current?.(notification);
       });
 
-      socket.on('system_notification', (notification: NotificationPayload) => {
-        console.log('📢 Received system notification:', notification);
-        
+      socket.on("system_notification", (notification: NotificationPayload) => {
+        console.log("📢 Received system notification:", notification);
+
         // Toast notification is handled by websocket-provider.tsx to avoid duplication
         // if (enableNotifications) {
         //   toast(notification.title, {
@@ -189,35 +193,32 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         // }
       });
 
-      socket.on('notification_read_ack', (data: { notificationId: string }) => {
-        setState(prev => ({
+      socket.on("notification_read_ack", (data: { notificationId: string }) => {
+        setState((prev) => ({
           ...prev,
-          notifications: prev.notifications.map(notif => 
-            notif.id === data.notificationId 
-              ? { ...notif, read: true }
-              : notif
+          notifications: prev.notifications.map((notif) =>
+            notif.id === data.notificationId ? { ...notif, read: true } : notif
           ),
-          unreadCount: Math.max(0, prev.unreadCount - 1)
+          unreadCount: Math.max(0, prev.unreadCount - 1),
         }));
       });
 
       // Heartbeat events
-      socket.on('heartbeat', () => {
+      socket.on("heartbeat", () => {
         // Server heartbeat received
       });
 
-      socket.on('pong', () => {
+      socket.on("pong", () => {
         // Pong response received
       });
     } catch (error) {
-      console.error('Failed to setup WebSocket connection:', error);
-      setState(prev => ({ 
-        ...prev, 
-        isConnecting: false, 
-        error: 'Failed to setup WebSocket connection' 
+      console.error("Failed to setup WebSocket connection:", error);
+      setState((prev) => ({
+        ...prev,
+        isConnecting: false,
+        error: "Failed to setup WebSocket connection",
       }));
     }
-
   }, [user?.id, isLoaded, teamId, enableNotifications]);
 
   // Disconnect WebSocket
@@ -237,10 +238,10 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       heartbeatIntervalRef.current = null;
     }
 
-    setState(prev => ({ 
-      ...prev, 
-      isConnected: false, 
-      isConnecting: false 
+    setState((prev) => ({
+      ...prev,
+      isConnected: false,
+      isConnecting: false,
     }));
   }, []);
 
@@ -251,7 +252,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     }
 
     reconnectTimeoutRef.current = setTimeout(() => {
-      console.log('🔄 Attempting to reconnect WebSocket...');
+      console.log("🔄 Attempting to reconnect WebSocket...");
       connect();
     }, 3000);
   }, [connect]);
@@ -264,7 +265,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
     heartbeatIntervalRef.current = setInterval(() => {
       if (socketRef.current?.connected) {
-        socketRef.current.emit('ping');
+        socketRef.current.emit("ping");
       }
     }, 30000); // Send ping every 30 seconds
   }, []);
@@ -272,37 +273,37 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   // Mark notification as read
   const markAsRead = useCallback((notificationId: string) => {
     if (socketRef.current?.connected) {
-      socketRef.current.emit('notification_read', notificationId);
+      socketRef.current.emit("notification_read", notificationId);
     }
   }, []);
 
   // Mark all notifications as read
   const markAllAsRead = useCallback(() => {
     state.notifications
-      .filter(notif => !notif.read)
-      .forEach(notif => markAsRead(notif.id));
+      .filter((notif) => !notif.read)
+      .forEach((notif) => markAsRead(notif.id));
   }, [state.notifications, markAsRead]);
 
   // Join team room
   const joinTeam = useCallback((newTeamId: string) => {
     if (socketRef.current?.connected) {
-      socketRef.current.emit('join_team', newTeamId);
+      socketRef.current.emit("join_team", newTeamId);
     }
   }, []);
 
   // Leave team room
   const leaveTeam = useCallback((teamIdToLeave: string) => {
     if (socketRef.current?.connected) {
-      socketRef.current.emit('leave_team', teamIdToLeave);
+      socketRef.current.emit("leave_team", teamIdToLeave);
     }
   }, []);
 
   // Clear notifications
   const clearNotifications = useCallback(() => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       notifications: [],
-      unreadCount: 0
+      unreadCount: 0,
     }));
   }, []);
 
@@ -329,11 +330,11 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     isConnected: state.isConnected,
     isConnecting: state.isConnecting,
     error: state.error,
-    
+
     // Notifications
     notifications: state.notifications,
     unreadCount: state.unreadCount,
-    
+
     // Actions
     connect,
     disconnect,
@@ -342,8 +343,8 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     joinTeam,
     leaveTeam,
     clearNotifications,
-    
+
     // Socket instance (for advanced usage)
-    socket: socketRef.current
+    socket: socketRef.current,
   };
 };
