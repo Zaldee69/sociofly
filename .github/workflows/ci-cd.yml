@@ -11,8 +11,9 @@ on:
     branches: [main]
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  REGISTRY: docker.io
+  IMAGE_NAME: sociofly-app
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   NODE_VERSION: "20"
 
 jobs:
@@ -182,20 +183,19 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Login to GitHub Container Registry
-      - name: Log into GitHub Container Registry
+      # Login to Docker Hub
+      - name: Log into Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
       # Extract metadata for Docker
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=sha
@@ -234,7 +234,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
           format: "sarif"
           output: "trivy-results.sarif"
           exit-code: "0"
@@ -443,7 +443,7 @@ jobs:
           timeout: 30s
           command_timeout: 20m
           script_stop: true
-          envs: GITHUB_TOKEN,APP_DIR,IMAGE_NAME,REGISTRY
+          envs: DOCKER_USERNAME,DOCKER_PASSWORD,APP_DIR,IMAGE_NAME
           script: |
             set -euo pipefail  # Exit on error, undefined vars, pipe failures
             
@@ -491,7 +491,7 @@ jobs:
             log "🚀 Starting deployment process..."
             
             # Validate required environment variables
-            required_vars=("APP_DIR" "IMAGE_NAME" "REGISTRY" "GITHUB_TOKEN")
+            required_vars=("APP_DIR" "IMAGE_NAME" "DOCKER_USERNAME" "DOCKER_PASSWORD")
             for var in "${required_vars[@]}"; do
               if [ -z "${!var:-}" ]; then
                 log "❌ Error: Required environment variable '$var' is not set"
@@ -530,13 +530,13 @@ jobs:
             fi
             log "✅ Docker and Docker Compose are available"
             
-            # Login to GitHub Container Registry with better error handling
-            log "🔐 Logging into GitHub Container Registry..."
-            if ! echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin; then
-              log "❌ Error: Failed to login to GitHub Container Registry"
+            # Login to Docker Hub with better error handling
+            log "🔐 Logging into Docker Hub..."
+            if ! echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin; then
+              log "❌ Error: Failed to login to Docker Hub"
               exit 1
             fi
-            log "✅ Successfully logged into GHCR"
+            log "✅ Successfully logged into Docker Hub"
             
             # Create backup of current state for rollback
             log "💾 Creating backup for potential rollback..."
@@ -556,21 +556,21 @@ jobs:
               fi
             done
 
-            # Try to pull pre-built image from GHCR first
+            # Try to pull pre-built image from Docker Hub first
             log "🔍 Checking for pre-built image..."
-            log "📋 Image details: ${REGISTRY}/${IMAGE_NAME}:latest"
+            log "📋 Image details: ${DOCKER_USERNAME}/${IMAGE_NAME}:latest"
             
             USE_PREBUILT=false
             
             log "🔽 Attempting to pull pre-built image..."
-            PULL_RESULT=$(safe_pull_image "${REGISTRY}/${IMAGE_NAME}:latest")
+            PULL_RESULT=$(safe_pull_image "${DOCKER_USERNAME}/${IMAGE_NAME}:latest")
             
             if [ "$PULL_RESULT" = "SUCCESS" ]; then
               USE_PREBUILT=true
               log "✅ Pre-built image found and pulled successfully"
               
               # Verify the image is actually available
-              if docker image inspect "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1; then
+              if docker image inspect "${DOCKER_USERNAME}/${IMAGE_NAME}:latest" >/dev/null 2>&1; then
                 log "✅ Image verification passed"
               else
                 log "⚠️  Image verification failed, falling back to build"
@@ -584,7 +584,7 @@ jobs:
               # Clean up any partial downloads
               log "🔧 Cleaning up any partial downloads..."
               docker image prune -f --filter "dangling=true" >/dev/null 2>&1 || true
-              docker rmi "${REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1 || true
+              docker rmi "${DOCKER_USERNAME}/${IMAGE_NAME}:latest" >/dev/null 2>&1 || true
             fi
             
             log "📊 Pull result: USE_PREBUILT=$USE_PREBUILT"
@@ -600,11 +600,11 @@ jobs:
             log "🏗️  Starting container deployment..."
             log "📊 Deployment configuration:"
             log "   - USE_PREBUILT: $USE_PREBUILT"
-            log "   - DOCKER_IMAGE: ${REGISTRY}/${IMAGE_NAME}:latest"
+            log "   - DOCKER_IMAGE: ${DOCKER_USERNAME}/${IMAGE_NAME}:latest"
             log "   - Working Directory: $(pwd)"
             
             # Set the Docker image environment variable for consistency
-            export DOCKER_IMAGE="${REGISTRY}/${IMAGE_NAME}:latest"
+            export DOCKER_IMAGE="${DOCKER_USERNAME}/${IMAGE_NAME}:latest"
             
             # Show current Docker state for debugging
             log "🔍 Current Docker state:"
@@ -793,10 +793,10 @@ jobs:
             log "🎉 Deployment completed successfully!"
             log "📱 Application should be available at: http://$(hostname -I | awk '{print $1}'):3000"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
           APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          REGISTRY: ${{ env.REGISTRY }}
 
       - name: Send notification on success
         if: success()
