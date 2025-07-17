@@ -123,6 +123,136 @@
   transition-duration: 0s !important;
 }
 
+/* Performance optimizations */
+.optimized-animation {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.smooth-transition {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.15s;
+}
+
+/* Lightweight animations */
+.animate-pulse-light {
+  animation: none;
+}
+
+.animate-bounce-light {
+  animation: none;
+}
+
+.animate-fade-light {
+  animation: none;
+}
+
+/* Enable lightweight animations only after hydration */
+html.hydrated .animate-pulse-light {
+  animation: pulse-light 3s ease-in-out infinite;
+}
+
+html.hydrated .animate-bounce-light {
+  animation: bounce-light 2s ease-in-out infinite;
+}
+
+html.hydrated .animate-fade-light {
+  animation: fade-light 2s ease-in-out infinite;
+}
+
+/* Lightweight keyframes */
+@keyframes pulse-light {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes bounce-light {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes fade-light {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-light,
+  .animate-bounce-light,
+  .animate-fade-light {
+    animation: none !important;
+  }
+  
+  .smooth-transition {
+    transition: none !important;
+  }
+}
+
+/* Old heavy animations - reduced impact */
+.animate-pulse-safe {
+  animation: none;
+}
+
+.animate-bounce-safe {
+  animation: none;
+}
+
+.animate-ping-safe {
+  animation: none;
+}
+
+/* Enable animations only after hydration with reduced intensity */
+html.hydrated .animate-pulse-safe {
+  animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+html.hydrated .animate-bounce-safe {
+  animation: bounce-light 2s ease-in-out infinite;
+}
+
+html.hydrated .animate-ping-safe {
+  animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Animation delays - reduced to fewer elements */
+html.hydrated .animate-pulse-safe.delay-1000 {
+  animation-delay: 1000ms;
+}
+
+html.hydrated .animate-pulse-safe.delay-2000 {
+  animation-delay: 2000ms;
+}
+
+html.hydrated .animate-bounce-safe.delay-1000 {
+  animation-delay: 1000ms;
+}
+
+html.hydrated .animate-bounce-safe.delay-2000 {
+  animation-delay: 2000ms;
+}
+
+html.hydrated .animate-ping-safe.delay-1000 {
+  animation-delay: 1000ms;
+}
+
+html.hydrated .animate-ping-safe.delay-2000 {
+  animation-delay: 2000ms;
+}
+
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
