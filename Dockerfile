@@ -20,7 +20,6 @@ WORKDIR /app
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
-RUN yarn install --production --frozen-lockfile --network-timeout 300000
 
 # Copy only necessary files for build (exclude unnecessary files)
 COPY package.json yarn.lock ./
@@ -80,7 +79,6 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
-COPY --from=deps /app/node_modules ./node_modules
 
 # Set the correct permission for prerender cache
 RUN mkdir .next
