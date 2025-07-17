@@ -1,8 +1,4 @@
-# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-# Optimized CI/CD Pipeline for My Scheduler App
-# Reduces build time from 11 minutes to 4-6 minutes
-
-name: Optimized CI/CD Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
@@ -21,7 +17,7 @@ jobs:
   lint-and-test:
     runs-on: ubuntu-latest
     environment: DEV_ENV
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -151,11 +147,11 @@ jobs:
     needs: lint-and-test
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Run security audit
         run: |
           yarn audit --level moderate || true
@@ -170,7 +166,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
+
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
       image-tags: ${{ steps.meta.outputs.tags }}
@@ -228,7 +224,7 @@ jobs:
     needs: docker-build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    continue-on-error: true  # Jangan block deployment jika scan gagal
+    continue-on-error: true # Jangan block deployment jika scan gagal
 
     steps:
       - name: Run Trivy vulnerability scanner
@@ -241,7 +237,7 @@ jobs:
           ignore-unfixed: true
           vuln-type: "os,library"
           severity: "CRITICAL,HIGH"
-          timeout: "5m0s"  # Kurangi timeout
+          timeout: "5m0s" # Kurangi timeout
 
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
@@ -289,7 +285,7 @@ jobs:
             echo "✅ Directory $APP_DIR prepared with proper permissions"
             ls -la "$(dirname "$APP_DIR")"
         env:
-          APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+          APP_DIR: ${{ secrets.APP_DIR || '/opt/sociofly-app' }}
 
       - name: Copy source code to server
         uses: appleboy/scp-action@v0.1.7
@@ -299,7 +295,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           source: "."
-          target: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+          target: ${{ secrets.APP_DIR || '/opt/sociofly-app' }}
           rm: true
           strip_components: 0
           overwrite: true
@@ -323,7 +319,7 @@ jobs:
               exit 1
             fi
         env:
-          APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+          APP_DIR: ${{ secrets.APP_DIR || '/opt/sociofly-app' }}
 
       - name: Create .env file on server
         uses: appleboy/ssh-action@v1.0.3
@@ -338,53 +334,53 @@ jobs:
             # Create application directory if it doesn't exist
             mkdir -p "$APP_DIR"
             cd "$APP_DIR"
-            
+
             # Get server IP for WebSocket URL
             SERVER_IP="${SSH_HOST}"
-            
+
             # Create .env file with production environment variables
             cat > .env << EOF
             NODE_ENV=production
             SKIP_ENV_VALIDATION=true
-            
+
             # Database Configuration
             DATABASE_URL=${DATABASE_URL}
             DIRECT_URL=${DIRECT_URL}
-            
+
             # Supabase Configuration
             NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-            
+
             # Authentication
             CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
             NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
             CLERK_WEBHOOK_SECRET=${CLERK_WEBHOOK_SECRET}
-            
+
             # External APIs
             OPENAI_API_KEY=${OPENAI_API_KEY}
             RESEND_API_KEY=${RESEND_API_KEY}
-            
+
             # Redis Configuration (menggunakan container internal)
             REDIS_HOST=redis
             REDIS_PORT=6379
             REDIS_PASSWORD=${REDIS_PASSWORD}
             REDIS_DB=${REDIS_DB}
             REDIS_USE_CLUSTER=${REDIS_USE_CLUSTER}
-            
+
             # Scheduled Jobs
             ENABLE_SCHEDULED_JOBS=${ENABLE_SCHEDULED_JOBS}
             CRON_API_KEY=${CRON_API_KEY}
             NEXT_PUBLIC_CRON_API_KEY=${NEXT_PUBLIC_CRON_API_KEY}
-            
+
             # App URLs - Use server IP instead of localhost
             NEXT_PUBLIC_APP_URL=http://${SERVER_IP}:3000
             NEXTAUTH_URL=http://${SERVER_IP}:3000
-            
+
             # WebSocket Configuration - Use server IP instead of localhost
             NEXT_PUBLIC_WEBSOCKET_URL=http://${SERVER_IP}:3004
             NEXT_PUBLIC_WEBSOCKET_PORT=3004
             WEBSOCKET_PORT=3004
-            
+
             # Fallback WebSocket URL for client-side
             NEXT_PUBLIC_WEBSOCKET_FALLBACK_URL=http://localhost:3004
 
@@ -392,23 +388,23 @@ jobs:
             MIDTRANS_CLIENT_KEY=${MIDTRANS_CLIENT_KEY}
             MIDTRANS_SERVER_KEY=${MIDTRANS_SERVER_KEY}
             MIDTRANS_IS_PRODUCTION=${MIDTRANS_IS_PRODUCTION}
-            
+
             # Social Media
             NEXT_PUBLIC_FACEBOOK_CLIENT_ID=${NEXT_PUBLIC_FACEBOOK_CLIENT_ID}
             NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET=${NEXT_PUBLIC_FACEBOOK_CLIENT_SECRET}
-            
+
             # File Upload
             UPLOADTHING_TOKEN=${UPLOADTHING_TOKEN}
             ENTRY_AUTH_TOKEN=${ENTRY_AUTH_TOKEN}
-            
+
             # System
             TZ=Asia/Jakarta
             NEXT_TELEMETRY_DISABLED=1
             EOF
-            
+
             echo "✅ .env file created successfully"
         env:
-          APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+          APP_DIR: ${{ secrets.APP_DIR || '/opt/sociofly-app' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
@@ -451,12 +447,12 @@ jobs:
           script: |
             # Use less strict error handling to prevent premature exits
             set -eo pipefail  # Exit on error and pipe failures, but allow undefined vars
-            
+
             # Enhanced logging function
             log() {
               echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
             }
-            
+
             # Function to safely attempt image pull
             safe_pull_image() {
               local image_name="$1"
@@ -479,7 +475,7 @@ jobs:
                 echo "FAILED"
               fi
             }
-            
+
             # Error handling function
             handle_error() {
               log "❌ Error occurred in deployment script"
@@ -489,12 +485,12 @@ jobs:
               docker compose -f docker-compose.yml ps || true
               # Don't exit immediately, let the script continue for debugging
             }
-            
+
             # Set error trap only for critical errors
             # trap handle_error ERR
-            
+
             log "🚀 Starting deployment process..."
-            
+
             # Validate required environment variables
             required_vars=("APP_DIR" "IMAGE_NAME" "DOCKER_USERNAME" "DOCKER_PASSWORD")
             for var in "${required_vars[@]}"; do
@@ -504,7 +500,7 @@ jobs:
               fi
             done
             log "✅ Environment variables validated"
-            
+
             # Change to application directory
             if [ ! -d "$APP_DIR" ]; then
               log "❌ Error: Application directory '$APP_DIR' does not exist"
@@ -512,7 +508,7 @@ jobs:
             fi
             cd "$APP_DIR"
             log "📁 Changed to application directory: $APP_DIR"
-            
+
             # Verify required files exist
             required_files=("docker-compose.yml" ".env" "Dockerfile")
             for file in "${required_files[@]}"; do
@@ -528,13 +524,13 @@ jobs:
               log "❌ Error: Docker is not installed or not in PATH"
               exit 1
             fi
-            
+
             if ! docker compose version >/dev/null 2>&1; then
               log "❌ Error: Docker Compose is not available"
               exit 1
             fi
             log "✅ Docker and Docker Compose are available"
-            
+
             # Login to Docker Hub with better error handling
             log "🔐 Logging into Docker Hub..."
             if ! echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin; then
@@ -542,13 +538,13 @@ jobs:
               exit 1
             fi
             log "✅ Successfully logged into Docker Hub"
-            
+
             # Create backup of current state for rollback
             log "💾 Creating backup for potential rollback..."
             BACKUP_DIR="/tmp/deployment-backup-$(date +%s)"
             mkdir -p "$BACKUP_DIR"
             docker compose -f docker-compose.yml config > "$BACKUP_DIR/docker-compose.backup.yml" 2>/dev/null || true
-            
+
             # Pull base images with retry logic
             log "📥 Pulling base images..."
             for i in {1..3}; do
@@ -564,12 +560,12 @@ jobs:
             # Try to pull pre-built image from Docker Hub first
             log "🔍 Checking for pre-built image..."
             log "📋 Image details: ${DOCKER_USERNAME}/${IMAGE_NAME}:latest"
-            
+
             USE_PREBUILT=false
-            
+
             log "🔽 Attempting to pull pre-built image..."
             PULL_RESULT=$(safe_pull_image "${DOCKER_USERNAME}/${IMAGE_NAME}:latest")
-            
+
             if [ "$PULL_RESULT" = "SUCCESS" ]; then
               USE_PREBUILT=true
               log "✅ Pre-built image found and pulled successfully"
@@ -591,13 +587,13 @@ jobs:
               docker image prune -f --filter "dangling=true" >/dev/null 2>&1 || true
               docker rmi "${DOCKER_USERNAME}/${IMAGE_NAME}:latest" >/dev/null 2>&1 || true
             fi
-            
+
             log "📊 Pull result: USE_PREBUILT=$USE_PREBUILT"
 
             # Stop existing containers gracefully with timeout
             log "🛑 Stopping existing containers..."
             docker compose -f docker-compose.yml down --remove-orphans --timeout 30 || true
-            
+
             # Wait for containers to fully stop
             sleep 5
 
@@ -607,14 +603,14 @@ jobs:
             log "   - USE_PREBUILT: $USE_PREBUILT"
             log "   - DOCKER_IMAGE: ${DOCKER_USERNAME}/${IMAGE_NAME}:latest"
             log "   - Working Directory: $(pwd)"
-            
+
             # Set the Docker image environment variable for consistency
             export DOCKER_IMAGE="${DOCKER_USERNAME}/${IMAGE_NAME}:latest"
-            
+
             # Show current Docker state for debugging
             log "🔍 Current Docker state:"
             docker images | grep -E "(sociofly|redis)" || log "   No relevant images found"
-            
+
             if [ "$USE_PREBUILT" = "true" ]; then
               log "🚀 Using pre-built image from registry: $DOCKER_IMAGE"
               
@@ -644,7 +640,7 @@ jobs:
                 USE_PREBUILT=false
               fi
             fi
-            
+
             if [ "$USE_PREBUILT" = "false" ]; then
               log "🔨 Building and starting from source"
               log "📦 Starting build process..."
@@ -660,7 +656,7 @@ jobs:
                 log "✅ Build and deployment succeeded"
               fi
             fi
-            
+
             log "✅ Containers started successfully"
 
             # Wait for containers to be ready
@@ -684,29 +680,29 @@ jobs:
               docker image prune -af --filter "until=24h" >/dev/null 2>&1 || true
               log "✅ Old images cleaned up"
             ) &
-            
+
             # Configure firewall for WebSocket
             log "🔥 Configuring firewall for WebSocket..."
-            
+
             # Check if ufw is available and active
             if command -v ufw >/dev/null 2>&1; then
               # Allow port 3004 for WebSocket
               sudo ufw allow 3004/tcp comment "WebSocket Server" 2>/dev/null || true
               log "✅ UFW rule added for port 3004"
             fi
-            
+
             # Check if iptables is available
             if command -v iptables >/dev/null 2>&1; then
               # Allow port 3004 for WebSocket
               sudo iptables -A INPUT -p tcp --dport 3004 -j ACCEPT 2>/dev/null || true
               log "✅ iptables rule added for port 3004"
             fi
-            
+
             # Enhanced Application Health Check
             log "🏥 Starting comprehensive health check..."
             HEALTH_CHECK_PASSED=false
             MAX_ATTEMPTS=10
-            
+
             for i in $(seq 1 $MAX_ATTEMPTS); do
               log "⏳ Health check attempt $i/$MAX_ATTEMPTS..."
               
@@ -769,10 +765,10 @@ jobs:
               log "⚠️  Health check failed, waiting before retry..."
               sleep 15
             done
-            
+
             # Wait for background optimizations to complete
             wait
-            
+
             if [ "$HEALTH_CHECK_PASSED" = "false" ]; then
               log "❌ Health check failed after $MAX_ATTEMPTS attempts"
               log "📋 Container logs for debugging:"
@@ -804,20 +800,20 @@ jobs:
               # Check if we have sudo access before attempting
               if sudo -n true 2>/dev/null; then
                 # Create systemd service file with better configuration
-                sudo tee /etc/systemd/system/my-scheduler-app.service > /dev/null << EOF || true
+                sudo tee /etc/systemd/system/sociofly-app.service > /dev/null << EOF || true
             [Unit]
-            Description=My Scheduler App
+            Description=Sociofly App
             Requires=docker.service
             After=docker.service network-online.target
             Wants=network-online.target
-            
+
             [Service]
             Type=oneshot
             RemainAfterExit=yes
             User=$CURRENT_USER
             Group=docker
             WorkingDirectory=$APP_DIR
-            Environment=COMPOSE_PROJECT_NAME=my-scheduler-app
+            Environment=COMPOSE_PROJECT_NAME=sociofly-app
             ExecStart=/usr/bin/docker compose -f docker-compose.yml up -d --wait
             ExecStop=/usr/bin/docker compose -f docker-compose.yml down --timeout 30
             ExecReload=/usr/bin/docker compose -f docker-compose.yml restart
@@ -825,12 +821,12 @@ jobs:
             TimeoutStopSec=60
             Restart=on-failure
             RestartSec=10
-            
+
             [Install]
             WantedBy=multi-user.target
             EOF
                 
-                if sudo systemctl daemon-reload 2>/dev/null && sudo systemctl enable my-scheduler-app.service 2>/dev/null; then
+                if sudo systemctl daemon-reload 2>/dev/null && sudo systemctl enable sociofly-app.service 2>/dev/null; then
                   log "✅ Auto-start service configured successfully"
                 else
                   log "⚠️  Failed to configure auto-start service (non-critical)"
@@ -841,19 +837,19 @@ jobs:
             else
               log "ℹ️  Systemd not available - skipping auto-start setup"
             fi
-            
+
             # Cleanup backup if deployment successful
             rm -rf "$BACKUP_DIR" 2>/dev/null || true
-            
+
             log "🎉 Deployment completed successfully!"
             log "📱 Application should be available at: http://$(hostname -I | awk '{print $1}'):3000"
-            
+
             # Ensure script exits with success status
             exit 0
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-          APP_DIR: ${{ secrets.APP_DIR || '/opt/my-scheduler-app' }}
+          APP_DIR: ${{ secrets.APP_DIR || '/opt/sociofly-app' }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
 
       - name: Send notification on success

@@ -12,7 +12,7 @@ export async function sendInvitationEmail(email: string, token: string) {
     const resend = getResendClient();
     await resend.emails.send({
       from: "SocioFly <onboarding@resend.dev>",
-      to: "muhammadrizaldy19@gmail.com",
+      to: email,
       subject: "Undangan Bergabung dengan Tim di SocioFly",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -212,7 +212,7 @@ export async function sendApprovalRequestEmail(data: ApprovalNotificationData) {
     const resend = getResendClient();
     await resend.emails.send({
       from: "SocioFly <notifications@resend.dev>",
-      to: "muhammadrizaldy19@gmail.com",
+      to: approverEmail,
       subject: emailSubject,
       html: emailContent,
       text: emailText,
@@ -247,7 +247,7 @@ export async function sendMagicLinkApprovalEmail(data: MagicLinkApprovalData) {
     const resend = getResendClient();
     await resend.emails.send({
       from: "SocioFly <notifications@resend.dev>",
-      to: "muhammadrizaldy19@gmail.com",
+      to: approverEmail,
       subject: `Content Approval Request from ${authorName} - ${teamName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
@@ -356,8 +356,7 @@ export async function sendApprovalStatusEmail(
     const resend = getResendClient();
     await resend.emails.send({
       from: "SocioFly <notifications@resend.dev>",
-      // to: authorEmail,
-      to: "muhammadrizaldy19@gmail.com",
+      to: authorEmail,
       subject: `Post Anda ${statusText} oleh ${approverName} - ${teamName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">

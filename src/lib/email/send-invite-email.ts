@@ -19,11 +19,11 @@ export async function sendInviteEmail({
   try {
     const resend = getResendClient();
     const { data, error } = await resend.emails.send({
-      from: "My Scheduler App <onboarding@resend.dev>",
-      to: "muhammadrizaldy19@gmail.com",
-      subject: `You're invited to join ${teamName} on My Scheduler App`,
+      from: "Sociofly <onboarding@resend.dev>",
+      to: email,
+      subject: `You're invited to join ${teamName} on Sociofly`,
       text:
-        `You have been invited to join ${teamName} on My Scheduler App as a ${role.toLowerCase()}.\n\n` +
+        `You have been invited to join ${teamName} on Sociofly as a ${role.toLowerCase()}.\n\n` +
         `If you already have an account, you can view and manage your invitations at:\n` +
         `${process.env.NEXT_PUBLIC_APP_URL}/invites\n\n` +
         `If you don't have an account yet, sign up first at:\n` +
@@ -32,7 +32,7 @@ export async function sendInviteEmail({
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
           <h2 style="color: #333; margin-bottom: 20px;">Team Invitation</h2>
-          <p>You have been invited to join <strong>${teamName}</strong> on My Scheduler App as a <strong>${role.toLowerCase()}</strong>.</p>
+            <p>You have been invited to join <strong>${teamName}</strong> on Sociofly as a <strong>${role.toLowerCase()}</strong>.</p>
           
           <div style="margin: 30px 0;">
             <a href="${process.env.NEXT_PUBLIC_APP_URL}/invites" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">View Invitation</a>

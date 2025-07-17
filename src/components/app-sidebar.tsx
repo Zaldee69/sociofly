@@ -54,7 +54,7 @@ const data = [
 ];
 
 export function AppSidebar({ children }: { children: React.ReactNode }) {
-  const appName = "My Scheduler App";
+  const appName = "Sociofly";
   const pathname = usePathname();
 
   return (

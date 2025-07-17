@@ -1,4 +1,4 @@
-# Docker Setup for My Scheduler App
+# Docker Setup for Sociofly
 
 This guide explains how to run the application using Docker and Docker Compose.
 
