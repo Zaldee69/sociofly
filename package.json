@@ -94,7 +94,7 @@
     "@types/facebook-nodejs-business-sdk": "^20.0.3",
     "@types/ioredis": "^4.28.10",
     "@types/node-cron": "^3.0.11",
-    "@types/react-virtualized-auto-sizer": "^1.0.4",
+    "@types/react-virtualized-auto-sizer": "^1.0.8",
     "@types/react-window": "^1.8.8",
     "@types/socket.io": "^3.0.1",
     "@uploadthing/react": "^7.3.0",
