@@ -452,50 +452,24 @@ jobs:
               echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
             }
             
-            # Function to safely attempt image pull using external script
+            # Function to safely attempt image pull
             safe_pull_image() {
               local image_name="$1"
-              local result_file="/tmp/pull_result_$$"
-              local script_file="/tmp/pull_script_$$.sh"
               
-              # Remove any existing files
-              rm -f "$result_file" "$script_file"
+              # Disable error handling temporarily
+              local old_errexit=$(set +o | grep errexit)
+              set +e
               
-              # Create a completely isolated script
-              cat > "$script_file" << 'SCRIPT_EOF'
-            #!/bin/bash
-            set +euo pipefail
-            trap '' ERR EXIT INT TERM
-            
-            IMAGE_NAME="$1"
-            RESULT_FILE="$2"
-            
-            # Attempt to pull the image
-            docker pull "$IMAGE_NAME" >/dev/null 2>&1
-            if [ $? -eq 0 ]; then
-              echo "SUCCESS" > "$RESULT_FILE"
-            else
-              echo "FAILED" > "$RESULT_FILE"
-            fi
-            
-            # Always exit with 0
-            exit 0
-            SCRIPT_EOF
+              # Attempt to pull the image with timeout
+              timeout 300 docker pull "$image_name" >/dev/null 2>&1
+              local pull_exit_code=$?
               
-              # Make script executable
-              chmod +x "$script_file"
+              # Restore error handling
+              eval "$old_errexit"
               
-              # Execute the script in complete isolation
-              bash "$script_file" "$image_name" "$result_file" || true
-              
-              # Clean up script
-              rm -f "$script_file"
-              
-              # Read the result
-              if [ -f "$result_file" ]; then
-                local result=$(cat "$result_file")
-                rm -f "$result_file"
-                echo "$result"
+              # Return result based on exit code
+              if [ $pull_exit_code -eq 0 ]; then
+                echo "SUCCESS"
               else
                 echo "FAILED"
               fi
@@ -582,50 +556,14 @@ jobs:
               fi
             done
 
-            # Try to pull pre-built image from GHCR first with robust error handling
+            # Try to pull pre-built image from GHCR first
             log "🔍 Checking for pre-built image..."
             log "📋 Image details: ${REGISTRY}/${IMAGE_NAME}:latest"
-            log "🔧 Debug info:"
-            log "   - Current user: $(whoami)"
-            log "   - Docker version: $(docker --version)"
-            log "   - Available disk space: $(df -h . | tail -1 | awk '{print $4}')"
-            log "   - Docker daemon status: $(docker info --format '{{.ServerVersion}}' 2>/dev/null || echo 'Error getting Docker info')"
             
             USE_PREBUILT=false
             
             log "🔽 Attempting to pull pre-built image..."
-            log "🔧 About to call safe_pull_image function..."
-            
-            # Use the safe pull function with additional safety
-            log "📞 Calling: safe_pull_image ${REGISTRY}/${IMAGE_NAME}:latest"
-            log "🔧 Current shell state before function call:"
-            log "   - Error handling: $(set +o | grep errexit || echo 'errexit off')"
-            log "   - Trap status: $(trap -p ERR || echo 'No ERR trap')"
-            
-            # Temporarily disable error handling for this specific call
-            set +e
-            trap - ERR
-            
-            log "🔧 Error handling disabled, calling function..."
             PULL_RESULT=$(safe_pull_image "${REGISTRY}/${IMAGE_NAME}:latest")
-            PULL_FUNCTION_EXIT=$?
-            
-            log "🔧 Function call completed, re-enabling error handling..."
-            # Re-enable error handling
-            set -e
-            trap handle_error ERR
-            
-            log "🔍 Pull operation completed:"
-            log "   - Function result: '$PULL_RESULT'"
-            log "   - Function exit code: $PULL_FUNCTION_EXIT"
-            log "   - Result length: ${#PULL_RESULT}"
-            log "   - Current shell options: $(set +o | grep -E '(errexit|nounset|pipefail)' || echo 'No relevant options')"
-            
-            # Additional safety check - if function failed completely, assume FAILED
-            if [ -z "$PULL_RESULT" ] || [ "$PULL_FUNCTION_EXIT" -ne 0 ]; then
-              log "⚠️  Function call failed or returned empty result, assuming FAILED"
-              PULL_RESULT="FAILED"
-            fi
             
             if [ "$PULL_RESULT" = "SUCCESS" ]; then
               USE_PREBUILT=true
