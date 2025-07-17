@@ -88,6 +88,9 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Copy node_modules for WebSocket server dependencies
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+
 # Copy startup script and websocket server
 RUN mkdir -p ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/start-with-redis.sh ./scripts/
