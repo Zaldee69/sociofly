@@ -70,17 +70,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       // Use the improved WebSocket URL from service
       const wsUrl = WebSocketClientService.getWebSocketUrl();
 
-      console.log("🔌 Attempting WebSocket connection to:", wsUrl);
-
-      console.log(
-        "🔌 WebSocket URL protocol check:",
-        wsUrl.startsWith("https://") ? "HTTPS" : "HTTP"
-      );
-      console.log("🔌 Current page protocol:", window.location.protocol);
-      console.log(
-        "🔌 Environment NEXT_PUBLIC_WEBSOCKET_URL:",
-        process.env.NEXT_PUBLIC_WEBSOCKET_URL
-      );
+      // Connect to WebSocket server
 
       const socket = io(wsUrl, {
         transports: ["polling", "websocket"], // Start with polling, upgrade to websocket
@@ -102,7 +92,6 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
       // Connection events
       socket.on("connect", () => {
-        console.log("🔌 WebSocket connected");
         setState((prev) => ({
           ...prev,
           isConnected: true,
@@ -120,7 +109,6 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       });
 
       socket.on("disconnect", (reason) => {
-        console.log("🔌 WebSocket disconnected:", reason);
         setState((prev) => ({
           ...prev,
           isConnected: false,
@@ -136,7 +124,6 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       });
 
       socket.on("connect_error", (error) => {
-        console.error("🔌 WebSocket connection error:", error);
         setState((prev) => ({
           ...prev,
           isConnected: false,
@@ -149,8 +136,6 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
       // Authentication events
       socket.on("authenticated", (data) => {
-        console.log("✅ WebSocket authenticated:", data);
-
         // Join team room if teamId provided
         if (teamId) {
           socket.emit("join_team", teamId);
@@ -160,7 +145,6 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       });
 
       socket.on("auth_error", (error) => {
-        console.error("❌ WebSocket authentication error:", error);
         setState((prev) => ({
           ...prev,
           error: "Authentication failed",
@@ -169,8 +153,6 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
       // Notification events
       socket.on("notification", (notification: NotificationPayload) => {
-        console.log("📨 Received notification:", notification);
-
         setState((prev) => ({
           ...prev,
           notifications: [notification, ...prev.notifications].slice(0, 50), // Keep last 50
@@ -192,8 +174,6 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       });
 
       socket.on("system_notification", (notification: NotificationPayload) => {
-        console.log("📢 Received system notification:", notification);
-
         // Toast notification is handled by websocket-provider.tsx to avoid duplication
         // if (enableNotifications) {
         //   toast(notification.title, {
@@ -222,7 +202,6 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         // Pong response received
       });
     } catch (error) {
-      console.error("Failed to setup WebSocket connection:", error);
       setState((prev) => ({
         ...prev,
         isConnecting: false,

@@ -53,7 +53,6 @@ export class WebSocketClientService {
       // If URL has port 3004 and we're on HTTPS, remove port (let Nginx handle it)
       if (window.location.protocol === "https:" && wsUrl.includes(":3004")) {
         finalUrl = wsUrl.replace(":3004", "");
-        console.log(`🔌 Removing port for HTTPS proxy: ${finalUrl}`);
       }
 
       // If the main app is served over HTTPS, ensure websocket URL is also HTTPS
@@ -62,12 +61,7 @@ export class WebSocketClientService {
         wsUrl.startsWith("http://")
       ) {
         finalUrl = wsUrl.replace("http://", "https://");
-        console.log(
-          `🔌 Converting HTTP to HTTPS for websocket URL: ${finalUrl}`
-        );
       }
-
-      console.log(`🔌 Using environment websocket URL: ${finalUrl}`);
       return finalUrl;
     }
 
@@ -76,7 +70,6 @@ export class WebSocketClientService {
     const hostname = window.location.hostname;
     const fallbackUrl = `${protocol}//${hostname}`;
 
-    console.log(`🔌 Using fallback websocket URL: ${fallbackUrl}`);
     return fallbackUrl;
   }
 
@@ -88,10 +81,6 @@ export class WebSocketClientService {
     notification: NotificationPayload
   ): Promise<boolean> {
     try {
-      console.log(
-        `🔍 Sending notification to user ${userId} via WebSocket API`
-      );
-
       const response = await fetch(`${this.baseUrl}/api/notify`, {
         method: "POST",
         headers: {
@@ -106,18 +95,12 @@ export class WebSocketClientService {
 
       if (response.ok) {
         const result = await response.json();
-        console.log(
-          `✅ WebSocket notification sent successfully:`,
-          result.message
-        );
         return true;
       } else {
         const error = await response.json();
-        console.error(`❌ WebSocket notification failed:`, error);
         return false;
       }
     } catch (error) {
-      console.error(`❌ WebSocket API error:`, error);
       return false;
     }
   }
@@ -130,10 +113,6 @@ export class WebSocketClientService {
     notification: NotificationPayload
   ): Promise<boolean> {
     try {
-      console.log(
-        `🔍 Sending notification to team ${teamId} via WebSocket API`
-      );
-
       const response = await fetch(`${this.baseUrl}/api/notify`, {
         method: "POST",
         headers: {
@@ -148,18 +127,12 @@ export class WebSocketClientService {
 
       if (response.ok) {
         const result = await response.json();
-        console.log(
-          `✅ WebSocket team notification sent successfully:`,
-          result.message
-        );
         return true;
       } else {
         const error = await response.json();
-        console.error(`❌ WebSocket team notification failed:`, error);
         return false;
       }
     } catch (error) {
-      console.error(`❌ WebSocket API error:`, error);
       return false;
     }
   }
@@ -171,8 +144,6 @@ export class WebSocketClientService {
     notification: NotificationPayload
   ): Promise<boolean> {
     try {
-      console.log(`🔍 Broadcasting system notification via WebSocket API`);
-
       const response = await fetch(`${this.baseUrl}/api/notify`, {
         method: "POST",
         headers: {
@@ -186,18 +157,12 @@ export class WebSocketClientService {
 
       if (response.ok) {
         const result = await response.json();
-        console.log(
-          `✅ WebSocket system notification sent successfully:`,
-          result.message
-        );
         return true;
       } else {
         const error = await response.json();
-        console.error(`❌ WebSocket system notification failed:`, error);
         return false;
       }
     } catch (error) {
-      console.error(`❌ WebSocket API error:`, error);
       return false;
     }
   }
@@ -216,11 +181,9 @@ export class WebSocketClientService {
       if (response.ok) {
         return await response.json();
       } else {
-        console.error(`❌ WebSocket status check failed:`, response.statusText);
         return null;
       }
     } catch (error) {
-      console.error(`❌ WebSocket status API error:`, error);
       return null;
     }
   }
