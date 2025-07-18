@@ -337,6 +337,7 @@ jobs:
 
             # Get server IP for WebSocket URL
             SERVER_IP="${SSH_HOST}"
+            DOMAIN_NAME="sociofly.id"
 
             # Create .env file with production environment variables
             cat > .env << EOF
@@ -372,12 +373,12 @@ jobs:
             CRON_API_KEY=${CRON_API_KEY}
             NEXT_PUBLIC_CRON_API_KEY=${NEXT_PUBLIC_CRON_API_KEY}
 
-            # App URLs - Use server IP instead of localhost
-            NEXT_PUBLIC_APP_URL=http://${SERVER_IP}:3000
-            NEXTAUTH_URL=http://${SERVER_IP}:3000
+            # App URLs - Use domain name with HTTPS
+            NEXT_PUBLIC_APP_URL=https://${DOMAIN_NAME}
+            NEXTAUTH_URL=https://${DOMAIN_NAME}
 
-            # WebSocket Configuration - Use server IP instead of localhost
-            NEXT_PUBLIC_WEBSOCKET_URL=http://${SERVER_IP}:3004
+            # WebSocket Configuration - Use domain name with HTTPS
+            NEXT_PUBLIC_WEBSOCKET_URL=https://${DOMAIN_NAME}
             NEXT_PUBLIC_WEBSOCKET_PORT=3004
             WEBSOCKET_PORT=3004
 

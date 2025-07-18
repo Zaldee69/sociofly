@@ -72,6 +72,16 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
       console.log("🔌 Attempting WebSocket connection to:", wsUrl);
 
+      console.log(
+        "🔌 WebSocket URL protocol check:",
+        wsUrl.startsWith("https://") ? "HTTPS" : "HTTP"
+      );
+      console.log("🔌 Current page protocol:", window.location.protocol);
+      console.log(
+        "🔌 Environment NEXT_PUBLIC_WEBSOCKET_URL:",
+        process.env.NEXT_PUBLIC_WEBSOCKET_URL
+      );
+
       const socket = io(wsUrl, {
         transports: ["polling", "websocket"], // Start with polling, upgrade to websocket
         timeout: 20000, // Match server timeout: 20 seconds

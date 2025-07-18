@@ -18,20 +18,20 @@ export class WebSocketClientService {
   private static getBaseUrl(): string {
     // In Docker environment, use the container name 'app' for internal communication
     // In development, use localhost
-    if (process.env.NODE_ENV === 'production' && process.env.DOCKER_ENV) {
-      return `http://app:${process.env.WEBSOCKET_PORT || '3004'}`;
+    if (process.env.NODE_ENV === "production" && process.env.DOCKER_ENV) {
+      return `http://app:${process.env.WEBSOCKET_PORT || "3004"}`;
     }
-    
+
     // Use NEXT_PUBLIC_WEBSOCKET_URL if available, otherwise fallback to localhost
     const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
     if (wsUrl) {
       // Ensure we use HTTP for WebSocket API calls, not HTTPS
-      return wsUrl.replace('https://', 'http://');
+      return wsUrl.replace("https://", "http://");
     }
-    
-    return `http://localhost:${process.env.WEBSOCKET_PORT || '3004'}`;
+
+    return `http://localhost:${process.env.WEBSOCKET_PORT || "3004"}`;
   }
-  
+
   private static get baseUrl(): string {
     return this.getBaseUrl();
   }
@@ -40,16 +40,44 @@ export class WebSocketClientService {
    * Get WebSocket connection URL for client-side Socket.IO
    */
   static getWebSocketUrl(): string {
-    if (typeof window === 'undefined') {
+    if (typeof window === "undefined") {
       return this.baseUrl;
     }
-    
-    // Client-side: use current host with WebSocket port
-    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+
+    // Client-side: Check if NEXT_PUBLIC_WEBSOCKET_URL is set first
+    const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
+    if (wsUrl) {
+      // For SSL domains, use the domain without port (Nginx will handle proxy)
+      let finalUrl = wsUrl;
+
+      // If URL has port 3004 and we're on HTTPS, remove port (let Nginx handle it)
+      if (window.location.protocol === "https:" && wsUrl.includes(":3004")) {
+        finalUrl = wsUrl.replace(":3004", "");
+        console.log(`🔌 Removing port for HTTPS proxy: ${finalUrl}`);
+      }
+
+      // If the main app is served over HTTPS, ensure websocket URL is also HTTPS
+      if (
+        window.location.protocol === "https:" &&
+        wsUrl.startsWith("http://")
+      ) {
+        finalUrl = wsUrl.replace("http://", "https://");
+        console.log(
+          `🔌 Converting HTTP to HTTPS for websocket URL: ${finalUrl}`
+        );
+      }
+
+      console.log(`🔌 Using environment websocket URL: ${finalUrl}`);
+      return finalUrl;
+    }
+
+    // Fallback: use current host and protocol (let Nginx handle routing)
+    const protocol = window.location.protocol;
     const hostname = window.location.hostname;
-    const port = process.env.NEXT_PUBLIC_WEBSOCKET_PORT || '3004';
-    
-    return `${protocol}//${hostname}:${port}`;
+    const fallbackUrl = `${protocol}//${hostname}`;
+
+    console.log(`🔌 Using fallback websocket URL: ${fallbackUrl}`);
+    return fallbackUrl;
   }
 
   /**
@@ -60,15 +88,17 @@ export class WebSocketClientService {
     notification: NotificationPayload
   ): Promise<boolean> {
     try {
-      console.log(`🔍 Sending notification to user ${userId} via WebSocket API`);
-      
+      console.log(
+        `🔍 Sending notification to user ${userId} via WebSocket API`
+      );
+
       const response = await fetch(`${this.baseUrl}/api/notify`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          type: 'user',
+          type: "user",
           userId,
           notification,
         }),
@@ -76,7 +106,10 @@ export class WebSocketClientService {
 
       if (response.ok) {
         const result = await response.json();
-        console.log(`✅ WebSocket notification sent successfully:`, result.message);
+        console.log(
+          `✅ WebSocket notification sent successfully:`,
+          result.message
+        );
         return true;
       } else {
         const error = await response.json();
@@ -97,15 +130,17 @@ export class WebSocketClientService {
     notification: NotificationPayload
   ): Promise<boolean> {
     try {
-      console.log(`🔍 Sending notification to team ${teamId} via WebSocket API`);
-      
+      console.log(
+        `🔍 Sending notification to team ${teamId} via WebSocket API`
+      );
+
       const response = await fetch(`${this.baseUrl}/api/notify`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          type: 'team',
+          type: "team",
           teamId,
           notification,
         }),
@@ -113,7 +148,10 @@ export class WebSocketClientService {
 
       if (response.ok) {
         const result = await response.json();
-        console.log(`✅ WebSocket team notification sent successfully:`, result.message);
+        console.log(
+          `✅ WebSocket team notification sent successfully:`,
+          result.message
+        );
         return true;
       } else {
         const error = await response.json();
@@ -134,21 +172,24 @@ export class WebSocketClientService {
   ): Promise<boolean> {
     try {
       console.log(`🔍 Broadcasting system notification via WebSocket API`);
-      
+
       const response = await fetch(`${this.baseUrl}/api/notify`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          type: 'system',
+          type: "system",
           notification,
         }),
       });
 
       if (response.ok) {
         const result = await response.json();
-        console.log(`✅ WebSocket system notification sent successfully:`, result.message);
+        console.log(
+          `✅ WebSocket system notification sent successfully:`,
+          result.message
+        );
         return true;
       } else {
         const error = await response.json();
@@ -164,10 +205,14 @@ export class WebSocketClientService {
   /**
    * Check WebSocket server status
    */
-  static async getServerStatus(): Promise<{ status: string; connectedUsers: number; totalConnections: number } | null> {
+  static async getServerStatus(): Promise<{
+    status: string;
+    connectedUsers: number;
+    totalConnections: number;
+  } | null> {
     try {
       const response = await fetch(`${this.baseUrl}/api/status`);
-      
+
       if (response.ok) {
         return await response.json();
       } else {
@@ -185,6 +230,6 @@ export class WebSocketClientService {
    */
   static async isServerAvailable(): Promise<boolean> {
     const status = await this.getServerStatus();
-    return status !== null && status.status === 'active';
+    return status !== null && status.status === "active";
   }
 }
