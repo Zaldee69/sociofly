@@ -4,48 +4,95 @@
 const connections = new Map<string, ReadableStreamDefaultController>();
 
 // Function to add a connection
-export function addSSEConnection(userId: string, controller: ReadableStreamDefaultController) {
+export function addSSEConnection(
+  userId: string,
+  controller: ReadableStreamDefaultController
+) {
   connections.set(userId, controller);
+  console.log(
+    `SSE connection added for user ${userId}, total connections: ${connections.size}`
+  );
 }
 
 // Function to remove a connection
 export function removeSSEConnection(userId: string) {
-  connections.delete(userId);
+  const removed = connections.delete(userId);
+  if (removed) {
+    console.log(
+      `SSE connection removed for user ${userId}, remaining connections: ${connections.size}`
+    );
+  }
+}
+
+// Function to check if a user is connected
+export function isUserConnected(userId: string): boolean {
+  return connections.has(userId);
 }
 
 // Function to send notification to a specific user
-export function sendNotificationToUser(userId: string, notification: any) {
+export function sendNotificationToUser(
+  userId: string,
+  notification: any
+): boolean {
   const controller = connections.get(userId);
-  
-  if (controller) {
-    try {
-      const data = `data: ${JSON.stringify({
-        type: 'notification',
-        ...notification,
-        userId: userId, // Ensure userId is always included
-        timestamp: new Date().toISOString()
-      })}\n\n`;
-      
-      controller.enqueue(new TextEncoder().encode(data));
-      console.log(`📨 SSE notification sent to user ${userId}:`, notification.title);
-      return true;
-    } catch (error) {
-      console.error('Failed to send SSE notification:', error);
-      connections.delete(userId);
-      return false;
-    }
-  }
-  
-  console.log(`📨 User ${userId} not connected via SSE, storing notification`);
-  return false;
-}
 
-// Function to get active connections count
-export function getActiveConnectionsCount(): number {
-  return connections.size;
+  if (!controller) {
+    console.log(`User ${userId} not connected via SSE, notification not sent`);
+    return false;
+  }
+
+  try {
+    const data = `data: ${JSON.stringify({
+      type: "notification",
+      ...notification,
+      userId: userId, // Ensure userId is always included
+      timestamp: notification.timestamp || new Date().toISOString(),
+    })}\n\n`;
+
+    controller.enqueue(new TextEncoder().encode(data));
+    return true;
+  } catch (error) {
+    console.error(`Failed to send SSE notification to user ${userId}:`, error);
+    // Remove broken connection
+    connections.delete(userId);
+    return false;
+  }
 }
 
 // Function to get connected user IDs
 export function getConnectedUsers(): string[] {
   return Array.from(connections.keys());
+}
+
+// Function to get connection count
+export function getConnectionCount(): number {
+  return connections.size;
+}
+
+// Function to broadcast to all connected users
+export function broadcastToAll(message: any): {
+  success: number;
+  failed: number;
+} {
+  let success = 0;
+  let failed = 0;
+
+  for (const [userId, controller] of connections.entries()) {
+    try {
+      const data = `data: ${JSON.stringify({
+        type: "broadcast",
+        ...message,
+        timestamp: new Date().toISOString(),
+      })}\n\n`;
+
+      controller.enqueue(new TextEncoder().encode(data));
+      success++;
+    } catch (error) {
+      console.error(`Failed to broadcast to user ${userId}:`, error);
+      connections.delete(userId);
+      failed++;
+    }
+  }
+
+  return { success, failed };
 }

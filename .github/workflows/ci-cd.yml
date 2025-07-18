@@ -434,7 +434,7 @@ jobs:
           ENTRY_AUTH_TOKEN: ${{ vars.ENTRY_AUTH_TOKEN }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
 
-      - name: Deploy to VPS with Docker Compose (Optimized)
+      - name: Deploy to VPS with Docker Compose
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -443,7 +443,7 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           timeout: 30s
           command_timeout: 20m
-          script_stop: true
+          script_stop: false
           envs: DOCKER_USERNAME,DOCKER_PASSWORD,APP_DIR,IMAGE_NAME
           script: |
             # Use less strict error handling to prevent premature exits
@@ -683,14 +683,34 @@ jobs:
             # Final container status report
             docker compose -f docker-compose.yml ps
 
-            # Setup systemd service for auto-start on boot
-            if command -v systemctl >/dev/null 2>&1; then
-              CURRENT_USER=$(whoami)
+            # Cleanup backup if deployment successful
+            rm -rf "$BACKUP_DIR" 2>/dev/null || true
+
+            # Ensure script exits with success status
+            exit 0
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          APP_DIR: ${{ secrets.APP_DIR || '/opt/sociofly-app' }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+
+      - name: Setup systemd service
+        if: success()
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          timeout: 30s
+          script: |
+            cd "$APP_DIR"
+            CURRENT_USER=$(whoami)
+            
+            if command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+              echo "Setting up systemd service"
               
-              # Check if we have sudo access before attempting
-              if sudo -n true 2>/dev/null; then
-                # Create systemd service file
-                sudo tee /etc/systemd/system/sociofly-app.service > /dev/null << EOF || true
+              sudo bash -c "cat > /etc/systemd/system/sociofly-app.service << EOF
             [Unit]
             Description=Sociofly App
             Requires=docker.service
@@ -714,23 +734,13 @@ jobs:
 
             [Install]
             WantedBy=multi-user.target
-            EOF
-                
-                sudo systemctl daemon-reload 2>/dev/null
-                sudo systemctl enable sociofly-app.service 2>/dev/null
-              fi
+            EOF"
+              
+              sudo systemctl daemon-reload
+              sudo systemctl enable sociofly-app.service
             fi
-
-            # Cleanup backup if deployment successful
-            rm -rf "$BACKUP_DIR" 2>/dev/null || true
-
-            # Ensure script exits with success status
-            exit 0
         env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
           APP_DIR: ${{ secrets.APP_DIR || '/opt/sociofly-app' }}
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
 
       - name: Send notification on success
         if: success()
