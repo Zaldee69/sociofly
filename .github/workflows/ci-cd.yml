@@ -269,7 +269,7 @@ jobs:
           echo "SSH configuration validation passed"
 
       - name: Prepare server directory and permissions
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
@@ -301,7 +301,7 @@ jobs:
           overwrite: true
 
       - name: Verify file copy and fix permissions
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
@@ -322,7 +322,7 @@ jobs:
           APP_DIR: ${{ secrets.APP_DIR || '/opt/sociofly-app' }}
 
       - name: Create .env file on server
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
@@ -435,7 +435,7 @@ jobs:
           SSH_HOST: ${{ secrets.SSH_HOST }}
 
       - name: Deploy to VPS with Docker Compose
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
@@ -696,7 +696,7 @@ jobs:
 
       - name: Setup systemd service
         if: success()
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
